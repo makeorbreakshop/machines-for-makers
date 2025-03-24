@@ -1,0 +1,16 @@
+{
+  "name": "machines-for-makers",
+  "version": "1.0.0",
+  "description": "Browser Tools MCP for Machines for Makers",
+  "type": "browser-tools",
+  "config": {
+    "port": 3025,
+    "host": "localhost"
+  },
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "scripting",
+    "storage"
+  ]
+} 

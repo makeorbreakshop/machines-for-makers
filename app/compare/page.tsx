@@ -1,31 +1,26 @@
 import { Suspense } from "react"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createServerClient } from "@/lib/supabase/server"
 import CompareClientPage from "./CompareClientPage"
 import type { Database } from "@/lib/database-types"
 
+export const dynamic = 'force-dynamic'
+
 export default async function ComparePage() {
-  const supabase = createServerComponentClient<Database>({ cookies })
+  const supabase = await createServerClient()
 
-  // Fetch categories
-  const { data: categories } = await supabase.from("categories").select("*").order("name")
-
-  // Fetch brands
-  const { data: brands } = await supabase.from("brands").select("*").order("name")
-
-  // Fetch initial products
-  const { data: products, count } = await supabase
-    .from("machines")
-    .select("*", { count: "exact" })
-    .limit(30)
+  // Fetch data in parallel for better performance
+  const [categoriesResponse, brandsResponse, productsResponse] = await Promise.all([
+    supabase.from("categories").select("*").order("name"),
+    supabase.from("brands").select("*").order("name"),
+    supabase.from("machines").select("*", { count: "exact" }).limit(150)
+  ])
 
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <CompareClientPage
-        initialCategories={categories || []}
-        initialBrands={brands || []}
-        initialProducts={products || []}
-        initialCount={count || 0}
+        categories={categoriesResponse.data || []}
+        brands={brandsResponse.data || []}
+        initialProducts={productsResponse.data || []}
       />
     </Suspense>
   )

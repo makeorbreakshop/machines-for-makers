@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
 
   // Get query parameters
   const category = searchParams.get("category")
-  const limit = Number.parseInt(searchParams.get("limit") || "10")
+  const limit = Number.parseInt(searchParams.get("limit") || "1000")
   const page = Number.parseInt(searchParams.get("page") || "1")
   const sort = searchParams.get("sort") || "Created On-desc"
   const search = searchParams.get("search")
@@ -36,7 +36,12 @@ export async function GET(request: NextRequest) {
 
   try {
     // Build query
-    let query = supabase.from("machines").select("*", { count: "exact" })
+    let query = supabase
+      .from("machines")
+      .select("*", { count: "exact" })
+      .or('Hidden.is.null,Hidden.eq.false,Hidden.eq.False,Hidden.ilike.%false%,Hidden.eq.No,Hidden.ilike.%no%,Hidden.neq.true,Hidden.neq.True,Hidden.not.ilike.%true%') // Only show non-hidden machines
+
+    console.log("API: Getting all visible machines with query:", query)
 
     // Apply filters
     if (category && category !== "all") {
@@ -57,20 +62,19 @@ export async function GET(request: NextRequest) {
 
     // Apply price range
     if (minPrice > 0) {
-      query = query.gte("Price", minPrice)
+      query = query.gte("Price", minPrice.toString())
     }
     if (searchParams.has("maxPrice")) {
-      query = query.lte("Price", maxPrice)
+      query = query.lte("Price", maxPrice.toString())
     }
 
-    // Apply power range filter - simplified to only use "Laser Power A"
+    // Apply power range filter - handle text values
     try {
-      if (minPower > 0) {
-        query = query.gte("Laser Power A", minPower)
-      }
-      
-      if (maxPower < 150) {
-        query = query.lte("Laser Power A", maxPower)
+      if (minPower > 0 || maxPower < 150) {
+        // Extract numeric value from text field for comparison
+        query = query.or(
+          `Laser Power A.gte.${minPower},Laser Power A.ilike.${minPower}%,Laser Power A.ilike.%${minPower}W%`
+        )
       }
     } catch (powerError) {
       console.error("Error applying power filters:", powerError)
@@ -84,23 +88,22 @@ export async function GET(request: NextRequest) {
 
     // Apply features filters - these are stored as "Yes" or "No" values in their respective columns
     if (features.length > 0) {
-      // Build a filter for each feature
       features.forEach(feature => {
         switch (feature) {
           case 'Camera':
-            query = query.eq('Camera', 'Yes')
+            query = query.or('Camera.eq.Yes,Camera.ilike.%yes%,Camera.eq.true')
             break
           case 'Wifi':
-            query = query.eq('Wifi', 'Yes')
+            query = query.or('Wifi.eq.Yes,Wifi.ilike.%yes%,Wifi.eq.true')
             break
           case 'Enclosure':
-            query = query.eq('Enclosure', 'Yes')
+            query = query.or('Enclosure.eq.Yes,Enclosure.ilike.%yes%,Enclosure.eq.true')
             break
           case 'Focus':
-            query = query.eq('Focus', 'Auto')
+            query = query.or('Focus.eq.Auto,Focus.ilike.%auto%')
             break
           case 'Passthrough':
-            query = query.eq('Passthrough', 'Yes')
+            query = query.or('Passthrough.eq.Yes,Passthrough.ilike.%yes%,Passthrough.eq.true')
             break
         }
       })
@@ -110,30 +113,31 @@ export async function GET(request: NextRequest) {
     try {
       const [sortField, sortDirection] = sort.split("-")
       if (sortField && sortDirection) {
-        // Map from friendly names to actual database column names
         const columnMap: Record<string, string> = {
           "Price": "Price",
           "Power": "Laser Power A", 
           "Speed": "Speed",
           "Rating": "Rating",
-          "Created On": "id", // Use id as a replacement for created_at
-          // Add more mappings as needed
+          "Created On": "id",
         }
         
-        const dbColumn = columnMap[sortField] || "id" // Default to id instead of created_at
+        const dbColumn = columnMap[sortField] || "id"
         query = query.order(dbColumn, { ascending: sortDirection === "asc" })
       }
     } catch (sortError) {
       console.error("Error applying sort:", sortError)
-      // Continue with the query without sorting
     }
 
-    // Apply pagination
-    const offset = (page - 1) * limit
-    query = query.range(offset, offset + limit - 1)
+    // Apply pagination - only if explicitly requested
+    if (searchParams.has("page")) {
+      const offset = (page - 1) * limit
+      query = query.range(offset, offset + limit - 1)
+    } else {
+      // No pagination - get all results up to limit
+      query = query.limit(limit)
+    }
 
-    console.log("Executing Supabase query")
-    // Execute query
+    console.log("API: Executing Supabase query with limit:", limit)
     const { data, error, count } = await query
 
     if (error) {
@@ -141,19 +145,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Post-processing for speed filter
+    console.log(`API: Retrieved ${data?.length || 0} machines out of ${count || 0} total`)
+
+    // Post-processing for speed filter - more lenient parsing
     let filteredData = data || []
     if (data && (minSpeed > 0 || maxSpeed < 2000)) {
       filteredData = data.filter(machine => {
         if (!machine.Speed) return false
         
         // Extract numeric values from the Speed field
-        const speedMatch = machine.Speed.match(/(\d+)/);
+        const speedStr = machine.Speed.toString()
+        const speedMatch = speedStr.match(/(\d+)/);
         if (speedMatch) {
           const speed = parseInt(speedMatch[1]);
           return speed >= minSpeed && speed <= maxSpeed;
         }
-        return false; // Exclude machines with unparseable speed values
+        
+        // Try parsing the entire string as a number
+        const speed = parseFloat(speedStr)
+        if (!isNaN(speed)) {
+          return speed >= minSpeed && speed <= maxSpeed;
+        }
+        
+        return false;
       })
     }
 

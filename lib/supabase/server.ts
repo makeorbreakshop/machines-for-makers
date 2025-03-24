@@ -3,7 +3,10 @@ import { cookies } from "next/headers"
 import type { Database } from "@/lib/database-types"
 
 // Create a Supabase client for server components
-export function createServerClient() {
-  return createServerComponentClient<Database>({ cookies })
+export async function createServerClient() {
+  const cookieStore = cookies()
+  return createServerComponentClient<Database>({ 
+    cookies: () => cookieStore 
+  })
 }
 

@@ -22,70 +22,124 @@ interface FuseResult {
 
 export function SearchBar({ products, onSearch, className }: SearchBarProps) {
   const [searchTerm, setSearchTerm] = React.useState("")
-  const debouncedSearchTerm = useDebounce(searchTerm, 150) // Fast enough to feel instant but prevents excessive updates
+  const [isSearching, setIsSearching] = React.useState(false)
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
+  const debouncedSearchTerm = useDebounce(searchTerm, 150)
   
-  // Initialize Fuse instance with products and optimized settings
+  // Memoize the Fuse instance with optimized settings
   const fuse = React.useMemo(() => {
     return new Fuse(products, {
       keys: [
-        { name: 'Name', weight: 2 }, // Name matches are most important
-        { name: 'Brand', weight: 1.5 }, // Brand matches are second most important
-        { name: 'Description', weight: 1 } // Description matches are least important
+        { name: 'Machine Name', weight: 1 }
       ],
-      threshold: 0.4, // Slightly more lenient threshold for better matches
-      distance: 100, // Allow for more distance between characters
-      minMatchCharLength: 2, // Minimum of 2 characters to match
+      threshold: 0.3, // More strict matching
+      distance: 150, // Increased for better partial matches
+      minMatchCharLength: 2,
       shouldSort: true,
       includeScore: true,
-      useExtendedSearch: true, // Enable extended search for better matching
-      ignoreLocation: true, // Search entire strings rather than requiring matches at similar positions
+      useExtendedSearch: true,
+      ignoreLocation: true,
+      findAllMatches: true, // Find all possible matches
+      getFn: (obj, path) => {
+        // Custom getter to handle undefined/null values
+        const value = Fuse.config.getFn(obj, path)
+        return value ? String(value).toLowerCase() : ''
+      }
     })
   }, [products])
 
-  // Handle search input changes
-  const handleSearch = React.useCallback((value: string) => {
-    setSearchTerm(value)
-  }, [])
+  // Memoize the search function
+  const performSearch = React.useCallback((term: string) => {
+    if (!products.length) return []
+    
+    const trimmedTerm = term.trim().toLowerCase()
+    if (!trimmedTerm) return products
 
-  // Effect to perform search when debounced term changes
+    try {
+      const results = fuse.search(trimmedTerm) as FuseResult[]
+      
+      // Filter results based on score and relevance
+      const goodResults = results
+        .filter(result => result.score < 0.4) // Only keep good matches
+        .sort((a, b) => {
+          // Prioritize exact matches in machine name
+          const aExact = (a.item['Machine Name'] || '').toLowerCase().includes(trimmedTerm)
+          const bExact = (b.item['Machine Name'] || '').toLowerCase().includes(trimmedTerm)
+          if (aExact && !bExact) return -1
+          if (!aExact && bExact) return 1
+          return a.score - b.score
+        })
+        .map(result => result.item)
+
+      return goodResults
+    } catch (error) {
+      console.error('Search error:', error)
+      return products // Fallback to all products on error
+    }
+  }, [fuse, products])
+
+  // Effect to handle search
   React.useEffect(() => {
-    // Skip the effect if products array is empty
-    if (!products.length) return
-
-    if (!debouncedSearchTerm.trim()) {
-      // If search is empty, return all products
-      onSearch(products)
-      return
+    const handleSearch = async () => {
+      setIsSearching(true)
+      try {
+        const results = performSearch(debouncedSearchTerm)
+        onSearch(results)
+      } catch (error) {
+        console.error('Search error:', error)
+        onSearch(products) // Fallback to all products
+      } finally {
+        setIsSearching(false)
+      }
     }
 
-    // Perform fuzzy search
-    const results = fuse.search(debouncedSearchTerm) as FuseResult[]
-    
-    // Filter out poor matches (high scores mean poor matches)
-    const goodResults = results.filter(result => result.score < 0.6)
-    
-    // Map results back to products, maintaining sort order by score
-    const filteredProducts = goodResults.map(result => result.item)
+    handleSearch()
+  }, [debouncedSearchTerm, performSearch, onSearch, products])
 
-    // Only call onSearch if we have different results
-    onSearch(filteredProducts)
-  }, [debouncedSearchTerm, fuse, onSearch, products])
+  // Handle input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value)
+  }
 
-  // Prevent unnecessary re-renders of the input
-  const searchInput = React.useMemo(() => (
-    <Input
-      type="search"
-      placeholder="Search machines..."
-      className="pl-8 w-full"
-      value={searchTerm}
-      onChange={(e) => handleSearch(e.target.value)}
-    />
-  ), [searchTerm, handleSearch])
+  // Handle keyboard shortcuts
+  React.useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Command/Ctrl + K to focus search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+      // Escape to clear search
+      if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        setSearchTerm('')
+        searchInputRef.current?.blur()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [])
 
   return (
-    <div className={cn("relative", className)}>
-      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-      {searchInput}
+    <div className={cn("relative group", className)}>
+      <Search 
+        className={cn(
+          "absolute left-2 top-2.5 h-4 w-4 transition-colors",
+          isSearching ? "text-primary" : "text-muted-foreground"
+        )}
+      />
+      <Input
+        ref={searchInputRef}
+        type="search"
+        placeholder="Search machines... (⌘K)"
+        className={cn(
+          "pl-8 w-full transition-all",
+          "focus:ring-2 focus:ring-primary/20",
+          isSearching && "bg-primary/5"
+        )}
+        value={searchTerm}
+        onChange={handleInputChange}
+      />
     </div>
   )
 } 
