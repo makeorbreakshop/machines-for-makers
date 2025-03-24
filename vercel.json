@@ -1,0 +1,12 @@
+{
+  "buildCommand": "npm install --legacy-peer-deps && npm run build",
+  "cleanUrls": true,
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "github": {
+    "silent": false
+  }
+} 
