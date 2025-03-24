@@ -1,3 +1,0 @@
--- Insert sample machines
-INSERT INTO machines (machine_name, slug, laser_category, company, laser_type_a, laser_power_a, price, price_category, work_area, speed, is_featured, hidden) VALUES ('Acmer P3', 'acmer-p3', 'desktop-diode-laser', 'acmer', 'Diode', '10', 1299, ',001-,000', '400x390 mm', '800 mm/s', false, false);
-INSERT INTO machines (machine_name, slug, laser_category, company, laser_type_a, laser_power_a, price, price_category, work_area, speed, is_featured, hidden) VALUES ('Aeon MIRA 5 S', 'aeon-mira-5-s', 'desktop-co2-laser', 'aeon', 'CO2-Glass', '45', 6995, ',001-,000', '300x500 mm', '1200 mm/s', false, false);

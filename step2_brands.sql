@@ -1,1 +1,0 @@
-INSERT INTO brands (name, slug, website_url, logo_url) VALUES ('Acmer', 'acmer', 'https://acmerlaser.com/', 'https://cdn.prod.website-files.com/676083e5495a13bdfd063abb/67810e62c83f357f6817dbc3_ACMER%20Laser%20Logo.avif');
