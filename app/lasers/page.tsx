@@ -4,6 +4,9 @@ import ProductsBrowser from "@/components/products-browser"
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: "Laser Cutters & Engravers - Machines for Makers",
   description:

@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button"
 import { SlidersHorizontal } from "lucide-react"
 import FilterButton from "@/components/filter-button"
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic'
+
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const categorySlug = params.slug
   const categoryName = getCategoryName(categorySlug)
@@ -20,18 +23,61 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 export default async function LaserCategoryPage({ params }: { params: { slug: string } }) {
   const categorySlug = params.slug
   const categoryName = getCategoryName(categorySlug)
+  
+  // Map from URL slug to database category value
+  const categoryToDbValue: Record<string, string> = {
+    "desktop-diode-laser": "Desktop Diode",
+    "desktop-galvo": "Desktop Galvo",
+    "pro-gantry": "Professional Gantry",
+    "desktop-gantry": "Desktop CO2",
+    "open-diode": "Open Diode",
+    // Add more mappings as needed
+  }
+  
+  // Use the mapped value if available, otherwise use the slug directly
+  const dbCategory = categoryToDbValue[categorySlug] || categorySlug
+  
+  // Log the slug and category mapping for debugging
+  console.log(`Slug: ${categorySlug}, DB Category: ${dbCategory}`);
 
-  const { data: products } = await dataProvider.getMachines({
+  let { data: products } = await dataProvider.getMachines({
     limit: 100,
-    category: categorySlug,
+    category: dbCategory,
     sort: "rating-desc",
   })
 
   const { data: categories } = await dataProvider.getCategories()
   const { data: brands } = await dataProvider.getBrands()
 
+  // Add more resilient error handling
   if (!products || products.length === 0) {
-    notFound()
+    console.error(`No products found for category: ${dbCategory} (slug: ${categorySlug})`);
+    
+    // Try a fallback query if no products are found with the mapped category
+    if (dbCategory !== categorySlug) {
+      const { data: fallbackProducts } = await dataProvider.getMachines({
+        limit: 100,
+        sort: "rating-desc",
+      });
+      
+      // If we have fallback products, filter them client-side based on name or other attributes
+      if (fallbackProducts && fallbackProducts.length > 0) {
+        const filteredProducts = fallbackProducts.filter(p => 
+          (p["Machine Name"] || "").toLowerCase().includes(categoryName.toLowerCase().replace(/s$/, "")) ||
+          (p["Laser Category"] || "").toLowerCase().includes(categoryName.toLowerCase().replace(/s$/, ""))
+        );
+        
+        if (filteredProducts.length > 0) {
+          products = filteredProducts;
+        } else {
+          notFound();
+        }
+      } else {
+        notFound();
+      }
+    } else {
+      notFound();
+    }
   }
 
   // Create breadcrumb items
