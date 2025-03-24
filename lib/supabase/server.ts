@@ -4,9 +4,8 @@ import type { Database } from "@/lib/database-types"
 
 // Create a Supabase client for server components
 export async function createServerClient() {
-  const cookieStore = cookies()
   return createServerComponentClient<Database>({ 
-    cookies: () => cookieStore 
+    cookies: cookies
   })
 }
 

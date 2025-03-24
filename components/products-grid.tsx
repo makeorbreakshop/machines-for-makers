@@ -77,7 +77,7 @@ export default function ProductsGrid({
                 <Link href={`/products/${product["Internal link"]}`} className="block h-[180px] relative">
                   <Image
                     src={product["Image"] || "/placeholder.svg?height=200&width=200"}
-                    alt={product["Machine Name"]}
+                    alt={product["Machine Name"] || `Product ${product.id || "image"}`}
                     fill
                     className="object-contain"
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

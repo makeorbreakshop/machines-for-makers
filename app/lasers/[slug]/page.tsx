@@ -3,16 +3,18 @@ import { notFound } from "next/navigation"
 import ProductsGrid from "@/components/products-grid"
 import Breadcrumb from "@/components/breadcrumb"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { SlidersHorizontal } from "lucide-react"
-import FilterButton from "@/components/filter-button"
+import FilterButtonClient from "@/components/FilterButtonClient"
+import SortButtonClient from "@/components/SortButtonClient"
+import ClearFiltersButtonClient from "@/components/ClearFiltersButtonClient"
+import { supabase } from "@/lib/supabase"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const categorySlug = params.slug
-  const categoryName = getCategoryName(categorySlug)
+  // Use await to properly handle dynamic params
+  const categorySlug = await (params.slug);
+  const categoryName = getCategoryName(categorySlug);
 
   return {
     title: `${categoryName} - Machines for Makers`,
@@ -21,16 +23,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function LaserCategoryPage({ params }: { params: { slug: string } }) {
-  const categorySlug = params.slug
-  const categoryName = getCategoryName(categorySlug)
+  // Use await to properly handle dynamic params
+  const categorySlug = await (params.slug);
+  const categoryName = getCategoryName(categorySlug);
   
   // Map from URL slug to database category value
   const categoryToDbValue: Record<string, string> = {
-    "desktop-diode-laser": "Desktop Diode",
-    "desktop-galvo": "Desktop Galvo",
-    "pro-gantry": "Professional Gantry",
-    "desktop-gantry": "Desktop CO2",
-    "open-diode": "Open Diode",
+    "desktop-diode-laser": "desktop-diode-laser",
+    "desktop-galvo": "desktop-galvo",
+    "pro-gantry": "high-end-co2-laser",
+    "desktop-gantry": "desktop-co2-laser",
+    "open-diode": "open-diode-laser",
+    "desktop-fiber-laser": "desktop-fiber-laser",
+    "high-end-fiber": "high-end-fiber"
     // Add more mappings as needed
   }
   
@@ -40,45 +45,39 @@ export default async function LaserCategoryPage({ params }: { params: { slug: st
   // Log the slug and category mapping for debugging
   console.log(`Slug: ${categorySlug}, DB Category: ${dbCategory}`);
 
-  let { data: products } = await dataProvider.getMachines({
+  // Log the SQL query equivalent for debugging
+  console.log(`Querying with category: "${dbCategory}" and Hidden=false and Published On is not null`);
+
+  let { data: products, error: productsError } = await dataProvider.getMachines({
     limit: 100,
     category: dbCategory,
     sort: "rating-desc",
   })
 
-  const { data: categories } = await dataProvider.getCategories()
-  const { data: brands } = await dataProvider.getBrands()
+  if (productsError) {
+    console.error(`Error fetching products for category ${dbCategory}:`, productsError);
+  }
 
-  // Add more resilient error handling
   if (!products || products.length === 0) {
     console.error(`No products found for category: ${dbCategory} (slug: ${categorySlug})`);
+    // Attempt to fetch all products as fallback
+    const { data: allProducts } = await dataProvider.getMachines({
+      limit: 10,
+      sort: "rating-desc",
+    });
     
-    // Try a fallback query if no products are found with the mapped category
-    if (dbCategory !== categorySlug) {
-      const { data: fallbackProducts } = await dataProvider.getMachines({
-        limit: 100,
-        sort: "rating-desc",
-      });
-      
-      // If we have fallback products, filter them client-side based on name or other attributes
-      if (fallbackProducts && fallbackProducts.length > 0) {
-        const filteredProducts = fallbackProducts.filter(p => 
-          (p["Machine Name"] || "").toLowerCase().includes(categoryName.toLowerCase().replace(/s$/, "")) ||
-          (p["Laser Category"] || "").toLowerCase().includes(categoryName.toLowerCase().replace(/s$/, ""))
-        );
-        
-        if (filteredProducts.length > 0) {
-          products = filteredProducts;
-        } else {
-          notFound();
-        }
-      } else {
-        notFound();
-      }
+    // If we have some products, show those instead
+    if (allProducts && allProducts.length > 0) {
+      products = allProducts;
+      console.log(`Using top 10 products as fallback for ${categorySlug}`);
     } else {
+      // Otherwise show the 404 page
       notFound();
     }
   }
+
+  const { data: categories } = await dataProvider.getCategories()
+  const { data: brands } = await dataProvider.getBrands()
 
   // Create breadcrumb items
   const breadcrumbItems = [
@@ -136,11 +135,11 @@ export default async function LaserCategoryPage({ params }: { params: { slug: st
               </Tabs>
             </div>
             <div className="flex items-center gap-2">
-              <FilterButton categories={categories || []} brands={brands || []} />
-              <Button variant="outline" size="sm">
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Sort
-              </Button>
+              <FilterButtonClient 
+                categories={categories || []} 
+                brands={brands || []} 
+              />
+              <SortButtonClient />
             </div>
           </div>
         </div>
@@ -150,9 +149,7 @@ export default async function LaserCategoryPage({ params }: { params: { slug: st
             <span className="font-medium">{products.length} machines</span>
             <span className="text-muted-foreground ml-2">in {categoryName}</span>
           </div>
-          <Button variant="outline" size="sm">
-            Clear Filters
-          </Button>
+          <ClearFiltersButtonClient />
         </div>
 
         {/* Top picks section */}
@@ -247,7 +244,7 @@ export default async function LaserCategoryPage({ params }: { params: { slug: st
           </div>
         </div>
 
-        <ProductsGrid products={products} />
+        <ProductsGrid products={products} totalProducts={products.length} />
 
         {/* FAQ Section for SEO */}
         <div className="mt-12 mb-8">
@@ -280,6 +277,7 @@ function getCategoryName(slug: string): string {
     "pro-gantry": "Professional Gantry Lasers",
     "desktop-gantry": "Desktop Gantry Lasers",
     "open-diode": "Open Diode Lasers",
+    "desktop-fiber-laser": "Desktop Fiber Lasers",
   }
 
   return (
@@ -304,6 +302,8 @@ function getCategoryDescription(slug: string): string {
       "Desktop gantry lasers combine the reliability of gantry systems with a more compact form factor. These machines are perfect for small businesses and serious hobbyists who need professional-quality results without the space requirements of industrial systems. They typically offer a good balance of work area, power, and precision.",
     "open-diode":
       "Open diode lasers are frameless systems that offer flexibility and affordability. These machines lack an enclosure, making them more compact and less expensive, but requiring additional safety precautions. They're popular among DIY enthusiasts and makers looking for an entry-level laser cutting solution.",
+    "desktop-fiber-laser":
+      "Desktop fiber lasers are high-powered machines designed for industrial and commercial applications. These robust systems use a moving gantry to position the laser head, offering large work areas and the ability to cut through thick materials. With their superior power and build quality, they're the workhorses of professional fabrication shops.",
   }
 
   return (
@@ -316,9 +316,9 @@ function getCategoryDescription(slug: string): string {
 function getCategoryFAQ(slug: string, question: string): string {
   const faqMap: Record<string, Record<string, string>> = {
     "desktop-diode-laser": {
-      what: "A desktop diode laser is a compact laser cutting and engraving machine that uses semiconductor diode technology to generate the laser beam. These machines are designed to fit on a desk or workbench and are popular for small businesses and hobbyists.",
+      what: "A desktop diode laser is a compact cutting and engraving machine that uses semiconductor diode technology to produce a laser beam. These machines are designed for hobbyists and small businesses, offering a balance of affordability and capability.",
       uses: "Desktop diode lasers are versatile tools that can engrave and cut a variety of materials including wood, leather, paper, acrylic, and some plastics. They're commonly used for creating personalized gifts, signage, artwork, jewelry, and small business products.",
-      cost: "Desktop diode lasers typically range from $400 to $3,000 depending on power, features, and build quality. Entry-level models start around $400-600, mid-range options cost $800-1,500, and premium models with higher power and better features can cost $1,500-3,000.",
+      cost: "Desktop diode lasers typically range from $300 to $3,000. Entry-level models start around $300-500, mid-range systems cost $500-1,500, and high-end hobbyist systems can cost $1,500-3,000.",
     },
     "desktop-galvo": {
       what: "A desktop galvo laser uses galvanometer mirrors to direct the laser beam at extremely high speeds. Unlike gantry systems that move the entire laser head, galvo systems only move small mirrors, allowing for much faster operation and precise control.",
@@ -340,11 +340,13 @@ function getCategoryFAQ(slug: string, question: string): string {
       uses: "Open diode lasers are used for engraving and cutting thin materials like wood, leather, paper, and some plastics. They're popular for DIY projects, hobby crafting, simple signage, and personalized items.",
       cost: "Open diode lasers are among the most affordable laser systems, typically ranging from $200 to $800. Basic models start around $200-300, while more powerful and precise options can cost $400-800.",
     },
+    "desktop-fiber-laser": {
+      what: "A desktop fiber laser is a high-powered machine designed for industrial and commercial applications. These robust systems use a moving gantry to position the laser head, offering large work areas and the ability to cut through thick materials.",
+      uses: "Desktop fiber lasers are versatile tools that can engrave and cut a variety of materials including wood, leather, paper, acrylic, and some plastics. They're commonly used for creating personalized gifts, signage, artwork, jewelry, and small business products.",
+      cost: "Desktop fiber lasers typically range from $5,000 to $30,000+. Entry-level models start around $5,000-10,000, mid-range systems cost $10,000-20,000, and high-end industrial systems can cost $20,000-30,000 or more.",
+    },
   }
 
-  return (
-    faqMap[slug]?.[question] ||
-    "Please contact us for more information about this category of laser cutters and engravers."
-  )
+  return faqMap[slug]?.[question] || `Information about ${getCategoryName(slug).toLowerCase()} ${question.toLowerCase()} is not available.`
 }
 

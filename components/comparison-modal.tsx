@@ -101,7 +101,7 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
                         <div className="relative h-28 w-28 mb-3 mx-auto">
                           <Image
                             src={product["Image"] || "/placeholder.svg"}
-                            alt={product["Machine Name"]}
+                            alt={product["Machine Name"] || `Product ${product.id || "image"}`}
                             fill
                             className="object-contain"
                           />

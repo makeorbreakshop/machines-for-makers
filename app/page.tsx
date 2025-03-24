@@ -133,7 +133,7 @@ export default async function HomePage() {
                 <div className="relative h-48">
                   <Image
                     src={product.image_url || "/placeholder.svg?height=200&width=200"}
-                    alt={product.machine_name}
+                    alt={product.machine_name || `Featured product ${product.id || "image"}`}
                     fill
                     loading="lazy"
                     className="object-contain p-2"

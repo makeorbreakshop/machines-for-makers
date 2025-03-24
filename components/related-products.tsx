@@ -24,7 +24,7 @@ export default function RelatedProducts({ products, currentProductId }: RelatedP
               <div className="h-[150px] relative">
                 <Image
                   src={product["Image"] || "/placeholder.svg?height=150&width=150"}
-                  alt={product["Machine Name"]}
+                  alt={product["Machine Name"] || `Related product ${product.id || "image"}`}
                   fill
                   className="object-contain"
                 />

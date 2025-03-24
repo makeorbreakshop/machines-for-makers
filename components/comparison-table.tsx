@@ -199,7 +199,7 @@ export default function ComparisonTable({ machines }: ComparisonTableProps) {
                         <div className="h-8 w-8 relative flex-shrink-0">
                           <Image
                             src={machine["Image"] || "/placeholder.svg?height=32&width=32"}
-                            alt={machine["Machine Name"]}
+                            alt={machine["Machine Name"] || `Machine ${machine.id || "image"}`}
                             fill
                             className="object-contain"
                           />

@@ -3,6 +3,7 @@ import {
   getMachines as supabaseMachines,
   getMachineBySlug as supabaseMachineBySlug,
   getReviewsByMachineId as supabaseReviews,
+  getImagesByMachineId as supabaseImages,
   getCategories as supabaseCategories,
   getBrands as supabaseBrands,
 } from "./supabase"
@@ -33,6 +34,11 @@ export const dataProvider = {
   // Reviews
   getReviewsByMachineId: async (machineId: string) => {
     return await supabaseReviews(machineId)
+  },
+
+  // Images
+  getImagesByMachineId: async (machineId: string) => {
+    return await supabaseImages(machineId)
   },
 
   // Categories

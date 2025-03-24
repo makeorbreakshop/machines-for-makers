@@ -29,7 +29,7 @@ export default function ComparisonBar() {
                   <div className="h-12 w-12 relative rounded border overflow-hidden">
                     <Image
                       src={product["Image"] || "/placeholder.svg"}
-                      alt={product["Machine Name"]}
+                      alt={product["Machine Name"] || `Product ${product.id || "image"}`}
                       fill
                       className="object-contain"
                     />
