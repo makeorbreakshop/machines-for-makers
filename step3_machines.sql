@@ -1,0 +1,1 @@
+INSERT INTO machines (machine_name, slug, laser_category, company, laser_type_a, laser_power_a, price, is_featured, hidden) VALUES ('Acmer P3', 'acmer-p3', 'desktop-diode-laser', 'acmer', 'Diode', '10', 1299, false, false);
