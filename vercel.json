@@ -7,6 +7,8 @@
     }
   },
   "github": {
-    "silent": false
+    "silent": false,
+    "autoAlias": true,
+    "enabled": true
   }
 } 
