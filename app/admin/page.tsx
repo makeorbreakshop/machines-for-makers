@@ -4,8 +4,11 @@ import { createServerClient } from "@/lib/supabase/server"
 import { Layers, Tag, Star, Building } from "lucide-react"
 import Link from "next/link"
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic'
+
 export default async function AdminDashboard() {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   // Get counts for dashboard
   const [machinesResponse, categoriesResponse, reviewsResponse, brandsResponse] = await Promise.all([

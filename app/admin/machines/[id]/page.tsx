@@ -2,12 +2,15 @@ import { createServerClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import { MachineForm } from "@/components/admin/machine-form"
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic'
+
 export default async function EditMachinePage({
   params,
 }: {
   params: { id: string }
 }) {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   // If id is "new", we're creating a new machine
   if (params.id === "new") {
