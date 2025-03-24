@@ -15,11 +15,25 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
   },
   experimental: {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
+  },
+  webpack: (config) => {
+    // Ensure components are properly resolved
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@/components': './components',
+    };
+    return config;
   },
 }
 
