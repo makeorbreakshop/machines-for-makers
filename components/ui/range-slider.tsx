@@ -26,8 +26,8 @@ export function RangeSlider({
   suffix = "",
 }: RangeSliderProps) {
   const [internalValue, setInternalValue] = React.useState<[number, number]>(value || defaultValue)
-  const [minInput, setMinInput] = React.useState<string>((value || defaultValue)[0].toLocaleString())
-  const [maxInput, setMaxInput] = React.useState<string>((value || defaultValue)[1].toLocaleString())
+  const [minInput, setMinInput] = React.useState<string>(String((value || defaultValue)[0]))
+  const [maxInput, setMaxInput] = React.useState<string>(String((value || defaultValue)[1]))
 
   // Flag to prevent update loops
   const isUpdatingRef = React.useRef(false)
@@ -36,8 +36,8 @@ export function RangeSlider({
   React.useEffect(() => {
     if (value && !isUpdatingRef.current) {
       setInternalValue(value)
-      setMinInput(value[0].toLocaleString())
-      setMaxInput(value[1].toLocaleString())
+      setMinInput(String(value[0]))
+      setMaxInput(String(value[1]))
     }
   }, [value])
 
@@ -45,8 +45,8 @@ export function RangeSlider({
   const handleSliderChange = (newValue: [number, number]) => {
     isUpdatingRef.current = true
     setInternalValue(newValue)
-    setMinInput(newValue[0].toLocaleString())
-    setMaxInput(newValue[1].toLocaleString())
+    setMinInput(String(newValue[0]))
+    setMaxInput(String(newValue[1]))
 
     if (onValueChange) {
       onValueChange(newValue)
@@ -60,7 +60,7 @@ export function RangeSlider({
 
   // Handle min input change
   const handleMinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value.replace(/,/g, '')
+    const newValue = e.target.value
     setMinInput(newValue)
 
     const numValue = Number.parseInt(newValue)
@@ -82,7 +82,7 @@ export function RangeSlider({
 
   // Handle max input change
   const handleMaxInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value.replace(/,/g, '')
+    const newValue = e.target.value
     setMaxInput(newValue)
 
     const numValue = Number.parseInt(newValue)
@@ -104,8 +104,8 @@ export function RangeSlider({
 
   // Handle blur events to validate and format inputs
   const handleInputBlur = () => {
-    let minVal = Number.parseInt(minInput.replace(/,/g, ''))
-    let maxVal = Number.parseInt(maxInput.replace(/,/g, ''))
+    let minVal = Number.parseInt(minInput)
+    let maxVal = Number.parseInt(maxInput)
 
     if (isNaN(minVal)) minVal = min
     if (isNaN(maxVal)) maxVal = max
@@ -113,8 +113,8 @@ export function RangeSlider({
     minVal = Math.max(min, Math.min(minVal, internalValue[1]))
     maxVal = Math.min(max, Math.max(maxVal, internalValue[0]))
 
-    setMinInput(minVal.toLocaleString())
-    setMaxInput(maxVal.toLocaleString())
+    setMinInput(String(minVal))
+    setMaxInput(String(maxVal))
 
     isUpdatingRef.current = true
     const updatedValue: [number, number] = [minVal, maxVal]

@@ -26,7 +26,7 @@ interface EnhancedComparisonTableProps {
 export default function EnhancedComparisonTable({ machines }: EnhancedComparisonTableProps) {
   const { addToComparison, removeFromComparison, isSelected } = useComparison()
   
-  // Define initial column visibility state
+  // Define initial column visibility state - show more columns by default for wider screens
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     company: true,
     laserTypeA: true,
@@ -425,45 +425,57 @@ export default function EnhancedComparisonTable({ machines }: EnhancedComparison
   }, [columns, columnVisibility]);
 
   return (
-    <div className="space-y-2">
-      {/* Column visibility dropdown positioned outside scrollable area */}
-      <div className="flex justify-end sticky top-0 z-30 bg-white pb-2">
+    <div>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-medium">Comparison Table</h2>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
-              <SlidersHorizontal className="h-3.5 w-3.5 mr-1" /> Columns
+            <Button variant="outline" size="sm" className="flex items-center gap-1.5">
+              <SlidersHorizontal className="h-4 w-4" />
+              <span>Columns</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            {columnGroups.map((group) => (
-              <div key={group.id}>
-                <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
-                  {group.name}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  {group.columns.map((column) => (
-                    <DropdownMenuItem
-                      key={column.id}
-                      className="flex items-center justify-between cursor-pointer text-sm py-1.5"
-                      onClick={() => toggleColumn(column.id)}
-                    >
-                      {column.name}
-                      {columnVisibility[column.id] && <Check className="h-3.5 w-3.5 text-primary" />}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-              </div>
-            ))}
+            <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <div className="max-h-[60vh] overflow-y-auto">
+              {columnGroups.map((group) => (
+                <React.Fragment key={group.id}>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground px-2 py-1.5">
+                    {group.name}
+                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    {group.columns.map((column) => (
+                      <DropdownMenuItem
+                        key={column.id}
+                        className="pl-6"
+                        onSelect={(e) => {
+                          e.preventDefault()
+                          toggleColumn(column.id)
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`h-4 w-4 border rounded-sm flex items-center justify-center ${
+                              columnVisibility[column.id] ? "bg-primary border-primary" : "border-gray-300"
+                            }`}
+                          >
+                            {columnVisibility[column.id] && <Check className="h-3 w-3 text-white" />}
+                          </div>
+                          <span>{column.name}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuGroup>
+                </React.Fragment>
+              ))}
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      {/* Data table with proper scrolling */}
-      <div className="w-full overflow-hidden">
+      <div className="border rounded-lg">
         <DataTable
-          columns={visibleColumns}
+          columns={columns}
           data={machines}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}

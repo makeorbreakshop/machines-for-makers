@@ -37,14 +37,14 @@ export default function ProductsGrid({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
         {products.map((product) => {
           // Format price with commas
           const formattedPrice = product["Price"] ? `$${product["Price"].toLocaleString()}` : "N/A"
           const selected = isSelected(product.id)
 
           return (
-            <Card key={product.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow duration-200">
+            <Card key={product.id} className="overflow-hidden border-none shadow-md hover:shadow-lg transition-shadow duration-200 bg-white dark:bg-gray-950 rounded-lg h-full flex flex-col">
               <div className="relative">
                 {product["Award"] && (
                   <div className="absolute top-2 left-2 z-10">
@@ -71,7 +71,7 @@ export default function ProductsGrid({
                     alt={product["Machine Name"] || `Product ${product.id || "image"}`}
                     fill
                     className="object-contain"
-                    sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                    sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, (max-width: 1536px) 20vw, 16vw"
                     loading="lazy"
                     quality={75}
                     priority={false}
@@ -79,9 +79,9 @@ export default function ProductsGrid({
                 </Link>
               </div>
 
-              <CardContent className="p-4 pt-4">
+              <CardContent className="p-3 sm:p-4 flex-1 flex flex-col">
                 <Link href={`/products/${product["Internal link"]}`} className="block">
-                  <h3 className="font-bold text-lg hover:text-primary line-clamp-2">{product["Machine Name"]}</h3>
+                  <h3 className="font-bold text-base sm:text-lg hover:text-primary line-clamp-2">{product["Machine Name"]}</h3>
                 </Link>
 
                 <div className="mt-1 flex items-start">
@@ -106,7 +106,7 @@ export default function ProductsGrid({
                   </div>
                 </div>
 
-                <div className="mt-3 flex justify-between items-center">
+                <div className="mt-auto pt-3 flex justify-between items-center">
                   <div className="font-bold text-xl">{formattedPrice}</div>
                   <Button
                     size="sm"

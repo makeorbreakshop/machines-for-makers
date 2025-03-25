@@ -2,8 +2,15 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { SlidersHorizontal } from "lucide-react"
+import { SlidersHorizontal, Filter } from "lucide-react"
 import FilterModal from "./filter-modal"
+import { 
+  Sheet, 
+  SheetContent, 
+  SheetHeader, 
+  SheetTitle, 
+  SheetTrigger 
+} from "@/components/ui/sheet"
 import type { Category, Brand } from "@/lib/database-types"
 
 interface FilterButtonProps {
@@ -30,6 +37,7 @@ export default function FilterButton({
   filteredCount = 0, // Default to 0 if not provided
 }: FilterButtonProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [filters, setFilters] = useState<{
     laserTypes: string[]
     brands: string[]
@@ -63,10 +71,21 @@ export default function FilterButton({
     }
   }, [activeFilters])
 
+  // Function to handle both sheet and modal close
+  const handleOpenChange = (open: boolean) => {
+    // For mobile we use Sheet, for desktop we use Dialog
+    if (window.innerWidth < 768) {
+      setIsSheetOpen(open);
+    } else {
+      setIsModalOpen(open);
+    }
+  };
+
   const handleApplyFilters = (newFilters: any) => {
     setFilters(newFilters)
     onApplyFilters(newFilters)
     setIsModalOpen(false)
+    setIsSheetOpen(false)
   }
 
   const activeFilterCount =
@@ -80,28 +99,65 @@ export default function FilterButton({
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setIsModalOpen(true)}
-        className="flex items-center gap-2 rounded-full h-auto py-2 px-4 border-gray-300 hover:border-gray-400 bg-white"
-      >
-        <SlidersHorizontal className="h-4 w-4" />
-        <span>Filters</span>
-        {activeFilterCount > 0 && (
-          <span className="bg-primary text-white text-xs rounded-full px-2 py-0.5 ml-1">{activeFilterCount}</span>
-        )}
-      </Button>
+      {/* For mobile - use Sheet component which slides up from bottom */}
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2 rounded-full h-auto py-2 px-4 border-gray-300 hover:border-gray-400 bg-white shadow-sm"
+          >
+            <Filter className="h-4 w-4" />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="bg-primary text-white text-xs rounded-full px-2 py-0.5 ml-1">{activeFilterCount}</span>
+            )}
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="bottom" className="h-[90vh] px-0 pt-0">
+          <SheetHeader className="px-4 py-3 border-b">
+            <SheetTitle className="text-lg font-medium text-center">Filters</SheetTitle>
+          </SheetHeader>
+          <div className="h-full overflow-y-auto pb-20">
+            <FilterModal
+              open={true} 
+              onOpenChange={() => {}}
+              categories={categories || []}
+              brands={brands || []}
+              onApplyFilters={handleApplyFilters}
+              initialFilters={filters}
+              filteredCount={filteredCount}
+              isInSheet={true}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
-      <FilterModal
-        open={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        categories={categories || []}
-        brands={brands || []}
-        onApplyFilters={handleApplyFilters}
-        initialFilters={filters}
-        filteredCount={filteredCount} // Pass the filtered count to the modal
-      />
+      {/* For desktop - use regular Dialog/Modal (hidden on mobile) */}
+      <div className="hidden md:block">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-2 rounded-full h-auto py-2 px-4 border-gray-300 hover:border-gray-400 bg-white"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          <span>Filters</span>
+          {activeFilterCount > 0 && (
+            <span className="bg-primary text-white text-xs rounded-full px-2 py-0.5 ml-1">{activeFilterCount}</span>
+          )}
+        </Button>
+
+        <FilterModal
+          open={isModalOpen}
+          onOpenChange={setIsModalOpen}
+          categories={categories || []}
+          brands={brands || []}
+          onApplyFilters={handleApplyFilters}
+          initialFilters={filters}
+          filteredCount={filteredCount}
+        />
+      </div>
     </>
   )
 }
