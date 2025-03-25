@@ -2,8 +2,19 @@ import { Suspense } from "react"
 import { createServerClient } from "@/lib/supabase/server"
 import CompareClientPage from "./CompareClientPage"
 import type { Database } from "@/lib/database-types"
+import { Metadata } from "next"
+import dynamic from 'next/dynamic'
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
-export const dynamic = 'force-dynamic'
+// Dynamically import heavy component
+const DynamicComparisonTable = dynamic(() => import('@/components/comparison-table'), {
+  loading: () => <div className="w-full p-12 text-center">Loading comparison table...</div>,
+  ssr: true
+})
+
+// Use a different name for the config export
+export const dynamicConfig = 'force-dynamic'
 
 export default async function ComparePage() {
   const supabase = await createServerClient()

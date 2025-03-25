@@ -5,6 +5,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { dataProvider } from "@/lib/data-provider"
 import { ArrowRight } from "lucide-react"
 
+// Implement ISR with a 1-hour revalidation period
+export const revalidate = 3600
+
 export const metadata = {
   title: "Machines for Makers - Expert Reviews & Comparisons",
   description:

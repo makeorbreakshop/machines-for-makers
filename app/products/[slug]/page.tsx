@@ -17,8 +17,8 @@ import { ProductPromoSimple } from "@/components/product-promo-simple"
 import { PromoCode, PromoCodeDisplay } from "@/types/promo-codes"
 import { createServerClient } from '@/lib/supabase/server'
 
-// Force dynamic rendering to prevent static generation issues
-export const dynamic = 'force-dynamic'
+// Implement ISR with a 1-hour revalidation period
+export const revalidate = 3600
 
 // Server-side version of formatPromoCodeForDisplay function
 function serverFormatPromoCodeForDisplay(promoCode: PromoCode): PromoCodeDisplay {

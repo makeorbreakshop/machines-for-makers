@@ -1,11 +1,10 @@
 "use client"
 import { useState, useEffect, useCallback, useMemo } from "react"
+import dynamic from 'next/dynamic'
 import ProductsGrid from "@/components/products-grid"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Grid, Table, Zap, Box, Layers, Maximize2, Minimize2, Briefcase, Smartphone, X, Camera, Wifi, ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import ComparisonTable from "@/components/comparison-table"
-import EnhancedComparisonTable from "@/components/enhanced-comparison-table"
 import FilterButton from "@/components/filter-button"
 import SidebarFilter from "@/components/sidebar-filter"
 import Breadcrumb from "@/components/breadcrumb"
@@ -24,6 +23,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+
+// Dynamically import heavy components
+const ComparisonTable = dynamic(() => import('@/components/comparison-table'), {
+  loading: () => <div className="w-full p-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Loading comparison table...</div>,
+  ssr: false
+})
+
+const EnhancedComparisonTable = dynamic(() => import('@/components/enhanced-comparison-table'), {
+  loading: () => <div className="w-full p-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Loading enhanced comparison table...</div>,
+  ssr: false
+})
 
 // Declare global debug properties for TypeScript
 declare global {

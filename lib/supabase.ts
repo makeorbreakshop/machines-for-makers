@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import type { Database, Machine } from "./database-types"
+import { cache } from "react"
 
 // Check if Supabase environment variables are available
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -28,109 +29,125 @@ export async function getMachines({
   search?: string | null
   sort?: "newest" | "price-asc" | "price-desc" | "rating-desc"
 }) {
-  // Return empty data if Supabase is not initialized
-  if (!supabase) {
-    return { data: [], error: null, count: 0 }
-  }
-
-  try {
-    console.log("Executing getMachines with params:", { limit, offset, category, company, priceRange, search, sort });
-    
-    // Query without using relationships to avoid foreign key errors
-    let query = supabase
-      .from("machines")
-      .select("*", { count: "exact" })
-      .eq("Hidden", false);
-
-    // Apply filters
-    if (category) {
-      console.log(`Filtering by category: ${category}`);
-      // Use ilike for case-insensitive matching
-      query = query.ilike("Laser Category", category)
+  return cache(async () => {
+    // Return empty data if Supabase is not initialized
+    if (!supabase) {
+      return { data: [], error: null, count: 0 }
     }
 
-    if (company) {
-      query = query.eq("Company", company)
+    try {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("Executing getMachines with params:", { limit, offset, category, company, priceRange, search, sort });
+      }
+      
+      // Query without using relationships to avoid foreign key errors
+      let query = supabase
+        .from("machines")
+        .select("*", { count: "exact" })
+        .eq("Hidden", false);
+
+      // Apply filters
+      if (category) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`Filtering by category: ${category}`);
+        }
+        // Use ilike for case-insensitive matching
+        query = query.ilike("Laser Category", category)
+      }
+
+      if (company) {
+        query = query.eq("Company", company)
+      }
+
+      if (priceRange) {
+        query = query.gte("Price", priceRange[0]).lte("Price", priceRange[1])
+      }
+
+      if (search) {
+        query = query.ilike("Machine Name", `%${search}%`)
+      }
+
+      // Apply sorting
+      switch (sort) {
+        case "newest":
+          query = query.order("Published On", { ascending: false })
+          break
+        case "price-asc":
+          query = query.order("Price", { ascending: true })
+          break
+        case "price-desc":
+          query = query.order("Price", { ascending: false })
+          break
+        case "rating-desc":
+          query = query.order("Rating", { ascending: false })
+          break
+      }
+
+      // Apply pagination
+      query = query.range(offset, offset + limit - 1)
+
+      const { data: rawData, error, count } = await query
+
+      if (error) {
+        console.error("Error in Supabase getMachines query:", error);
+        return { data: [], error, count: 0 };
+      }
+
+      // Transform the data to match the expected format
+      const data = rawData ? rawData.map(transformMachineData) : []
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Found ${data.length} machines matching criteria`);
+      }
+
+      return { data, error, count }
+    } catch (err) {
+      console.error("Exception in getMachines:", err);
+      return { data: [], error: err, count: 0 };
     }
-
-    if (priceRange) {
-      query = query.gte("Price", priceRange[0]).lte("Price", priceRange[1])
-    }
-
-    if (search) {
-      query = query.ilike("Machine Name", `%${search}%`)
-    }
-
-    // Apply sorting
-    switch (sort) {
-      case "newest":
-        query = query.order("Published On", { ascending: false })
-        break
-      case "price-asc":
-        query = query.order("Price", { ascending: true })
-        break
-      case "price-desc":
-        query = query.order("Price", { ascending: false })
-        break
-      case "rating-desc":
-        query = query.order("Rating", { ascending: false })
-        break
-    }
-
-    // Apply pagination
-    query = query.range(offset, offset + limit - 1)
-
-    const { data: rawData, error, count } = await query
-
-    if (error) {
-      console.error("Error in Supabase getMachines query:", error);
-      return { data: [], error, count: 0 };
-    }
-
-    // Transform the data to match the expected format
-    const data = rawData ? rawData.map(transformMachineData) : []
-    console.log(`Found ${data.length} machines matching criteria`);
-
-    return { data, error, count }
-  } catch (err) {
-    console.error("Exception in getMachines:", err);
-    return { data: [], error: err, count: 0 };
-  }
+  })()
 }
 
 export async function getMachineBySlug(slug: string) {
-  // Return empty data if Supabase is not initialized
-  if (!supabase) {
-    return { data: null, error: null }
-  }
-
-  try {
-    console.log(`Looking for product with slug: ${slug}`);
-    // Simply fetch the machine data without trying to use relationships
-    // This avoids the "Could not find a relationship" errors
-    const { data: rawData, error } = await supabase
-      .from("machines")
-      .select("*")
-      .ilike("Internal link", slug) // Use case-insensitive matching
-      .eq("Hidden", false)
-      .single()
-
-    console.log("Raw data from Supabase for slug", slug, ":", rawData)
-
-    // Transform data to match the expected format in the product page component
-    const data = rawData ? transformMachineData(rawData) : null
-
-    console.log("Transformed data:", data)
-
-    if (error) {
-      console.error("Error fetching machine by slug:", error);
+  return cache(async () => {
+    // Return empty data if Supabase is not initialized
+    if (!supabase) {
+      return { data: null, error: null }
     }
 
-    return { data, error }
-  } catch (err) {
-    console.error("Exception in getMachineBySlug:", err);
-    return { data: null, error: err }
-  }
+    try {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Looking for product with slug: ${slug}`);
+      }
+      // Simply fetch the machine data without trying to use relationships
+      // This avoids the "Could not find a relationship" errors
+      const { data: rawData, error } = await supabase
+        .from("machines")
+        .select("*")
+        .ilike("Internal link", slug) // Use case-insensitive matching
+        .eq("Hidden", false)
+        .single()
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("Raw data from Supabase for slug", slug, ":", rawData)
+      }
+
+      // Transform data to match the expected format in the product page component
+      const data = rawData ? transformMachineData(rawData) : null
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("Transformed data:", data)
+      }
+
+      if (error) {
+        console.error("Error fetching machine by slug:", error);
+      }
+
+      return { data, error }
+    } catch (err) {
+      console.error("Exception in getMachineBySlug:", err);
+      return { data: null, error: err }
+    }
+  })()
 }
 
 // Function to transform database field names to expected format
