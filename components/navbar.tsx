@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Image from "next/image"
+import { Tag } from "lucide-react"
 
 export default function Navbar() {
   return (
@@ -84,6 +85,13 @@ export default function Navbar() {
             </nav>
           </div>
           <div className="flex items-center">
+            <Link 
+              href="/promo-codes" 
+              className="hidden md:flex items-center mr-3 text-sm font-medium hover:text-primary"
+            >
+              <Tag className="h-4 w-4 mr-1.5" />
+              Promo Codes
+            </Link>
             <Button variant="outline" size="sm" className="hidden md:inline-flex" asChild>
               <Link href="/compare">Compare Products</Link>
             </Button>

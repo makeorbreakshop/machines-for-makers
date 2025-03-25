@@ -15,6 +15,13 @@ import { createMachine, updateMachine } from "@/lib/services/machine-service"
 import type { Machine, Category, Brand } from "@/lib/database-types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 // Define the form schema
 const formSchema = z.object({
@@ -36,6 +43,20 @@ const formSchema = z.object({
   laser_power_b: z.string().optional(),
   work_area: z.string().optional(),
   speed: z.string().optional(),
+  height: z.string().optional(),
+  machine_size: z.string().optional(),
+  acceleration: z.string().optional(),
+  laser_frequency: z.string().optional(),
+  pulse_width: z.string().optional(),
+  focus: z.string().optional(),
+  enclosure: z.boolean().optional(),
+  wifi: z.boolean().optional(),
+  camera: z.boolean().optional(),
+  passthrough: z.boolean().optional(),
+  controller: z.string().optional(),
+  software: z.string().optional(),
+  warranty: z.string().optional(),
+  laser_source_manufacturer: z.string().optional(),
   excerpt_short: z.string().optional(),
   description: z.string().optional(),
   highlights: z.string().optional(),
@@ -44,10 +65,19 @@ const formSchema = z.object({
   hidden: z.boolean().default(false),
   image_url: z.string().optional(),
   affiliate_link: z.string().optional(),
+  youtube_review: z.string().optional(),
 })
 
+// Type for the form data
+export type MachineFormData = z.infer<typeof formSchema> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+  published_at?: string;
+}
+
 interface MachineFormProps {
-  machine?: Machine
+  machine?: MachineFormData
   categories: Category[]
   brands: Brand[]
 }
@@ -78,12 +108,12 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
     setIsSubmitting(true)
 
     try {
-      if (machine) {
+      if (machine && machine.id) {
         // Update existing machine
-        await updateMachine(machine.id, values)
+        await updateMachine(machine.id, values as any)
       } else {
         // Create new machine
-        await createMachine(values)
+        await createMachine(values as any)
       }
 
       // Redirect to machines list
@@ -317,93 +347,363 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
           <TabsContent value="specs">
             <Card>
               <CardContent className="pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField
-                    control={form.control}
-                    name="laser_type_a"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Primary Laser Type</FormLabel>
-                        <FormControl>
-                          <Input {...field} value={field.value || ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <Accordion type="multiple" defaultValue={["laser-specs", "dimensions", "performance", "features"]}>
+                  <AccordionItem value="laser-specs">
+                    <AccordionTrigger className="text-lg font-medium">Laser Specifications</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4 pt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="laser_type_a"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Primary Laser Type</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select a laser type" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="Diode">Diode</SelectItem>
+                                    <SelectItem value="CO2">CO2</SelectItem>
+                                    <SelectItem value="Fiber">Fiber</SelectItem>
+                                    <SelectItem value="DPSS">DPSS</SelectItem>
+                                    <SelectItem value="Crystal">Crystal</SelectItem>
+                                    <SelectItem value="Galvo">Galvo</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
-                  <FormField
-                    control={form.control}
-                    name="laser_power_a"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Primary Laser Power</FormLabel>
-                        <FormControl>
-                          <Input {...field} value={field.value || ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormField
+                            control={form.control}
+                            name="laser_power_a"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Primary Laser Power (W)</FormLabel>
+                                <FormControl>
+                                  <Input {...field} value={field.value || ""} placeholder="10" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="laser_type_b"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Secondary Laser Type</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select a laser type" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="none">None</SelectItem>
+                                    <SelectItem value="Diode">Diode</SelectItem>
+                                    <SelectItem value="CO2">CO2</SelectItem>
+                                    <SelectItem value="Fiber">Fiber</SelectItem>
+                                    <SelectItem value="DPSS">DPSS</SelectItem>
+                                    <SelectItem value="Crystal">Crystal</SelectItem>
+                                    <SelectItem value="Galvo">Galvo</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
-                  <FormField
-                    control={form.control}
-                    name="laser_type_b"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Secondary Laser Type</FormLabel>
-                        <FormControl>
-                          <Input {...field} value={field.value || ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormField
+                            control={form.control}
+                            name="laser_power_b"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Secondary Laser Power (W)</FormLabel>
+                                <FormControl>
+                                  <Input {...field} value={field.value || ""} placeholder="5" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
 
-                  <FormField
-                    control={form.control}
-                    name="laser_power_b"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Secondary Laser Power</FormLabel>
-                        <FormControl>
-                          <Input {...field} value={field.value || ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="laser_source_manufacturer"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Laser Source Manufacturer</FormLabel>
+                                <FormControl>
+                                  <Input {...field} value={field.value || ""} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
-                  <FormField
-                    control={form.control}
-                    name="work_area"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Work Area</FormLabel>
-                        <FormControl>
-                          <Input {...field} value={field.value || ""} />
-                        </FormControl>
-                        <FormDescription>E.g., "600x400 mm"</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormField
+                            control={form.control}
+                            name="laser_frequency"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Laser Frequency</FormLabel>
+                                <FormControl>
+                                  <Input {...field} value={field.value || ""} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
-                  <FormField
-                    control={form.control}
-                    name="speed"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Speed</FormLabel>
-                        <FormControl>
-                          <Input {...field} value={field.value || ""} />
-                        </FormControl>
-                        <FormDescription>E.g., "600 mm/s"</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                          <FormField
+                            control={form.control}
+                            name="pulse_width"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Pulse Width</FormLabel>
+                                <FormControl>
+                                  <Input {...field} value={field.value || ""} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="dimensions">
+                    <AccordionTrigger className="text-lg font-medium">Dimensions</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                        <FormField
+                          control={form.control}
+                          name="work_area"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Work Area</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="600x400 mm" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="machine_size"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Machine Size</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="800x600 mm" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="height"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Height</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="200 mm" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="performance">
+                    <AccordionTrigger className="text-lg font-medium">Performance</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                        <FormField
+                          control={form.control}
+                          name="speed"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Speed</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="600 mm/s" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="acceleration"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Acceleration</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="8000 mm/s²" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="features">
+                    <AccordionTrigger className="text-lg font-medium">Features</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4 pt-4">
+                        <FormField
+                          control={form.control}
+                          name="focus"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Focus</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <FormField
+                            control={form.control}
+                            name="enclosure"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-2">
+                                <FormLabel className="flex-1 cursor-pointer">Enclosure</FormLabel>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="wifi"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-2">
+                                <FormLabel className="flex-1 cursor-pointer">WiFi</FormLabel>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="camera"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-2">
+                                <FormLabel className="flex-1 cursor-pointer">Camera</FormLabel>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="passthrough"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-2">
+                                <FormLabel className="flex-1 cursor-pointer">Passthrough</FormLabel>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name="controller"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Controller</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="software">
+                    <AccordionTrigger className="text-lg font-medium">Software & Support</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                        <FormField
+                          control={form.control}
+                          name="software"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Software</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="warranty"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Warranty</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="1 year" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </CardContent>
             </Card>
           </TabsContent>
