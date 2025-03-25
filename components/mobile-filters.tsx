@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { SlidersHorizontal, ChevronDown, ChevronUp, Check } from "lucide-react"
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { PriceRangeSlider } from "@/components/price-range-slider"
 import { RangeSlider } from "@/components/ui/range-slider"
 
@@ -16,6 +16,24 @@ export default function MobileFilters() {
   const [selectedLaserTypes, setSelectedLaserTypes] = useState<string[]>([])
   const [selectedBrands, setSelectedBrands] = useState<string[]>([])
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([])
+
+  // Map user-friendly laser type names to database field names
+  const laserTypeMap = useMemo(() => ({
+    "Fiber": "fiber",
+    "Infrared": "infared", // Handle database misspelling
+    "MOPA": "mopa",
+    "CO2 RF": "co2-rf",
+    "CO2 Glass": "co2-glass", 
+    "Diode": "diode",
+    "UV": "uv"
+  }), [])
+
+  // Print laser type mapping for debugging
+  useEffect(() => {
+    console.log("============ MOBILE FILTERS DEBUGGING ============");
+    console.log("Laser Type Mapping (UI Name -> DB Value):", laserTypeMap);
+    console.log("==================================================");
+  }, [laserTypeMap]);
 
   // Expanded sections tracking
   const [expandedSections, setExpandedSections] = useState({
@@ -35,7 +53,8 @@ export default function MobileFilters() {
     })
   }
 
-  const laserTypes = ["Diode", "CO2", "CO2-RF", "CO2-Glass", "Fiber", "Infrared", "MOPA", "UV"]
+  // Make sure these match the keys in the laserTypeMap
+  const laserTypes = ["Diode", "CO2 RF", "CO2 Glass", "Fiber", "Infrared", "MOPA", "UV"]
   const brands = ["Thunder Laser", "OMTech", "xTool", "WeCreat", "CommMarker"]
   const features = ["Camera", "WiFi", "Enclosure", "Auto Focus", "Passthrough"]
 
@@ -71,6 +90,20 @@ export default function MobileFilters() {
     setSpeedRange([0, 2000])
     setSelectedFeatures([])
     setMinRating(0)
+  }
+
+  const handleApply = () => {
+    // Map laser types to database values
+    const dbLaserTypes = selectedLaserTypes.map(type => {
+      const dbValue = laserTypeMap[type as keyof typeof laserTypeMap] || type.toLowerCase();
+      console.log(`Mapping UI laser type "${type}" to database value "${dbValue}"`);
+      return dbValue;
+    });
+
+    // Apply the filters (this would usually call a parent function)
+    console.log("Applying filters with laser types:", dbLaserTypes);
+    // Close sheet
+    setOpen(false);
   }
 
   const activeFilterCount =
@@ -321,7 +354,7 @@ export default function MobileFilters() {
             <Button variant="ghost" onClick={handleClear} className="font-medium">
               Clear all
             </Button>
-            <Button onClick={() => setOpen(false)} className="px-6 py-2 rounded-lg">
+            <Button onClick={handleApply} className="px-6 py-2 rounded-lg">
               Show results {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}
             </Button>
           </div>
