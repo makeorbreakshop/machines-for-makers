@@ -123,6 +123,11 @@ export default function EnhancedComparisonTable({ machines }: EnhancedComparison
 
   // Helper function to render cell content based on data type
   const renderCellContent = (value: any, fieldName: string) => {
+    // Handle null/undefined values consistently
+    if (value === null || value === undefined) {
+      return "—"
+    }
+    
     if (fieldName === "price" && typeof value === "number") {
       return `$${value.toLocaleString()}`
     }
@@ -148,7 +153,7 @@ export default function EnhancedComparisonTable({ machines }: EnhancedComparison
       return withoutUnits.replace(/\*/g, "x");
     }
 
-    if (fieldName === "speed" && value !== undefined && value !== null) {
+    if (fieldName === "speed") {
       // Remove "mm/s" from speed values
       if (typeof value === "string") {
         return value.replace(/ mm\/s$/, "");
@@ -156,7 +161,7 @@ export default function EnhancedComparisonTable({ machines }: EnhancedComparison
       return value;
     }
 
-    if (fieldName === "laserPowerA" && value !== undefined && value !== null) {
+    if (fieldName === "laserPowerA") {
       // Remove "W" from power values if present
       if (typeof value === "string") {
         return value.replace(/ W$/, "");
@@ -194,6 +199,7 @@ export default function EnhancedComparisonTable({ machines }: EnhancedComparison
       )
     }
 
+    // Provide a default value for everything else
     return value || "—"
   }
 

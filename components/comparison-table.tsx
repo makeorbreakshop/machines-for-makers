@@ -83,12 +83,19 @@ export default function ComparisonTable({ machines }: ComparisonTableProps) {
   // Helper function to render cell content based on column and machine
   const renderCell = (column: string, machine: Machine) => {
     const value = machine[column as keyof Machine]
+    
+    // Handle null/undefined values consistently
+    if (value === null || value === undefined) {
+      return "—"
+    }
 
     if (column === "Price") {
-      return value ? `$${(value as number).toLocaleString()}` : "—"
+      return typeof value === "number" ? `$${value.toLocaleString()}` : "—"
     }
 
     if (column === "Rating") {
+      if (typeof value !== "number") return "—"
+      
       return (
         <div className="flex items-center">
           <span className="font-medium mr-1">{value}</span>
@@ -98,7 +105,7 @@ export default function ComparisonTable({ machines }: ComparisonTableProps) {
               .map((_, i) => (
                 <svg
                   key={i}
-                  className={`h-3 w-3 ${i < Math.floor(value as number) ? "text-amber-400 fill-amber-400" : "text-gray-300"}`}
+                  className={`h-3 w-3 ${i < Math.floor(value) ? "text-amber-400 fill-amber-400" : "text-gray-300"}`}
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
                 >
@@ -118,7 +125,7 @@ export default function ComparisonTable({ machines }: ComparisonTableProps) {
       )
     }
 
-    return value || "—"
+    return value
   }
 
   // Get all visible columns

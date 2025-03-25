@@ -157,6 +157,11 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
     else if (spec.key === "Controller") value = getProductValue(product, specKeys.controller)
     else value = product[spec.key as keyof Machine]
 
+    // Handle null/undefined values consistently
+    if (value === null || value === undefined) {
+      return spec.defaultValue || "—"
+    }
+
     if (spec.format === "currency" && typeof value === "number") {
       return `$${value.toLocaleString()}`
     }
@@ -187,10 +192,14 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
       // Handle boolean values that are stored as "Yes"/"No" strings
       if (value === "Yes" || value === "Auto") {
         return <Check className="h-5 w-5 mx-auto text-green-600" />
-      } else if (value === "No" || value === null || value === undefined) {
+      } else if (value === "No") {
         return <X className="h-5 w-5 mx-auto text-red-600" />
-      } else {
-        return value.toString()
+      } else if (typeof value === "boolean") {
+        return value ? 
+          <Check className="h-5 w-5 mx-auto text-green-600" /> : 
+          <X className="h-5 w-5 mx-auto text-red-600" />
+      } else if (typeof value === "string") {
+        return value
       }
     }
 
