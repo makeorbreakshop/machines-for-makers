@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import ProductsGrid from "@/components/products-grid"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Grid, Table, Zap, Box, Layers, Maximize2, Minimize2, Briefcase, Smartphone, X, Camera, Wifi } from "lucide-react"
+import { Grid, Table, Zap, Box, Layers, Maximize2, Minimize2, Briefcase, Smartphone, X, Camera, Wifi, ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import ComparisonTable from "@/components/comparison-table"
 import EnhancedComparisonTable from "@/components/enhanced-comparison-table"
@@ -18,6 +18,12 @@ import { SearchBar } from "@/components/search-bar"
 import { Loader2 } from "lucide-react"
 import React from "react"
 import { Check } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // Declare global debug properties for TypeScript
 declare global {
@@ -63,12 +69,17 @@ function FeatureButton({ feature, icon }: { feature: string, icon: React.ReactNo
 
 function ViewToggle() {
   const [view, setView] = useState("grid")
+  const [sortOption, setSortOption] = useState("price-asc")
 
   // This function will be called when the component mounts
   useEffect(() => {
     // Get the view from localStorage or default to grid
     const savedView = localStorage.getItem("view") || "grid"
     setView(savedView)
+    
+    // Get the sort option from localStorage or default to price-asc
+    const savedSort = localStorage.getItem("sortOption") || "price-asc"
+    setSortOption(savedSort)
   }, [])
 
   // Update view and save to localStorage
@@ -79,24 +90,83 @@ function ViewToggle() {
     window.dispatchEvent(new CustomEvent("viewchange", { detail: { view: newView } }))
   }
 
+  // Update sort option and save to localStorage
+  const updateSort = (newSort: string) => {
+    setSortOption(newSort)
+    localStorage.setItem("sortOption", newSort)
+    // Trigger a custom event that CompareClientPage can listen for
+    window.dispatchEvent(new CustomEvent("sortchange", { detail: { sort: newSort } }))
+  }
+
+  // Get the sort option label for display
+  const getSortLabel = (option: string) => {
+    switch (option) {
+      case "price-asc":
+        return "Price: Low to High"
+      case "price-desc":
+        return "Price: High to Low"
+      case "power-desc":
+        return "Power: High to Low"
+      case "speed-desc":
+        return "Speed: High to Low"
+      case "name-asc":
+        return "Name: A to Z"
+      default:
+        return "Price: Low to High"
+    }
+  }
+
   return (
-    <div className="flex border rounded-md overflow-hidden">
-      <Button
-        variant={view === "grid" ? "default" : "ghost"}
-        size="sm"
-        className="rounded-none"
-        onClick={() => updateView("grid")}
-      >
-        <Grid className="h-4 w-4 mr-1" /> Grid
-      </Button>
-      <Button
-        variant={view === "table" ? "default" : "ghost"}
-        size="sm"
-        className="rounded-none"
-        onClick={() => updateView("table")}
-      >
-        <Table className="h-4 w-4 mr-1" /> Table
-      </Button>
+    <div className="flex items-center gap-2">
+      <div className="flex border rounded-md overflow-hidden">
+        <Button
+          variant={view === "grid" ? "default" : "ghost"}
+          size="sm"
+          className="rounded-none"
+          onClick={() => updateView("grid")}
+        >
+          <Grid className="h-4 w-4 mr-1" /> Grid
+        </Button>
+        <Button
+          variant={view === "table" ? "default" : "ghost"}
+          size="sm"
+          className="rounded-none"
+          onClick={() => updateView("table")}
+        >
+          <Table className="h-4 w-4 mr-1" /> Table
+        </Button>
+      </div>
+      
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-1">
+            <ArrowUpDown className="h-4 w-4" />
+            <span>Sort</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => updateSort("price-asc")}>
+            {sortOption === "price-asc" && <Check className="h-4 w-4 mr-2" />}
+            Price: Low to High
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => updateSort("price-desc")}>
+            {sortOption === "price-desc" && <Check className="h-4 w-4 mr-2" />}
+            Price: High to Low
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => updateSort("power-desc")}>
+            {sortOption === "power-desc" && <Check className="h-4 w-4 mr-2" />}
+            Power: High to Low
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => updateSort("speed-desc")}>
+            {sortOption === "speed-desc" && <Check className="h-4 w-4 mr-2" />}
+            Speed: High to Low
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => updateSort("name-asc")}>
+            {sortOption === "name-asc" && <Check className="h-4 w-4 mr-2" />}
+            Name: A to Z
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }
@@ -183,6 +253,7 @@ export default function CompareClientPage({
   const [filteredProducts, setFilteredProducts] = useState<Machine[]>(initialProducts)
   const [selectedProducts, setSelectedProducts] = useState<Machine[]>([])
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
+  const [sortOption, setSortOption] = useState<string>("price-asc")
   const [filters, setFilters] = useState<Filters>({
     laserTypes: [],
     priceRange: [0, 15000],
@@ -609,15 +680,26 @@ export default function CompareClientPage({
     const savedView = localStorage.getItem("view") || "grid"
     setViewMode(savedView as 'grid' | 'table')
 
+    // Get the initial sort option from localStorage
+    const savedSort = localStorage.getItem("sortOption") || "price-asc"
+    setSortOption(savedSort)
+
     // Listen for view change events
     const handleViewChange = (e: CustomEvent) => {
       setViewMode(e.detail.view as 'grid' | 'table')
     }
 
+    // Listen for sort change events
+    const handleSortChange = (e: CustomEvent) => {
+      setSortOption(e.detail.sort)
+    }
+
     window.addEventListener("viewchange", handleViewChange as EventListener)
+    window.addEventListener("sortchange", handleSortChange as EventListener)
 
     return () => {
       window.removeEventListener("viewchange", handleViewChange as EventListener)
+      window.removeEventListener("sortchange", handleSortChange as EventListener)
     }
   }, [])
 
@@ -688,8 +770,84 @@ export default function CompareClientPage({
     }
   }, [products, filters, filterProducts])
 
+  // Sort the display products based on the current sort option
+  const sortProducts = (products: Machine[]) => {
+    console.log(`Applying sort: ${sortOption} to ${products.length} products`);
+    
+    // Create a defensive copy of the products array
+    const sorted = [...products]
+    
+    let result;
+    switch (sortOption) {
+      case "price-asc":
+        console.log("Sorting by price: low to high");
+        result = sorted.sort((a, b) => {
+          const priceA = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0))
+          const priceB = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0))
+          return priceA - priceB
+        });
+        break;
+      case "price-desc":
+        console.log("Sorting by price: high to low");
+        result = sorted.sort((a, b) => {
+          const priceA = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0))
+          const priceB = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0))
+          return priceB - priceA
+        });
+        break;
+      case "power-desc":
+        console.log("Sorting by power: high to low");
+        result = sorted.sort((a, b) => {
+          const powerA = parseFloat(String(a["Laser Power A"] || 0))
+          const powerB = parseFloat(String(b["Laser Power A"] || 0))
+          return powerB - powerA
+        });
+        break;
+      case "speed-desc":
+        console.log("Sorting by speed: high to low");
+        result = sorted.sort((a, b) => {
+          const speedA = parseFloat(String(a.Speed || 0))
+          const speedB = parseFloat(String(b.Speed || 0))
+          return speedB - speedA
+        });
+        break;
+      case "name-asc":
+        console.log("Sorting by name: A to Z");
+        result = sorted.sort((a, b) => {
+          const nameA = a["Machine Name"] || ""
+          const nameB = b["Machine Name"] || ""
+          return nameA.localeCompare(nameB)
+        });
+        break;
+      default:
+        console.log("Using default sorting");
+        result = sorted;
+        break;
+    }
+    
+    // Log the first few items after sorting for debugging
+    if (result.length > 0) {
+      console.log("First 3 items after sorting:");
+      result.slice(0, 3).forEach((item, index) => {
+        console.log(`  ${index + 1}. ${item["Machine Name"]} - Price: ${item.Price}, Power: ${item["Laser Power A"]}, Speed: ${item.Speed}`);
+      });
+
+      // Log the last few items as well for comparison
+      console.log("Last 3 items after sorting:");
+      result.slice(-3).forEach((item, index) => {
+        console.log(`  ${result.length - 2 + index}. ${item["Machine Name"]} - Price: ${item.Price}, Power: ${item["Laser Power A"]}, Speed: ${item.Speed}`);
+      });
+    }
+    
+    // Force a new array reference to ensure React detects the change
+    return [...result];
+  }
+
   // Get the final list of products to display (intersection of search and filters)
   const displayProducts = React.useMemo(() => {
+    // Get the products to display
+    let productsToDisplay;
+    
     // Check if using default filters
     const isUsingDefaultFilters = 
       filters.laserTypes.length === 0 && 
@@ -706,69 +864,50 @@ export default function CompareClientPage({
     if (!isUsingDefaultFilters) {
       console.log(`FINAL DISPLAY: Using filtered products: ${filteredProducts.length} items`);
       
-      // **** DEBUG **** - Check what happened to our filtered products
-      if (filters.laserTypes.includes('fiber') && filteredProducts.length !== window.__DEBUG_LAST_FILTER_COUNT) {
-        console.log(`!!!! CRITICAL DEBUG !!!! Filtered products count changed from ${window.__DEBUG_LAST_FILTER_COUNT} to ${filteredProducts.length}`);
-        
-        // Compare machine IDs to find what's missing
-        if (window.__DEBUG_FIBER_MACHINES && window.__DEBUG_FIBER_MACHINES.length > 0) {
-          const currentIds = filteredProducts.map(m => m.id || m["Machine Name"]);
-          console.log(`DEBUG: Current filtered products have ${currentIds.length} machines`);
-          
-          // Find which machines are missing
-          const missingMachines = window.__DEBUG_FIBER_MACHINES.filter((id: string) => !currentIds.includes(id));
-          console.log(`DEBUG: ${missingMachines.length} machines are missing from the original filter set`);
-          
-          if (missingMachines.length > 0) {
-            console.log("DEBUG: First few missing machines:", missingMachines.slice(0, 5));
-          }
-        }
-      }
-      
-      // DEBUG: If filtered products is empty but should have results, investigate
-      if (filteredProducts.length === 0 && filters.laserTypes.length > 0) {
-        console.log("WARNING: No filtered products found despite active laser filters!");
-        
-        // Do a basic check to verify filter existence
-        const debugCheck = products.filter(product => {
-          const type = filters.laserTypes[0].toLowerCase();
-          return (product["Laser Type A"] || "").toLowerCase() === type ||
-                 (product["Laser Type B"] || "").toLowerCase() === type ||
-                 (product["Machine Name"] || "").toLowerCase().includes(type);
-        });
-        
-        console.log(`DEBUG CHECK: Found ${debugCheck.length} basic matches for ${filters.laserTypes[0]}`);
-      }
+      // ... existing debug code ...
 
-      // DEBUG: Show first 3 products to verify content
-      if (filteredProducts.length > 0) {
-        console.log("DEBUG: First 3 products in final display:");
-        filteredProducts.slice(0, 3).forEach((p, i) => console.log(`  ${i+1}. ${p["Machine Name"]}`));
-      }
-      
-      return filteredProducts;
+      productsToDisplay = filteredProducts;
     }
-    
     // NEW: Check for active search results (when filteredProducts is a subset of all products)
-    if (filteredProducts.length > 0 && filteredProducts.length < products.length) {
+    else if (filteredProducts.length > 0 && filteredProducts.length < products.length) {
       console.log(`FINAL DISPLAY: Using search results: ${filteredProducts.length} items`);
-      return filteredProducts;
+      productsToDisplay = filteredProducts;
     }
-    
     // If using default filters and no search, show all products
-    if (isUsingDefaultFilters && products.length > 0) {
+    else if (isUsingDefaultFilters && products.length > 0) {
       console.log(`FINAL DISPLAY: Showing all ${products.length} products`);
-      return products;
+      productsToDisplay = products;
     }
-    
     // Fallback to filtered products if available
-    if (filteredProducts && filteredProducts.length > 0) {
-      return filteredProducts;
+    else if (filteredProducts && filteredProducts.length > 0) {
+      productsToDisplay = filteredProducts;
+    }
+    // Last resort fallback
+    else {
+      productsToDisplay = products.filter(product => filterProducts(product, filters));
     }
     
-    // Last resort fallback
-    return products.filter(product => filterProducts(product, filters));
-  }, [filteredProducts, products, filters, filterProducts]);
+    console.log(`SORTING: About to sort ${productsToDisplay.length} products with sort option: ${sortOption}`);
+    
+    // Sort the products based on the current sort option
+    const sortedProducts = sortProducts(productsToDisplay);
+    console.log(`SORTING: Completed sorting ${sortedProducts.length} products, first item: ${sortedProducts[0]?.["Machine Name"]}`);
+    
+    return sortedProducts;
+  }, [filteredProducts, products, filters, filterProducts, sortOption]);
+
+  // Render the products with proper sorting
+  // Create a final sorted array that's guaranteed to be sorted just before rendering
+  const finalSortedProducts = React.useMemo(() => {
+    console.log(`FINAL RENDER: Using sortOption ${sortOption} for ${displayProducts.length} products`);
+    // Apply sorting one more time just before rendering to be extra sure
+    return sortProducts(displayProducts);
+  }, [displayProducts, sortOption]);
+  
+  // Add an effect to debug sort option changes
+  React.useEffect(() => {
+    console.log(`Sort option changed to: ${sortOption}`);
+  }, [sortOption]);
 
   // Fix the linter error with handleSearch
   React.useEffect(() => {
@@ -803,14 +942,6 @@ export default function CompareClientPage({
     <div className="container max-w-[1920px] mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <Breadcrumb items={breadcrumbItems} />
-        <div className="flex items-center gap-2">
-          <SearchBar 
-            products={products} // Pass all products to enable searching across everything
-            onSearch={handleSearch}
-            className="w-64 md:w-80" // Make search bar wider on larger screens
-          />
-          <ViewToggle />
-        </div>
       </div>
 
       <div className="flex items-center justify-between mb-4">
@@ -821,6 +952,12 @@ export default function CompareClientPage({
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <SearchBar 
+            products={products} // Pass all products to enable searching across everything
+            onSearch={handleSearch}
+            className="w-64 md:w-80" // Make search bar wider on larger screens
+          />
+          <ViewToggle />
           {activeFilterCount > 0 ? (
             <Button 
               variant="outline" 
@@ -838,9 +975,7 @@ export default function CompareClientPage({
               <X className="h-3.5 w-3.5" />
               Clear Filters
             </Button>
-          ) : (
-            <div className="h-9 w-[103px]"></div> /* Empty placeholder with same dimensions */
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -861,11 +996,11 @@ export default function CompareClientPage({
         {displayProducts.length > 0 ? (
           viewMode === "grid" ? (
             <div className="w-full">
-              <ProductsGrid products={displayProducts} totalProducts={displayProducts.length} />
+              <ProductsGrid products={finalSortedProducts} totalProducts={finalSortedProducts.length} />
             </div>
           ) : (
             <div className="w-full overflow-hidden">
-              <EnhancedComparisonTable machines={displayProducts} />
+              <EnhancedComparisonTable machines={finalSortedProducts} />
             </div>
           )
         ) : (
