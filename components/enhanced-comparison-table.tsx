@@ -35,43 +35,62 @@ export default function EnhancedComparisonTable({ machines }: EnhancedComparison
     workArea: true,
     speed: true,
     software: true,
-    warranty: false,
-    machineSize: false,
-    height: false,
-    laserSourceManufacturer: false,
-    bestFor: false,
+    warranty: true,
+    machineSize: true,
+    height: true,
+    laserSourceManufacturer: true,
     rating: true,
+    focus: true,
+    enclosure: true,
+    wifi: true,
+    camera: true,
+    passthrough: true,
+    controller: true,
+    acceleration: true,
+    laserFrequency: true,
+    pulseWidth: true,
     actions: true,
   })
 
   // Define column groups for displaying in dropdown menu
   const columnGroups = [
     {
-      id: "general",
-      name: "General",
+      id: "basic",
+      name: "Basic Information",
       columns: [
         { id: "company", name: "Brand" },
+        { id: "price", name: "Price" },
+        { id: "rating", name: "Rating" },
+        { id: "warranty", name: "Warranty" },
+        { id: "software", name: "Software" },
+      ],
+    },
+    {
+      id: "laser",
+      name: "Laser Specifications",
+      columns: [
         { id: "laserTypeA", name: "Laser Type" },
         { id: "laserPowerA", name: "Power (W)" },
         { id: "laserSourceManufacturer", name: "Laser Source" },
-        { id: "price", name: "Price" },
-        { id: "rating", name: "Rating" },
-        { id: "software", name: "Software" },
-        { id: "warranty", name: "Warranty" },
-        { id: "bestFor", name: "Best For" },
+        { id: "laserFrequency", name: "Frequency" },
+        { id: "pulseWidth", name: "Pulse Width" },
+      ],
+    },
+    {
+      id: "dimensions",
+      name: "Machine Dimensions",
+      columns: [
+        { id: "workArea", name: "Work Area (mm)" },
+        { id: "machineSize", name: "Machine Size (mm)" },
+        { id: "height", name: "Height (mm)" },
       ],
     },
     {
       id: "performance",
       name: "Performance",
       columns: [
-        { id: "workArea", name: "Work Area (mm)" },
-        { id: "height", name: "Height (mm)" },
-        { id: "machineSize", name: "Machine Size (mm)" },
         { id: "speed", name: "Speed (mm/s)" },
         { id: "acceleration", name: "Acceleration" },
-        { id: "laserFrequency", name: "Frequency" },
-        { id: "pulseWidth", name: "Pulse Width" },
       ],
     },
     {
@@ -357,13 +376,6 @@ export default function EnhancedComparisonTable({ machines }: EnhancedComparison
         accessorFn: (row) => row["Laser Source Manufacturer"],
         header: "Laser Source",
         cell: ({ row }) => renderCellContent(row.original["Laser Source Manufacturer"], "laserSourceManufacturer"),
-      },
-      // Best For
-      {
-        id: "bestFor",
-        accessorFn: (row) => row["Best for:"],
-        header: "Best For",
-        cell: ({ row }) => renderCellContent(row.original["Best for:"], "bestFor"),
       },
       // Rating
       {
