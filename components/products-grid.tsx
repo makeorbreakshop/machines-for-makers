@@ -8,6 +8,7 @@ import Link from "next/link"
 import { Plus, Check, Star } from "lucide-react"
 import { useComparison } from "@/context/comparison-context"
 import type { Machine } from "@/lib/database-types"
+import RatingMeter from "./rating-meter"
 
 interface ProductsGridProps {
   products: Machine[]
@@ -36,43 +37,33 @@ export default function ProductsGrid({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {products.map((product) => {
           // Format price with commas
           const formattedPrice = product["Price"] ? `$${product["Price"].toLocaleString()}` : "N/A"
           const selected = isSelected(product.id)
 
           return (
-            <Card key={product.id} className="overflow-hidden">
+            <Card key={product.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow duration-200">
               <div className="relative">
                 {product["Award"] && (
                   <div className="absolute top-2 left-2 z-10">
-                    <div className="bg-primary text-primary-foreground px-2 py-1 text-xs font-medium rounded-md">
+                    <Badge className="bg-amber-500 hover:bg-amber-600">
                       {product["Award"]}
-                    </div>
+                    </Badge>
                   </div>
                 )}
 
                 {product["Rating"] && (
                   <div className="absolute top-2 right-2 z-10">
-                    <div className="flex items-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm">
-                      <Star className="h-3 w-3 fill-amber-400 text-amber-400 mr-1" />
-                      <span className="text-xs font-medium">{product["Rating"]}</span>
-                    </div>
+                    <RatingMeter 
+                      rating={product["Rating"]} 
+                      size="sm" 
+                      showLabel={false}
+                      className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm"
+                    />
                   </div>
                 )}
-
-                {/* Compare button overlay */}
-                <div className="absolute top-2 right-2 z-10">
-                  <Button
-                    size="sm"
-                    className={`${selected ? 'bg-primary text-white' : 'bg-white text-primary hover:bg-gray-100'} rounded-md shadow-md text-xs font-medium h-8 flex items-center`}
-                    onClick={() => selected ? removeFromComparison(product.id) : addToComparison(product)}
-                  >
-                    {selected ? <Check className="h-3.5 w-3.5 mr-1" /> : null}
-                    {selected ? 'Compare' : 'Compare'}
-                  </Button>
-                </div>
 
                 <Link href={`/products/${product["Internal link"]}`} className="block h-[180px] relative">
                   <Image
@@ -112,7 +103,21 @@ export default function ProductsGrid({
                   </div>
                 </div>
 
-                <div className="mt-3 font-bold text-xl">{formattedPrice}</div>
+                <div className="mt-3 flex justify-between items-center">
+                  <div className="font-bold text-xl">{formattedPrice}</div>
+                  <Button
+                    size="sm"
+                    variant={selected ? "default" : "outline"}
+                    className="h-8"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      selected ? removeFromComparison(product.id) : addToComparison(product);
+                    }}
+                  >
+                    {selected ? <Check className="h-3.5 w-3.5 mr-1" /> : null}
+                    {selected ? 'Added' : 'Compare'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )

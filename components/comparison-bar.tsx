@@ -8,9 +8,25 @@ import { useState } from "react"
 import ComparisonModal from "./comparison-modal"
 import type { Machine } from "@/lib/database-types"
 
+// Define a type that can handle both camelCase and quoted property names
+interface MixedFormatProduct extends Record<string, any> {
+  id: string
+}
+
 export default function ComparisonBar() {
   const { selectedProducts, removeFromComparison, clearComparison } = useComparison()
   const [modalOpen, setModalOpen] = useState(false)
+
+  // Helper functions to get product data regardless of format
+  const getImageUrl = (product: Machine) => {
+    const mixedProduct = product as unknown as MixedFormatProduct
+    return mixedProduct["Image"] || mixedProduct.image_url || "/placeholder.svg"
+  }
+  
+  const getMachineName = (product: Machine) => {
+    const mixedProduct = product as unknown as MixedFormatProduct
+    return mixedProduct["Machine Name"] || mixedProduct.machine_name || `Product ${product.id}`
+  }
 
   // Don't render if no products are selected
   if (selectedProducts.length === 0) return null
@@ -28,8 +44,8 @@ export default function ComparisonBar() {
                 <div key={product.id} className="relative group">
                   <div className="h-12 w-12 relative rounded border overflow-hidden">
                     <Image
-                      src={product["Image"] || "/placeholder.svg"}
-                      alt={product["Machine Name"] || `Product ${product.id || "image"}`}
+                      src={getImageUrl(product)}
+                      alt={getMachineName(product)}
                       fill
                       className="object-contain"
                     />
@@ -41,7 +57,7 @@ export default function ComparisonBar() {
                     <X className="h-3 w-3" />
                   </button>
                   <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs rounded py-1 px-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                    {product["Machine Name"]}
+                    {getMachineName(product)}
                   </div>
                 </div>
               ))}

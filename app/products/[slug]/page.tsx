@@ -3,13 +3,14 @@ import { notFound } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Star, Heart, ShoppingCart } from "lucide-react"
+import { Star, ShoppingCart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import ProductReviews from "@/components/product-reviews"
 import Breadcrumb from "@/components/breadcrumb"
-import AuthorInfo from "@/components/author-info"
 import RelatedProducts from "@/components/related-products"
+import AddToCompareButton from "@/components/add-to-compare-button"
+import RatingMeter from "@/components/rating-meter"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
@@ -68,13 +69,10 @@ export default async function ProductPage({ params }: { params: { slug: string }
       notFound();
     }
 
-    // Get related products based on the same laser category - with error handling
+    // Get related products based on similarity
     let relatedProducts = [];
     try {
-      const { data: relatedProductsData } = await dataProvider.getMachines({
-        limit: 4,
-        category: product.laser_category,
-      });
+      const { data: relatedProductsData } = await dataProvider.getRelatedProducts(product);
       relatedProducts = relatedProductsData || [];
     } catch (err) {
       console.error("Error fetching related products:", err);
@@ -133,13 +131,14 @@ export default async function ProductPage({ params }: { params: { slug: string }
         availability: "https://schema.org/InStock",
         url: `https://machinesformakers.com/products/${product.slug}`,
       },
-      ...(product.rating && {
+      // Only include rating information if available
+      ...(product.rating && reviews?.length > 0 && {
         aggregateRating: {
           "@type": "AggregateRating",
           ratingValue: product.rating,
           bestRating: "10",
           worstRating: "1",
-          ratingCount: reviews?.length || 1,
+          ratingCount: reviews.length,
         },
       }),
     };
@@ -148,10 +147,10 @@ export default async function ProductPage({ params }: { params: { slug: string }
       <>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
 
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-6">
           <Breadcrumb items={breadcrumbItems} />
 
-          <div className="grid md:grid-cols-2 gap-8 mb-12">
+          <div className="grid md:grid-cols-2 gap-8 mb-8">
             <div className="relative">
               {product.award && (
                 <Badge className="absolute top-4 right-4 bg-sky-500 hover:bg-sky-600">{product.award}</Badge>
@@ -170,39 +169,31 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
             <div>
               <div className="mb-4">
-                <Link
-                  href={`/brands/${product.company?.toLowerCase().replace(/\s+/g, "-")}`}
-                  className="text-sm text-primary"
-                >
-                  {product.company}
-                </Link>
-                <h1 className="text-3xl font-bold mt-1">{product.machine_name}</h1>
-              </div>
-
-              <div className="flex items-center mb-4">
-                <div className="flex">
-                  {Array(5)
-                    .fill(0)
-                    .map((_, index) => (
-                      <Star
-                        key={index}
-                        className={`h-5 w-5 ${
-                          index < Math.floor(product.rating || 0)
-                            ? "fill-primary text-primary"
-                            : index < (product.rating || 0)
-                              ? "fill-primary/50 text-primary"
-                              : "text-muted-foreground"
-                        }`}
-                      />
-                    ))}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <Link
+                      href={`/brands/${product.company?.toLowerCase().replace(/\s+/g, "-")}`}
+                      className="text-sm text-primary"
+                    >
+                      {product.company}
+                    </Link>
+                    <h1 className="text-3xl font-bold mt-1">{product.machine_name}</h1>
+                  </div>
+                  
+                  {product.rating && (
+                    <RatingMeter 
+                      rating={product.rating} 
+                      size="md" 
+                      showLabel={false}
+                    />
+                  )}
                 </div>
-                <span className="ml-2 text-sm text-muted-foreground">{product.rating} rating</span>
               </div>
 
               {/* Quick summary for featured snippet optimization */}
-              <div className="bg-muted/30 p-4 rounded-lg mb-6">
+              <div className="bg-muted/30 p-3 rounded-lg mb-4">
                 <p className="text-lg">{product.excerpt_short}</p>
-                <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+                <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                   <div className="flex items-center">
                     <span className="font-medium mr-2">Laser Type:</span> {product.laser_type_a}
                   </div>
@@ -218,9 +209,9 @@ export default async function ProductPage({ params }: { params: { slug: string }
                 </div>
               </div>
 
-              <div className="text-3xl font-bold mb-6">{formattedPrice}</div>
+              <div className="text-3xl font-bold mb-4">{formattedPrice}</div>
 
-              <div className="grid gap-4 mb-8">
+              <div className="grid gap-3 mb-5">
                 {product.affiliate_link && (
                   <Button size="lg" className="w-full" asChild>
                     <Link href={product.affiliate_link} target="_blank" rel="noopener noreferrer">
@@ -228,106 +219,117 @@ export default async function ProductPage({ params }: { params: { slug: string }
                     </Link>
                   </Button>
                 )}
-                <Button variant="outline" size="lg" className="w-full">
-                  <Heart className="mr-2 h-5 w-5" /> Add to Wishlist
-                </Button>
-                <Button variant="outline" size="lg" className="w-full">
-                  Add to Compare
-                </Button>
+                <AddToCompareButton product={product} />
               </div>
 
-              <div className="border-t pt-6">
-                <h3 className="font-semibold mb-2">Quick Verdict</h3>
-                <div className="grid md:grid-cols-2 gap-6 mb-6">
-                  <div>
-                    <h4 className="font-medium mb-2 text-green-600">Pros</h4>
-                    <ul className="space-y-1">
-                      {highlights.map((pro, index) => (
-                        <li key={index} className="text-sm flex items-start">
-                          <span className="text-green-600 mr-2">✓</span> {pro}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-2 text-red-600">Cons</h4>
-                    <ul className="space-y-1">
-                      {drawbacks.map((con, index) => (
-                        <li key={index} className="text-sm flex items-start">
-                          <span className="text-red-600 mr-2">✗</span> {con}
-                        </li>
-                      ))}
-                    </ul>
+              {/* Quick Verdict - Only show if pros or cons are available */}
+              {(highlights.length > 0 || drawbacks.length > 0) && (
+                <div className="border-t pt-6">
+                  <h3 className="font-semibold mb-2">Quick Verdict</h3>
+                  <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    {highlights.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2 text-green-600">Pros</h4>
+                        <ul className="space-y-1">
+                          {highlights.map((pro: string, index: number) => (
+                            <li key={index} className="text-sm flex items-start">
+                              <span className="text-green-600 mr-2">✓</span> {pro}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {drawbacks.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2 text-red-600">Cons</h4>
+                        <ul className="space-y-1">
+                          {drawbacks.map((con: string, index: number) => (
+                            <li key={index} className="text-sm flex items-start">
+                              <span className="text-red-600 mr-2">✗</span> {con}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Author info for E-A-T */}
-          <AuthorInfo
-            name="John Doe"
-            role="Laser Cutting Expert"
-            publishDate={product.published_at || product.created_at}
-            updateDate={product.updated_at}
-          />
-
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold mb-6" id="specifications">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold mb-4" id="specifications">
               Specifications
             </h2>
-            <Tabs defaultValue="general">
+            <Tabs defaultValue="basic">
               <TabsList className="w-full justify-start">
-                <TabsTrigger value="general">General</TabsTrigger>
+                <TabsTrigger value="basic">Basic Information</TabsTrigger>
+                <TabsTrigger value="laser">Laser Specifications</TabsTrigger>
+                <TabsTrigger value="dimensions">Machine Dimensions</TabsTrigger>
                 <TabsTrigger value="performance">Performance</TabsTrigger>
-                <TabsTrigger value="physical">Physical</TabsTrigger>
-                <TabsTrigger value="software">Software</TabsTrigger>
+                <TabsTrigger value="features">Features</TabsTrigger>
               </TabsList>
-              <TabsContent value="general" className="mt-6">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <SpecItem label="Power" value={`${product.laser_power_a}W ${product.laser_type_a}`} />
+              
+              {/* Basic Information */}
+              <TabsContent value="basic" className="mt-4">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <SpecItem label="Brand" value={product.company} />
+                  <SpecItem label="Price" value={formattedPrice} />
+                  <SpecItem label="Expert Score" value={product.rating ? `${product.rating}/10` : null} />
+                  <SpecItem label="Warranty" value={product.warranty} />
+                  <SpecItem label="Software" value={product.software} />
+                </div>
+              </TabsContent>
+              
+              {/* Laser Specifications */}
+              <TabsContent value="laser" className="mt-4">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <SpecItem label="Laser Type" value={product.laser_type_a} />
+                  <SpecItem label="Power (W)" value={product.laser_power_a ? `${product.laser_power_a}` : null} />
+                  <SpecItem label="Laser Source" value={product.laser_source_manufacturer} />
+                  <SpecItem label="Frequency" value={product.laser_frequency} />
+                  <SpecItem label="Pulse Width" value={product.pulse_width} />
                   {product.laser_power_b && (
                     <SpecItem label="Secondary Laser" value={`${product.laser_power_b}W ${product.laser_type_b}`} />
                   )}
-                  <SpecItem label="Work Area" value={product.work_area} />
-                  <SpecItem label="Machine Size" value={product.machine_size} />
-                  <SpecItem label="Software" value={product.software} />
-                  <SpecItem label="Focus Type" value={product.focus} />
-                  <SpecItem label="Camera" value={product.camera} />
-                  <SpecItem label="WiFi Connectivity" value={product.wifi} />
                 </div>
               </TabsContent>
-              <TabsContent value="performance" className="mt-6">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <SpecItem label="Speed" value={product.speed} />
+              
+              {/* Machine Dimensions */}
+              <TabsContent value="dimensions" className="mt-4">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <SpecItem label="Work Area (mm)" value={product.work_area} />
+                  <SpecItem label="Machine Size (mm)" value={product.machine_size} />
+                  <SpecItem label="Height (mm)" value={product.height} />
+                </div>
+              </TabsContent>
+              
+              {/* Performance */}
+              <TabsContent value="performance" className="mt-4">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <SpecItem label="Speed (mm/s)" value={product.speed} />
                   <SpecItem label="Acceleration" value={product.acceleration} />
-                  <SpecItem label="Laser Frequency" value={product.laser_frequency} />
-                  <SpecItem label="Pulse Width" value={product.pulse_width} />
-                  <SpecItem label="Laser Source" value={product.laser_source_manufacturer} />
                 </div>
               </TabsContent>
-              <TabsContent value="physical" className="mt-6">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <SpecItem label="Machine Size" value={product.machine_size} />
-                  <SpecItem label="Height" value={product.height} />
+              
+              {/* Features */}
+              <TabsContent value="features" className="mt-4">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <SpecItem label="Focus" value={product.focus} />
                   <SpecItem label="Enclosure" value={product.enclosure} />
-                  <SpecItem label="Passthrough" value={product.passthrough} />
-                  <SpecItem label="Controller" value={product.controller} />
-                </div>
-              </TabsContent>
-              <TabsContent value="software" className="mt-6">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <SpecItem label="Software" value={product.software} />
                   <SpecItem label="WiFi" value={product.wifi} />
                   <SpecItem label="Camera" value={product.camera} />
+                  <SpecItem label="Passthrough" value={product.passthrough} />
+                  <SpecItem label="Controller" value={product.controller} />
                 </div>
               </TabsContent>
             </Tabs>
           </div>
 
+          {/* Only show Video Review section if youtubeVideoId is available */}
           {youtubeVideoId && (
-            <div className="mb-12">
-              <h2 className="text-2xl font-bold mb-6" id="video-review">
+            <div className="mb-6 mt-2">
+              <h2 className="text-2xl font-bold mb-4" id="video-review">
                 Video Review
               </h2>
               <div className="aspect-video rounded-lg overflow-hidden">
@@ -344,77 +346,82 @@ export default async function ProductPage({ params }: { params: { slug: string }
             </div>
           )}
 
+          {/* Only show In-Depth Review if description is available */}
           {product.description && (
-            <div className="mb-12 prose prose-blue max-w-none">
-              <h2 className="text-2xl font-bold mb-6 not-prose" id="in-depth-review">
+            <div className="mb-6 mt-2 prose prose-blue max-w-none">
+              <h2 className="text-2xl font-bold mb-4 not-prose" id="in-depth-review">
                 In-Depth Review
               </h2>
               <div dangerouslySetInnerHTML={{ __html: product.description }} />
             </div>
           )}
 
-          {/* Best for section - good for featured snippets */}
+          {/* Best for section - only show if data is available */}
           {product.best_for && (
-            <div className="mb-12 bg-muted/20 p-6 rounded-lg">
+            <div className="mb-6 mt-2 bg-muted/20 p-6 rounded-lg">
               <h2 className="text-2xl font-bold mb-4">Best For</h2>
               <p className="text-lg">{product.best_for}</p>
             </div>
           )}
 
-          {/* FAQ Section for SEO */}
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold mb-6" id="faq">
-              Frequently Asked Questions
-            </h2>
-            <div className="space-y-4">
-              <div className="border rounded-lg p-4">
-                <h3 className="font-bold text-lg mb-2">Is the {product.machine_name} good for beginners?</h3>
-                <p>
-                  {product.laser_category?.includes("diode")
-                    ? `Yes, the ${product.machine_name} is suitable for beginners. It offers a good balance of features and ease of use, with ${product.software} software that has a relatively gentle learning curve.`
-                    : `The ${product.machine_name} is a ${product.laser_category?.includes("pro") ? "professional-grade" : "mid-level"} machine that may require some experience with laser cutters. However, with proper training and by following the manual, beginners can learn to use it effectively.`}
-                </p>
-              </div>
-              <div className="border rounded-lg p-4">
-                <h3 className="font-bold text-lg mb-2">What materials can the {product.machine_name} cut?</h3>
-                <p>
-                  {product.laser_type_a === "CO2"
-                    ? `The ${product.machine_name} can cut and engrave a wide range of materials including wood, acrylic, leather, paper, cardboard, and some plastics. It can also engrave on glass, stone, and anodized aluminum. It cannot cut metal or reflective materials.`
-                    : product.laser_type_a === "Fiber"
-                      ? `The ${product.machine_name} specializes in marking and engraving metals like stainless steel, aluminum, brass, and copper. It can also mark some plastics. It's not designed for cutting thick materials.`
-                      : `The ${product.machine_name} can cut materials like thin wood (up to 10mm depending on power), acrylic, leather, paper, and cardboard. It can also engrave on harder materials like glass and anodized aluminum.`}
-                </p>
-              </div>
-              <div className="border rounded-lg p-4">
-                <h3 className="font-bold text-lg mb-2">How does the {product.machine_name} compare to similar models?</h3>
-                <p>
-                  The {product.machine_name} offers{" "}
-                  {Number.parseInt(product.laser_power_a || "0") > 50 ? "high" : "moderate"} power at {formattedPrice},
-                  making it{" "}
-                  {Number.parseInt(product.price?.toString() || "0") < 2000 ? "more affordable" : "a premium option"} in
-                  its category. Compared to competitors, it stands out for its{" "}
-                  {product.award ? product.award.toLowerCase() : "balance of features and performance"}. Check our
-                  comparison table for a detailed analysis against similar models.
-                </p>
+          {/* FAQ Section - only show if we have minimum data needed */}
+          {product.machine_name && product.laser_type_a && (
+            <div className="mb-6 mt-2">
+              <h2 className="text-2xl font-bold mb-4" id="faq">
+                Frequently Asked Questions
+              </h2>
+              <div className="space-y-3">
+                <div className="border rounded-lg p-3">
+                  <h3 className="font-bold text-lg mb-2">Is the {product.machine_name} good for beginners?</h3>
+                  <p>
+                    {product.laser_category?.includes("diode")
+                      ? `Yes, the ${product.machine_name} is suitable for beginners. It offers a good balance of features and ease of use, with ${product.software} software that has a relatively gentle learning curve.`
+                      : `The ${product.machine_name} is a ${product.laser_category?.includes("pro") ? "professional-grade" : "mid-level"} machine that may require some experience with laser cutters. However, with proper training and by following the manual, beginners can learn to use it effectively.`}
+                  </p>
+                </div>
+                <div className="border rounded-lg p-3">
+                  <h3 className="font-bold text-lg mb-2">What materials can the {product.machine_name} cut?</h3>
+                  <p>
+                    {product.laser_type_a === "CO2"
+                      ? `The ${product.machine_name} can cut and engrave a wide range of materials including wood, acrylic, leather, paper, cardboard, and some plastics. It can also engrave on glass, stone, and anodized aluminum. It cannot cut metal or reflective materials.`
+                      : product.laser_type_a === "Fiber"
+                        ? `The ${product.machine_name} specializes in marking and engraving metals like stainless steel, aluminum, brass, and copper. It can also mark some plastics. It's not designed for cutting thick materials.`
+                        : `The ${product.machine_name} can cut materials like thin wood (up to 10mm depending on power), acrylic, leather, paper, and cardboard. It can also engrave on harder materials like glass and anodized aluminum.`}
+                  </p>
+                </div>
+                <div className="border rounded-lg p-3">
+                  <h3 className="font-bold text-lg mb-2">How does the {product.machine_name} compare to similar models?</h3>
+                  <p>
+                    The {product.machine_name} offers{" "}
+                    {Number.parseInt(product.laser_power_a || "0") > 50 ? "high" : "moderate"} power at {formattedPrice},
+                    making it{" "}
+                    {Number.parseInt(product.price?.toString() || "0") < 2000 ? "more affordable" : "a premium option"} in
+                    its category. Compared to competitors, it stands out for its{" "}
+                    {product.award ? product.award.toLowerCase() : "balance of features and performance"}. Check our
+                    comparison table for a detailed analysis against similar models.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
+          {/* Customer Reviews - only show if there are reviews available */}
           {reviews && reviews.length > 0 && (
-            <div className="mb-12">
-              <h2 className="text-2xl font-bold mb-6" id="customer-reviews">
+            <div className="mb-6 mt-2">
+              <h2 className="text-2xl font-bold mb-4" id="customer-reviews">
                 Customer Reviews
               </h2>
               <ProductReviews reviews={reviews} />
             </div>
           )}
 
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold mb-6" id="where-to-buy">
-              Where to Buy
-            </h2>
-            {product.affiliate_link ? (
-              <div className="border rounded-lg p-4 flex justify-between items-center">
+          {/* Where to Buy - only show if affiliate link is available */}
+          {product.affiliate_link && (
+            <div className="mb-6 mt-2">
+              <h2 className="text-2xl font-bold mb-4" id="where-to-buy">
+                Where to Buy
+              </h2>
+              <div className="border rounded-lg p-3 flex justify-between items-center">
                 <div>
                   <div className="font-medium">Official Store</div>
                   <div className="text-xl font-bold">{formattedPrice}</div>
@@ -425,12 +432,10 @@ export default async function ProductPage({ params }: { params: { slug: string }
                   </Link>
                 </Button>
               </div>
-            ) : (
-              <p>No purchase links available at this time.</p>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Related products for internal linking */}
+          {/* Related products - only show if there are related products available */}
           {relatedProducts && relatedProducts.length > 0 && (
             <RelatedProducts products={relatedProducts} currentProductId={product.id} />
           )}
@@ -445,7 +450,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
 function SpecItem({ label, value }: { label: string; value: string | null }) {
   return value ? (
-    <div className="p-4 bg-muted rounded-lg">
+    <div className="p-3 bg-muted rounded-lg">
       <div className="font-medium">{label}</div>
       <div className="text-lg">{value}</div>
     </div>

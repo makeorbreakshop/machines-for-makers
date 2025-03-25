@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import type { Database } from "./database-types"
+import type { Database, Machine } from "./database-types"
 
 // Check if Supabase environment variables are available
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -328,5 +328,114 @@ export async function getBrands() {
   const { data, error } = await supabase.from("brands").select("*").order("name", { ascending: true })
 
   return { data, error }
+}
+
+// Get related products
+export async function getRelatedProducts(currentProduct: Machine, limit = 3) {
+  if (!supabase) {
+    return { data: [], error: null }
+  }
+
+  try {
+    // First, get the raw machine data to ensure we have the correct field format
+    const { data: rawProductData, error: productError } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", currentProduct.id)
+      .single();
+    
+    if (productError) {
+      console.error("Error fetching original product data:", productError);
+      return { data: [], error: productError };
+    }
+    
+    const laserCategory = rawProductData["Laser Category"];
+    console.log(`Finding related products for machine: ${currentProduct.id}, category: ${laserCategory}`);
+    
+    // Get products in the same category
+    const { data: rawData, error } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("Hidden", false)
+      .neq("id", currentProduct.id)
+      .eq("Laser Category", laserCategory)
+      .order("Rating", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching related products:", error);
+      return { data: [], error };
+    }
+
+    console.log('Raw related products data:', rawData);
+
+    // Transform the data
+    const products = rawData ? rawData.map(transformMachineData) : [];
+
+    // Calculate similarity scores
+    const productsWithScores = products.map(product => {
+      let score = 0;
+
+      // Price similarity (within 30%)
+      if (rawProductData["Price"] && product.price) {
+        const priceDiff = Math.abs(
+          Number(rawProductData["Price"]) - Number(product.price)
+        ) / Number(rawProductData["Price"]);
+        if (priceDiff < 0.3) score += 20;
+      }
+
+      // Power similarity (within 30%)
+      if (rawProductData["Laser Power A"] && product.laser_power_a) {
+        const powerDiff = Math.abs(
+          Number(rawProductData["Laser Power A"]) - Number(product.laser_power_a)
+        ) / Number(rawProductData["Laser Power A"]);
+        if (powerDiff < 0.3) score += 15;
+      }
+
+      // Same laser type
+      if (rawProductData["Laser Type A"] === product.laser_type_a) {
+        score += 15;
+      }
+
+      // Same manufacturer (lower weight to ensure variety)
+      if (rawProductData["Company"] === product.company) {
+        score += 10;
+      }
+      
+      // Award bonus - products with awards get a significant boost
+      if (product.award) {
+        score += 30;  // Give a significant boost to awarded products
+      }
+
+      return { ...product, similarityScore: score };
+    });
+
+    // Sort by similarity score and rating
+    const sortedProducts = productsWithScores.sort((a, b) => {
+      if (b.similarityScore !== a.similarityScore) {
+        return b.similarityScore - a.similarityScore;
+      }
+      return (b.rating || 0) - (a.rating || 0);
+    });
+
+    console.log(`Found ${sortedProducts.length} related products with scores:`, 
+      sortedProducts.map(p => ({
+        name: p.machine_name,
+        score: p.similarityScore,
+        rating: p.rating,
+        award: p.award
+      }))
+    );
+
+    const result = sortedProducts.slice(0, limit);
+    console.log('Returning related products:', result);
+
+    return { 
+      data: result, 
+      error: null 
+    };
+  } catch (err) {
+    console.error("Exception in getRelatedProducts:", err);
+    return { data: [], error: err };
+  }
 }
 

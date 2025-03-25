@@ -9,6 +9,11 @@ import { Check, X } from "lucide-react"
 import type { Machine } from "@/lib/database-types"
 import React from "react"
 
+// Define a type that can handle both camelCase and quoted property names
+interface MixedFormatProduct extends Record<string, any> {
+  id: string
+}
+
 // Create a VisuallyHidden component for accessibility
 const VisuallyHidden = ({ children }: { children: React.ReactNode }) => (
   <span className="sr-only">{children}</span>
@@ -64,6 +69,40 @@ const specCategories = [
   },
 ]
 
+// Updated spec keys to handle both formats
+const specKeys = {
+  // Basic Information
+  brand: ["Company", "company"],
+  price: ["Price", "price"],
+  rating: ["Rating", "rating"],
+  warranty: ["Warranty", "warranty"],
+  software: ["Software", "software"],
+  
+  // Laser Specifications
+  laserType: ["Laser Type A", "laser_type_a"],
+  laserPower: ["Laser Power A", "laser_power_a"],
+  laserSource: ["Laser Source Manufacturer", "laser_source_manufacturer"],
+  laserFrequency: ["Laser Frequency", "laser_frequency"],
+  pulseWidth: ["Pulse Width", "pulse_width"],
+  
+  // Machine Dimensions
+  workArea: ["Work Area", "work_area"],
+  machineSize: ["Machine Size", "machine_size"],
+  height: ["Height", "height"],
+  
+  // Performance
+  speed: ["Speed", "speed"],
+  acceleration: ["Acceleration", "acceleration"],
+  
+  // Features
+  focus: ["Focus", "focus"],
+  enclosure: ["Enclosure", "enclosure"],
+  wifi: ["Wifi", "wifi"],
+  camera: ["Camera", "camera"],
+  passthrough: ["Passthrough", "passthrough"],
+  controller: ["Controller", "controller"],
+}
+
 interface ComparisonModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -76,9 +115,47 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
   const PRODUCT_COLUMN_WIDTH = 220 // Increased from 180px
   const LABEL_COLUMN_WIDTH = 200 // Increased from 180px
   
+  // Helper function to get value from product using multiple possible keys
+  const getProductValue = (product: Machine, keys: string[]) => {
+    const mixedProduct = product as unknown as MixedFormatProduct
+    
+    for (const key of keys) {
+      if (mixedProduct[key] !== undefined) {
+        return mixedProduct[key]
+      }
+    }
+    
+    return undefined
+  }
+  
   // Render a spec value based on its type
   const renderSpecValue = (product: Machine, spec: any) => {
-    const value = product[spec.key as keyof Machine]
+    // Try to get value using both camelCase and quoted formats
+    let value
+    
+    // Handle spec keys mapping
+    if (spec.key === "Company") value = getProductValue(product, specKeys.brand)
+    else if (spec.key === "Price") value = getProductValue(product, specKeys.price)
+    else if (spec.key === "Rating") value = getProductValue(product, specKeys.rating)
+    else if (spec.key === "Warranty") value = getProductValue(product, specKeys.warranty)
+    else if (spec.key === "Software") value = getProductValue(product, specKeys.software)
+    else if (spec.key === "Laser Type A") value = getProductValue(product, specKeys.laserType)
+    else if (spec.key === "Laser Power A") value = getProductValue(product, specKeys.laserPower)
+    else if (spec.key === "Laser Source Manufacturer") value = getProductValue(product, specKeys.laserSource)
+    else if (spec.key === "Laser Frequency") value = getProductValue(product, specKeys.laserFrequency)
+    else if (spec.key === "Pulse Width") value = getProductValue(product, specKeys.pulseWidth)
+    else if (spec.key === "Work Area") value = getProductValue(product, specKeys.workArea)
+    else if (spec.key === "Machine Size") value = getProductValue(product, specKeys.machineSize)
+    else if (spec.key === "Height") value = getProductValue(product, specKeys.height)
+    else if (spec.key === "Speed") value = getProductValue(product, specKeys.speed)
+    else if (spec.key === "Acceleration") value = getProductValue(product, specKeys.acceleration)
+    else if (spec.key === "Focus") value = getProductValue(product, specKeys.focus)
+    else if (spec.key === "Enclosure") value = getProductValue(product, specKeys.enclosure)
+    else if (spec.key === "Wifi") value = getProductValue(product, specKeys.wifi)
+    else if (spec.key === "Camera") value = getProductValue(product, specKeys.camera)
+    else if (spec.key === "Passthrough") value = getProductValue(product, specKeys.passthrough)
+    else if (spec.key === "Controller") value = getProductValue(product, specKeys.controller)
+    else value = product[spec.key as keyof Machine]
 
     if (spec.format === "currency" && typeof value === "number") {
       return `$${value.toLocaleString()}`
@@ -140,6 +217,24 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
     return value || spec.defaultValue || "—"
   }
 
+  // Get image URL from product data
+  const getImageUrl = (product: Machine) => {
+    const mixedProduct = product as unknown as MixedFormatProduct
+    return mixedProduct["Image"] || mixedProduct.image_url || "/placeholder.svg"
+  }
+  
+  // Get machine name from product data
+  const getMachineName = (product: Machine) => {
+    const mixedProduct = product as unknown as MixedFormatProduct
+    return mixedProduct["Machine Name"] || mixedProduct.machine_name || `Product ${product.id}`
+  }
+  
+  // Get internal link from product data
+  const getInternalLink = (product: Machine) => {
+    const mixedProduct = product as unknown as MixedFormatProduct
+    return mixedProduct["Internal link"] || mixedProduct.slug || ""
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-auto max-h-[90vh] overflow-y-auto p-4 md:p-6">
@@ -164,17 +259,17 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
                       <div className="flex flex-col items-center">
                         <div className="relative h-28 w-28 mb-3 mx-auto">
                           <Image
-                            src={product["Image"] || "/placeholder.svg"}
-                            alt={product["Machine Name"] || `Product ${product.id || "image"}`}
+                            src={getImageUrl(product)}
+                            alt={getMachineName(product)}
                             fill
                             className="object-contain"
                           />
                         </div>
                         <Link
-                          href={`/products/${product["Internal link"]}`}
+                          href={`/products/${getInternalLink(product)}`}
                           className="font-bold text-primary hover:underline text-base"
                         >
-                          {product["Machine Name"]}
+                          {getMachineName(product)}
                         </Link>
                         <Button
                           variant="ghost"

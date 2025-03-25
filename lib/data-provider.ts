@@ -6,7 +6,9 @@ import {
   getImagesByMachineId as supabaseImages,
   getCategories as supabaseCategories,
   getBrands as supabaseBrands,
+  getRelatedProducts as supabaseRelatedProducts,
 } from "./supabase"
+import type { Machine } from "./database-types"
 
 // Data provider that uses Supabase
 export const dataProvider = {
@@ -49,6 +51,11 @@ export const dataProvider = {
   // Brands
   getBrands: async () => {
     return await supabaseBrands()
+  },
+
+  // Related Products
+  getRelatedProducts: async (currentProduct: Machine, limit?: number) => {
+    return await supabaseRelatedProducts(currentProduct, limit)
   },
 }
 
