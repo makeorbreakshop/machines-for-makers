@@ -71,7 +71,10 @@ export default function ProductsGrid({
                     alt={product["Machine Name"] || `Product ${product.id || "image"}`}
                     fill
                     className="object-contain"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                    loading="lazy"
+                    quality={75}
+                    priority={false}
                   />
                 </Link>
               </div>

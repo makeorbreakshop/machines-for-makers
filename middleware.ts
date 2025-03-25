@@ -9,6 +9,14 @@ export async function middleware(request: NextRequest) {
 
   await supabase.auth.getSession()
 
+  // Add caching headers to enable bfcache
+  // Don't add no-store for compare page or similar pages that benefit from caching
+  const url = request.nextUrl.pathname
+  if (!url.includes('/api/') && !url.includes('/auth/')) {
+    // Set cache control headers for public pages
+    response.headers.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+  }
+
   return response
 }
 

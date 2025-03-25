@@ -3,18 +3,16 @@ import { createServerClient } from "@/lib/supabase/server"
 import CompareClientPage from "./CompareClientPage"
 import type { Database } from "@/lib/database-types"
 import { Metadata } from "next"
-import dynamic from 'next/dynamic'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { lazy } from "react"
 
 // Dynamically import heavy component
-const DynamicComparisonTable = dynamic(() => import('@/components/comparison-table'), {
-  loading: () => <div className="w-full p-12 text-center">Loading comparison table...</div>,
-  ssr: true
-})
+const DynamicComparisonTable = lazy(() => import('@/components/comparison-table'))
 
-// Use a different name for the config export
-export const dynamicConfig = 'force-dynamic'
+// Set dynamic to auto and add revalidation to enable bfcache
+export const dynamic = 'auto'
+export const revalidate = 3600 // Revalidate at most every hour
 
 export default async function ComparePage() {
   const supabase = await createServerClient()

@@ -12,6 +12,27 @@
   ],
   "routes": [
     {
+      "src": "/assets/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "/_next/static/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "/_next/image(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, stale-while-revalidate=86400"
+      },
+      "continue": true
+    },
+    {
       "src": "/(.*)",
       "dest": "/$1"
     }

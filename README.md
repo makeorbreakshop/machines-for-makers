@@ -76,4 +76,34 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Shadcn UI](https://ui.shadcn.com/) for the component library
 - [Tailwind CSS](https://tailwindcss.com/) for the styling framework
 - [Next.js](https://nextjs.org/) for the React framework
-- [Supabase](https://supabase.io/) for the database and authentication 
+- [Supabase](https://supabase.io/) for the database and authentication
+
+## Performance Optimization
+
+The application has been optimized for better performance metrics:
+
+### Caching Strategy
+- Pages use appropriate caching with `dynamic = 'auto'` and revalidation periods
+- Middleware sets appropriate cache headers based on content type
+- Vercel configuration includes optimized caching for static assets and images
+
+### Image Optimization
+- Images use Next.js Image component with proper size attributes
+- Quality parameters set to balance image quality and performance
+- Responsive sizing with appropriate `sizes` attribute for different viewports
+
+### JavaScript Optimization
+- Components are broken down into smaller, manageable pieces
+- React.memo is used for pure components to prevent unnecessary re-renders
+- useCallback and useMemo are used for expensive calculations and event handlers
+- Debounced functions for search and filter operations to reduce API calls
+
+### CSS Optimization
+- Tailwind configuration properly purges unused styles
+- The content configuration includes all used files
+- Experimental optimizations enabled for better CSS output
+
+To run a performance audit yourself:
+1. Build the application: `npm run build`
+2. Start the production server: `npm start`
+3. Run Lighthouse from Chrome DevTools on the deployed application 

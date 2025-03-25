@@ -12,5 +12,11 @@
     "activeTab",
     "scripting",
     "storage"
-  ]
+  ],
+  "mcpServers": {
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    }
+  }
 } 
