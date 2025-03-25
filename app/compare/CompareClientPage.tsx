@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Grid, Table, Zap, Box, Layers, Maximize2, Minimize2, Briefcase, Smartphone, X, Camera, Wifi } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import ComparisonTable from "@/components/comparison-table"
+import EnhancedComparisonTable from "@/components/enhanced-comparison-table"
 import FilterButton from "@/components/filter-button"
 import SidebarFilter from "@/components/sidebar-filter"
 import Breadcrumb from "@/components/breadcrumb"
@@ -843,6 +844,7 @@ export default function CompareClientPage({
         </div>
       </div>
 
+      {/* Revert to consistent flex layout for both view modes but with better table container */}
       <div className="flex flex-col lg:flex-row gap-6 p-6">
         <div className="w-full lg:w-64 flex-shrink-0">
           <div className="sticky top-24">
@@ -862,7 +864,9 @@ export default function CompareClientPage({
               <ProductsGrid products={displayProducts} totalProducts={displayProducts.length} />
             </div>
           ) : (
-            <ComparisonTable machines={displayProducts} />
+            <div className="w-full overflow-hidden">
+              <EnhancedComparisonTable machines={displayProducts} />
+            </div>
           )
         ) : (
           <div className="text-center py-20">
