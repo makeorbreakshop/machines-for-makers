@@ -76,7 +76,12 @@ export default function Navbar() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Link href="/learn-lightburn" className="text-sm font-medium hover:text-primary">
+              <Link 
+                href="https://course.makeorbreakshop.com/learn-lightburn-for-lasers" 
+                className="text-sm font-medium hover:text-primary"
+                target="_blank" 
+                rel="noopener noreferrer"
+              >
                 Learn Lightburn
               </Link>
               <Link href="/guides" className="text-sm font-medium hover:text-primary">
