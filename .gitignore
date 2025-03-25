@@ -38,3 +38,9 @@ next-env.d.ts
 
 # browser-tools-mcp
 browser-tools-mcp/
+
+# media and transcripts
+/one_step_transcripts/
+/downloads/
+/screenshots/
+screenshot.png
