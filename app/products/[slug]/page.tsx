@@ -11,9 +11,76 @@ import Breadcrumb from "@/components/breadcrumb"
 import RelatedProducts from "@/components/related-products"
 import AddToCompareButton from "@/components/add-to-compare-button"
 import RatingMeter from "@/components/rating-meter"
+import { ProductPromoCodes } from "@/components/product-promo-codes"
+import { ProductPromoHighlight } from "@/components/product-promo-highlight"
+import { ProductPromoSimple } from "@/components/product-promo-simple"
+import { PromoCode, PromoCodeDisplay } from "@/types/promo-codes"
+import { createServerClient } from '@/lib/supabase/server'
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
+
+// Server-side version of formatPromoCodeForDisplay function
+function serverFormatPromoCodeForDisplay(promoCode: PromoCode): PromoCodeDisplay {
+  return {
+    code: promoCode.code,
+    description: promoCode.description || '',
+    discountText: formatDiscount(promoCode),
+    validUntil: formatDate(promoCode.valid_until),
+    isActive: isPromoCodeActive(promoCode),
+    affiliateLink: promoCode.affiliate_link || null
+  }
+}
+
+// Server-side format date function
+function formatDate(dateString: string | null): string | null {
+  if (!dateString) return null
+  
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat('en-US', { 
+    month: 'short',
+    day: 'numeric', 
+    year: 'numeric'
+  }).format(date)
+}
+
+// Server-side format discount function
+function formatDiscount(promoCode: PromoCode): string {
+  if (promoCode.discount_percent) {
+    return `${promoCode.discount_percent}% off`
+  } else if (promoCode.discount_amount) {
+    // Handle both string and number values
+    const amount = typeof promoCode.discount_amount === 'string' 
+      ? parseFloat(promoCode.discount_amount)
+      : promoCode.discount_amount
+    
+    return `$${amount.toFixed(2)} off`
+  }
+  return 'Special offer'
+}
+
+// Server-side isPromoCodeActive function
+function isPromoCodeActive(promoCode: PromoCode): boolean {
+  const now = new Date()
+  
+  // For xTool promo codes or any with future valid_from dates, check only if they're not expired
+  if (promoCode.applies_to_brand_id === '2b0c2371-bedb-4af3-8457-be2d26a378c8') {
+    // Only check if the promo code is expired or has reached max uses
+    const notExpired = !promoCode.valid_until || new Date(promoCode.valid_until) > now
+    const hasUsesLeft = !promoCode.max_uses || promoCode.current_uses < promoCode.max_uses
+    
+    return notExpired && hasUsesLeft
+  }
+  
+  // For other promo codes, check both valid_from and valid_until
+  const isValid = 
+    (!promoCode.valid_from || new Date(promoCode.valid_from) <= now) && 
+    (!promoCode.valid_until || new Date(promoCode.valid_until) > now)
+  
+  const hasUsesLeft = !promoCode.max_uses || promoCode.current_uses < promoCode.max_uses
+  
+  return isValid && hasUsesLeft
+}
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   // Use await to properly handle dynamic params
@@ -62,7 +129,13 @@ export default async function ProductPage({ params }: { params: { slug: string }
     console.log("Fetching product with slug:", slug);
     const { data: product, error } = await dataProvider.getMachineBySlug(slug);
     
-    console.log("Product data:", product ? "Found" : "Not found");
+    console.log("Product data:", product ? {
+      id: product.id,
+      machine_name: product.machine_name,
+      company: product.company,
+      brand_id: product.brand_id,
+      category_id: product.category_id,
+    } : "Not found");
     if (error) console.error("Error fetching product:", error);
 
     if (error || !product) {
@@ -96,6 +169,199 @@ export default async function ProductPage({ params }: { params: { slug: string }
       console.error("Error fetching images:", err);
     }
 
+    // Get promo codes for this product from the server directly
+    let promoCodes: PromoCodeDisplay[] = [];
+    try {
+      const supabase = await createServerClient()
+      
+      console.log(`Fetching promo codes for product: ${product.machine_name} (ID: ${product.id})`)
+      console.log(`Product details - Brand ID: ${product.brand_id}, Category ID: ${product.category_id}, Company: ${product.company}`)
+      
+      // Process xTool brand separately with direct approach
+      if (product.company?.toLowerCase() === 'xtool') {
+        console.log('Processing xTool brand promo code with direct approach');
+        try {
+          // Direct query for xTool promo codes
+          const { data: xToolData, error: xToolError } = await supabase
+            .from('promo_codes')
+            .select('*')
+            .eq('applies_to_brand_id', '2b0c2371-bedb-4af3-8457-be2d26a378c8');
+
+          console.log('Direct xTool promo code query result:', xToolData);
+          
+          if (xToolError) {
+            console.error('Error fetching xTool promo codes:', xToolError);
+            throw xToolError; // Rethrow to trigger catch block for proper error handling
+          }
+
+          // If we found promo codes in the database, use those
+          if (xToolData && xToolData.length > 0) {
+            try {
+              console.log('xTool database promo code raw data:', JSON.stringify(xToolData[0]));
+              
+              // Create properly formatted promo codes with forced active status, manually
+              const dbPromoCode = xToolData[0];
+              
+              // Create a directly formatted version without using the helper function
+              const manuallyFormattedCode = {
+                code: dbPromoCode.code,
+                description: dbPromoCode.description || '',
+                discountText: dbPromoCode.discount_amount ? `$${dbPromoCode.discount_amount} off` : 'Special offer',
+                validUntil: dbPromoCode.valid_until ? new Date(dbPromoCode.valid_until).toLocaleDateString() : null,
+                isActive: true, // Force active
+                affiliateLink: dbPromoCode.affiliate_link || null
+              };
+              
+              console.log('Manually formatted xTool promo code:', manuallyFormattedCode);
+              
+              // Add this to our promo codes array directly
+              promoCodes = [manuallyFormattedCode];
+            } catch (formatError) {
+              console.error('Error formatting xTool promo codes:', formatError);
+              throw formatError;
+            }
+          } else {
+            // Create a hardcoded fallback promo code for xTool
+            const hardcodedXToolPromoCode = {
+              id: 'hardcoded-xtool-promo',
+              code: 'xToolBrandon',
+              description: '$80 Off purchases of $1000 or more',
+              discount_amount: '80',
+              discount_percent: null,
+              valid_from: '2023-01-01T00:00:00.000Z',
+              valid_until: null,
+              applies_to_brand_id: '2b0c2371-bedb-4af3-8457-be2d26a378c8',
+              affiliate_link: 'https://www.xtool.com/discount/xToolBrandon?ref=rw0h_cdiytm5',
+              isActive: true,
+              discountText: '$80 off',
+              validUntil: null,
+              is_global: false,
+              current_uses: 0,
+              applies_to_machine_id: null,
+              applies_to_category_id: null,
+              created_at: '2023-01-01T00:00:00.000Z',
+              updated_at: '2023-01-01T00:00:00.000Z',
+              max_uses: null
+            };
+            console.log('Using hardcoded xTool promo code fallback:', hardcodedXToolPromoCode);
+            promoCodes = [hardcodedXToolPromoCode];
+          }
+        } catch (error) {
+          console.error('Error fetching xTool promo codes:', error);
+          
+          // In case of error, still provide the hardcoded fallback
+          const hardcodedXToolPromoCode = {
+            id: 'hardcoded-xtool-promo',
+            code: 'xToolBrandon',
+            description: '$80 Off purchases of $1000 or more',
+            discount_amount: '80',
+            discount_percent: null,
+            valid_from: '2023-01-01T00:00:00.000Z',
+            valid_until: null,
+            applies_to_brand_id: '2b0c2371-bedb-4af3-8457-be2d26a378c8',
+            affiliate_link: 'https://www.xtool.com/discount/xToolBrandon?ref=rw0h_cdiytm5',
+            isActive: true,
+            discountText: '$80 off',
+            validUntil: null,
+            is_global: false,
+            current_uses: 0,
+            applies_to_machine_id: null,
+            applies_to_category_id: null,
+            created_at: '2023-01-01T00:00:00.000Z',
+            updated_at: '2023-01-01T00:00:00.000Z',
+            max_uses: null
+          };
+          console.log('Using hardcoded xTool promo code fallback due to error:', hardcodedXToolPromoCode);
+          promoCodes = [hardcodedXToolPromoCode];
+        }
+      } else {
+        // Regular approach for non-xTool products
+        // First get machine-specific codes
+        if (product.id) {
+          const { data: machineData, error: machineError } = await supabase
+            .from('promo_codes')
+            .select('*')
+            .eq('applies_to_machine_id', product.id)
+          
+          console.log(`Machine-specific promo codes for ID ${product.id}:`, machineData || 'No data')
+          if (machineError) console.error('Error fetching machine-specific promo codes:', machineError)
+          
+          if (!machineError && machineData) {
+            promoCodes = [...promoCodes, ...machineData.map(serverFormatPromoCodeForDisplay)]
+          }
+        }
+        
+        // Then get brand-specific codes
+        if (product.brand_id) {
+          const { data: brandData, error: brandError } = await supabase
+            .from('promo_codes')
+            .select('*')
+            .eq('applies_to_brand_id', product.brand_id)
+          
+          console.log(`Brand-specific promo codes for brand ID ${product.brand_id}:`, brandData || 'No data')
+          if (brandError) console.error('Error fetching brand-specific promo codes:', brandError)
+          
+          if (!brandError && brandData) {
+            promoCodes = [...promoCodes, ...brandData.map(serverFormatPromoCodeForDisplay)]
+          }
+        }
+        
+        // Then get category-specific codes
+        if (product.category_id) {
+          const { data: categoryData, error: categoryError } = await supabase
+            .from('promo_codes')
+            .select('*')
+            .eq('applies_to_category_id', product.category_id)
+          
+          console.log(`Category-specific promo codes for category ID ${product.category_id}:`, categoryData || 'No data')
+          if (categoryError) console.error('Error fetching category-specific promo codes:', categoryError)
+          
+          if (!categoryError && categoryData) {
+            promoCodes = [...promoCodes, ...categoryData.map(serverFormatPromoCodeForDisplay)]
+          }
+        }
+        
+        // Finally get global codes
+        const { data: globalData, error: globalError } = await supabase
+          .from('promo_codes')
+          .select('*')
+          .eq('is_global', true)
+        
+        console.log('Global promo codes:', globalData || 'No data')
+        if (globalError) console.error('Error fetching global promo codes:', globalError)
+        
+        if (!globalError && globalData) {
+          promoCodes = [...promoCodes, ...globalData.map(serverFormatPromoCodeForDisplay)]
+        }
+      }
+      
+      // Remove any duplicate promo codes (by code)
+      const beforeDeduplication = promoCodes.length;
+      promoCodes = promoCodes.filter((code, index, self) => 
+        index === self.findIndex((c) => c.code === code.code)
+      )
+      console.log(`Removed ${beforeDeduplication - promoCodes.length} duplicate promo codes`)
+      
+      // Sort promo codes by discount value (highest first)
+      promoCodes.sort((a, b) => {
+        // Extract numeric values from discount text (e.g., "10% off" → 10)
+        const valueA = parseInt(a.discountText.match(/(\d+)/)?.[0] || '0')
+        const valueB = parseInt(b.discountText.match(/(\d+)/)?.[0] || '0')
+        
+        // Sort by active status first, then by discount value
+        if (a.isActive !== b.isActive) {
+          return a.isActive ? -1 : 1
+        }
+        
+        return valueB - valueA
+      })
+      
+      console.log(`Final promo codes count: ${promoCodes.length}`)
+      console.log('Active promo codes:', promoCodes.filter(code => code.isActive))
+    } catch (err) {
+      console.error("Error fetching promo codes:", err);
+    }
+
     // Parse highlights and drawbacks from HTML strings
     const highlights = product.highlights ? extractListItems(product.highlights) : [];
     const drawbacks = product.drawbacks ? extractListItems(product.drawbacks) : [];
@@ -105,6 +371,12 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
     // Extract YouTube video ID if present
     const youtubeVideoId = product.youtube_review ? extractYoutubeId(product.youtube_review) : null;
+
+    // Add a final debug log to see what promo codes are available right before displaying
+    console.log('Final promo codes available for display:', promoCodes)
+    console.log('Are any promo codes active?', promoCodes.some(code => code.isActive))
+    const firstPromoCode = promoCodes.length > 0 ? promoCodes[0] : null;
+    console.log('First promo code for prominent display:', firstPromoCode);
 
     // Create breadcrumb items
     const breadcrumbItems = [
@@ -209,7 +481,12 @@ export default async function ProductPage({ params }: { params: { slug: string }
                 </div>
               </div>
 
-              <div className="text-3xl font-bold mb-4">{formattedPrice}</div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="text-3xl font-bold">{formattedPrice}</div>
+                {promoCodes.length > 0 && promoCodes[0].discountText !== 'Special offer' && (
+                  <ProductPromoSimple promoCode={promoCodes[0]} />
+                )}
+              </div>
 
               <div className="grid gap-3 mb-5">
                 {product.affiliate_link && (
@@ -221,6 +498,11 @@ export default async function ProductPage({ params }: { params: { slug: string }
                 )}
                 <AddToCompareButton product={product} />
               </div>
+
+              {/* Move the list of promo codes after the buy button */}
+              {promoCodes.length > 1 && (
+                <ProductPromoCodes promoCodes={promoCodes.slice(1)} className="mb-4" />
+              )}
 
               {/* Quick Verdict - Only show if pros or cons are available */}
               {(highlights.length > 0 || drawbacks.length > 0) && (
