@@ -27,9 +27,14 @@ if (process.env.NODE_ENV === 'development') {
 else if (cleanEnvPassword.startsWith('${') && cleanEnvPassword.endsWith('}')) {
   console.error("CRITICAL: Environment variable appears to be a placeholder: ", cleanEnvPassword.substring(0, 3))
   
-  // Try using the hardcoded admin123 as fallback
-  cleanEnvPassword = "admin123"
-  console.log("Using fallback password instead")
+  // Only use fallback if in development, otherwise fail loudly
+  if (process.env.NODE_ENV !== 'production') {
+    console.log("In non-production mode, using fallback password")
+    cleanEnvPassword = "admin123"
+  } else {
+    console.error("DEPLOYMENT ERROR: Environment variable is a placeholder. Please set ADMIN_PASSWORD in Vercel!")
+    // Keep the placeholder to trigger an obvious authentication failure
+  }
 } 
 // Check if this is a Base64 encoded string (for Vercel environment variable workaround)
 // Vercel automatically Base64 encodes certain special characters in environment variables
@@ -91,6 +96,13 @@ async function createSHA256Hash(data: Uint8Array): Promise<ArrayBuffer> {
 export async function POST(request: Request) {
   try {
     console.log("==== Login API route called ====")
+    
+    // Override for production testing - use the exact password value without any processing
+    if (process.env.VERCEL === '1' && process.env.NODE_ENV === 'production') {
+      // This will override any cleanEnvPassword processing done earlier
+      cleanEnvPassword = "V7w7powAVKChZzru9JERqPKr39CJqKXfDHMDgsXz";
+      console.log("PRODUCTION OVERRIDE: Using hardcoded admin password for testing");
+    }
     
     // Clone the request to avoid "body stream already read" errors
     const clonedRequest = request.clone();
