@@ -7,8 +7,9 @@ const ADMIN_COOKIE_NAME = "admin_auth"
 // Maximum token age in milliseconds (7 days)
 const MAX_TOKEN_AGE = 7 * 24 * 60 * 60 * 1000
 
-// Edge Runtime Directive for Next.js middleware
-export const runtime = 'edge';
+// FIXED VERSION FOR VERCEL DEPLOYMENT - March 26, 2024
+// Edge Runtime Directive for Next.js middleware - MUST be experimental-edge
+export const runtime = 'experimental-edge';
 
 export async function middleware(request: NextRequest) {
   try {
