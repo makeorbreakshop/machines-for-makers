@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Use Edge Runtime for this API route to match middleware environment
-export const runtime = 'edge';
+// Use experimental-edge runtime for compatibility with Next.js 15
+export const runtime = 'experimental-edge';
 
 export async function GET(request: NextRequest) {
   try {

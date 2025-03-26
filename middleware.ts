@@ -7,8 +7,8 @@ const ADMIN_COOKIE_NAME = "admin_auth"
 // Maximum token age in milliseconds (7 days)
 const MAX_TOKEN_AGE = 7 * 24 * 60 * 60 * 1000
 
-// EDGE RUNTIME DIRECTIVE - Required for Vercel Edge Middleware
-export const runtime = 'edge';
+// Edge Runtime Directive for Next.js middleware
+export const runtime = 'experimental-edge';
 
 export async function middleware(request: NextRequest) {
   try {
