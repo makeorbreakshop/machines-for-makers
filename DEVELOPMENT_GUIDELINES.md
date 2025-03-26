@@ -21,12 +21,17 @@ Next.js 15 has different runtime requirements for different parts of the applica
    - MUST use: `export const runtime = 'edge';` or `export const runtime = 'nodejs';`
    - Edge API routes must declare `edge` runtime
 
+2. **For Server Components that use Supabase:**
+   - MUST use: `export const runtime = 'nodejs';`
+   - Never use 'edge' runtime for server components that use Supabase server client
+
 This is intentional in Next.js architecture:
 - Edge API routes have moved to the stable edge runtime
 - This reflects the different maturity levels of these features in Next.js
 
 For deployment troubleshooting:
 - If API routes fail with "Invalid enum value. Expected 'edge' | 'nodejs'..." use 'edge'
+- If server components fail with Supabase connection issues, ensure 'nodejs' runtime is specified
 
 ## Server Management
 
@@ -57,6 +62,61 @@ For deployment troubleshooting:
 - Supabase changes require manual intervention in the Supabase dashboard
 - Attempting to proceed without these changes will result in errors
 - The assistant cannot directly make changes to Supabase infrastructure
+
+## Supabase Communication Patterns
+
+### Server Components
+- Always use the `createServerClient()` utility from `@/lib/supabase/server` for server components
+- Server components with Supabase access MUST declare `export const runtime = 'nodejs';`
+- Example:
+  ```typescript
+  import { createServerClient } from "@/lib/supabase/server";
+  
+  export const runtime = 'nodejs'; // Required for server components using Supabase
+  
+  export default async function MyServerComponent() {
+    const supabase = await createServerClient();
+    // Fetch data directly
+    const { data } = await supabase.from("my_table").select("*");
+    // ...rest of component
+  }
+  ```
+
+### API Routes
+- API routes should use the appropriate runtime ('edge' or 'nodejs') based on their needs
+- Most API routes should use 'edge' runtime for performance
+- Use the anonymous key for public data access
+- Use service role key only when admin privileges are required
+- Example:
+  ```typescript
+  import { createClient } from "@supabase/supabase-js";
+  
+  export const runtime = 'edge';
+  
+  export async function GET() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    // API implementation
+  }
+  ```
+
+### Client Components
+- Use client-side Supabase client for authenticated user operations
+- Avoid exposing service role key in client components
+- Make API calls to protected endpoints for admin operations
+- Example:
+  ```typescript
+  'use client';
+  
+  import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+  
+  export default function MyClientComponent() {
+    const supabase = createClientComponentClient();
+    // Client-side data fetching
+  }
+  ```
 
 ## Code Modification Best Practices
 
@@ -116,14 +176,6 @@ app/
 3. Verify redirect to login page
 4. After logging in, confirm access to admin
 5. Verify logout functionality works correctly
-
-### ⚠️ If Authentication Is Bypassed
-If users can access admin without logging in:
-1. **IMMEDIATELY** check for duplicate routes in `/app/admin/`
-2. Delete any duplicate routes outside the route group
-3. Verify the `AuthProvider` is properly wrapping all admin pages
-4. Rebuild and deploy the application
-5. Verify the fix by testing in incognito mode 
 
 ## Deployment Considerations
 - The application uses Vercel for hosting
