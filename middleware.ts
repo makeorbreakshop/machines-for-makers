@@ -21,7 +21,14 @@ export async function middleware(request: NextRequest) {
   response.headers.set('x-debug-request-url', request.url)
   response.headers.set('x-debug-host', request.headers.get('host') || 'unknown')
   response.headers.set('x-debug-env', process.env.NODE_ENV || 'unknown')
-  response.headers.set('x-debug-middleware-version', '1.1')
+  response.headers.set('x-debug-middleware-version', '1.2')
+  response.headers.set('x-debug-is-running', 'true')
+  
+  // For non-admin routes, just add debug info and return
+  if (!pathname.startsWith('/admin')) {
+    response.headers.set('x-debug-route-type', 'non-admin')
+    return response
+  }
   
   // Set strong cache control headers to prevent caching for admin routes and API routes
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
@@ -41,11 +48,8 @@ export async function middleware(request: NextRequest) {
   console.log('Request method:', request.method)
   console.log('Request headers:', JSON.stringify(Object.fromEntries(request.headers.entries())))
   
-  // 1. Skip non-admin routes entirely
-  if (!pathname.startsWith('/admin')) {
-    console.log('Not an admin route, skipping')
-    return response
-  }
+  // Admin route, but check if it's the login page
+  response.headers.set('x-debug-route-type', 'admin')
   
   // 2. ALWAYS allow access to login page or login endpoints
   if (
@@ -54,11 +58,13 @@ export async function middleware(request: NextRequest) {
     pathname === '/admin/api/login'
   ) {
     console.log('Login page/endpoint detected, bypassing auth completely')
+    response.headers.set('x-debug-auth-bypass-reason', 'login-page')
     console.log('===== MIDDLEWARE END =====')
     return response
   }
   
   console.log('Protected admin path detected, checking authentication')
+  response.headers.set('x-debug-protected-path', 'true')
   
   // Set up Supabase client
   const supabase = createMiddlewareClient<Database>({ req: request, res: response })
@@ -71,6 +77,8 @@ export async function middleware(request: NextRequest) {
   console.log('Auth cookie present:', !!authCookie)
   console.log('Auth cookie value:', authCookie?.value || 'none')
   console.log('All cookies:', JSON.stringify(Object.fromEntries(request.cookies.getAll().map(c => [c.name, c.value]))))
+  
+  response.headers.set('x-debug-auth-cookie-present', String(!!authCookie))
   
   // If no auth cookie, redirect to login
   if (!authCookie?.value) {
@@ -136,11 +144,7 @@ export async function middleware(request: NextRequest) {
   return response
 }
 
-// Only run middleware on admin paths
+// Run middleware on ALL paths to see if it's running at all
 export const config = {
-  matcher: [
-    '/admin', 
-    '/admin/:path*',
-    '/api/admin/:path*'
-  ]
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/debug).*)'],
 } 
