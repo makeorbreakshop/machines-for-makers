@@ -17,9 +17,11 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
   response.headers.set('x-debug-pathname', pathname)
   
-  // Set cache control headers for admin routes to prevent caching
-  if (pathname.startsWith('/admin')) {
-    response.headers.set('Cache-Control', 'no-store, max-age=0, must-revalidate')
+  // Set strong cache control headers to prevent caching for admin routes and API routes
+  if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
+    response.headers.set('Cache-Control', 'no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
   }
   
   console.log('===== MIDDLEWARE START =====')
