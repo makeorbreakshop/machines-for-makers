@@ -1,15 +1,6 @@
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Tag, Laptop2, Tv } from "lucide-react"
 import Image from "next/image"
-import { Tag } from "lucide-react"
 
 export default function Navbar() {
   return (
@@ -18,64 +9,32 @@ export default function Navbar() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-8">
             <Link href="/" className="flex items-center">
-              <Image src="/logo.svg" alt="Machines for Makers" width={40} height={40} className="h-10 w-auto" />
+              <div 
+                className="w-12 h-12 flex items-center justify-center"
+                style={{ backgroundColor: '#30A9DE' }}
+              >
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="8" y="5" width="10" height="10" rx="1" fill="white" />
+                  <path d="M13 15 L10 18 L16 18 Z" fill="white" />
+                  <path d="M13 21 L10 24 L13 27 L16 24 L13 21" stroke="white" strokeWidth="1.5" fill="none" />
+                  
+                  <circle cx="13" cy="30" r="5" fill="white" />
+                  <circle cx="11" cy="30" r="1.5" fill="#30A9DE" />
+                  <circle cx="15" cy="30" r="1.5" fill="#30A9DE" />
+                  <path d="M11 33 L15 33" stroke="#30A9DE" strokeWidth="1" />
+                  
+                  <path d="M26 5 C30 5, 30 5, 30 5, 30 5, 30 12, 30 12, 30 12, 26 12, 26 12" stroke="white" strokeWidth="1.5" fill="none" />
+                  <rect x="23" y="7" width="4" height="3" fill="white" />
+                  <path d="M30 16 L23 16" stroke="white" strokeWidth="1.5" />
+                  <path d="M30 20 L23 20" stroke="white" strokeWidth="1.5" />
+                  
+                  <rect x="25" y="24" width="6" height="3" rx="1" fill="white" />
+                  <path d="M26 27 L24 32 L32 32 L30 27" fill="white" />
+                </svg>
+              </div>
               <span className="sr-only">Machines for Makers</span>
             </Link>
             <nav className="hidden md:flex items-center space-x-6">
-              {/* Lasers Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger className="text-sm font-medium hover:text-primary">
-                  Lasers
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuLabel>Laser Types</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/lasers/desktop-diode-laser">Desktop Diode Lasers</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/lasers/desktop-galvo">Desktop Galvo Lasers</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/lasers/pro-gantry">Professional Gantry Lasers</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/lasers/desktop-gantry">Desktop Gantry Lasers</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/lasers/open-diode">Open Diode Lasers</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/lasers">View All Lasers</Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* 3D Printers Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger className="text-sm font-medium hover:text-primary">
-                  3D Printers
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem asChild>
-                    <Link href="/3d-printers">View All 3D Printers</Link>
-                  </DropdownMenuItem>
-                  {/* Add subcategories when available */}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* CNCs Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger className="text-sm font-medium hover:text-primary">CNCs</DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem asChild>
-                    <Link href="/cncs">View All CNCs</Link>
-                  </DropdownMenuItem>
-                  {/* Add subcategories when available */}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
               <Link 
                 href="https://course.makeorbreakshop.com/learn-lightburn-for-lasers" 
                 className="text-sm font-medium hover:text-primary"
@@ -84,22 +43,30 @@ export default function Navbar() {
               >
                 Learn Lightburn
               </Link>
-              <Link href="/guides" className="text-sm font-medium hover:text-primary">
-                Buying Guides
+              <Link 
+                href="/promo-codes" 
+                className="flex items-center text-sm font-medium hover:text-primary"
+              >
+                <Tag className="h-4 w-4 mr-1.5" />
+                Promo Codes
+              </Link>
+              <Link 
+                href="https://www.youtube.com/@makeorbreakshop" 
+                className="flex items-center text-sm font-medium hover:text-primary"
+                target="_blank" 
+                rel="noopener noreferrer"
+              >
+                <Tv className="h-4 w-4 mr-1.5" />
+                YouTube
+              </Link>
+              <Link 
+                href="/compare" 
+                className="flex items-center text-sm font-medium hover:text-primary"
+              >
+                <Laptop2 className="h-4 w-4 mr-1.5" />
+                Compare Products
               </Link>
             </nav>
-          </div>
-          <div className="flex items-center">
-            <Link 
-              href="/promo-codes" 
-              className="hidden md:flex items-center mr-3 text-sm font-medium hover:text-primary"
-            >
-              <Tag className="h-4 w-4 mr-1.5" />
-              Promo Codes
-            </Link>
-            <Button variant="outline" size="sm" className="hidden md:inline-flex" asChild>
-              <Link href="/compare">Compare Products</Link>
-            </Button>
           </div>
         </div>
       </div>

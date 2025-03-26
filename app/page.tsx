@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { dataProvider } from "@/lib/data-provider"
 import { ArrowRight } from "lucide-react"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import type { Database } from "@/lib/database-types"
 
 // Implement ISR with a 1-hour revalidation period
 export const revalidate = 3600
@@ -14,12 +17,50 @@ export const metadata = {
     "Find the perfect machine for your maker projects with comprehensive reviews, detailed comparisons, and expert recommendations for lasers, 3D printers, and CNCs.",
 }
 
+// Function to format laser category for display
+const formatLaserCategory = (category: string | null) => {
+  if (!category) return "";
+  
+  // Replace hyphens with spaces and capitalize each word
+  return category
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+    // Handle special cases like "CO2"
+    .replace(/Co2/g, 'CO2');
+}
+
 export default async function HomePage() {
-  // Get featured products for the hero section
-  const { data: featuredProducts } = await dataProvider.getMachines({
-    limit: 6,
+  // Get a larger set of top-rated products to ensure we have some with awards
+  const { data: topPicks } = await dataProvider.getMachines({
+    limit: 20, // Increased limit
     sort: "rating-desc",
   })
+  
+  // Directly query the database for machines with awards as a backup
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookies() })
+  const { data: awardMachines } = await supabase
+    .from("machines")
+    .select("id, \"Machine Name\", \"Award\", \"Internal link\", \"Image\", \"Excerpt (Short)\", \"Price\", \"Laser Category\"")
+    .not("Award", "is", null)
+    .eq("Hidden", false)
+    .order("Rating", { ascending: false })
+    .limit(6)
+  
+  // Process the award machines into the expected format
+  const directAwardProducts = awardMachines?.map(machine => ({
+    id: machine.id,
+    machine_name: machine["Machine Name"],
+    award: machine["Award"],
+    slug: machine["Internal link"],
+    image_url: machine["Image"],
+    excerpt_short: machine["Excerpt (Short)"],
+    price: machine["Price"],
+    laser_category: machine["Laser Category"]
+  })) || []
+  
+  // Debug what we're showing
+  console.log('Direct award products count:', directAwardProducts.length)
 
   return (
     <div>
@@ -36,9 +77,6 @@ export default async function HomePage() {
                 <Button size="lg" asChild>
                   <Link href="/compare">Compare Products</Link>
                 </Button>
-                <Button variant="outline" size="lg" asChild>
-                  <Link href="/guides">Buying Guides</Link>
-                </Button>
               </div>
             </div>
             <div className="relative h-[300px] md:h-[400px]">
@@ -53,114 +91,36 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Machine Categories Section */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold mb-12 text-center">Explore Machine Categories</h2>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Lasers Card */}
-            <Card className="overflow-hidden">
-              <div className="relative h-48">
-                <Image
-                  src="/placeholder.svg?height=200&width=400"
-                  alt="Laser Cutters & Engravers"
-                  fill
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end">
-                  <div className="p-6">
-                    <h3 className="text-2xl font-bold text-white mb-2">Laser Cutters & Engravers</h3>
-                    <p className="text-white/80 mb-4">Compare CO2, diode, and fiber lasers for cutting and engraving</p>
-                    <Button size="sm" variant="outline" className="bg-white hover:bg-white/90" asChild>
-                      <Link href="/lasers">
-                        Explore Lasers <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* 3D Printers Card */}
-            <Card className="overflow-hidden">
-              <div className="relative h-48">
-                <Image src="/placeholder.svg?height=200&width=400" alt="3D Printers" fill className="object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end">
-                  <div className="p-6">
-                    <h3 className="text-2xl font-bold text-white mb-2">3D Printers</h3>
-                    <p className="text-white/80 mb-4">
-                      Find the perfect 3D printer for your prototyping and production needs
-                    </p>
-                    <Button size="sm" variant="outline" className="bg-white hover:bg-white/90" asChild>
-                      <Link href="/3d-printers">
-                        Explore 3D Printers <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* CNCs Card */}
-            <Card className="overflow-hidden md:col-span-2">
-              <div className="relative h-48">
-                <Image src="/placeholder.svg?height=200&width=800" alt="CNC Machines" fill className="object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end">
-                  <div className="p-6">
-                    <h3 className="text-2xl font-bold text-white mb-2">CNC Machines</h3>
-                    <p className="text-white/80 mb-4">
-                      Explore CNC routers, mills, and more for precision cutting and carving
-                    </p>
-                    <Button size="sm" variant="outline" className="bg-white hover:bg-white/90" asChild>
-                      <Link href="/cncs">
-                        Explore CNCs <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </div>
-      </section>
-
       {/* Featured Products Section */}
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold mb-12 text-center">Featured Products</h2>
+          <h2 className="text-3xl font-bold mb-12 text-center">Top Picks</h2>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {featuredProducts?.map((product) => (
-              <Card key={product.id} className="overflow-hidden">
-                <div className="relative h-48">
-                  <Image
-                    src={product.image_url || "/placeholder.svg?height=200&width=200"}
-                    alt={product.machine_name || `Featured product ${product.id || "image"}`}
-                    fill
-                    loading="lazy"
-                    className="object-contain p-2"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  />
-                  {product.award && (
-                    <div className="absolute top-2 right-2 bg-primary text-white text-xs px-2 py-1 rounded-full">
-                      {product.award}
-                    </div>
-                  )}
-                </div>
-                <CardContent className="p-6">
-                  <h3 className="font-bold text-lg mb-2">{product.machine_name}</h3>
-                  <p className="text-sm text-muted-foreground mb-4">{product.excerpt_short?.substring(0, 100)}...</p>
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-lg">
-                      {product.price ? `$${product.price.toLocaleString()}` : "Price N/A"}
-                    </span>
-                    <Button size="sm" asChild>
-                      <Link href={`/products/${product.slug}`}>View Details</Link>
-                    </Button>
+            {directAwardProducts.map((product) => (
+              <Link key={product.id} href={`/products/${product.slug}`}>
+                <Card className="overflow-hidden h-full transition-transform hover:scale-[1.02]">
+                  <div className="relative h-52 flex items-center justify-center">
+                    <Image
+                      src={product.image_url || "/placeholder.svg?height=200&width=200"}
+                      alt={product.machine_name || `Featured product ${product.id || "image"}`}
+                      fill
+                      loading="lazy"
+                      className="object-contain p-1"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    />
                   </div>
-                </CardContent>
-              </Card>
+                  <CardContent className="p-6">
+                    <h3 className="font-bold text-lg mb-2">{product.machine_name}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">{formatLaserCategory(product.laser_category)}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-lg">
+                        {product.price ? `$${Number(product.price).toLocaleString()}` : "Price N/A"}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
 
@@ -168,41 +128,36 @@ export default async function HomePage() {
             <Button size="lg" asChild>
               <Link href="/compare">Compare All Products</Link>
             </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link href="/lasers">View All Products</Link>
-            </Button>
           </div>
         </div>
       </section>
 
-      {/* Guides Section */}
+      {/* Resources Section */}
       <section className="py-16">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold mb-12 text-center">Buying Guides & Resources</h2>
+          <h2 className="text-3xl font-bold mb-12 text-center">Resources</h2>
 
           <div className="grid md:grid-cols-3 gap-8">
             <Card>
               <CardContent className="p-6">
-                <h3 className="font-bold text-xl mb-4">How to Choose a Laser Cutter</h3>
+                <h3 className="font-bold text-xl mb-4">Compare Lasers</h3>
                 <p className="text-muted-foreground mb-4">
-                  Learn about the different types of laser cutters, key specifications to consider, and which one is
-                  right for your needs.
+                  Our comprehensive comparison tool lets you view specs side-by-side, helping you find the perfect laser cutter for your needs and budget.
                 </p>
                 <Button variant="outline" className="w-full" asChild>
-                  <Link href="/guides/choosing-a-laser">Read Guide</Link>
+                  <Link href="/compare">Compare Now</Link>
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardContent className="p-6">
-                <h3 className="font-bold text-xl mb-4">3D Printer Buying Guide</h3>
+                <h3 className="font-bold text-xl mb-4">Watch Latest Reviews</h3>
                 <p className="text-muted-foreground mb-4">
-                  Compare FDM vs. resin technologies, understand key features, and find the perfect 3D printer for your
-                  projects.
+                  See hands-on tests and in-depth reviews of the newest laser cutters, 3D printers, and CNC machines on the Maker Break YouTube channel.
                 </p>
                 <Button variant="outline" className="w-full" asChild>
-                  <Link href="/guides/choosing-a-3d-printer">Read Guide</Link>
+                  <Link href="https://www.youtube.com/@makeorbreakshop" target="_blank" rel="noopener noreferrer">Visit YouTube</Link>
                 </Button>
               </CardContent>
             </Card>
