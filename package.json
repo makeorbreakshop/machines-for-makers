@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "mcp": "npx @agentdeskai/browser-tools-mcp@1.2.0",
-    "dev:mcp": "concurrently \"npm run dev\" \"npm run mcp\""
+    "dev:mcp": "concurrently \"npm run dev\" \"npm run mcp\"",
+    "supabase:migrations": "node scripts/apply-migrations.js",
+    "supabase:create-settings": "node scripts/create-site-settings.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -40,7 +42,7 @@
     "@radix-ui/react-toggle-group": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.1.6",
     "@supabase/auth-helpers-nextjs": "^0.9.0",
-    "@supabase/supabase-js": "^2.39.7",
+    "@supabase/supabase-js": "^2.49.2",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -73,6 +75,7 @@
     "@types/react": "18.2.61",
     "@types/react-dom": "18.2.19",
     "concurrently": "^9.1.2",
+    "dotenv": "^16.4.7",
     "puppeteer-core": "^24.4.0",
     "typescript": "5.8.2"
   }

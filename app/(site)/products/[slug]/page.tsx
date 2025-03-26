@@ -7,7 +7,6 @@ import { Star, ShoppingCart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import ProductReviews from "@/components/product-reviews"
-import Breadcrumb from "@/components/breadcrumb"
 import RelatedProducts from "@/components/related-products"
 import AddToCompareButton from "@/components/add-to-compare-button"
 import RatingMeter from "@/components/rating-meter"
@@ -378,20 +377,13 @@ export default async function ProductPage({ params }: { params: { slug: string }
     const firstPromoCode = promoCodes.length > 0 ? promoCodes[0] : null;
     console.log('First promo code for prominent display:', firstPromoCode);
 
-    // Create breadcrumb items
-    const breadcrumbItems = [
-      { label: "Lasers", href: "/lasers" },
-      { label: getCategoryLabel(product.laser_category), href: `/lasers/${product.laser_category}` },
-      { label: product.machine_name, href: `/products/${product.slug}` },
-    ];
-
     // Schema.org structured data for product
     const productSchema = {
       "@context": "https://schema.org",
       "@type": "Product",
       name: product.machine_name,
       image: product.image_url,
-      description: product.excerpt_short,
+      description: product.description,
       brand: {
         "@type": "Brand",
         name: product.company,
@@ -401,18 +393,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
         price: product.price,
         priceCurrency: "USD",
         availability: "https://schema.org/InStock",
-        url: `https://machinesformakers.com/products/${product.slug}`,
       },
-      // Only include rating information if available
-      ...(product.rating && reviews?.length > 0 && {
-        aggregateRating: {
-          "@type": "AggregateRating",
-          ratingValue: product.rating,
-          bestRating: "10",
-          worstRating: "1",
-          ratingCount: reviews.length,
-        },
-      }),
     };
 
     return (
@@ -420,8 +401,6 @@ export default async function ProductPage({ params }: { params: { slug: string }
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
 
         <div className="container mx-auto px-4 py-6">
-          <Breadcrumb items={breadcrumbItems} />
-
           <div className="grid md:grid-cols-2 gap-8 mb-8">
             <div className="relative">
               {product.award && (

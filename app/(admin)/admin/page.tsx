@@ -25,7 +25,10 @@ export default async function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+      <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
+      <div className="text-muted-foreground mb-6">
+        <p>Welcome to the admin area. The header and footer are hidden here for a clean backend experience.</p>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <DashboardCard title="Machines" value={machineCount} icon={Layers} href="/admin/machines" color="bg-blue-500" />

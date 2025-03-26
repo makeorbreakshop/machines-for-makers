@@ -67,25 +67,17 @@ export default async function HomePage() {
       {/* Hero Section */}
       <section className="bg-gradient-to-b from-sky-50 to-white py-16 md:py-24">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h1 className="text-4xl md:text-5xl font-bold mb-6">Find Your Perfect Maker Machine</h1>
+          <div className="flex justify-center items-center">
+            <div className="max-w-2xl text-center">
+              <h1 className="text-4xl md:text-5xl font-bold mb-6">Find Your Perfect Machine</h1>
               <p className="text-xl text-muted-foreground mb-8">
                 Expert reviews, detailed comparisons, and buying guides for lasers, 3D printers, and CNC machines.
               </p>
-              <div className="flex flex-wrap gap-4">
+              <div className="flex justify-center gap-4">
                 <Button size="lg" asChild>
                   <Link href="/compare">Compare Products</Link>
                 </Button>
               </div>
-            </div>
-            <div className="relative h-[300px] md:h-[400px]">
-              <Image
-                src="/placeholder.svg?height=400&width=600"
-                alt="Machines for Makers"
-                fill
-                className="object-contain"
-              />
             </div>
           </div>
         </div>
@@ -169,7 +161,7 @@ export default async function HomePage() {
                   Master the most popular laser control software with our comprehensive tutorials and tips.
                 </p>
                 <Button variant="outline" className="w-full" asChild>
-                  <Link href="/learn-lightburn">Start Learning</Link>
+                  <Link href="https://makeorbreakshop.mykajabi.com/learn-lightburn-for-lasers" target="_blank" rel="noopener noreferrer">Start Learning</Link>
                 </Button>
               </CardContent>
             </Card>
