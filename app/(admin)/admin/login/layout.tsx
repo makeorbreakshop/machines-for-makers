@@ -1,5 +1,10 @@
-import type React from "react"
+import React from "react"
 import type { Metadata } from "next"
+import { Inter } from "next/font/google"
+import { ThemeProvider } from "@/components/theme-provider"
+import "../globals.css"
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
 export const metadata: Metadata = {
   title: "Admin Login - Machines for Makers",
@@ -11,5 +16,13 @@ export default function AdminLoginLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return (
+    <div className={`${inter.variable} font-sans`}>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+        <div className="min-h-screen">
+          {children}
+        </div>
+      </ThemeProvider>
+    </div>
+  )
 } 

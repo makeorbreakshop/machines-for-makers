@@ -13,28 +13,27 @@ if (!process.env.ADMIN_PASSWORD) {
 
 export async function POST(request: Request) {
   try {
+    console.log("==== Login API route called ====")
     const { password } = await request.json()
 
     if (!password) {
+      console.log("Missing password in request")
       return NextResponse.json(
         { success: false, message: "Password is required" },
         { status: 400 }
       )
     }
 
-    // Check if password matches using constant-time comparison
-    if (password !== process.env.ADMIN_PASSWORD) {
+    // Check if password matches
+    const passwordMatches = password === process.env.ADMIN_PASSWORD
+    console.log("Password validation:", passwordMatches ? "Success" : "Failed")
+
+    if (!passwordMatches) {
       return NextResponse.json(
         { success: false, message: "Invalid password" },
         { status: 401 }
       )
     }
-
-    // Create response
-    const response = NextResponse.json(
-      { success: true, message: "Authentication successful" },
-      { status: 200 }
-    )
 
     // Generate a secure random token
     const tokenBytes = randomBytes(32)
@@ -45,21 +44,38 @@ export async function POST(request: Request) {
     hash.update(tokenBytes)
     hash.update(timestamp)
     const sessionToken = hash.digest("base64")
-
-    // Set authentication cookie
+    
+    // Set expiry date
     const now = new Date()
     const expiryDate = new Date(now.getTime() + EXPIRY_TIME * 1000)
+    
+    // Create the cookie value
+    const cookieValue = `${sessionToken}.${timestamp}`
+    console.log("Setting cookie:", ADMIN_COOKIE_NAME)
+    console.log("Cookie expires:", expiryDate.toISOString())
 
+    // Create response with proper headers
+    const response = NextResponse.json(
+      { 
+        success: true, 
+        message: "Authentication successful",
+        redirectTo: "/admin"
+      },
+      { status: 200 }
+    )
+
+    // Set authentication cookie with precise options
     response.cookies.set({
       name: ADMIN_COOKIE_NAME,
-      value: `${sessionToken}.${timestamp}`,
+      value: cookieValue,
       expires: expiryDate,
       path: "/",
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
     })
-
+    
+    console.log("Login successful, returning response with cookie")
     return response
   } catch (error) {
     console.error("Login error:", error)

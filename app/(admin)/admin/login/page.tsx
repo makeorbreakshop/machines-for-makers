@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,23 @@ export default function AdminLogin() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  
+  // Check if we're in a redirect loop
+  useEffect(() => {
+    console.log("Login page mounted")
+    // Add a marker in sessionStorage to detect loops
+    const loopCount = parseInt(sessionStorage.getItem('loginLoopCount') || '0')
+    sessionStorage.setItem('loginLoopCount', (loopCount + 1).toString())
+    
+    if (loopCount > 5) {
+      console.error("Possible redirect loop detected")
+      sessionStorage.setItem('loginLoopCount', '0')
+    }
+    
+    return () => {
+      console.log("Login page unmounted")
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,6 +37,7 @@ export default function AdminLogin() {
     setError(null)
 
     try {
+      console.log("Submitting login request")
       const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: {
@@ -28,14 +46,24 @@ export default function AdminLogin() {
         body: JSON.stringify({ password }),
       })
 
+      const data = await response.json()
+      
       if (response.ok) {
-        router.push("/admin")
-        router.refresh()
+        console.log("Login successful, redirecting")
+        // Clear any loop detection
+        sessionStorage.setItem('loginLoopCount', '0')
+        
+        // Use a small delay to ensure the cookie is set before redirect
+        setTimeout(() => {
+          router.push("/admin")
+          router.refresh()
+        }, 100)
       } else {
-        const data = await response.json()
+        console.log("Login failed:", data.message)
         setError(data.message || "Invalid password")
       }
     } catch (err) {
+      console.error("Login error:", err)
       setError("An error occurred. Please try again.")
     } finally {
       setLoading(false)

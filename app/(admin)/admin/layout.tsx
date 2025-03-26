@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 import { Sidebar } from "@/components/admin/sidebar"
 import LogoutButton from "@/components/admin/logout-button"
+import { redirect } from 'next/navigation'
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -13,11 +14,14 @@ export const metadata: Metadata = {
   description: "Admin dashboard for managing Machines for Makers content",
 }
 
+// Special layout for admin area - relies on middleware for auth protection
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Simplified approach: Use client component rendering to handle layout
+  // Authentication is handled by middleware so we don't need to check here
   return (
     <div className={`${inter.variable} font-sans`}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
