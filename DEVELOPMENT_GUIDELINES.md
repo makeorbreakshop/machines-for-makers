@@ -68,6 +68,7 @@ For deployment troubleshooting:
 ### Server Components
 - Always use the `createServerClient()` utility from `@/lib/supabase/server` for server components
 - Server components with Supabase access MUST declare `export const runtime = 'nodejs';`
+- Server component implementations should access Supabase data directly instead of going through an API route
 - Example:
   ```typescript
   import { createServerClient } from "@/lib/supabase/server";
@@ -79,6 +80,23 @@ For deployment troubleshooting:
     // Fetch data directly
     const { data } = await supabase.from("my_table").select("*");
     // ...rest of component
+  }
+  ```
+
+### ⚠️ CRITICAL: Server Client Implementation
+- The server client should use `NEXT_PUBLIC_SUPABASE_ANON_KEY` for public data access
+- Only use `SUPABASE_SERVICE_ROLE_KEY` for admin operations that require bypassing RLS
+- The `createServerClient()` utility in `@/lib/supabase/server.ts` must be implemented as:
+  ```typescript
+  export function createServerClient() {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      throw new Error('Missing Supabase environment variables')
+    }
+  
+    return createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
   }
   ```
 
@@ -182,3 +200,25 @@ app/
 - API routes can use either `edge` or `nodejs` runtime
 - Never use deprecated `experimental-edge` runtime
 - Always test security features in production after deployment 
+
+## Common Troubleshooting For Supabase
+
+### Data Not Showing in Server Components
+If data isn't appearing in server components but is visible when using the Supabase Dashboard:
+
+1. Verify `export const runtime = 'nodejs';` is declared in the server component
+2. Confirm server client is using the correct key (ANON key for public data)
+3. Check Supabase RLS policies to ensure public access is allowed for the relevant tables
+4. Clear Next.js cache with `rm -rf .next` and restart the server
+
+### API Route vs. Server Component
+- **Prefer direct Supabase access in server components** over creating API routes
+- This eliminates an extra network hop and reduces complexity
+- Examples:
+  - Homepage top picks should fetch directly from Supabase
+  - Promo codes page should fetch directly from Supabase
+  - Product data should fetch directly from Supabase
+
+### Database Types
+- Always use the Database type from `@/lib/database-types` when creating Supabase clients
+- This ensures proper TypeScript type checking for table schemas 
