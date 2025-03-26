@@ -17,23 +17,15 @@
 
 Next.js 15 has different runtime requirements for different parts of the application:
 
-1. **For middleware.ts:**
-   - MUST use: `export const runtime = 'experimental-edge';`
-   - Do NOT use 'edge' for middleware - This is officially documented by Next.js
-   - Middleware is specifically designed to run at the edge but uses the experimental-edge runtime
-
-2. **For API routes:**
+1. **For API routes:**
    - MUST use: `export const runtime = 'edge';` or `export const runtime = 'nodejs';`
-   - Do NOT use 'experimental-edge' for API routes
-   - Edge API routes must declare `edge` runtime (not experimental-edge)
+   - Edge API routes must declare `edge` runtime
 
-This discrepancy is intentional in Next.js architecture:
-- Middleware always uses the experimental-edge runtime (even in Next.js 15)
+This is intentional in Next.js architecture:
 - Edge API routes have moved to the stable edge runtime
 - This reflects the different maturity levels of these features in Next.js
 
 For deployment troubleshooting:
-- If middleware fails with "Page /middleware provided runtime 'edge'..." use 'experimental-edge'
 - If API routes fail with "Invalid enum value. Expected 'edge' | 'nodejs'..." use 'edge'
 
 ## Server Management
@@ -87,10 +79,10 @@ For deployment troubleshooting:
 #### Route Structure Requirements
 - The admin area MUST use ONLY the route group pattern: `/app/(admin)/admin/*`
 - NEVER create routes at `/app/admin/*` alongside the route group
-- Having duplicate routes (with and without parentheses) will bypass security middleware
+- Having duplicate routes (with and without parentheses) will bypass security mechanisms
 
 #### Why This Matters
-- Next.js route groups (with parentheses) maintain security middleware protection
+- Next.js route groups (with parentheses) maintain proper route organization
 - Duplicate routes create conflicts that bypass authentication
 - Security vulnerabilities occur when both `/app/admin/` and `/app/(admin)/admin/` exist simultaneously
 
@@ -104,16 +96,18 @@ app/
 │       └── layout.tsx # Admin layout with auth protection
 ```
 
-#### Authentication Middleware
-- Our middleware.ts protects all `/admin/*` routes
-- It checks for valid authentication cookies and redirects to login when needed
-- The middleware ONLY works correctly when routes are organized properly
-- **IMPORTANT**: Middleware uses Edge runtime (`export const runtime = 'edge'`)
+#### Client-Side Authentication
+- The application uses client-side authentication via the `AuthProvider` component
+- This component wraps all admin pages and checks for the existence of auth cookies
+- If no auth cookie exists, users are redirected to the login page
+- The login page sets auth cookies upon successful authentication
+- API routes for login/logout use the Edge runtime (`export const runtime = 'edge'`)
 
 #### Security Checklist
 - ✅ Admin routes MUST be in `/app/(admin)/admin/` only
 - ✅ Login page MUST be in `/app/(admin)/admin/login/`
 - ✅ NEVER create a duplicate route at `/app/admin/`
+- ✅ Admin layout MUST use the `AuthProvider` component
 - ✅ Manually test authentication by clearing cookies and verifying redirect to login
 
 #### Testing Admin Security
@@ -127,12 +121,12 @@ app/
 If users can access admin without logging in:
 1. **IMMEDIATELY** check for duplicate routes in `/app/admin/`
 2. Delete any duplicate routes outside the route group
-3. Rebuild and deploy the application
-4. Verify the fix by testing in incognito mode 
+3. Verify the `AuthProvider` is properly wrapping all admin pages
+4. Rebuild and deploy the application
+5. Verify the fix by testing in incognito mode 
 
 ## Deployment Considerations
 - The application uses Vercel for hosting
-- Middleware runs in the Edge runtime (`edge`)
 - API routes can use either `edge` or `nodejs` runtime
 - Never use deprecated `experimental-edge` runtime
 - Always test security features in production after deployment 
