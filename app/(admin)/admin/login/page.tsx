@@ -21,6 +21,8 @@ function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [detailedError, setDetailedError] = useState<any>(null)
+  const [showDebug, setShowDebug] = useState(false)
+  const [apiDebugInfo, setApiDebugInfo] = useState<any>(null)
   const router = useRouter()
   
   // Check if already logged in based on cookie
@@ -63,6 +65,16 @@ function LoginPage() {
 
     try {
       console.log("Submitting login request")
+      
+      // Enhanced debug info
+      const passwordInfo = {
+        rawLength: password.length,
+        cleanedLength: password.trim().length,
+        first3Chars: password.substring(0, 3),
+        charCodes: [...password].map(c => c.charCodeAt(0))
+      };
+      console.log("Password debug info:", passwordInfo);
+      
       const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: {
@@ -101,6 +113,12 @@ function LoginPage() {
           statusText: response.statusText,
           data: data
         })
+        
+        // Set API debug info if available
+        if (data.debug) {
+          setApiDebugInfo(data.debug)
+          console.log("API debug info:", data.debug)
+        }
       }
     } catch (err) {
       console.error("Login error:", err)
@@ -148,6 +166,60 @@ function LoginPage() {
                   autoFocus
                 />
               </div>
+              
+              <div className="flex justify-end">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowDebug(!showDebug)}
+                >
+                  {showDebug ? "Hide Debug" : "Show Debug"}
+                </Button>
+              </div>
+              
+              {showDebug && (
+                <div className="mt-2 text-xs bg-slate-100 p-3 rounded border border-slate-200 space-y-2">
+                  <div>
+                    <strong>Password Value:</strong> {password}
+                  </div>
+                  <div>
+                    <strong>Length:</strong> {password.length}
+                  </div>
+                  <div>
+                    <strong>Trimmed Length:</strong> {password.trim().length}
+                  </div>
+                  <div>
+                    <strong>First 3 Chars:</strong> {password.substring(0, 3)}
+                  </div>
+                  <div>
+                    <strong>Character Codes:</strong>
+                    <pre className="mt-1 bg-slate-200 p-1 rounded overflow-auto">
+                      {JSON.stringify([...password].map(c => c.charCodeAt(0)), null, 2)}
+                    </pre>
+                  </div>
+                  
+                  {apiDebugInfo && (
+                    <>
+                      <div className="border-t border-slate-300 pt-2 mt-2">
+                        <strong>API Debug Info:</strong>
+                      </div>
+                      <div>
+                        <strong>ENV Password:</strong>
+                        <pre className="mt-1 bg-slate-200 p-1 rounded overflow-auto">
+                          {JSON.stringify(apiDebugInfo.envPasswordInfo, null, 2)}
+                        </pre>
+                      </div>
+                      <div>
+                        <strong>Input Password:</strong>
+                        <pre className="mt-1 bg-slate-200 p-1 rounded overflow-auto">
+                          {JSON.stringify(apiDebugInfo.inputPasswordInfo, null, 2)}
+                        </pre>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </CardContent>
           <CardFooter>

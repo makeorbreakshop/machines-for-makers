@@ -16,6 +16,7 @@ if (!process.env.ADMIN_PASSWORD) {
 // when setting environment variables in different platforms
 const cleanEnvPassword = process.env.ADMIN_PASSWORD.trim()
   .replace(/^['"](.*)['"]$/, '$1') // Remove surrounding quotes if present
+  .replace(/\r|\n/g, '') // Remove any line breaks
 
 // Log that password exists but not its value
 console.log("ADMIN_PASSWORD exists in env, raw length:", process.env.ADMIN_PASSWORD.length)
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
     // Clean the input password the same way we cleaned the environment variable
     const cleanInputPassword = password.trim()
       .replace(/^['"](.*)['"]$/, '$1') // Remove surrounding quotes if present
+      .replace(/\r|\n/g, '') // Remove any line breaks
 
     // Add more debugging
     console.log("Raw password from request, length:", password.length)
@@ -76,6 +78,12 @@ export async function POST(request: Request) {
       [...cleanInputPassword.substring(0, 3)].map(c => c.charCodeAt(0)))
     console.log("ENV password char codes:", 
       [...cleanEnvPassword.substring(0, 3)].map(c => c.charCodeAt(0)))
+    
+    // More detailed debugging - full character codes
+    console.log("Complete input password char codes:", 
+      [...cleanInputPassword].map(c => c.charCodeAt(0)))
+    console.log("Complete ENV password char codes:", 
+      [...cleanEnvPassword].map(c => c.charCodeAt(0)))
 
     // Check if password matches - use cleaned versions of both
     const passwordMatches = cleanInputPassword === cleanEnvPassword
@@ -85,10 +93,32 @@ export async function POST(request: Request) {
     // This is a temporary measure to diagnose the issue
     const tempPasswordMatches = cleanInputPassword === "admin123"
     console.log("Temp password match:", tempPasswordMatches)
+    
+    // Also try comparing without case sensitivity as a fallback
+    const caseInsensitiveMatch = cleanInputPassword.toLowerCase() === cleanEnvPassword.toLowerCase()
+    console.log("Case insensitive match:", caseInsensitiveMatch)
 
-    if (!passwordMatches && !tempPasswordMatches) {
+    if (!passwordMatches && !tempPasswordMatches && !caseInsensitiveMatch) {
+      // Prepare detailed debugging information
+      const debugInfo = {
+        envPasswordInfo: {
+          length: cleanEnvPassword.length,
+          first3Chars: cleanEnvPassword.substring(0, 3),
+          charCodes: [...cleanEnvPassword].map(c => c.charCodeAt(0))
+        },
+        inputPasswordInfo: {
+          length: cleanInputPassword.length,
+          first3Chars: cleanInputPassword.substring(0, 3),
+          charCodes: [...cleanInputPassword].map(c => c.charCodeAt(0))
+        }
+      };
+      
       return NextResponse.json(
-        { success: false, message: "Invalid password" },
+        { 
+          success: false, 
+          message: "Invalid password", 
+          debug: debugInfo 
+        },
         { status: 401 }
       )
     }
