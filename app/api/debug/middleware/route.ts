@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Use experimental-edge runtime for compatibility with Next.js 15
-export const runtime = 'experimental-edge';
+// Use edge runtime for compatibility with Next.js 15
+export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
   try {
