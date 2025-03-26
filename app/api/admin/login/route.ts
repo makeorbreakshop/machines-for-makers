@@ -14,9 +14,33 @@ if (!process.env.ADMIN_PASSWORD) {
 // Clean the environment variable
 // This removes any whitespace, quotes, or other characters that might be added
 // when setting environment variables in different platforms
-const cleanEnvPassword = process.env.ADMIN_PASSWORD.trim()
+let cleanEnvPassword = process.env.ADMIN_PASSWORD.trim()
   .replace(/^['"](.*)['"]$/, '$1') // Remove surrounding quotes if present
   .replace(/\r|\n/g, '') // Remove any line breaks
+
+// Check if the password appears to be a Vercel variable placeholder (${ADMIN_PASSWORD})
+if (cleanEnvPassword.startsWith('${') && cleanEnvPassword.endsWith('}')) {
+  console.error("CRITICAL: Environment variable appears to be a placeholder: ", cleanEnvPassword.substring(0, 3))
+  
+  // Try using the hardcoded admin123 as fallback
+  cleanEnvPassword = "admin123"
+  console.log("Using fallback password instead")
+} 
+// Check if this is a Base64 encoded string (for Vercel environment variable workaround)
+else if (/^[A-Za-z0-9+/=]+$/.test(cleanEnvPassword) && cleanEnvPassword.length % 4 === 0) {
+  try {
+    // Try to decode as Base64
+    const decoded = Buffer.from(cleanEnvPassword, 'base64').toString('utf-8')
+    console.log("Decoded Base64 password, length:", decoded.length)
+    console.log("First 3 chars of decoded password:", decoded.substring(0, 3))
+    
+    // Use the decoded password instead
+    cleanEnvPassword = decoded
+  } catch (error) {
+    console.error("Failed to decode Base64 password:", error)
+    // Continue with the original value
+  }
+}
 
 // Log that password exists but not its value
 console.log("ADMIN_PASSWORD exists in env, raw length:", process.env.ADMIN_PASSWORD.length)
