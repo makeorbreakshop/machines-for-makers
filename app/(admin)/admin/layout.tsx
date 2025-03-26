@@ -12,6 +12,11 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 export const metadata: Metadata = {
   title: "Admin Dashboard - Machines for Makers",
   description: "Admin dashboard for managing Machines for Makers content",
+  other: {
+    'Cache-Control': 'no-store, no-cache, max-age=0, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  }
 }
 
 // Special layout for admin area - relies on middleware for auth protection

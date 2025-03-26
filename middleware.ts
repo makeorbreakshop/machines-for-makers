@@ -102,5 +102,9 @@ export async function middleware(request: NextRequest) {
 
 // Only run middleware on admin paths
 export const config = {
-  matcher: ['/admin', '/admin/:path*']
+  matcher: [
+    '/admin', 
+    '/admin/:path*',
+    '/api/admin/:path*'
+  ]
 } 
