@@ -276,10 +276,29 @@ export default function CompareClientPage({
     features: [],
     isTopPick: false,
   })
-  const [loading, setLoading] = useState(false)
+  const [isLoading, setLoading] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   // Add a filter update counter to track filter update operations
   const [filterUpdateCounter, setFilterUpdateCounter] = useState<number>(0);
+
+  // State for mobile filters
+  const [activeFilters, setActiveFilters] = useState<{
+    laserTypes: string[]
+    brands: string[]
+    priceRange: [number, number]
+    powerRange: [number, number]
+    speedRange: [number, number]
+    features: string[]
+    isTopPick: boolean
+  }>({
+    laserTypes: filters.laserTypes,
+    brands: [],
+    priceRange: filters.priceRange,
+    powerRange: filters.powerRange,
+    speedRange: filters.speedRange,
+    features: filters.features,
+    isTopPick: filters.isTopPick,
+  });
 
   // DEBUGGING: Print all laser type mappings at component load
   useEffect(() => {
@@ -478,6 +497,9 @@ export default function CompareClientPage({
     // Add a debug line to track effect runs
     console.log(`Filter effect running - counter: ${filterUpdateCounter}`);
     
+    // Ensure we start the filtering process with loading state
+    setLoading(true);
+    
     // Skip filtering if no filters are explicitly set
     const isUsingDefaultFilters = 
       filters.laserTypes.length === 0 && 
@@ -493,6 +515,7 @@ export default function CompareClientPage({
     if (isUsingDefaultFilters && products.length > 0) {
       console.log(`DEFAULT FILTERS: Showing all ${products.length} products`);
       setFilteredProducts(products);
+      setLoading(false); // Make sure to reset loading state
       return;
     }
     
@@ -647,6 +670,9 @@ export default function CompareClientPage({
       } else {
         console.log(`DEBUG: No products found matching filter - not updating state`);
       }
+      
+      // Always reset loading state
+      setLoading(false);
       return;
     }
     
@@ -673,6 +699,9 @@ export default function CompareClientPage({
       console.log(`DEBUG: Setting filtered products to ${filtered.length} items from standard filter`);
       setFilteredProducts(filtered);
     }
+    
+    // Always reset loading state at the end
+    setLoading(false);
   }, [products, filters, filterProducts, filterUpdateCounter]);
 
   // Handle filter change from filter components
@@ -771,7 +800,7 @@ export default function CompareClientPage({
           setFilterUpdateCounter(prev => prev + 1);
           setFilters(newFilters);
           setFilteredProducts(laserFiltered);
-          setLoading(false);
+          setLoading(false); // Make sure to reset loading state
           return;
         }
         
@@ -868,6 +897,7 @@ export default function CompareClientPage({
           console.log(`DEBUG: No products found in handleFilterChange - not updating state`);
         }
         
+        // Make sure to always reset loading state
         setLoading(false);
       });
     }, 50); // Short delay for UI update
@@ -1099,9 +1129,9 @@ export default function CompareClientPage({
   
   // Memoize filtered results to avoid recalculation
   const displayProducts = useMemo(() => {
-    if (loading) return [];
+    if (isLoading) return [];
     return filteredProducts;
-  }, [filteredProducts, loading]);
+  }, [filteredProducts, isLoading]);
 
   // Render the products with proper sorting
   // Create a final sorted array that's guaranteed to be sorted just before rendering
@@ -1160,123 +1190,160 @@ export default function CompareClientPage({
     console.log(`Category filter changed to: ${categoryId}`);
   }, []);
 
+  // Handler for applying filters
+  function handleApplyFilters(filters: any) {
+    console.log("Applying filters:", filters);
+    
+    // Update the active filters state for the mobile filter button
+    setActiveFilters(filters);
+    
+    // Update the filters state with filter values
+    setFilters({
+      laserTypes: filters.laserTypes || [],
+      priceRange: filters.priceRange || [0, 15000],
+      powerRange: filters.powerRange || [0, 150],
+      speedRange: filters.speedRange || [0, 2000],
+      features: filters.features || [],
+      isTopPick: filters.isTopPick || false,
+    });
+    
+    // Apply filters by triggering a re-filter
+    setLoading(true);
+    setFilterUpdateCounter(prev => prev + 1);
+    
+    // Ensure loading state is reset after a short delay
+    setTimeout(() => {
+      setLoading(false);
+    }, 500);
+  }
+
+  // Function to clear all filters
+  const clearAllFilters = useCallback(() => {
+    // Show loading state
+    setLoading(true);
+    
+    const resetFilters = {
+      laserTypes: [] as string[],
+      priceRange: [0, 15000] as [number, number],
+      powerRange: [0, 150] as [number, number],
+      speedRange: [0, 2000] as [number, number],
+      features: [] as string[],
+      isTopPick: false,
+    };
+    
+    // Update filters state
+    setFilters(resetFilters);
+    
+    // Update mobile filters state
+    setActiveFilters({
+      ...resetFilters,
+      brands: [] as string[],
+    });
+    
+    // Reset filtered products to show all products
+    setFilteredProducts(products);
+    
+    // Increment filter counter to trigger effect
+    setFilterUpdateCounter(prev => prev + 1);
+    
+    // Reset loading state
+    setLoading(false);
+  }, [products]);
+
   return (
-    <div className="w-full pb-24 bg-gray-50 dark:bg-gray-900">
-      {/* Page Header */}
-      <div className="border-b sticky top-0 z-30 bg-white dark:bg-gray-950">
-        <div className="px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 mx-auto flex items-center justify-between py-4 max-w-[2000px]">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold">Compare Laser Cutters</h1>
+    <>
+      <div className="container mx-auto px-4 py-8 max-w-screen-2xl">
+        <div className="flex flex-col space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h1 className="text-2xl md:text-3xl font-bold">Compare Laser Cutters</h1>
+            <div className="flex flex-row items-center gap-2 justify-between md:justify-end">
+              <div className="md:hidden">
+                <FilterButton
+                  categories={categories}
+                  brands={brands}
+                  onApplyFilters={handleApplyFilters}
+                  activeFilters={activeFilters}
+                  filteredCount={filteredProducts.length}
+                />
+              </div>
+              <ViewToggle />
+            </div>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <SearchBar 
-              products={products}
-              onSearch={handleSearch}
-              className="w-32 sm:w-48 md:w-64 lg:w-80"
-            />
-            <ViewToggle />
-            {activeFilterCount > 0 ? (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setFilters({
-                  laserTypes: [],
-                  priceRange: [0, 15000],
-                  powerRange: [0, 150],
-                  speedRange: [0, 2000],
-                  features: [],
-                  isTopPick: false,
-                })}
-                className="px-3 py-1.5 rounded-md flex items-center gap-1.5"
-              >
-                <X className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Clear Filters</span>
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </div>
 
-      {/* Filter Button - Only visible on mobile */}
-      <div className="sticky top-[57px] z-20 bg-white dark:bg-gray-950 border-b lg:hidden px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-2">
-        <div className="flex items-center justify-between max-w-[2000px] mx-auto">
-          <FilterButton
-            categories={categories}
-            brands={brands}
-            onApplyFilters={handleFilterChange}
-            activeFilters={{
-              laserTypes: filters.laserTypes,
-              brands: [],
-              priceRange: filters.priceRange,
-              powerRange: filters.powerRange,
-              speedRange: filters.speedRange,
-              features: filters.features
-            }}
-            filteredCount={displayProducts.length}
-          />
-          
-          <div className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{displayProducts.length}</span> 
-            <span className="ml-1">
-              {displayProducts.length === 1 ? 'machine' : 'machines'}
-            </span>
-            {loading && <span className="ml-2 text-primary animate-pulse">Updating...</span>}
-          </div>
-        </div>
-      </div>
-
-      {/* Main content area */}
-      <div className="flex flex-col lg:flex-row gap-6 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-6 sm:py-8 max-w-[2000px] mx-auto">
-        {/* Sidebar filters - Hidden on mobile */}
-        <div className="hidden lg:block w-72 flex-shrink-0">
-          <div className="sticky top-24 bg-white dark:bg-gray-950 p-4 rounded-lg shadow-sm">
-            <SidebarFilter
-              categories={categories}
-              brands={brands}
-              onApplyFilters={handleFilterChange}
-              initialFilters={filters}
-              filteredCount={displayProducts.length}
-            />
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="w-full flex-1 bg-white dark:bg-gray-950 rounded-lg shadow-sm p-4">
-            <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded w-1/4"></div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {Array(8).fill(0).map((_, i) => (
-                  <div key={i} className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 h-64"></div>
-                ))}
+          <div className="flex flex-col-reverse lg:flex-row gap-6">
+            {/* Sidebar filter - hidden on mobile */}
+            <div className="w-full lg:w-64 lg:flex-shrink-0 hidden md:block">
+              <div className="sticky top-24">
+                <SidebarFilter
+                  categories={categories}
+                  brands={brands}
+                  onApplyFilters={handleApplyFilters}
+                  initialFilters={filters}
+                  filteredCount={filteredProducts.length}
+                />
+              </div>
+            </div>
+            
+            {/* Main content area */}
+            <div className="flex-1 min-w-0">
+              <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <SearchBar
+                  products={products}
+                  onSearch={handleSearch}
+                  className="w-full sm:max-w-md"
+                />
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">{filteredProducts.length}</span> 
+                    <span className="ml-1">
+                      {filteredProducts.length === 1 ? 'machine' : 'machines'}
+                    </span>
+                    {isLoading && <span className="ml-2 text-primary animate-pulse">Updating...</span>}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Products display area */}
+              <div className="min-h-screen">
+                {isLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <Skeleton key={i} className="h-[400px] rounded-lg" />
+                    ))}
+                  </div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="text-center p-12 bg-gray-50 rounded-lg">
+                    <h3 className="text-xl font-semibold mb-2">No machines found</h3>
+                    <p className="text-gray-600 mb-6">
+                      Try adjusting your filters or search query
+                    </p>
+                    <Button variant="default" onClick={clearAllFilters}>
+                      Clear all filters
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {viewMode === "grid" ? (
+                      <ProductsGrid
+                        products={finalSortedProducts}
+                        totalProducts={finalSortedProducts.length}
+                      />
+                    ) : (
+                      <div className="w-full bg-white dark:bg-gray-950 rounded-lg shadow-sm p-4">
+                        <EnhancedComparisonTable 
+                          machines={finalSortedProducts} 
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
-        ) : displayProducts.length > 0 ? (
-          viewMode === "grid" ? (
-            <div className="w-full">
-              <ProductsGrid products={finalSortedProducts} totalProducts={finalSortedProducts.length} />
-            </div>
-          ) : (
-            <div className="w-full bg-white dark:bg-gray-950 rounded-lg shadow-sm p-4">
-              <EnhancedComparisonTable machines={finalSortedProducts} />
-            </div>
-          )
-        ) : (
-          <div className="text-center py-20 bg-white dark:bg-gray-950 rounded-lg shadow-sm p-4 w-full">
-            <h2 className="text-xl font-medium mb-2">No machines found</h2>
-            <p className="text-gray-500">Try adjusting your filters or search criteria.</p>
-            {filteredProducts.length > 0 && (
-              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
-                <p className="text-amber-700">Debug: {filteredProducts.length} filtered products exist but aren't displayed</p>
-              </div>
-            )}
-          </div>
-        )}
+        </div>
       </div>
-      
       <ComparisonBar />
-    </div>
+    </>
   )
 }
 
