@@ -1,67 +1,93 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Use Edge Runtime for this API route to match middleware environment
+export const runtime = 'edge';
+
 export async function GET(request: NextRequest) {
-  // Get all headers
-  const headers = Object.fromEntries(request.headers.entries());
-  
-  // Get all cookies
-  const cookies = Object.fromEntries(
-    request.cookies.getAll().map(c => [c.name, c.value])
-  );
-  
-  // Create response object with debug info
-  const debugInfo = {
-    time: new Date().toISOString(),
-    url: request.url,
-    pathname: request.nextUrl.pathname,
-    method: request.method,
-    headers,
-    cookies,
-    environment: {
-      NODE_ENV: process.env.NODE_ENV,
-      VERCEL_ENV: process.env.VERCEL_ENV,
-      VERCEL_REGION: process.env.VERCEL_REGION,
-      VERCEL_URL: process.env.VERCEL_URL,
-    },
-    vercelSpecific: {
-      isVercelProduction: headers['x-vercel-id'] ? true : false,
-      vercelId: headers['x-vercel-id'] || null,
-      vercelDeploymentUrl: headers['x-vercel-deployment-url'] || null,
-    },
-    middlewareInfo: {
-      adminCookiePresent: !!cookies['admin_auth'],
-      middlewareHeaders: {
-        // Debug headers - explicitly check for each one
-        'x-debug-pathname': headers['x-debug-pathname'],
-        'x-debug-request-url': headers['x-debug-request-url'],
-        'x-debug-host': headers['x-debug-host'],
-        'x-debug-env': headers['x-debug-env'],
-        'x-debug-middleware-version': headers['x-debug-middleware-version'],
-        'x-debug-is-running': headers['x-debug-is-running'],
-        'x-debug-route-type': headers['x-debug-route-type'],
-        'x-debug-cache-headers-set': headers['x-debug-cache-headers-set'],
-        'x-debug-auth-passed': headers['x-debug-auth-passed'],
-        'x-debug-auth-cookie-present': headers['x-debug-auth-cookie-present'],
-        'x-debug-redirect-reason': headers['x-debug-redirect-reason'],
-        'x-debug-redirect-url': headers['x-debug-redirect-url'],
-        'x-debug-protected-path': headers['x-debug-protected-path'],
+  try {
+    // Get all headers
+    const headers = Object.fromEntries(request.headers.entries());
+    
+    // Get all cookies
+    const cookies = Object.fromEntries(
+      request.cookies.getAll().map(c => [c.name, c.value])
+    );
+    
+    // Check for specific middleware headers
+    const middlewareRan = !!headers['x-edge-middleware-ran'];
+    const middlewareTimestamp = headers['x-edge-middleware-timestamp'];
+    const edgeHeaders = Object.fromEntries(
+      Object.entries(headers)
+        .filter(([key]) => key.startsWith('x-edge-'))
+        .map(([key, value]) => [key, value])
+    );
+    
+    // Create response object with debug info
+    const debugInfo = {
+      time: new Date().toISOString(),
+      url: request.url,
+      pathname: request.nextUrl.pathname,
+      method: request.method,
+      headers,
+      cookies,
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        VERCEL_ENV: process.env.VERCEL_ENV,
+        VERCEL_REGION: process.env.VERCEL_REGION,
+        VERCEL_URL: process.env.VERCEL_URL,
       },
-      allHeadersByPrefix: Object.fromEntries(
-        Object.entries(headers)
-          .filter(([key]) => key.startsWith('x-debug-'))
-          .map(([key, value]) => [key, value])
-      )
-    }
-  };
-  
-  // Return debug info as JSON with strong no-cache headers
-  return NextResponse.json(debugInfo, {
-    headers: {
-      'Cache-Control': 'no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      'Surrogate-Control': 'no-store',
-      'X-Debug-Timestamp': Date.now().toString(),
-    }
-  });
+      vercelSpecific: {
+        isVercelProduction: headers['x-vercel-id'] ? true : false,
+        vercelId: headers['x-vercel-id'] || null,
+        vercelDeploymentUrl: headers['x-vercel-deployment-url'] || null,
+        middlewareBypass: headers['x-middleware-bypass'] || null,
+      },
+      middlewareStatus: {
+        middlewareRan,
+        middlewareTimestamp,
+        isEdgeRuntime: true, // This API route runs in Edge Runtime
+        edgeHeaders,
+        cookieAuth: {
+          adminCookiePresent: !!cookies['admin_auth'],
+          adminCookieValue: cookies['admin_auth'] ? 
+            `${cookies['admin_auth'].substring(0, 10)}...` : null,
+        },
+        diagnostics: {
+          apiEndpointExecuted: true,
+          timeGap: middlewareTimestamp ? 
+            (Date.now() - parseInt(middlewareTimestamp)) : null,
+          middlewareError: headers['x-edge-middleware-error'] || null,
+          middlewareErrorMessage: headers['x-edge-middleware-error-message'] || null,
+        }
+      }
+    };
+    
+    // Return debug info as JSON with strong no-cache headers
+    return NextResponse.json(debugInfo, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, max-age=0, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Surrogate-Control': 'no-store',
+        'X-Debug-Timestamp': Date.now().toString(),
+        'X-Debug-Api-Edge-Runtime': 'true',
+      }
+    });
+  } catch (error) {
+    // Return error info without failing
+    return NextResponse.json(
+      {
+        error: true,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : null,
+        time: new Date().toISOString(),
+      },
+      { 
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store',
+        }
+      }
+    );
+  }
 } 
