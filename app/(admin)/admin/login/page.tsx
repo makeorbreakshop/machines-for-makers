@@ -66,12 +66,15 @@ function LoginPage() {
     try {
       console.log("Submitting login request")
       
+      // Ensure the password is properly prepared for submission
+      const cleanedPassword = password.trim();
+      
       // Enhanced debug info
       const passwordInfo = {
         rawLength: password.length,
-        cleanedLength: password.trim().length,
-        first3Chars: password.substring(0, 3),
-        charCodes: [...password].map(c => c.charCodeAt(0))
+        cleanedLength: cleanedPassword.length,
+        first3Chars: cleanedPassword.substring(0, 3),
+        charCodes: [...cleanedPassword].map(c => c.charCodeAt(0))
       };
       console.log("Password debug info:", passwordInfo);
       
@@ -82,7 +85,7 @@ function LoginPage() {
           "Cache-Control": "no-cache, no-store, must-revalidate",
           "Pragma": "no-cache"
         },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: cleanedPassword }),
         credentials: "include", // Include cookies in the request
         cache: "no-store"
       })

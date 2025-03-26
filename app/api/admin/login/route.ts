@@ -18,8 +18,13 @@ let cleanEnvPassword = process.env.ADMIN_PASSWORD.trim()
   .replace(/^['"](.*)['"]$/, '$1') // Remove surrounding quotes if present
   .replace(/\r|\n/g, '') // Remove any line breaks
 
+// In development, just use the raw password from .env.local without any decoding
+if (process.env.NODE_ENV === 'development') {
+  console.log("Using raw password from .env.local (development mode)");
+  // No additional processing needed for development
+} 
 // Check if the password appears to be a Vercel variable placeholder (${ADMIN_PASSWORD})
-if (cleanEnvPassword.startsWith('${') && cleanEnvPassword.endsWith('}')) {
+else if (cleanEnvPassword.startsWith('${') && cleanEnvPassword.endsWith('}')) {
   console.error("CRITICAL: Environment variable appears to be a placeholder: ", cleanEnvPassword.substring(0, 3))
   
   // Try using the hardcoded admin123 as fallback
@@ -27,19 +32,30 @@ if (cleanEnvPassword.startsWith('${') && cleanEnvPassword.endsWith('}')) {
   console.log("Using fallback password instead")
 } 
 // Check if this is a Base64 encoded string (for Vercel environment variable workaround)
-else if (/^[A-Za-z0-9+/=]+$/.test(cleanEnvPassword) && cleanEnvPassword.length % 4 === 0) {
+// Vercel automatically Base64 encodes certain special characters in environment variables
+const isProbablyBase64 = /^[A-Za-z0-9+/=]+$/.test(cleanEnvPassword) &&
+  cleanEnvPassword.length % 4 === 0 &&
+  cleanEnvPassword.length >= 20; // Reasonable minimum length for a Base64 string
+
+if (isProbablyBase64 && process.env.VERCEL === '1') {
   try {
-    // Try to decode as Base64
-    const decoded = Buffer.from(cleanEnvPassword, 'base64').toString('utf-8')
-    console.log("Decoded Base64 password, length:", decoded.length)
-    console.log("First 3 chars of decoded password:", decoded.substring(0, 3))
+    // Only try to decode as Base64 when on Vercel
+    const decoded = Buffer.from(cleanEnvPassword, 'base64').toString('utf-8');
+    console.log("Attempted Base64 decode on Vercel, result length:", decoded.length);
     
-    // Use the decoded password instead
-    cleanEnvPassword = decoded
+    // Check if the decoded string looks like a valid password
+    if (decoded.length > 0 && /^[A-Za-z0-9+/=]+$/.test(decoded)) {
+      console.log("Using Base64 decoded password");
+      cleanEnvPassword = decoded;
+    } else {
+      console.log("Decoded result was invalid, using original");
+    }
   } catch (error) {
-    console.error("Failed to decode Base64 password:", error)
+    console.error("Failed to decode Base64 password:", error);
     // Continue with the original value
   }
+} else {
+  console.log("Not trying Base64 decode - either not on Vercel or not Base64");
 }
 
 // Log that password exists but not its value
@@ -75,7 +91,22 @@ async function createSHA256Hash(data: Uint8Array): Promise<ArrayBuffer> {
 export async function POST(request: Request) {
   try {
     console.log("==== Login API route called ====")
-    const { password } = await request.json()
+    
+    // Clone the request to avoid "body stream already read" errors
+    const clonedRequest = request.clone();
+    
+    // Read body in a try-catch to handle potential errors
+    let password;
+    try {
+      const body = await clonedRequest.json();
+      password = body.password;
+    } catch (error) {
+      console.error("Error parsing request body:", error);
+      return NextResponse.json(
+        { success: false, message: "Invalid request format" },
+        { status: 400 }
+      );
+    }
 
     if (!password) {
       console.log("Missing password in request")
@@ -110,9 +141,58 @@ export async function POST(request: Request) {
       [...cleanEnvPassword].map(c => c.charCodeAt(0)))
 
     // Check if password matches - use cleaned versions of both
-    const passwordMatches = cleanInputPassword === cleanEnvPassword
-    console.log("Password validation:", passwordMatches ? "Success" : "Failed")
-
+    // Add additional comparison methods for reliability
+    const exactMatch = cleanInputPassword === cleanEnvPassword;
+    const lengthMatch = cleanInputPassword.length === cleanEnvPassword.length;
+    
+    // If we're having character encoding issues, try to normalize the strings
+    const normalizedInput = cleanInputPassword.normalize();
+    const normalizedEnv = cleanEnvPassword.normalize();
+    const normalizedMatch = normalizedInput === normalizedEnv;
+    
+    // Try converting to Buffer and comparing
+    const bufferInput = Buffer.from(cleanInputPassword);
+    const bufferEnv = Buffer.from(cleanEnvPassword);
+    const bufferMatch = bufferInput.equals(bufferEnv);
+    
+    // Direct length and character comparisons
+    const inputChars = [...cleanInputPassword];
+    const envChars = [...cleanEnvPassword];
+    let charMismatchCount = 0;
+    if (lengthMatch) {
+      for (let i = 0; i < cleanInputPassword.length; i++) {
+        if (inputChars[i] !== envChars[i]) {
+          charMismatchCount++;
+        }
+      }
+    }
+    
+    // Log all matching methods
+    console.log({
+      exactMatch,
+      lengthMatch,
+      normalizedMatch,
+      bufferMatch,
+      charMismatchCount,
+      inputLength: cleanInputPassword.length,
+      envLength: cleanEnvPassword.length
+    });
+    
+    // Make final decision on authentication
+    const passwordMatches = exactMatch || bufferMatch || normalizedMatch || 
+      (lengthMatch && charMismatchCount === 0);
+    
+    console.log(`Password match: ${passwordMatches ? "Success" : "Failed"}`);
+    
+    // Log exact character differences for debugging
+    if (!passwordMatches && cleanInputPassword.length === cleanEnvPassword.length) {
+      for (let i = 0; i < cleanInputPassword.length; i++) {
+        if (cleanInputPassword[i] !== cleanEnvPassword[i]) {
+          console.log(`Mismatch at position ${i}: Input='${cleanInputPassword.charCodeAt(i)}', Env='${cleanEnvPassword.charCodeAt(i)}'`);
+        }
+      }
+    }
+    
     // If still fails, try a hardcoded temporary password for testing
     // This is a temporary measure to diagnose the issue
     const tempPasswordMatches = cleanInputPassword === "admin123"
