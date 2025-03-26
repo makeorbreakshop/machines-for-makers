@@ -13,6 +13,10 @@ export async function middleware(request: NextRequest) {
   // Get the pathname and normalize it
   const pathname = request.nextUrl.pathname.toLowerCase()
   
+  // Detect if running in production Vercel environment
+  const isVercelProduction = !!request.headers.get('x-vercel-id');
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+  
   // Add debug header to track pathname in response
   const response = NextResponse.next()
   
@@ -21,20 +25,25 @@ export async function middleware(request: NextRequest) {
   response.headers.set('x-debug-request-url', request.url)
   response.headers.set('x-debug-host', request.headers.get('host') || 'unknown')
   response.headers.set('x-debug-env', process.env.NODE_ENV || 'unknown')
-  response.headers.set('x-debug-middleware-version', '1.2')
+  response.headers.set('x-debug-vercel-env', process.env.VERCEL_ENV || 'unknown')
+  response.headers.set('x-debug-middleware-version', '1.3')
   response.headers.set('x-debug-is-running', 'true')
+  response.headers.set('x-debug-is-vercel-production', String(isVercelProduction))
+  response.headers.set('x-debug-is-production', String(isProduction))
   
   // For non-admin routes, just add debug info and return
-  if (!pathname.startsWith('/admin')) {
+  if (!pathname.startsWith('/admin') && !pathname.startsWith('/api/admin') && !pathname.startsWith('/api/debug')) {
     response.headers.set('x-debug-route-type', 'non-admin')
     return response
   }
   
   // Set strong cache control headers to prevent caching for admin routes and API routes
-  if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
+  if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin') || pathname.startsWith('/api/debug')) {
     response.headers.set('Cache-Control', 'no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate')
     response.headers.set('Pragma', 'no-cache')
     response.headers.set('Expires', '0')
+    response.headers.set('Surrogate-Control', 'no-store')
+    response.headers.set('Vary', '*')
     // Add debug header to confirm cache headers were set
     response.headers.set('x-debug-cache-headers-set', 'true')
   }
@@ -45,6 +54,7 @@ export async function middleware(request: NextRequest) {
   console.log('Request host:', request.headers.get('host'))
   console.log('NODE_ENV:', process.env.NODE_ENV)
   console.log('VERCEL_ENV:', process.env.VERCEL_ENV)
+  console.log('Is Vercel Production:', isVercelProduction)
   console.log('Request method:', request.method)
   console.log('Request headers:', JSON.stringify(Object.fromEntries(request.headers.entries())))
   
@@ -55,10 +65,18 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === '/admin/login' || 
     pathname.startsWith('/admin/login/') ||
-    pathname === '/admin/api/login'
+    pathname === '/api/admin/login'
   ) {
     console.log('Login page/endpoint detected, bypassing auth completely')
     response.headers.set('x-debug-auth-bypass-reason', 'login-page')
+    console.log('===== MIDDLEWARE END =====')
+    return response
+  }
+  
+  // ALWAYS allow access to debug endpoint
+  if (pathname.startsWith('/api/debug/')) {
+    console.log('Debug endpoint detected, bypassing auth completely')
+    response.headers.set('x-debug-auth-bypass-reason', 'debug-endpoint')
     console.log('===== MIDDLEWARE END =====')
     return response
   }
@@ -146,5 +164,10 @@ export async function middleware(request: NextRequest) {
 
 // Run middleware on ALL paths to see if it's running at all
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/debug).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico).*/)',
+    '/admin/:path*',
+    '/api/admin/:path*',
+    '/api/debug/:path*'
+  ],
 } 

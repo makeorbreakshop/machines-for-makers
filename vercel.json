@@ -12,6 +12,30 @@
   ],
   "routes": [
     {
+      "src": "/admin(.*)",
+      "headers": {
+        "cache-control": "no-store, no-cache, max-age=0, must-revalidate",
+        "x-middleware-bypass": "false"
+      },
+      "continue": true
+    },
+    {
+      "src": "/api/admin(.*)",
+      "headers": {
+        "cache-control": "no-store, no-cache, max-age=0, must-revalidate",
+        "x-middleware-bypass": "false"
+      },
+      "continue": true
+    },
+    {
+      "src": "/api/debug(.*)",
+      "headers": {
+        "cache-control": "no-store, no-cache, max-age=0, must-revalidate",
+        "x-middleware-bypass": "false"
+      },
+      "continue": true
+    },
+    {
       "src": "/assets/(.*)",
       "headers": {
         "cache-control": "public, max-age=31536000, immutable"
@@ -39,6 +63,8 @@
   ],
   "env": {
     "NEXT_PUBLIC_SUPABASE_URL": "${NEXT_PUBLIC_SUPABASE_URL}",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "${NEXT_PUBLIC_SUPABASE_ANON_KEY}"
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "${NEXT_PUBLIC_SUPABASE_ANON_KEY}",
+    "ADMIN_PASSWORD": "${ADMIN_PASSWORD}",
+    "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}"
   }
 } 
