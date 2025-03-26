@@ -84,6 +84,9 @@ export const metadata: Metadata = {
   description: "View all available promo codes for Machines for Makers products",
 }
 
+// Add the nodejs runtime declaration, required for server components using Supabase
+export const runtime = 'nodejs';
+
 export default async function PromoCodesPage() {
   const supabase = await createServerClient()
   const brandLogos = await getBrandLogos()
