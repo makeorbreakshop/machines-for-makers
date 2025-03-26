@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 import { Sidebar } from "@/components/admin/sidebar"
 import LogoutButton from "@/components/admin/logout-button"
-import { redirect } from 'next/navigation'
+import AuthProvider from "@/components/admin/auth-provider"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -19,26 +19,32 @@ export const metadata: Metadata = {
   }
 }
 
-// Special layout for admin area - relies on middleware for auth protection
+// Dynamic configuration for server components
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
+// Admin layout - each page will handle its own authentication
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  // Simplified approach: Use client component rendering to handle layout
-  // Authentication is handled by middleware so we don't need to check here
   return (
     <div className={`${inter.variable} font-sans`}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <div className="flex-1 p-8">
-            <div className="flex justify-end mb-4">
-              <LogoutButton />
+        {/* AuthProvider handles authentication for all admin pages */}
+        <AuthProvider>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <div className="flex-1 p-8">
+              <div className="flex justify-end mb-4">
+                <LogoutButton />
+              </div>
+              {children}
             </div>
-            {children}
           </div>
-        </div>
+        </AuthProvider>
       </ThemeProvider>
     </div>
   )

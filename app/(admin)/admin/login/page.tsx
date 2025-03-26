@@ -22,6 +22,21 @@ function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   
+  // Check if already logged in based on cookie
+  useEffect(() => {
+    // Simple client-side check for auth cookie
+    const cookies = document.cookie.split(';');
+    const adminCookie = cookies.find(cookie => cookie.trim().startsWith("admin_auth="));
+    const hasAuthCookie = !!adminCookie && adminCookie.trim() !== "admin_auth=";
+    
+    console.log("Login page mounted, has auth cookie:", hasAuthCookie);
+    
+    if (hasAuthCookie) {
+      console.log("Already authenticated, redirecting to admin");
+      router.push('/admin');
+    }
+  }, [router]);
+  
   // Check if we're in a redirect loop
   useEffect(() => {
     console.log("Login page mounted")
@@ -52,6 +67,7 @@ function LoginPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ password }),
+        credentials: "include", // Include cookies in the request
       })
 
       const data = await response.json()
@@ -61,11 +77,14 @@ function LoginPage() {
         // Clear any loop detection
         sessionStorage.setItem('loginLoopCount', '0')
         
+        // Add a log to check if cookies are set
+        console.log("Cookies after login:", document.cookie);
+        
         // Use a small delay to ensure the cookie is set before redirect
         setTimeout(() => {
-          router.push("/admin")
-          router.refresh()
-        }, 100)
+          // Force a hard navigation to ensure the page is fully reloaded
+          window.location.href = "/admin";
+        }, 300)
       } else {
         console.log("Login failed:", data.message)
         setError(data.message || "Invalid password")
@@ -79,17 +98,12 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-muted/40">
+    <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-2">
-            <div className="p-2 rounded-full bg-primary/10">
-              <Lock className="h-6 w-6 text-primary" />
-            </div>
-          </div>
-          <CardTitle className="text-xl text-center">Admin Access</CardTitle>
-          <CardDescription className="text-center">
-            Enter the admin password to continue
+          <CardTitle className="text-2xl">Admin Login</CardTitle>
+          <CardDescription>
+            Enter your admin password to access the dashboard
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -101,21 +115,23 @@ function LoginPage() {
               </Alert>
             )}
             <div className="space-y-2">
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                autoFocus
-                required
-              />
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  className="pl-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
             </div>
           </CardContent>
           <CardFooter>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Verifying..." : "Login"}
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </CardFooter>
         </form>

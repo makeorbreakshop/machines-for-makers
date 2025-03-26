@@ -5,11 +5,15 @@ import { Plus } from "lucide-react"
 import Link from "next/link"
 import { MachinesTable, type TableMachine } from "@/components/admin/machines-table"
 import type { Machine } from "@/lib/database-types"
+import { requireAdminAuth } from "@/lib/auth-utils"
 
 // Add export const dynamic = 'force-dynamic' to prevent static generation
 export const dynamic = 'force-dynamic'
 
 export default async function MachinesPage() {
+  // Check auth first - will redirect if not authenticated
+  await requireAdminAuth();
+  
   const supabase = await createServerClient()
 
   const { data: machines, error } = await supabase
