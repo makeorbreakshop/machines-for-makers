@@ -43,3 +43,52 @@
 - Never automatically restart servers or suggest doing so
 - Always prioritize maintaining a single server instance 
 - Supabase infrastructure changes must be done by the user 
+
+## Next.js Route Grouping and Admin Security
+
+### ⚠️ CRITICAL: Admin Route Security Architecture
+
+#### Route Structure Requirements
+- The admin area MUST use ONLY the route group pattern: `/app/(admin)/admin/*`
+- NEVER create routes at `/app/admin/*` alongside the route group
+- Having duplicate routes (with and without parentheses) will bypass security middleware
+
+#### Why This Matters
+- Next.js route groups (with parentheses) maintain security middleware protection
+- Duplicate routes create conflicts that bypass authentication
+- Security vulnerabilities occur when both `/app/admin/` and `/app/(admin)/admin/` exist simultaneously
+
+#### Route Group Architecture Overview
+```
+app/
+├── (admin)/           # Route group (parentheses = doesn't affect URL path)
+│   └── admin/         # Actual admin routes (/admin in browser)
+│       ├── login/     # Login page (/admin/login)
+│       ├── page.tsx   # Dashboard page
+│       └── layout.tsx # Admin layout with auth protection
+```
+
+#### Authentication Middleware
+- Our middleware.ts protects all `/admin/*` routes
+- It checks for valid authentication cookies and redirects to login when needed
+- The middleware ONLY works correctly when routes are organized properly
+
+#### Security Checklist
+- ✅ Admin routes MUST be in `/app/(admin)/admin/` only
+- ✅ Login page MUST be in `/app/(admin)/admin/login/`
+- ✅ NEVER create a duplicate route at `/app/admin/`
+- ✅ Manually test authentication by clearing cookies and verifying redirect to login
+
+#### Testing Admin Security
+1. Clear browser cookies completely
+2. Try accessing `/admin` directly
+3. Verify redirect to login page
+4. After logging in, confirm access to admin
+5. Verify logout functionality works correctly
+
+### ⚠️ If Authentication Is Bypassed
+If users can access admin without logging in:
+1. **IMMEDIATELY** check for duplicate routes in `/app/admin/`
+2. Delete any duplicate routes outside the route group
+3. Rebuild and deploy the application
+4. Verify the fix by testing in incognito mode 
