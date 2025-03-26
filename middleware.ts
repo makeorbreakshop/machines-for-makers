@@ -12,6 +12,9 @@ const PROTECTED_ADMIN_ROUTES = ["/admin"]
 // Routes that should not be protected (within the admin space)
 const PUBLIC_ADMIN_ROUTES = ["/admin/login"]
 
+// Maximum token age in milliseconds (7 days)
+const MAX_TOKEN_AGE = 7 * 24 * 60 * 60 * 1000
+
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
   const supabase = createMiddlewareClient<Database>({ req: request, res: response })
@@ -40,6 +43,28 @@ export async function middleware(request: NextRequest) {
     // If no auth cookie, redirect to login
     if (!authCookie?.value) {
       const url = new URL("/admin/login", request.url)
+      return NextResponse.redirect(url)
+    }
+
+    // Validate token format and expiry
+    const [token, timestamp] = authCookie.value.split('.')
+    
+    if (!token || !timestamp) {
+      const url = new URL("/admin/login", request.url)
+      return NextResponse.redirect(url)
+    }
+
+    // Check token age
+    const tokenAge = Date.now() - parseInt(timestamp)
+    if (tokenAge > MAX_TOKEN_AGE) {
+      // Token has expired, clear the cookie and redirect to login
+      const url = new URL("/admin/login", request.url)
+      response.cookies.set({
+        name: ADMIN_COOKIE_NAME,
+        value: "",
+        expires: new Date(0),
+        path: "/",
+      })
       return NextResponse.redirect(url)
     }
   }
