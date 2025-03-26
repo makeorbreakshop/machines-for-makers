@@ -1,10 +1,12 @@
-// Dynamic config exports must be in a separate file that's not marked "use client"
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-// Client component starts here
 "use client"
+
+// Dynamic config exports must be in a separate file that's not marked "use client"
+// These directives won't have any effect in client components 
+// They should be in a separate server component file
+// (Keeping them commented for reference)
+// export const dynamic = 'force-dynamic';
+// export const revalidate = 0;
+// export const fetchCache = 'force-no-store';
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
