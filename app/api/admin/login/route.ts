@@ -7,8 +7,13 @@ const EXPIRY_TIME = 60 * 60 * 24 * 7 // 7 days in seconds
 
 // Validate environment variable
 if (!process.env.ADMIN_PASSWORD) {
+  console.error("CRITICAL: ADMIN_PASSWORD environment variable is not set!")
   throw new Error("ADMIN_PASSWORD environment variable must be set")
 }
+
+// Log that password exists but not its value
+console.log("ADMIN_PASSWORD exists in env, length:", process.env.ADMIN_PASSWORD.length)
+console.log("ADMIN_PASSWORD first 3 chars:", process.env.ADMIN_PASSWORD.substring(0, 3))
 
 // Use edge runtime to ensure consistent behavior
 export const runtime = 'edge';
@@ -47,6 +52,12 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+
+    // Add more debugging
+    console.log("Password from request, length:", password.length)
+    console.log("Password first 3 chars:", password.substring(0, 3))
+    console.log("ENV password length:", process.env.ADMIN_PASSWORD?.length || 0)
+    console.log("ENV first 3 chars:", process.env.ADMIN_PASSWORD?.substring(0, 3))
 
     // Check if password matches
     const passwordMatches = password === process.env.ADMIN_PASSWORD

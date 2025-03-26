@@ -20,6 +20,7 @@ function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [detailedError, setDetailedError] = useState<any>(null)
   const router = useRouter()
   
   // Check if already logged in based on cookie
@@ -58,6 +59,7 @@ function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setDetailedError(null)
 
     try {
       console.log("Submitting login request")
@@ -65,12 +67,18 @@ function LoginPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Pragma": "no-cache"
         },
         body: JSON.stringify({ password }),
         credentials: "include", // Include cookies in the request
+        cache: "no-store"
       })
 
       const data = await response.json()
+      
+      console.log("Login response status:", response.status)
+      console.log("Login response headers:", Object.fromEntries([...response.headers]))
       
       if (response.ok) {
         console.log("Login successful, redirecting")
@@ -84,14 +92,20 @@ function LoginPage() {
         setTimeout(() => {
           // Force a hard navigation to ensure the page is fully reloaded
           window.location.href = "/admin";
-        }, 300)
+        }, 500)
       } else {
         console.log("Login failed:", data.message)
         setError(data.message || "Invalid password")
+        setDetailedError({
+          status: response.status,
+          statusText: response.statusText,
+          data: data
+        })
       }
     } catch (err) {
       console.error("Login error:", err)
       setError("An error occurred. Please try again.")
+      setDetailedError(err)
     } finally {
       setLoading(false)
     }
@@ -114,6 +128,13 @@ function LoginPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+            
+            {detailedError && (
+              <div className="text-xs text-red-500 overflow-auto max-h-24 bg-red-50 p-2 rounded border border-red-200">
+                <pre>{JSON.stringify(detailedError, null, 2)}</pre>
+              </div>
+            )}
+            
             <div className="space-y-2">
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
