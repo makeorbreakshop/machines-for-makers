@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { dataProvider } from "@/lib/data-provider"
 import { ArrowRight } from "lucide-react"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createServerClient } from "@/lib/supabase/server"
 import type { Database } from "@/lib/database-types"
 
 // Implement ISR with a 1-hour revalidation period
@@ -38,7 +37,7 @@ export default async function HomePage() {
   })
   
   // Directly query the database for machines with awards as a backup
-  const supabase = createServerComponentClient<Database>({ cookies: () => cookies() })
+  const supabase = createServerClient()
   const { data: awardMachines } = await supabase
     .from("machines")
     .select("id, \"Machine Name\", \"Award\", \"Internal link\", \"Image\", \"Excerpt (Short)\", \"Price\", \"Laser Category\"")

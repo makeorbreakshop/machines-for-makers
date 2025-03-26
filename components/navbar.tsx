@@ -1,12 +1,11 @@
 import Link from "next/link"
 import { Tag, Laptop2, Tv } from "lucide-react"
 import Image from "next/image"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createServerClient } from "@/lib/supabase/server"
 
 export default async function Navbar() {
   // Fetch logo URL from site settings
-  const supabase = createServerComponentClient({ cookies })
+  const supabase = createServerClient()
   const { data } = await supabase
     .from("site_settings")
     .select("value")
