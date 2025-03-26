@@ -1,3 +1,9 @@
+// Dynamic config exports must be in a separate file that's not marked "use client"
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
+// Client component starts here
 "use client"
 
 import { useState, useEffect } from "react"
@@ -8,7 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { AlertCircle, Lock } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-export default function AdminLogin() {
+function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -114,4 +120,7 @@ export default function AdminLogin() {
       </Card>
     </div>
   )
-} 
+}
+
+// Export the client component as the default export from the page
+export default LoginPage 
