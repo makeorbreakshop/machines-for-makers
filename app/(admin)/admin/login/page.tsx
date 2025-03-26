@@ -8,12 +8,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { AlertCircle, Lock } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-// Force dynamic rendering to prevent caching issues
-export const dynamic = 'force-dynamic'
-
-// Set revalidation to 0 to prevent caching
-export const revalidate = 0
-
 export default function AdminLogin() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
