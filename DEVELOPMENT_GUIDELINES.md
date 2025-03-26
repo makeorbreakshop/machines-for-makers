@@ -1,5 +1,41 @@
 # Development Guidelines
 
+## Technology Stack
+
+### Core Technologies
+- **Next.js**: v15.2.3 (Edge and App Router)
+- **React**: v18.2.0
+- **TypeScript**: v5.8.2
+- **Tailwind CSS**: v3.4.17
+- **Supabase**: Client v2.49.2
+- **Radix UI**: v1.x (Various components)
+- **Shadcn UI**: Built on Radix primitives
+- **zod**: v3.22.4 (Form validation)
+- **React Hook Form**: v7.49.3
+
+## ⚠️ Critical: Next.js Runtime Configuration
+
+Next.js 15 has different runtime requirements for different parts of the application:
+
+1. **For middleware.ts:**
+   - MUST use: `export const runtime = 'experimental-edge';`
+   - Do NOT use 'edge' for middleware - This is officially documented by Next.js
+   - Middleware is specifically designed to run at the edge but uses the experimental-edge runtime
+
+2. **For API routes:**
+   - MUST use: `export const runtime = 'edge';` or `export const runtime = 'nodejs';`
+   - Do NOT use 'experimental-edge' for API routes
+   - Edge API routes must declare `edge` runtime (not experimental-edge)
+
+This discrepancy is intentional in Next.js architecture:
+- Middleware always uses the experimental-edge runtime (even in Next.js 15)
+- Edge API routes have moved to the stable edge runtime
+- This reflects the different maturity levels of these features in Next.js
+
+For deployment troubleshooting:
+- If middleware fails with "Page /middleware provided runtime 'edge'..." use 'experimental-edge'
+- If API routes fail with "Invalid enum value. Expected 'edge' | 'nodejs'..." use 'edge'
+
 ## Server Management
 
 ### ⚠️ IMPORTANT: Server Restart Protocol
@@ -72,6 +108,7 @@ app/
 - Our middleware.ts protects all `/admin/*` routes
 - It checks for valid authentication cookies and redirects to login when needed
 - The middleware ONLY works correctly when routes are organized properly
+- **IMPORTANT**: Middleware uses Edge runtime (`export const runtime = 'edge'`)
 
 #### Security Checklist
 - ✅ Admin routes MUST be in `/app/(admin)/admin/` only
@@ -92,3 +129,10 @@ If users can access admin without logging in:
 2. Delete any duplicate routes outside the route group
 3. Rebuild and deploy the application
 4. Verify the fix by testing in incognito mode 
+
+## Deployment Considerations
+- The application uses Vercel for hosting
+- Middleware runs in the Edge runtime (`edge`)
+- API routes can use either `edge` or `nodejs` runtime
+- Never use deprecated `experimental-edge` runtime
+- Always test security features in production after deployment 
