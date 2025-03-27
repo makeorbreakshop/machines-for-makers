@@ -61,7 +61,7 @@ export default function ComparisonBar() {
                   </div>
                 </div>
               ))}
-              {Array.from({ length: 5 - selectedProducts.length }).map((_, i) => (
+              {Array.from({ length: 8 - selectedProducts.length }).map((_, i) => (
                 <div
                   key={i}
                   className="h-12 w-12 border rounded border-dashed flex items-center justify-center text-muted-foreground"

@@ -17,7 +17,7 @@ export function ComparisonProvider({ children }: { children: ReactNode }) {
   const [selectedProducts, setSelectedProducts] = useState<Machine[]>([])
 
   const addToComparison = (product: Machine) => {
-    if (selectedProducts.length < 5 && !isSelected(product.id)) {
+    if (selectedProducts.length < 8 && !isSelected(product.id)) {
       setSelectedProducts([...selectedProducts, product])
     }
   }
