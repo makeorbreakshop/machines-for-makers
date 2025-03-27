@@ -31,41 +31,62 @@ const formSchema = z.object({
   slug: z.string().min(2, {
     message: "Slug must be at least 2 characters.",
   }),
-  company: z.string().optional(),
-  machine_category: z.string().optional(),
-  laser_category: z.string().optional(),
-  price: z.coerce.number().optional(),
-  rating: z.coerce.number().min(0).max(10).optional(),
-  award: z.string().optional(),
-  laser_type_a: z.string().optional(),
-  laser_power_a: z.string().optional(),
-  laser_type_b: z.string().optional(),
-  laser_power_b: z.string().optional(),
-  work_area: z.string().optional(),
-  speed: z.string().optional(),
-  height: z.string().optional(),
-  machine_size: z.string().optional(),
-  acceleration: z.string().optional(),
-  laser_frequency: z.string().optional(),
-  pulse_width: z.string().optional(),
-  focus: z.string().optional(),
-  enclosure: z.boolean().optional(),
-  wifi: z.boolean().optional(),
-  camera: z.boolean().optional(),
-  passthrough: z.boolean().optional(),
-  controller: z.string().optional(),
-  software: z.string().optional(),
-  warranty: z.string().optional(),
-  laser_source_manufacturer: z.string().optional(),
-  excerpt_short: z.string().optional(),
-  description: z.string().optional(),
-  highlights: z.string().optional(),
-  drawbacks: z.string().optional(),
+  company: z.string({
+    required_error: "Brand is required",
+  }),
+  machine_category: z.string({
+    required_error: "Machine category is required",
+  }),
+  laser_category: z.string({
+    required_error: "Laser category is required",
+  }),
+  price: z.coerce.number({
+    required_error: "Price is required",
+  }),
+  rating: z.coerce.number().min(0).max(10).optional().nullable(),
+  award: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  laser_type_a: z.string({
+    required_error: "Primary laser type is required",
+  }),
+  laser_power_a: z.string({
+    required_error: "Primary laser power is required",
+  }),
+  laser_type_b: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  laser_power_b: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  work_area: z.string({
+    required_error: "Work area is required",
+  }),
+  speed: z.string({
+    required_error: "Speed is required",
+  }),
+  height: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  machine_size: z.string({
+    required_error: "Machine size is required",
+  }),
+  acceleration: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  laser_frequency: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  pulse_width: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  focus: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  enclosure: z.boolean().default(false),
+  wifi: z.boolean().default(false),
+  camera: z.boolean().default(false),
+  passthrough: z.boolean().default(false),
+  auto_focus: z.boolean().default(false),
+  controller: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  software: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  warranty: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  laser_source_manufacturer: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  excerpt_short: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  description: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  highlights: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  drawbacks: z.string().optional().nullable().transform(val => val === null ? "" : val),
   is_featured: z.boolean().default(false),
   hidden: z.boolean().default(false),
-  image_url: z.string().optional(),
-  affiliate_link: z.string().optional(),
-  youtube_review: z.string().optional(),
+  image_url: z.string({
+    required_error: "Image URL is required",
+  }),
+  affiliate_link: z.string().optional().nullable().transform(val => val === null ? "" : val),
+  youtube_review: z.string().optional().nullable().transform(val => val === null ? "" : val),
 })
 
 // Type for the form data
@@ -82,9 +103,19 @@ interface MachineFormProps {
   brands: Brand[]
 }
 
+// Add a new component for required field labels
+const RequiredFormLabel = ({ children }: { children: React.ReactNode }) => (
+  <FormLabel className="flex items-center">
+    {children}
+    <span className="text-red-500 ml-1">*</span>
+  </FormLabel>
+);
+
 export function MachineForm({ machine, categories, brands }: MachineFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Add state to track if there's a clone source
+  const [cloneSource, setCloneSource] = useState<string | null>(null)
 
   // Initialize form with existing machine data or defaults
   const form = useForm<z.infer<typeof formSchema>>({
@@ -94,12 +125,53 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
           ...machine,
           price: machine.price || undefined,
           rating: machine.rating || undefined,
+          auto_focus: machine.auto_focus || false,
+          // Set default empty strings for nullable string fields
+          laser_type_b: machine.laser_type_b ?? "",
+          laser_power_b: machine.laser_power_b ?? "",
+          height: machine.height ?? "",
+          acceleration: machine.acceleration ?? "",
+          laser_frequency: machine.laser_frequency ?? "",
+          pulse_width: machine.pulse_width ?? "",
+          focus: machine.focus ?? "",
+          controller: machine.controller ?? "",
+          software: machine.software ?? "",
+          warranty: machine.warranty ?? "",
+          laser_source_manufacturer: machine.laser_source_manufacturer ?? "",
+          excerpt_short: machine.excerpt_short ?? "",
+          description: machine.description ?? "",
+          highlights: machine.highlights ?? "",
+          drawbacks: machine.drawbacks ?? "",
+          affiliate_link: machine.affiliate_link ?? "",
+          youtube_review: machine.youtube_review ?? "",
         }
       : {
           machine_name: "",
           slug: "",
           is_featured: false,
           hidden: false,
+          enclosure: false,
+          wifi: false,
+          camera: false,
+          passthrough: false,
+          auto_focus: false,
+          laser_type_b: "",
+          laser_power_b: "",
+          height: "",
+          acceleration: "",
+          laser_frequency: "",
+          pulse_width: "",
+          focus: "",
+          controller: "",
+          software: "",
+          warranty: "",
+          laser_source_manufacturer: "",
+          excerpt_short: "",
+          description: "",
+          highlights: "",
+          drawbacks: "",
+          affiliate_link: "",
+          youtube_review: "",
         },
   })
 
@@ -139,28 +211,66 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        {/* Quick Clone Selection */}
+        <div className="flex flex-col md:flex-row gap-2 justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => router.back()}
+              size="sm"
+            >
+              ← Back
+            </Button>
+            <h2 className="text-lg font-semibold">
+              {machine ? "Edit Machine" : "Add New Machine"}
+            </h2>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : machine ? "Update Machine" : "Create Machine"}
+            </Button>
+          </div>
+        </div>
+
         <Tabs defaultValue="basic">
-          <TabsList>
-            <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="specs">Specifications</TabsTrigger>
-            <TabsTrigger value="content">Content</TabsTrigger>
-            <TabsTrigger value="media">Media & Links</TabsTrigger>
-          </TabsList>
+          <div className="flex flex-col space-y-4">
+            <TabsList className="w-full justify-start border-b">
+              <TabsTrigger value="basic">Basic Info</TabsTrigger>
+              <TabsTrigger value="specs">Specifications</TabsTrigger>
+              <TabsTrigger value="content">Content</TabsTrigger>
+              <TabsTrigger value="media">Media & Links</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Basic Info Tab */}
           <TabsContent value="basic">
             <Card>
               <CardContent className="pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Quick navigation section */}
+                <div className="mb-6 p-2 bg-slate-50 rounded-md">
+                  <div className="text-sm font-medium mb-2">Quick Navigation:</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('basic-section')?.scrollIntoView()}>Basic Details</Button>
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('settings-section')?.scrollIntoView()}>Settings</Button>
+                  </div>
+                </div>
+
+                <div id="basic-section" className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 pb-6 border-b">
+                  <div className="col-span-2">
+                    <h3 className="text-base font-medium mb-4">Basic Details</h3>
+                  </div>
                   <FormField
                     control={form.control}
                     name="machine_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Machine Name</FormLabel>
+                        <RequiredFormLabel>Machine Name</RequiredFormLabel>
                         <FormControl>
                           <Input
                             {...field}
+                            className="border-slate-300"
                             onBlur={(e) => {
                               field.onBlur()
                               if (!form.getValues("slug")) {
@@ -179,9 +289,9 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     name="slug"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Slug</FormLabel>
+                        <RequiredFormLabel>Slug</RequiredFormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input {...field} className="border-slate-300" />
                         </FormControl>
                         <FormDescription>Used in the URL: /products/{field.value}</FormDescription>
                         <FormMessage />
@@ -194,10 +304,10 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     name="company"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Brand</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <RequiredFormLabel>Brand</RequiredFormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value ?? ""}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="border-slate-300">
                               <SelectValue placeholder="Select a brand" />
                             </SelectTrigger>
                           </FormControl>
@@ -219,10 +329,10 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     name="machine_category"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Machine Category</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                        <RequiredFormLabel>Machine Category</RequiredFormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value ?? ""}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="border-slate-300">
                               <SelectValue placeholder="Select a category" />
                             </SelectTrigger>
                           </FormControl>
@@ -242,19 +352,18 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     name="laser_category"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Laser Category</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                        <RequiredFormLabel>Laser Category</RequiredFormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value ?? ""}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="border-slate-300">
                               <SelectValue placeholder="Select a laser category" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="desktop-diode-laser">Desktop Diode Laser</SelectItem>
-                            <SelectItem value="desktop-galvo">Desktop Galvo</SelectItem>
-                            <SelectItem value="pro-gantry">Pro Gantry</SelectItem>
-                            <SelectItem value="desktop-gantry">Desktop Gantry</SelectItem>
-                            <SelectItem value="open-diode">Open Diode</SelectItem>
+                            <SelectItem value="diode">Diode</SelectItem>
+                            <SelectItem value="co2">CO2</SelectItem>
+                            <SelectItem value="fiber">Fiber</SelectItem>
+                            <SelectItem value="hybrid">Hybrid</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -267,15 +376,25 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     name="price"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Price ($)</FormLabel>
+                        <RequiredFormLabel>Price ($)</RequiredFormLabel>
                         <FormControl>
-                          <Input type="number" {...field} />
+                          <Input 
+                            type="number" 
+                            {...field} 
+                            className="border-slate-300"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                </div>
 
+                <div id="settings-section" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <h3 className="text-base font-medium mb-4">Settings</h3>
+                  </div>
+                  
                   <FormField
                     control={form.control}
                     name="rating"
@@ -283,7 +402,15 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                       <FormItem>
                         <FormLabel>Rating (0-10)</FormLabel>
                         <FormControl>
-                          <Input type="number" min="0" max="10" step="0.1" {...field} />
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            max="10" 
+                            step="0.1" 
+                            {...field} 
+                            value={field.value ?? ""}
+                            className="border-slate-300"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -297,7 +424,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                       <FormItem>
                         <FormLabel>Award</FormLabel>
                         <FormControl>
-                          <Input {...field} value={field.value || ""} />
+                          <Input {...field} value={field.value || ""} className="border-slate-300" />
                         </FormControl>
                         <FormDescription>E.g., "Editor's Choice", "Best Value", etc.</FormDescription>
                         <FormMessage />
@@ -305,39 +432,37 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     )}
                   />
 
-                  <div className="md:col-span-2 flex flex-col md:flex-row gap-4">
-                    <FormField
-                      control={form.control}
-                      name="is_featured"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 flex-1">
-                          <FormControl>
-                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel>Featured</FormLabel>
-                            <FormDescription>Show this machine on the homepage and featured sections</FormDescription>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
+                  <FormField
+                    control={form.control}
+                    name="is_featured"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center space-x-2 rounded-md border p-3">
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel className="flex-1 cursor-pointer">Featured Machine</FormLabel>
+                      </FormItem>
+                    )}
+                  />
 
-                    <FormField
-                      control={form.control}
-                      name="hidden"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 flex-1">
-                          <FormControl>
-                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel>Hidden</FormLabel>
-                            <FormDescription>Hide this machine from the website</FormDescription>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="hidden"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center space-x-2 rounded-md border p-3">
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel className="flex-1 cursor-pointer">Hidden</FormLabel>
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -347,31 +472,42 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
           <TabsContent value="specs">
             <Card>
               <CardContent className="pt-6">
-                <Accordion type="multiple" defaultValue={["laser-specs", "dimensions", "performance", "features"]}>
-                  <AccordionItem value="laser-specs">
-                    <AccordionTrigger className="text-lg font-medium">Laser Specifications</AccordionTrigger>
+                {/* Quick navigation section */}
+                <div className="mb-6 p-2 bg-slate-50 rounded-md">
+                  <div className="text-sm font-medium mb-2">Quick Navigation:</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('laser-specs')?.scrollIntoView()}>Laser Specifications</Button>
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('dimensions')?.scrollIntoView()}>Dimensions</Button>
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('performance')?.scrollIntoView()}>Performance</Button>
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('features')?.scrollIntoView()}>Features</Button>
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('software')?.scrollIntoView()}>Software & Support</Button>
+                  </div>
+                </div>
+
+                <Accordion type="multiple" defaultValue={["laser", "dimensions", "performance", "features", "software"]} className="space-y-4">
+                  <AccordionItem value="laser" id="laser-specs" className="border rounded-md p-2">
+                    <AccordionTrigger className="text-lg font-medium px-2">Laser Specifications</AccordionTrigger>
                     <AccordionContent>
-                      <div className="space-y-4 pt-4">
+                      <div className="bg-slate-50 p-4 rounded-md mb-6">
+                        <h3 className="font-medium mb-2">Primary Laser</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
                             name="laser_type_a"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Primary Laser Type</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                                <RequiredFormLabel>Primary Laser Type</RequiredFormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value ?? ""}>
                                   <FormControl>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="border-slate-300">
                                       <SelectValue placeholder="Select a laser type" />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    <SelectItem value="Diode">Diode</SelectItem>
-                                    <SelectItem value="CO2">CO2</SelectItem>
-                                    <SelectItem value="Fiber">Fiber</SelectItem>
-                                    <SelectItem value="DPSS">DPSS</SelectItem>
-                                    <SelectItem value="Crystal">Crystal</SelectItem>
-                                    <SelectItem value="Galvo">Galvo</SelectItem>
+                                    <SelectItem value="diode">Diode</SelectItem>
+                                    <SelectItem value="co2">CO2</SelectItem>
+                                    <SelectItem value="fiber">Fiber</SelectItem>
+                                    <SelectItem value="hybrid">Hybrid</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -384,9 +520,17 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                             name="laser_power_a"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Primary Laser Power (W)</FormLabel>
+                                <RequiredFormLabel>Primary Laser Power</RequiredFormLabel>
                                 <FormControl>
-                                  <Input {...field} value={field.value || ""} placeholder="10" />
+                                  <div className="relative">
+                                    <Input 
+                                      {...field} 
+                                      value={field.value ?? ""} 
+                                      placeholder="10"
+                                      className="pr-8 border-slate-300"
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-sm text-slate-500">W</span>
+                                  </div>
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -394,50 +538,58 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                           />
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="laser_type_b"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Secondary Laser Type</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select a laser type" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="none">None</SelectItem>
-                                    <SelectItem value="Diode">Diode</SelectItem>
-                                    <SelectItem value="CO2">CO2</SelectItem>
-                                    <SelectItem value="Fiber">Fiber</SelectItem>
-                                    <SelectItem value="DPSS">DPSS</SelectItem>
-                                    <SelectItem value="Crystal">Crystal</SelectItem>
-                                    <SelectItem value="Galvo">Galvo</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                        <div className="bg-slate-50 p-4 rounded-md mt-4">
+                          <h3 className="font-medium mb-2">Secondary Laser (Optional)</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name="laser_type_b"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Secondary Laser Type</FormLabel>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value ?? ""}>
+                                    <FormControl>
+                                      <SelectTrigger className="border-slate-300">
+                                        <SelectValue placeholder="Select a laser type" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="diode">Diode</SelectItem>
+                                      <SelectItem value="co2">CO2</SelectItem>
+                                      <SelectItem value="fiber">Fiber</SelectItem>
+                                      <SelectItem value="hybrid">Hybrid</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
 
-                          <FormField
-                            control={form.control}
-                            name="laser_power_b"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Secondary Laser Power (W)</FormLabel>
-                                <FormControl>
-                                  <Input {...field} value={field.value || ""} placeholder="5" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                            <FormField
+                              control={form.control}
+                              name="laser_power_b"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Secondary Laser Power</FormLabel>
+                                  <FormControl>
+                                    <div className="relative">
+                                      <Input 
+                                        {...field} 
+                                        value={field.value ?? ""} 
+                                        placeholder="5"
+                                        className="pr-8 border-slate-300"
+                                      />
+                                      <span className="absolute right-3 top-2.5 text-sm text-slate-500">W</span>
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                           <FormField
                             control={form.control}
                             name="laser_source_manufacturer"
@@ -445,7 +597,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                               <FormItem>
                                 <FormLabel>Laser Source Manufacturer</FormLabel>
                                 <FormControl>
-                                  <Input {...field} value={field.value || ""} />
+                                  <Input {...field} value={field.value ?? ""} className="border-slate-300" />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -459,7 +611,14 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                               <FormItem>
                                 <FormLabel>Laser Frequency</FormLabel>
                                 <FormControl>
-                                  <Input {...field} value={field.value || ""} />
+                                  <div className="relative">
+                                    <Input 
+                                      {...field} 
+                                      value={field.value ?? ""} 
+                                      className="border-slate-300"
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-sm text-slate-500">Hz</span>
+                                  </div>
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -473,7 +632,21 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                               <FormItem>
                                 <FormLabel>Pulse Width</FormLabel>
                                 <FormControl>
-                                  <Input {...field} value={field.value || ""} />
+                                  <Input {...field} value={field.value ?? ""} className="border-slate-300" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="focus"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Focus</FormLabel>
+                                <FormControl>
+                                  <Input {...field} value={field.value ?? ""} className="border-slate-300" />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -484,19 +657,28 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     </AccordionContent>
                   </AccordionItem>
 
-                  <AccordionItem value="dimensions">
-                    <AccordionTrigger className="text-lg font-medium">Dimensions</AccordionTrigger>
+                  <AccordionItem value="dimensions" id="dimensions" className="border rounded-md p-2">
+                    <AccordionTrigger className="text-lg font-medium px-2">Dimensions</AccordionTrigger>
                     <AccordionContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                         <FormField
                           control={form.control}
                           name="work_area"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Work Area</FormLabel>
+                              <RequiredFormLabel>Work Area</RequiredFormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="600x400 mm" />
+                                <div className="relative">
+                                  <Input 
+                                    {...field} 
+                                    value={field.value ?? ""} 
+                                    placeholder="400x390" 
+                                    className="pr-8 border-slate-300"
+                                  />
+                                  <span className="absolute right-3 top-2.5 text-sm text-slate-500">mm</span>
+                                </div>
                               </FormControl>
+                              <FormDescription>Width x Length (e.g., 400x390)</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -507,10 +689,19 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                           name="machine_size"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Machine Size</FormLabel>
+                              <RequiredFormLabel>Machine Size</RequiredFormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="800x600 mm" />
+                                <div className="relative">
+                                  <Input 
+                                    {...field} 
+                                    value={field.value ?? ""} 
+                                    placeholder="585x660x270" 
+                                    className="pr-8 border-slate-300"
+                                  />
+                                  <span className="absolute right-3 top-2.5 text-sm text-slate-500">mm</span>
+                                </div>
                               </FormControl>
+                              <FormDescription>Width x Length x Height (e.g., 585x660x270)</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -523,7 +714,15 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                             <FormItem>
                               <FormLabel>Height</FormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="200 mm" />
+                                <div className="relative">
+                                  <Input 
+                                    {...field} 
+                                    value={field.value ?? ""} 
+                                    placeholder="200" 
+                                    className="pr-8 border-slate-300"
+                                  />
+                                  <span className="absolute right-3 top-2.5 text-sm text-slate-500">mm</span>
+                                </div>
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -533,8 +732,8 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     </AccordionContent>
                   </AccordionItem>
 
-                  <AccordionItem value="performance">
-                    <AccordionTrigger className="text-lg font-medium">Performance</AccordionTrigger>
+                  <AccordionItem value="performance" id="performance" className="border rounded-md p-2">
+                    <AccordionTrigger className="text-lg font-medium px-2">Performance</AccordionTrigger>
                     <AccordionContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                         <FormField
@@ -542,9 +741,17 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                           name="speed"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Speed</FormLabel>
+                              <RequiredFormLabel>Speed</RequiredFormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="600 mm/s" />
+                                <div className="relative">
+                                  <Input 
+                                    {...field} 
+                                    value={field.value ?? ""} 
+                                    placeholder="600" 
+                                    className="pr-12 border-slate-300"
+                                  />
+                                  <span className="absolute right-3 top-2.5 text-sm text-slate-500">mm/s</span>
+                                </div>
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -558,7 +765,15 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                             <FormItem>
                               <FormLabel>Acceleration</FormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="8000 mm/s²" />
+                                <div className="relative">
+                                  <Input 
+                                    {...field} 
+                                    value={field.value ?? ""} 
+                                    placeholder="8000" 
+                                    className="pr-14 border-slate-300"
+                                  />
+                                  <span className="absolute right-3 top-2.5 text-sm text-slate-500">mm/s²</span>
+                                </div>
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -568,30 +783,16 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     </AccordionContent>
                   </AccordionItem>
 
-                  <AccordionItem value="features">
-                    <AccordionTrigger className="text-lg font-medium">Features</AccordionTrigger>
+                  <AccordionItem value="features" id="features" className="border rounded-md p-2">
+                    <AccordionTrigger className="text-lg font-medium px-2">Features</AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-4 pt-4">
-                        <FormField
-                          control={form.control}
-                          name="focus"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Focus</FormLabel>
-                              <FormControl>
-                                <Input {...field} value={field.value || ""} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                           <FormField
                             control={form.control}
                             name="enclosure"
                             render={({ field }) => (
-                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-2">
+                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-3 h-full">
                                 <FormLabel className="flex-1 cursor-pointer">Enclosure</FormLabel>
                                 <FormControl>
                                   <Switch
@@ -607,7 +808,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                             control={form.control}
                             name="wifi"
                             render={({ field }) => (
-                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-2">
+                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-3 h-full">
                                 <FormLabel className="flex-1 cursor-pointer">WiFi</FormLabel>
                                 <FormControl>
                                   <Switch
@@ -623,7 +824,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                             control={form.control}
                             name="camera"
                             render={({ field }) => (
-                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-2">
+                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-3 h-full">
                                 <FormLabel className="flex-1 cursor-pointer">Camera</FormLabel>
                                 <FormControl>
                                   <Switch
@@ -639,8 +840,24 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                             control={form.control}
                             name="passthrough"
                             render={({ field }) => (
-                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-2">
+                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-3 h-full">
                                 <FormLabel className="flex-1 cursor-pointer">Passthrough</FormLabel>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="auto_focus"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center justify-between space-x-2 rounded-md border p-3 h-full">
+                                <FormLabel className="flex-1 cursor-pointer">Auto Focus</FormLabel>
                                 <FormControl>
                                   <Switch
                                     checked={field.value}
@@ -659,7 +876,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                             <FormItem>
                               <FormLabel>Controller</FormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} />
+                                <Input {...field} value={field.value ?? ""} className="border-slate-300" />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -669,8 +886,8 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     </AccordionContent>
                   </AccordionItem>
 
-                  <AccordionItem value="software">
-                    <AccordionTrigger className="text-lg font-medium">Software & Support</AccordionTrigger>
+                  <AccordionItem value="software" id="software" className="border rounded-md p-2">
+                    <AccordionTrigger className="text-lg font-medium px-2">Software & Support</AccordionTrigger>
                     <AccordionContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                         <FormField
@@ -680,8 +897,9 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                             <FormItem>
                               <FormLabel>Software</FormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} />
+                                <Input {...field} value={field.value ?? ""} className="border-slate-300" />
                               </FormControl>
+                              <FormDescription>Included software (e.g., LightBurn, LaserGRBL)</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -694,8 +912,9 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                             <FormItem>
                               <FormLabel>Warranty</FormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="1 year" />
+                                <Input {...field} value={field.value ?? ""} className="border-slate-300" />
                               </FormControl>
+                              <FormDescription>e.g., "1 year limited"</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -712,22 +931,39 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
           <TabsContent value="content">
             <Card>
               <CardContent className="pt-6">
-                <div className="space-y-6">
+                {/* Quick navigation section */}
+                <div className="mb-6 p-2 bg-slate-50 rounded-md">
+                  <div className="text-sm font-medium mb-2">Quick Navigation:</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('description-section')?.scrollIntoView()}>Description</Button>
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('highlights-section')?.scrollIntoView()}>Highlights & Drawbacks</Button>
+                  </div>
+                </div>
+                
+                <div id="description-section" className="space-y-6 mb-8 pb-8 border-b">
+                  <div>
+                    <h3 className="text-base font-medium mb-4">Description</h3>
+                  </div>
                   <FormField
                     control={form.control}
                     name="excerpt_short"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Short Description</FormLabel>
+                        <FormLabel>Short Excerpt</FormLabel>
                         <FormControl>
-                          <Textarea {...field} value={field.value || ""} rows={3} />
+                          <Textarea
+                            placeholder="Brief summary of the machine (1-2 sentences)"
+                            className="min-h-20 border-slate-300"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
                         </FormControl>
-                        <FormDescription>A brief summary of the machine (100-150 characters)</FormDescription>
+                        <FormDescription>A brief summary shown in listings (1-2 sentences)</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
+                  
                   <FormField
                     control={form.control}
                     name="description"
@@ -735,49 +971,58 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                       <FormItem>
                         <FormLabel>Full Description</FormLabel>
                         <FormControl>
-                          <Textarea {...field} value={field.value || ""} rows={10} />
+                          <Textarea
+                            placeholder="Detailed description of the machine"
+                            className="min-h-32 border-slate-300"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
                         </FormControl>
-                        <FormDescription>Supports HTML for formatting</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
+                </div>
+                
+                <div id="highlights-section" className="space-y-6">
+                  <div>
+                    <h3 className="text-base font-medium mb-4">Highlights & Drawbacks</h3>
+                  </div>
                   <FormField
                     control={form.control}
                     name="highlights"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Highlights (Pros)</FormLabel>
+                        <FormLabel>Highlights</FormLabel>
                         <FormControl>
                           <Textarea
+                            placeholder="Key strengths and positive features"
+                            className="min-h-24 border-slate-300"
                             {...field}
-                            value={field.value || ""}
-                            rows={5}
-                            placeholder="<ul><li>Pro point 1</li><li>Pro point 2</li></ul>"
+                            value={field.value ?? ""}
                           />
                         </FormControl>
-                        <FormDescription>Use HTML list format</FormDescription>
+                        <FormDescription>Use bullet points (each on a new line)</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
+                  
                   <FormField
                     control={form.control}
                     name="drawbacks"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Drawbacks (Cons)</FormLabel>
+                        <FormLabel>Drawbacks</FormLabel>
                         <FormControl>
                           <Textarea
+                            placeholder="Limitations or potential issues"
+                            className="min-h-24 border-slate-300"
                             {...field}
-                            value={field.value || ""}
-                            rows={5}
-                            placeholder="<ul><li>Con point 1</li><li>Con point 2</li></ul>"
+                            value={field.value ?? ""}
                           />
                         </FormControl>
-                        <FormDescription>Use HTML list format</FormDescription>
+                        <FormDescription>Use bullet points (each on a new line)</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -787,7 +1032,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
             </Card>
           </TabsContent>
 
-          {/* Media & Links Tab */}
+          {/* Media Tab */}
           <TabsContent value="media">
             <Card>
               <CardContent className="pt-6">
@@ -797,9 +1042,9 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     name="image_url"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Main Image URL</FormLabel>
+                        <RequiredFormLabel>Main Image URL</RequiredFormLabel>
                         <FormControl>
-                          <Input {...field} value={field.value || ""} />
+                          <Input {...field} value={field.value ?? ""} className="border-slate-300" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -813,8 +1058,9 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                       <FormItem>
                         <FormLabel>YouTube Review URL</FormLabel>
                         <FormControl>
-                          <Input {...field} value={field.value || ""} />
+                          <Input {...field} value={field.value ?? ""} className="border-slate-300" />
                         </FormControl>
+                        <FormDescription>Full YouTube URL or video ID</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -827,7 +1073,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                       <FormItem>
                         <FormLabel>Affiliate Link</FormLabel>
                         <FormControl>
-                          <Input {...field} value={field.value || ""} />
+                          <Input {...field} value={field.value ?? ""} className="border-slate-300" />
                         </FormControl>
                         <FormDescription>Link to purchase the machine</FormDescription>
                         <FormMessage />
@@ -839,15 +1085,6 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
             </Card>
           </TabsContent>
         </Tabs>
-
-        <div className="flex justify-end gap-4">
-          <Button type="button" variant="outline" onClick={() => router.push("/admin/machines")}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : machine ? "Update Machine" : "Create Machine"}
-          </Button>
-        </div>
       </form>
     </Form>
   )
