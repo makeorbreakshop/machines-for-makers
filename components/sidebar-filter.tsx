@@ -49,9 +49,9 @@ export default function SidebarFilter({
 
   // Map user-friendly laser type names to database field names
   const laserTypeMap = useMemo(() => ({
-    "Fiber": "fiber",
-    "Infrared": "infared", // Handle database misspelling
-    "MOPA": "mopa",
+    "Fiber": "Fiber",
+    "Infrared": "infrared", // Use correct spelling
+    "MOPA": "MOPA",
     "CO2 RF": "co2-rf",
     "CO2 Glass": "co2-glass", 
     "Diode": "diode",

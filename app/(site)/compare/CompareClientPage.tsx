@@ -44,6 +44,21 @@ declare global {
   }
 }
 
+// Helper function for laser type matching - extracted to ensure consistent matching logic
+function matchesLaserType(product: Machine, laserType: string): boolean {
+  const normalizedType = laserType.toLowerCase().trim();
+  const productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
+  const productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
+  
+  console.log(`DEBUG MATCHING: Checking if machine "${product["Machine Name"]}" matches laser type "${normalizedType}"`);
+  console.log(`DEBUG MATCHING: Machine has Laser Type A = "${productLaserTypeA}", Laser Type B = "${productLaserTypeB}"`);
+  
+  // Direct matching on Laser Type fields (case-insensitive)
+  const isMatch = productLaserTypeA === normalizedType || productLaserTypeB === normalizedType;
+  console.log(`DEBUG MATCHING: Match result: ${isMatch}`);
+  return isMatch;
+}
+
 // Helper function to get category icon - moved outside component to prevent recreation
 function getCategoryIcon(categoryName: string) {
   switch (categoryName) {
@@ -230,6 +245,163 @@ const FeaturesList = React.memo(function FeaturesList() {
   )
 })
 
+// Unified filtering function - a single source of truth for ALL filtering
+function applyAllFilters(products: Machine[], filters: Filters): Machine[] {
+  // Skip filtering if no filters are explicitly set (all at default values)
+  const isUsingDefaultFilters = 
+    filters.laserTypes.length === 0 && 
+    filters.features.length === 0 && 
+    filters.priceRange[0] === 0 && 
+    filters.priceRange[1] === 15000 &&
+    filters.powerRange[0] === 0 && 
+    filters.powerRange[1] === 150 &&
+    filters.speedRange[0] === 0 && 
+    filters.speedRange[1] === 2000 &&
+    !filters.isTopPick;
+  
+  if (isUsingDefaultFilters) {
+    return products; // Return all products if using default filters
+  }
+  
+  // Apply all filters sequentially to maintain clean and predictable behavior
+  let filteredProducts = [...products];
+  
+  console.log(`FILTER DEBUG: Starting with ${filteredProducts.length} products total`);
+  
+  // 1. Apply Top Pick filter first
+  if (filters.isTopPick) {
+    filteredProducts = filteredProducts.filter(product => product.Award);
+  }
+  
+  // 2. Apply laser type filter - this is always the thorough matching version
+  if (filters.laserTypes.length > 0) {
+    console.log(`FILTER DEBUG: Applying laser type filters: ${filters.laserTypes.join(', ')}`);
+    
+    // Store products before filtering for debugging
+    const beforeLaserFilter = [...filteredProducts];
+    
+    filteredProducts = filteredProducts.filter(product => {
+      const matches = filters.laserTypes.some(laserType => matchesLaserType(product, laserType));
+      
+      if (!matches) {
+        console.log(`FILTER DEBUG: Product "${product["Machine Name"]}" was EXCLUDED by laser type filter`);
+        console.log(`FILTER DEBUG: It has Laser Type A = "${product["Laser Type A"] || "N/A"}", Laser Type B = "${product["Laser Type B"] || "N/A"}"`);
+      } else {
+        console.log(`FILTER DEBUG: Product "${product["Machine Name"]}" was INCLUDED by laser type filter`);
+      }
+      
+      return matches;
+    });
+    
+    // Calculate which products were filtered out
+    const filteredOut = beforeLaserFilter.filter(p1 => !filteredProducts.some(p2 => p2.id === p1.id));
+    
+    console.log(`FILTER DEBUG: Laser type filter removed ${filteredOut.length} products`);
+    if (filteredOut.length > 0 && filteredOut.length <= 10) {
+      console.log(`FILTER DEBUG: Filtered out products:`);
+      filteredOut.forEach(p => {
+        console.log(`  - ${p["Machine Name"]} (Laser Type A: "${p["Laser Type A"] || "N/A"}", Laser Type B: "${p["Laser Type B"] || "N/A"}")`);
+      });
+    }
+    
+    // Add debug logging for laser type filtering
+    console.log(`UNIFIED FILTER: Applied laser type filters [${filters.laserTypes.join(', ')}] - ${filteredProducts.length} machines remain`);
+  }
+  
+  // 3. Apply price range filter
+  if (filters.priceRange[0] > 0 || filters.priceRange[1] < 15000) {
+    filteredProducts = filteredProducts.filter(product => {
+      const price = parseFloat(String(product.Price || 0));
+      return !isNaN(price) && price >= filters.priceRange[0] && price <= filters.priceRange[1];
+    });
+    
+    console.log(`UNIFIED FILTER: Applied price range ${filters.priceRange[0]}-${filters.priceRange[1]} - ${filteredProducts.length} machines remain`);
+  }
+  
+  // 4. Apply power range filter
+  if (filters.powerRange[0] > 0 || filters.powerRange[1] < 150) {
+    filteredProducts = filteredProducts.filter(product => {
+      const powerStr = product["Laser Power A"] || "0";
+      let power = 0;
+      try {
+        power = typeof powerStr === 'number' 
+          ? powerStr 
+          : parseFloat(powerStr.toString().replace(/[^0-9.-]+/g,""));
+      } catch (e) {
+        power = 0;
+      }
+      
+      return !isNaN(power) && power >= filters.powerRange[0] && power <= filters.powerRange[1];
+    });
+    
+    console.log(`UNIFIED FILTER: Applied power range ${filters.powerRange[0]}-${filters.powerRange[1]} - ${filteredProducts.length} machines remain`);
+  }
+  
+  // 5. Apply speed range filter
+  if (filters.speedRange[0] > 0 || filters.speedRange[1] < 2000) {
+    filteredProducts = filteredProducts.filter(product => {
+      const speedStr = product.Speed || "0";
+      let speed = 0;
+      try {
+        speed = typeof speedStr === 'number' 
+          ? speedStr 
+          : parseFloat(speedStr.toString().replace(/[^0-9.-]+/g,""));
+      } catch (e) {
+        speed = 0;
+      }
+      
+      return !isNaN(speed) && speed >= filters.speedRange[0] && speed <= filters.speedRange[1];
+    });
+    
+    console.log(`UNIFIED FILTER: Applied speed range ${filters.speedRange[0]}-${filters.speedRange[1]} - ${filteredProducts.length} machines remain`);
+  }
+  
+  // 6. Apply features filter last
+  if (filters.features.length > 0) {
+    filteredProducts = filteredProducts.filter(product => {
+      return filters.features.every((feature) => {
+        switch (feature) {
+          case "Camera":
+            return product.Camera === "Yes";
+          case "Wifi":
+            return product.Wifi === "Yes";
+          case "Enclosure":
+            return product.Enclosure === "Yes";
+          case "Focus":
+            return product.Focus === "Auto";
+          case "Passthrough":
+            return product.Passthrough === "Yes";
+          default:
+            return false;
+        }
+      });
+    });
+    
+    console.log(`UNIFIED FILTER: Applied feature filters [${filters.features.join(', ')}] - ${filteredProducts.length} machines remain`);
+  }
+  
+  // Log detailed info about the machines that were filtered out
+  if (filteredProducts.length === 0 && filters.laserTypes.length > 0) {
+    console.log("FILTER WARNING: All machines were filtered out. Let's check why:");
+    
+    // Check each filter step individually to find what's causing the issue
+    const afterLaserTypeFilter = products.filter(product => 
+      filters.laserTypes.some(laserType => matchesLaserType(product, laserType))
+    );
+    
+    console.log(`- After laser type filter: ${afterLaserTypeFilter.length} machines`);
+    
+    if (afterLaserTypeFilter.length > 0 && afterLaserTypeFilter.length <= 5) {
+      console.log("Machines that matched laser type criteria:");
+      afterLaserTypeFilter.forEach(p => {
+        console.log(`  * ${p["Machine Name"]} (Price: ${p.Price}, Power: ${p["Laser Power A"]}, Speed: ${p.Speed})`);
+      });
+    }
+  }
+  
+  return filteredProducts;
+}
+
 export default function CompareClientPage({
   initialProducts,
   categories,
@@ -241,27 +413,12 @@ export default function CompareClientPage({
 }) {
   // Define the laser type mapping between UI display names and database values
   const laserTypeMap = useMemo(() => ({
-    "fiber": "fiber",
-    "Fiber": "fiber",
-    "FIBER": "fiber",
-    "infrared": "infared", // Handle database misspelling
-    "Infrared": "infared", // Handle database misspelling
-    "INFRARED": "infared", // Handle database misspelling
-    "infared": "infared",
-    "Infared": "infared", 
-    "INFARED": "infared",
-    "mopa": "mopa",
-    "Mopa": "mopa",
-    "MOPA": "mopa",
-    "co2 rf": "co2-rf",
+    "Fiber": "Fiber",
+    "Infrared": "infrared", // Use correct spelling
+    "MOPA": "MOPA",
     "CO2 RF": "co2-rf",
-    "CO2-RF": "co2-rf",
-    "co2 glass": "co2-glass",
     "CO2 Glass": "co2-glass", 
-    "CO2-Glass": "co2-glass",
-    "diode": "diode",
     "Diode": "diode",
-    "DIODE": "diode",
   }), []);
   
   const [products, setProducts] = useState<Machine[]>(initialProducts)
@@ -308,190 +465,12 @@ export default function CompareClientPage({
     console.log("===========================================================");
   }, [laserTypeMap]);
 
-  // Filter products based on selected filters
+  // Filter products based on selected filters - now just a wrapper for applyAllFilters for backward compatibility
   const filterProducts = useCallback((product: Machine, filters: Filters) => {
-    // Skip filtering if no filters are explicitly set (all at default values)
-    const isUsingDefaultFilters = 
-      filters.laserTypes.length === 0 && 
-      filters.features.length === 0 && 
-      filters.priceRange[0] === 0 && 
-      filters.priceRange[1] === 15000 &&
-      filters.powerRange[0] === 0 && 
-      filters.powerRange[1] === 150 &&
-      filters.speedRange[0] === 0 && 
-      filters.speedRange[1] === 2000 &&
-      !filters.isTopPick;
-    
-    if (isUsingDefaultFilters) {
-      return true; // Skip all filtering if using default filters
-    }
-    
-    // Debug any filtered products
-    let filterReason = "";
-    
-    // Top Pick filter
-    if (filters.isTopPick && !product.Award) {
-      filterReason = "No award for Top Pick";
-      return false;
-    }
-
-    // Laser type filter
-    if (filters.laserTypes.length > 0) {
-      // Get product laser types and normalize them
-      const productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
-      const productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
-      const productName = (product["Machine Name"] || "").toLowerCase().trim();
-      const productCategory = (product["Laser Category"] || "").toLowerCase().trim();
-      const machineCategory = (product["Machine Category"] || "").toLowerCase().trim();
-      
-      // Check if any of the filter types match any of the product fields
-      const hasMatchingLaserType = filters.laserTypes.some(filterType => {
-        const normalizedFilterType = filterType.toLowerCase().trim();
-        
-        // For fiber, do broad matching across all fields
-        if (normalizedFilterType === "fiber") {
-          // Extra debugging for important fiber machines
-          if (product["Machine Name"] === "Gweike G2 30W" || product["Machine Name"].includes("Fiber")) {
-            console.log(`MAIN FILTER: Checking ${product["Machine Name"]} for fiber match:`, {
-              laserTypeA: productLaserTypeA,
-              laserTypeB: productLaserTypeB,
-              category: productCategory, 
-              machineCategory: machineCategory,
-              productName: productName,
-              isMatch: productLaserTypeA === "fiber" || 
-                      productLaserTypeB === "fiber" ||
-                      productCategory.includes("fiber") || 
-                      machineCategory.includes("fiber") ||
-                      productName.includes("fiber") || 
-                      productName.includes("fibre")
-            });
-          }
-          
-          return productLaserTypeA === "fiber" || 
-                productLaserTypeB === "fiber" ||
-                productCategory.includes("fiber") || 
-                machineCategory.includes("fiber") ||
-                productName.includes("fiber") || 
-                productName.includes("fibre");
-        }
-        
-        // For infrared, handle misspellings and check all fields thoroughly
-        if (normalizedFilterType === "infared" || normalizedFilterType === "infrared") {
-          const isMatch = productLaserTypeA === "infrared" || 
-                productLaserTypeA === "infared" ||
-                productLaserTypeB === "infrared" || 
-                productLaserTypeB === "infared" ||
-                productCategory.includes("infrared") || 
-                productCategory.includes("infared") ||
-                productName.includes("infrared") || 
-                productName.includes("infared");
-          
-          // Add extra logging for infrared matches
-          if (isMatch) {
-            console.log(`MAIN FILTER: Checking ${product["Machine Name"]} for infrared match:`, {
-              laserTypeA: productLaserTypeA,
-              laserTypeB: productLaserTypeB,
-              category: productCategory,
-              name: productName,
-              isMatch: isMatch
-            });
-          }
-          
-          return isMatch;
-        }
-        
-        // For MOPA, do thorough matching
-        if (normalizedFilterType === "mopa") {
-          return productLaserTypeA?.toLowerCase() === "mopa" || 
-                productLaserTypeB?.toLowerCase() === "mopa" ||
-                productCategory?.toLowerCase().includes("mopa") || 
-                machineCategory?.toLowerCase().includes("mopa") ||
-                productName?.toLowerCase().includes("mopa");
-        }
-        
-        // For other types, standard matching
-        return productLaserTypeA === normalizedFilterType || 
-              productLaserTypeB === normalizedFilterType ||
-              productCategory === normalizedFilterType ||
-              productCategory.includes(normalizedFilterType);
-      });
-      
-      if (!hasMatchingLaserType) {
-        filterReason = `Laser type doesn't match`;
-        return false;
-      }
-    }
-
-    // Price range filter
-    const price = parseFloat(String(product.Price || 0));
-    if (!isNaN(price) && (price < filters.priceRange[0] || price > filters.priceRange[1])) {
-      filterReason = `Price ${price} outside range ${filters.priceRange[0]}-${filters.priceRange[1]}`;
-      return false;
-    }
-
-    // Power range filter
-    const powerStr = product["Laser Power A"] || "0";
-    let power = 0;
-    try {
-      power = typeof powerStr === 'number' 
-        ? powerStr 
-        : parseFloat(powerStr.toString().replace(/[^0-9.-]+/g,""));
-    } catch (e) {
-      // If parsing fails, use default value of 0
-      power = 0;
-    }
-    
-    // Only apply power filter if we have a valid number
-    if (!isNaN(power) && (power < filters.powerRange[0] || power > filters.powerRange[1])) {
-      filterReason = `Power ${power} outside range ${filters.powerRange[0]}-${filters.powerRange[1]}`;
-      return false;
-    }
-
-    // Speed range filter
-    const speedStr = product.Speed || "0";
-    let speed = 0;
-    try {
-      speed = typeof speedStr === 'number' 
-        ? speedStr 
-        : parseFloat(speedStr.toString().replace(/[^0-9.-]+/g,""));
-    } catch (e) {
-      // If parsing fails, use default value of 0
-      speed = 0;
-    }
-    
-    // Only apply speed filter if we have a valid number
-    if (!isNaN(speed) && (speed < filters.speedRange[0] || speed > filters.speedRange[1])) {
-      filterReason = `Speed ${speed} outside range ${filters.speedRange[0]}-${filters.speedRange[1]}`;
-      return false;
-    }
-
-    // Features filter
-    if (filters.features.length > 0) {
-      const hasAllFeatures = filters.features.every((feature) => {
-        switch (feature) {
-          case "Camera":
-            return product.Camera === "Yes";
-          case "Wifi":
-            return product.Wifi === "Yes";
-          case "Enclosure":
-            return product.Enclosure === "Yes";
-          case "Focus":
-            return product.Focus === "Auto";
-          case "Passthrough":
-            return product.Passthrough === "Yes";
-          default:
-            return false;
-        }
-      });
-      if (!hasAllFeatures) {
-        filterReason = "Missing required features";
-        return false;
-      }
-    }
-
-    // All filters passed
-    return true;
-  }, [])
+    // Use the unified filter to ensure consistency
+    const filtered = applyAllFilters([product], filters);
+    return filtered.length > 0;
+  }, []);
 
   // Update filtered products when filters change
   useEffect(() => {
@@ -530,180 +509,34 @@ export default function CompareClientPage({
       isTopPick: filters.isTopPick
     });
     
-    // Extra debug log for laser type filters
-    if (filters.laserTypes.length > 0) {
-      console.log(`DEBUG: Processing laser type filters: [${filters.laserTypes.join(', ')}]`);
-    }
+    // USE THE UNIFIED FILTER APPROACH FOR ALL FILTER SCENARIOS
+    console.log(`FILTER: Applying all filters with unified system`);
+    const filtered = applyAllFilters(products, filters);
     
-    // If we only have laser type filters and nothing else, do a simpler and more thorough filter
-    const onlyLaserTypeFilters = 
-      filters.laserTypes.length > 0 && 
-      filters.features.length === 0 && 
-      filters.priceRange[0] === 0 && 
-      filters.priceRange[1] === 15000 &&
-      filters.powerRange[0] === 0 && 
-      filters.powerRange[1] === 150 &&
-      filters.speedRange[0] === 0 && 
-      filters.speedRange[1] === 2000 &&
-      !filters.isTopPick;
-      
-    if (onlyLaserTypeFilters) {
-      console.log(`ONLY LASER FILTERS: Applying optimized laser type filtering for ${filters.laserTypes.join(', ')}`);
-      
-      // Only filter by laser type for better matching - with more thorough logging
-      const laserFiltered = products.filter(product => {
-        const productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
-        const productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
-        const productName = (product["Machine Name"] || "").toLowerCase().trim();
-        const productCategory = (product["Laser Category"] || "").toLowerCase().trim();
-        const machineCategory = (product["Machine Category"] || "").toLowerCase().trim();
-        
-        return filters.laserTypes.some(filterType => {
-          const normalizedFilterType = filterType.toLowerCase().trim();
-          
-          // For fiber, do broad matching
-          if (normalizedFilterType === "fiber") {
-            const isMatch = productLaserTypeA === "fiber" || 
-                   productLaserTypeB === "fiber" ||
-                   productCategory.includes("fiber") || 
-                   machineCategory.includes("fiber") ||
-                   productName.includes("fiber") || 
-                   productName.includes("fibre");
-            
-            // DEBUG: For specific items, log why they match or don't
-            if (product["Machine Name"] === "iKier K1 Pro 20W Fiber") {
-              console.log(`DEBUG: Checking fiber match for ${product["Machine Name"]}:`, {
-                laserTypeA: productLaserTypeA,
-                laserTypeB: productLaserTypeB,
-                category: productCategory,
-                machineCategory: machineCategory,
-                isMatch: isMatch
-              });
-            }
-            
-            return isMatch;
-          }
-          
-          // For infrared, handle misspellings with better checking of all fields
-          if (normalizedFilterType === "infared" || normalizedFilterType === "infrared") {
-            const isMatch = productLaserTypeA === "infrared" || 
-                   productLaserTypeA === "infared" ||
-                   productLaserTypeB === "infrared" || 
-                   productLaserTypeB === "infared" ||
-                   productCategory.includes("infrared") || 
-                   productCategory.includes("infared") ||
-                   productName.includes("infrared") || 
-                   productName.includes("infared");
-            
-            // Add extra debugging for infrared matches
-            if (isMatch) {
-              console.log(`DEBUG: Found infrared match for ${product["Machine Name"]}:`, {
-                laserTypeA: productLaserTypeA,
-                laserTypeB: productLaserTypeB,
-                category: productCategory,
-                name: productName,
-                isMatch: isMatch
-              });
-            }
-            
-            return isMatch;
-          }
-          
-          // For MOPA, do thorough matching
-          if (normalizedFilterType === "mopa") {
-            const isMatch = productLaserTypeA?.toLowerCase() === "mopa" || 
-                   productLaserTypeB?.toLowerCase() === "mopa" ||
-                   productCategory?.toLowerCase().includes("mopa") || 
-                   machineCategory?.toLowerCase().includes("mopa") ||
-                   productName?.toLowerCase().includes("mopa");
-                   
-            // DEBUG: For certain MOPA machines, log detailed matching info
-            if (product["Machine Name"].includes("MOPA")) {
-              console.log(`DEBUG: Checking MOPA match for ${product["Machine Name"]}:`, {
-                laserTypeA: productLaserTypeA,
-                laserTypeB: productLaserTypeB,
-                category: productCategory,
-                machineCategory: machineCategory,
-                isMatch: isMatch
-              });
-            }
-            
-            return isMatch;
-          }
-          
-          // For other types, standard matching
-          return productLaserTypeA === normalizedFilterType || 
-                 productLaserTypeB === normalizedFilterType ||
-                 productCategory === normalizedFilterType ||
-                 productCategory.includes(normalizedFilterType);
-        });
-      });
-      
-      console.log(`LASER FILTER ONLY: Found ${laserFiltered.length} machines matching laser types:`, 
-        filters.laserTypes.map(type => type.toLowerCase())
-      );
-      
-      // DEBUG: Log sample of matches
-      if (laserFiltered.length > 0) {
-        console.log("Sample matches:");
-        laserFiltered.slice(0, 5).forEach(product => {
-          console.log(`  - ${product["Machine Name"]} (${product["Laser Type A"]}, ${product["Laser Category"]})`);
-        });
-      }
-      
-      // **** DEBUG **** - Track filteredProducts state update
-      console.log(`DEBUG: Setting filteredProducts to ${laserFiltered.length} items from laser filter`);
-      console.log(`DEBUG: First 3 products in filtered set:`);
-      laserFiltered.slice(0, 3).forEach((p, i) => console.log(`  ${i+1}. ${p["Machine Name"]}`));
-      
-      // Store the machine IDs for later comparison
-      const machineIds = laserFiltered.map(m => m.id || m["Machine Name"]);
-      console.log(`DEBUG: Tracking ${machineIds.length} machine IDs for post-filter comparison`);
-      
-      // We need to save this for debugging, create a global reference
-      window.__DEBUG_FIBER_MACHINES = machineIds;
-      window.__DEBUG_LAST_FILTER_COUNT = laserFiltered.length;
-      
-      // Check if this is a secondary effect run that should be skipped
-      if (laserFiltered.length > 0) {
-        console.log(`DEBUG: Setting filtered products - filter update counter: ${filterUpdateCounter}`);
-        setFilteredProducts(laserFiltered);
-      } else {
-        console.log(`DEBUG: No products found matching filter - not updating state`);
-      }
-      
-      // Always reset loading state
-      setLoading(false);
-      return;
-    }
+    // Log the results
+    console.log(`FILTER RESULT: Found ${filtered.length} machines matching all criteria`);
     
-    // Apply all filters to the products
-    const filtered = products.filter((product: Machine) => filterProducts(product, filters));
-    
-    // If we're filtering by laser type, let's log the results
-    if (filters.laserTypes.length > 0) {
-      console.log(`LASER FILTER WITH OTHER FILTERS: Found ${filtered.length} machines matching laser types:`, 
-        filters.laserTypes.map(type => type.toLowerCase())
-      );
-      
-      // DEBUG: Sample of matches
-      if (filtered.length > 0) {
-        console.log("Sample matches (with other filters):");
-        filtered.slice(0, 3).forEach(product => {
-          console.log(`  - ${product["Machine Name"]} (${product["Laser Type A"]}, ${product["Laser Category"]})`);
-        });
-      }
-    }
-    
-    // Always update the filtered products if we have results
+    // DEBUG: Sample of matches
     if (filtered.length > 0) {
-      console.log(`DEBUG: Setting filtered products to ${filtered.length} items from standard filter`);
-      setFilteredProducts(filtered);
+      console.log("Sample matches:");
+      filtered.slice(0, 3).forEach(product => {
+        console.log(`  - ${product["Machine Name"]} (${product["Laser Type A"]}, ${product["Laser Category"]})`);
+      });
     }
+    
+    // Store for debugging if this is a laser type filter
+    if (filters.laserTypes.length > 0) {
+      const machineIds = filtered.map(m => m.id || m["Machine Name"]);
+      window.__DEBUG_FIBER_MACHINES = machineIds;
+      window.__DEBUG_LAST_FILTER_COUNT = filtered.length;
+    }
+    
+    // Update the filtered products
+    setFilteredProducts(filtered);
     
     // Always reset loading state at the end
     setLoading(false);
-  }, [products, filters, filterProducts, filterUpdateCounter]);
+  }, [products, filters, filterUpdateCounter]);
 
   // Handle filter change from filter components
   const handleFilterChange = useCallback((newFilters: Filters) => {
@@ -713,196 +546,15 @@ export default function CompareClientPage({
     setTimeout(() => {
       console.log(`Filter change received:`, newFilters);
       
-      // Deep checking of laser type filters
-      if (newFilters.laserTypes && newFilters.laserTypes.length > 0) {
-        // This logic logs information about how many products match each laser type
-        console.log(`LASER TYPES RECEIVED FROM FILTER COMPONENTS:`, newFilters.laserTypes);
-        
-        // Make sure laser types are properly normalized and matches the database
-        const normalizedLaserTypes = newFilters.laserTypes.map(type => type.toLowerCase());
-        console.log(`NORMALIZED LASER TYPES:`, normalizedLaserTypes);
-        
-        // For fiber, MOPA, or infrared filters specifically, use the optimized specialized matching logic
-        if (normalizedLaserTypes.includes('fiber') || 
-            normalizedLaserTypes.includes('mopa') || 
-            normalizedLaserTypes.includes('infared') || 
-            normalizedLaserTypes.includes('infrared')) {
-          console.log(`OPTIMIZED MATCHING: Using specialized matching for fiber/MOPA/infrared`);
-          
-          // Only filter by laser type for better matching
-          const laserFiltered = products.filter(product => {
-            const productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
-            const productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
-            const productName = (product["Machine Name"] || "").toLowerCase().trim();
-            const productCategory = (product["Laser Category"] || "").toLowerCase().trim();
-            const machineCategory = (product["Machine Category"] || "").toLowerCase().trim();
-            
-            return normalizedLaserTypes.some(filterType => {
-              // For fiber, do broad matching
-              if (filterType === "fiber") {
-                return productLaserTypeA === "fiber" || 
-                       productLaserTypeB === "fiber" ||
-                       productCategory.includes("fiber") || 
-                       machineCategory.includes("fiber") ||
-                       productName.includes("fiber") || 
-                       productName.includes("fibre");
-              }
-              
-              // For MOPA, do thorough matching
-              if (filterType === "mopa") {
-                return productLaserTypeA === "mopa" || 
-                       productLaserTypeB === "mopa" ||
-                       productCategory.includes("mopa") || 
-                       machineCategory.includes("mopa") ||
-                       productName.includes("mopa");
-              }
-              
-              // For infrared/infared, handle both spellings and check all fields
-              if (filterType === "infared" || filterType === "infrared") {
-                // Log any infrared matches to debug
-                if (productLaserTypeA === "infrared" || productLaserTypeA === "infared" ||
-                    productLaserTypeB === "infrared" || productLaserTypeB === "infared") {
-                  console.log(`INFRARED MATCH found in: ${product["Machine Name"]}`, {
-                    laserTypeA: productLaserTypeA,
-                    laserTypeB: productLaserTypeB,
-                    name: productName
-                  });
-                }
-                
-                return productLaserTypeA === "infrared" || 
-                       productLaserTypeA === "infared" ||
-                       productLaserTypeB === "infrared" || 
-                       productLaserTypeB === "infared" ||
-                       productCategory.includes("infrared") || 
-                       productCategory.includes("infared") ||
-                       productName.includes("infrared") || 
-                       productName.includes("infared");
-              }
-              
-              // For other types, standard matching
-              return productLaserTypeA === filterType || 
-                    productLaserTypeB === filterType ||
-                    productCategory === filterType ||
-                    productCategory.includes(filterType);
-            });
-          });
-          
-          console.log(`OPTIMIZED FILTER: Found ${laserFiltered.length} machines matching laser types`);
-          
-          // Log some examples of matched machines for debugging
-          if (laserFiltered.length > 0) {
-            console.log("Sample machines that matched:");
-            laserFiltered.slice(0, 5).forEach((machine, i) => {
-              console.log(`  ${i+1}. ${machine["Machine Name"]} - Type A: ${machine["Laser Type A"]}, Type B: ${machine["Laser Type B"]}`);
-            });
-          }
-          
-          // Skip other filtering and directly update the state
-          setFilterUpdateCounter(prev => prev + 1);
-          setFilters(newFilters);
-          setFilteredProducts(laserFiltered);
-          setLoading(false); // Make sure to reset loading state
-          return;
-        }
-        
-        // For regular filters not fiber/MOPA, continue with normal process
-        const matchingProducts = products.filter(product => {
-          const productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
-          const productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
-          const productName = (product["Machine Name"] || "").toLowerCase().trim();
-          const productCategory = (product["Laser Category"] || "").toLowerCase().trim();
-          const machineCategory = (product["Machine Category"] || "").toLowerCase().trim();
-          
-          return normalizedLaserTypes.some(filterType => {
-            const normalizedFilterType = filterType.toLowerCase().trim();
-            
-            // Special case for fiber lasers - using the enhanced matching like in main filter
-            if (normalizedFilterType === "fiber") {
-              // Log matches for important machines to debug fiber filtering
-              if (product["Machine Name"] === "Gweike G2 30W" || product["Machine Name"].includes("Fiber")) {
-                console.log(`DEBUG FIBER: Checking match for ${product["Machine Name"]}:`, {
-                  laserTypeA: productLaserTypeA,
-                  laserTypeB: productLaserTypeB, 
-                  category: productCategory,
-                  hasMatch: productLaserTypeA === "fiber" || 
-                            productLaserTypeB === "fiber" ||
-                            productCategory.includes("fiber") || 
-                            machineCategory.includes("fiber") ||
-                            productName.includes("fiber") || 
-                            productName.includes("fibre")
-                });
-              }
-              
-              return productLaserTypeA === "fiber" || 
-                     productLaserTypeB === "fiber" ||
-                     productCategory.includes("fiber") || 
-                     machineCategory.includes("fiber") ||
-                     productName.includes("fiber") || 
-                     productName.includes("fibre");
-            }
-            
-            // Special case for MOPA lasers
-            if (normalizedFilterType === "mopa") {
-                return productLaserTypeA === "mopa" || 
-                       productLaserTypeB === "mopa" ||
-                       productCategory.includes("mopa") || 
-                       machineCategory.includes("mopa") ||
-                       productName.includes("mopa") || 
-                       productName.includes("m-series");
-            }
-            
-            // Special case for infrared/infared lasers
-            if (normalizedFilterType === "infared" || normalizedFilterType === "infrared") {
-                return productLaserTypeA === "infrared" || 
-                       productLaserTypeA === "infared" ||
-                       productLaserTypeB === "infrared" || 
-                       productLaserTypeB === "infared" ||
-                       productCategory.includes("infrared") || 
-                       productCategory.includes("infared") ||
-                       productName.includes("infrared") || 
-                       productName.includes("infared");
-            }
-            return false;
-          });
-        });
-        
-        console.log(`DEBUG: Found ${matchingProducts.length} matching products in handleFilterChange`);
-        
-        // Log some examples
-        if (matchingProducts.length > 0) {
-          console.log("Examples:");
-          matchingProducts.slice(0, 3).forEach(product => {
-            console.log(`  - ${product["Machine Name"]} (${product["Laser Type A"]}, ${product["Laser Category"]})`);
-          });
-        }
-        console.log(`==========================================`);
-      }
-      
-      // Increment filter update counter to force a refresh of the filtering effect
+      // No need for special handling anymore - the unified filter will handle everything
+      // Just update the filter state and let the effect do its work
       setFilterUpdateCounter(prev => prev + 1);
-      
-      // Update filters state
       setFilters(newFilters);
       
-      // Apply filters with animation frame for smoother transition
-      requestAnimationFrame(() => {
-        // Apply all filters to the products - using the dedicated filterProducts function
-        const filtered = products.filter((product: Machine) => filterProducts(product, newFilters));
-        console.log(`DEBUG: Applied filters found ${filtered.length} products total`);
-        
-        // Only update if we actually have results
-        if (filtered.length > 0) {
-          console.log(`DEBUG: Setting filteredProducts to ${filtered.length} items from handleFilterChange`);
-          setFilteredProducts(filtered);
-        } else {
-          console.log(`DEBUG: No products found in handleFilterChange - not updating state`);
-        }
-        
-        // Make sure to always reset loading state
-        setLoading(false);
-      });
+      // Make sure to reset loading state
+      setLoading(false);
     }, 50); // Short delay for UI update
-  }, [products, filterProducts])
+  }, []);
 
   // Listen for view changes
   useEffect(() => {
@@ -933,6 +585,22 @@ export default function CompareClientPage({
     }
   }, [])
 
+  // Handle search results
+  const handleSearch = React.useCallback((results: Machine[]) => {
+    if (results.length === 0) {
+      // If search returns no results, just show filtered products based on current filters
+      const filteredByFilters = applyAllFilters(products, filters);
+      console.log(`Search found no results, showing ${filteredByFilters.length} filtered products`);
+      setFilteredProducts(filteredByFilters);
+    } else {
+      // First apply filters to the search results
+      const filteredSearchResults = applyAllFilters(results, filters);
+      
+      console.log(`Search found ${results.length} products, ${filteredSearchResults.length} match current filters`);
+      setFilteredProducts(filteredSearchResults);
+    }
+  }, [products, filters]);
+
   // Fetch products with filters
   const fetchProducts = async () => {
     try {
@@ -950,55 +618,16 @@ export default function CompareClientPage({
       console.log(`Fetched ${newProducts.length} machines from API`)
       setProducts(newProducts)
       
-      // Skip filtering if no filters are explicitly set
-      const isUsingDefaultFilters = 
-        filters.laserTypes.length === 0 && 
-        filters.features.length === 0 && 
-        filters.priceRange[0] === 0 && 
-        filters.priceRange[1] === 15000 &&
-        filters.powerRange[0] === 0 && 
-        filters.powerRange[1] === 150 &&
-        filters.speedRange[0] === 0 && 
-        filters.speedRange[1] === 2000 &&
-        !filters.isTopPick;
-      
-      if (isUsingDefaultFilters) {
-        console.log(`Initial load - showing all ${newProducts.length} products (no filtering)`)
-        setFilteredProducts(newProducts)
-      } else {
-        // Apply filters to the fetched products
-        const filtered = newProducts.filter((product: Machine) => filterProducts(product, filters))
-        console.log(`Initial filtering of fetched products: ${filtered.length}/${newProducts.length} passed filters`)
-        setFilteredProducts(filtered)
-      }
+      // Apply filters to the fetched products using our unified approach
+      const filtered = applyAllFilters(newProducts, filters);
+      console.log(`Initial filtering of fetched products: ${filtered.length}/${newProducts.length} passed filters`)
+      setFilteredProducts(filtered)
     } catch (error) {
       console.error("Error fetching products:", error)
       setProducts([])
       setFilteredProducts([])
     }
   }
-
-  // Handle search results
-  const handleSearch = React.useCallback((results: Machine[]) => {
-    if (results.length === 0) {
-      // If search returns no results, just show filtered products
-      const filteredByFilters = products.filter(product => filterProducts(product, filters));
-      console.log(`Search found no results, showing ${filteredByFilters.length} filtered products`);
-      setFilteredProducts(filteredByFilters);
-    } else {
-      // First apply filters, then filter those results by search
-      // Get products that match current filters
-      const filteredByFilters = products.filter(product => filterProducts(product, filters));
-      
-      // Then find the intersection with search results
-      const intersection = filteredByFilters.filter(product => 
-        results.some(searchResult => searchResult.id === product.id)
-      );
-      
-      console.log(`Search found ${results.length} products, ${intersection.length} match current filters`);
-      setFilteredProducts(intersection);
-    }
-  }, [products, filters, filterProducts])
 
   // Debounced fetchProducts to reduce excessive API calls
   const debouncedFetchProducts = useMemo(() => 
@@ -1147,28 +776,38 @@ export default function CompareClientPage({
     console.log(`Sort option changed to: ${sortOption}`);
   }, [sortOption]);
 
-  // Fix the linter error with handleSearch
+  // React effect for monitoring filter changes and debugging
   React.useEffect(() => {
-    // This effect used to apply a secondary filter, but that was causing fiber machines to be filtered out.
-    // The main filter logic in the other useEffect is sufficient to handle all filtering.
-    
     // Only add basic logging for debugging
     if (filters.laserTypes.length > 0) {
-      console.log(`DEBUG: Secondary effect running - SKIPPING additional filtering`);
-      console.log(`DEBUG: Current filtered products count: ${filteredProducts.length} items`);
-      console.log(`DEBUG: Filter state: ${JSON.stringify({
+      console.log(`MONITOR: Current filter state:`, {
         laserTypes: filters.laserTypes,
         hasOtherFilters: filters.features.length > 0 || 
-                         filters.priceRange[0] > 0 || 
-                         filters.priceRange[1] < 15000 ||
-                         filters.powerRange[0] > 0 || 
-                         filters.powerRange[1] < 150 ||
-                         filters.speedRange[0] > 0 || 
-                         filters.speedRange[1] < 2000 ||
-                         filters.isTopPick
-      })}`);
+                      filters.priceRange[0] > 0 || 
+                      filters.priceRange[1] < 15000 ||
+                      filters.powerRange[0] > 0 || 
+                      filters.powerRange[1] < 150 ||
+                      filters.speedRange[0] > 0 || 
+                      filters.speedRange[1] < 2000 ||
+                      filters.isTopPick
+      });
+      
+      // Debug check to verify filter counts are as expected
+      if (filteredProducts.length < (window.__DEBUG_LAST_FILTER_COUNT || 0) && window.__DEBUG_LAST_FILTER_COUNT) {
+        console.log(`FILTER MONITOR: Current filtered count (${filteredProducts.length}) is less than last laser-only filter count (${window.__DEBUG_LAST_FILTER_COUNT})`);
+        
+        // Verify that our unified filtering gives the same results
+        const verificationFiltered = applyAllFilters(products, filters);
+        if (verificationFiltered.length !== filteredProducts.length) {
+          console.warn(`FILTER INCONSISTENCY: Unified filter gives ${verificationFiltered.length} results, but current filtered products has ${filteredProducts.length}`);
+          
+          // This should never happen with our unified approach, but just in case
+          // Apply the unified filter to ensure consistency
+          setFilteredProducts(verificationFiltered);
+        }
+      }
     }
-  }, [filters, filteredProducts])
+  }, [filters, filteredProducts, products]);
 
   // Initial load of products
   useEffect(() => {
