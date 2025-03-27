@@ -37,7 +37,7 @@ export default function ProductsGrid({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
         {products.map((product) => {
           // Format price with commas
           const formattedPrice = product["Price"] ? `$${product["Price"].toLocaleString()}` : "N/A"
@@ -101,23 +101,23 @@ export default function ProductsGrid({
                     </div>
 
                     {product["Work Area"] && (
-                      <div className="mt-1 text-sm text-muted-foreground">{product["Work Area"]} work area</div>
+                      <div className="mt-1 text-sm text-muted-foreground">{product["Work Area"]}</div>
                     )}
                   </div>
                 </div>
 
-                <div className="mt-auto pt-3 flex justify-between items-center">
+                <div className="mt-auto pt-3 flex justify-between items-center space-x-4">
                   <div className="font-bold text-xl">{formattedPrice}</div>
                   <Button
                     size="sm"
                     variant={selected ? "default" : "outline"}
-                    className="h-8"
+                    className="h-8 px-3"
                     onClick={(e) => {
                       e.preventDefault();
                       selected ? removeFromComparison(product.id) : addToComparison(product);
                     }}
                   >
-                    {selected ? <Check className="h-3.5 w-3.5 mr-1" /> : null}
+                    {selected ? <Check className="h-3.5 w-3.5 mr-1.5" /> : null}
                     {selected ? 'Added' : 'Compare'}
                   </Button>
                 </div>

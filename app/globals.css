@@ -71,3 +71,43 @@
   @apply transition-all duration-200;
 }
 
+/* Enhanced tab styles */
+.material-tabs [data-state="active"] {
+  @apply relative;
+}
+
+.material-tabs [data-state="active"]::after {
+  content: "";
+  @apply absolute bottom-0 left-0 w-full h-[2px] bg-primary rounded-full transform transition-all;
+  animation: tabActivate 0.3s ease-in-out forwards;
+}
+
+@keyframes tabActivate {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+/* General tab hover enhancement */
+[role="tab"] {
+  @apply transition-all duration-150;
+}
+
+[role="tab"]:hover {
+  @apply bg-muted/40;
+}
+
+/* Table enhancements */
+table tbody tr:nth-child(even) {
+  @apply bg-muted/10;
+}
+
+table tbody tr:hover {
+  @apply bg-muted/30;
+}
+

@@ -1,12 +1,12 @@
 export const runtime = 'edge';
 
 import { createRouteHandlerSupabase } from "@/lib/supabase/route-handler"
-import { createAdminClient } from "@/lib/supabase/admin"
+import { createEdgeAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   const supabase = createRouteHandlerSupabase()
-  const adminClient = createAdminClient()
+  const adminClient = createEdgeAdminClient()
 
   try {
     const formData = await request.formData()

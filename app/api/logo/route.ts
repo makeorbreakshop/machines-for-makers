@@ -1,4 +1,4 @@
-import { createRouteHandlerSupabase, createFallbackRouteHandler } from "@/lib/supabase/route-handler"
+import { createRouteHandlerSupabase, createEdgeFallbackHandler } from "@/lib/supabase/route-handler"
 import { NextResponse } from "next/server"
 
 export const runtime = 'edge';
@@ -18,8 +18,8 @@ export async function GET() {
     if (error) {
       console.error("Error fetching logo with standard client, trying fallback:", error)
       
-      // Try again with the fallback method that uses direct service role
-      supabase = createFallbackRouteHandler();
+      // Try again with the edge-compatible fallback method that uses anon key
+      supabase = createEdgeFallbackHandler();
       const { data: fallbackData, error: fallbackError } = await supabase
         .from("site_settings")
         .select("value")
