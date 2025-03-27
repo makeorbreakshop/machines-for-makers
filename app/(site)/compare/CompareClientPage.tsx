@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { debounce } from 'lodash'
+import UnifiedFilter from "@/components/unified-filter"
 
 // Dynamically import heavy components with increased loading delay to prevent hydration issues
 const ComparisonTable = dynamic(() => import('@/components/comparison-table'), {
@@ -1274,11 +1275,18 @@ export default function CompareClientPage({
             {/* Sidebar filter - hidden on mobile */}
             <div className="w-full lg:w-64 lg:flex-shrink-0 hidden md:block">
               <div className="sticky top-24">
-                <SidebarFilter
+                <UnifiedFilter
                   categories={categories}
                   brands={brands}
                   onApplyFilters={handleApplyFilters}
-                  initialFilters={filters}
+                  initialFilters={{
+                    laserTypes: filters.laserTypes,
+                    priceRange: filters.priceRange,
+                    powerRange: filters.powerRange,
+                    speedRange: filters.speedRange,
+                    features: filters.features,
+                    isTopPick: filters.isTopPick
+                  }}
                   filteredCount={filteredProducts.length}
                 />
               </div>
