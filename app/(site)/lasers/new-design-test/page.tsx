@@ -169,6 +169,17 @@ export default function LaserNewDesignTest() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedParameter, setSelectedParameter] = useState<LaserParameter | null>(null);
   
+  // Track expanded materials in grid view
+  const [expandedMaterials, setExpandedMaterials] = useState<Record<string, boolean>>({});
+  
+  // Toggle material expansion
+  const toggleMaterialExpansion = (materialId: string) => {
+    setExpandedMaterials(prev => ({
+      ...prev,
+      [materialId]: !prev[materialId]
+    }));
+  };
+  
   // Animation states
   const [materialClicked, setMaterialClicked] = useState<Material | null>(null);
   const [materialClickPosition, setMaterialClickPosition] = useState({ x: 0, y: 0 });
@@ -1392,6 +1403,12 @@ export default function LaserNewDesignTest() {
                               <motion.span 
                                 layoutId={`material-symbol-${material.id}`}
                                 className={`text-3xl font-mono font-bold ${material.textColor}`}
+                                transition={{ 
+                                  type: "spring", 
+                                  stiffness: 400,
+                                  damping: 20, 
+                                  duration: 0.25 
+                                }}
                               >
                                 {symbol}
                               </motion.span>
@@ -1405,90 +1422,321 @@ export default function LaserNewDesignTest() {
                   })}
               </div>
             ) : (
-              /* Table-like View */
-              <div className="rounded-md border shadow-sm overflow-hidden">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background z-10">
-                    <TableRow className="bg-muted/30">
-                      <TableHead className="font-semibold min-w-[240px]">Material</TableHead>
-                      <TableHead className="font-semibold">Operations</TableHead>
-                      <TableHead className="text-right w-[100px] font-semibold">Settings</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {/* Table view contents remain similar to existing code */}
-                    {materials
-                      .filter(material => !searchQuery || material.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                      .map(material => {
-                        const operationCounts = getOperationCounts(material.id);
-                        const totalCount = materialParameters[material.id];
-                        let symbol = "";
-                        
-                        // Generate element-like symbol based on material name
-                        if (material.id === 'aluminum') symbol = 'Al';
-                        else if (material.id === 'brass') symbol = 'Br';
-                        else if (material.id === 'gold') symbol = 'Au';
-                        else if (material.id === 'silver') symbol = 'Ag';
-                        else if (material.id === 'steel') symbol = 'Fe';
-                        else if (material.id === 'titanium') symbol = 'Ti';
-                        else if (material.id === 'glass') symbol = 'Gl';
-                        else if (material.id === 'leather') symbol = 'Le';
-                        else if (material.id === 'plastic') symbol = 'Pl';
-                        else if (material.id === 'powder') symbol = 'Pw';
-                        else symbol = material.name.substring(0, 2);
-                        
-                        return (
-                          <motion.tr 
-                            key={material.id}
-                            whileHover={{ backgroundColor: "rgba(0,0,0,0.05)" }}
-                            className="cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() => setSelectedMaterial(material)}
-                          >
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                {/* The material icon that will animate to the header */}
-                                <motion.div 
-                                  layoutId={`material-${material.id}`}
-                                  className={`h-8 w-8 rounded-full ${material.color} flex items-center justify-center`}
-                                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                                >
-                                  <motion.span 
-                                    layoutId={`material-symbol-${material.id}`}
-                                    className={`font-mono font-bold ${material.textColor}`}
-                                  >
-                                    {symbol}
-                                  </motion.span>
-                                </motion.div>
-                                <span>{material.name}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-3">
-                                {operationTypes.map(op => (
-                                  <Badge 
-                                    key={op.id}
-                                    variant="outline" 
-                                    className={`${
-                                      op.id === 'engrave' 
-                                        ? 'bg-blue-50 text-blue-600 border-blue-200' 
-                                        : op.id === 'cut' 
-                                          ? 'bg-red-50 text-red-600 border-red-200' 
-                                          : 'bg-purple-50 text-purple-600 border-purple-200'
-                                    }`}
-                                  >
-                                    {op.label}: {operationCounts[op.id]}
+              /* Redesigned Table View - Materials with collapsible tables */
+              <div className="space-y-3 pb-8">
+                {materials
+                  .filter(material => !searchQuery || material.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map(material => {
+                    // Get material parameters for this material
+                    const materialParams = laserParameters.filter(param => 
+                      param.name.toLowerCase().includes(material.id.toLowerCase())
+                    );
+                    
+                    // If no parameters or filtered out by search, don't show this material
+                    if (materialParams.length === 0) {
+                      return null;
+                    }
+                    
+                    // Get operation counts
+                    const operationCounts = getOperationCounts(material.id);
+                    
+                    // Group parameters by operation type
+                    const engraveParams = materialParams.filter(param => 
+                      !param.name.toLowerCase().includes('cut') && 
+                      !param.name.toLowerCase().includes('photo')
+                    );
+                    
+                    const cutParams = materialParams.filter(param => 
+                      param.name.toLowerCase().includes('cut')
+                    );
+                    
+                    const photoParams = materialParams.filter(param => 
+                      param.name.toLowerCase().includes('photo')
+                    );
+                    
+                    // Check if this material is expanded - default to collapsed
+                    const isExpanded = expandedMaterials[material.id] === true;
+                    
+                    let symbol = "";
+                    
+                    // Symbol generation code...
+                    if (material.id === 'aluminum') symbol = 'Al';
+                    else if (material.id === 'brass') symbol = 'Br';
+                    else if (material.id === 'gold') symbol = 'Au';
+                    else if (material.id === 'silver') symbol = 'Ag';
+                    else if (material.id === 'steel') symbol = 'Fe';
+                    else if (material.id === 'titanium') symbol = 'Ti';
+                    else if (material.id === 'glass') symbol = 'Gl';
+                    else if (material.id === 'leather') symbol = 'Le';
+                    else if (material.id === 'plastic') symbol = 'Pl';
+                    else if (material.id === 'powder') symbol = 'Pw';
+                    else symbol = material.name.substring(0, 2);
+                    
+                    return (
+                      <div key={material.id} className="border rounded-md overflow-hidden">
+                        {/* Material Header - entire header now clickable */}
+                        <div 
+                          className="flex items-center justify-between p-4 bg-background cursor-pointer hover:bg-muted/10"
+                          onClick={() => toggleMaterialExpansion(material.id)}
+                          style={{ borderBottom: isExpanded ? "1px solid var(--border)" : "none" }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className={`h-12 w-12 rounded-md ${material.color} flex items-center justify-center`}
+                            >
+                              <span className={`font-mono font-bold text-xl ${material.textColor}`}>
+                                {symbol}
+                              </span>
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-bold">{material.name}</h3>
+                              <div className="flex gap-2 mt-1">
+                                {engraveParams.length > 0 && (
+                                  <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100">
+                                    {engraveParams.length} Engrave
                                   </Badge>
-                                ))}
+                                )}
+                                {cutParams.length > 0 && (
+                                  <Badge className="bg-red-50 text-red-700 hover:bg-red-100">
+                                    {cutParams.length} Cut
+                                  </Badge>
+                                )}
+                                {photoParams.length > 0 && (
+                                  <Badge className="bg-purple-50 text-purple-700 hover:bg-purple-100">
+                                    {photoParams.length} Photo
+                                  </Badge>
+                                )}
                               </div>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Badge variant="outline" className="font-semibold">{totalCount}</Badge>
-                            </TableCell>
-                          </motion.tr>
-                        );
-                      })}
-                  </TableBody>
-                </Table>
+                            </div>
+                          </div>
+                          <div className="flex items-center">
+                            {isExpanded ? (
+                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Collapsible Content */}
+                        <AnimatePresence initial={false}>
+                          {isExpanded && (
+                            <motion.div
+                              key={`${material.id}-content`}
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.3 }}
+                              style={{ overflow: "hidden" }}
+                            >
+                              <div className="p-4 space-y-6">
+                                {/* Engraving Table */}
+                                {engraveParams.length > 0 && (
+                                  <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                      <Sparkles className="h-4 w-4 text-blue-600" />
+                                      <h4 className="text-sm font-medium text-blue-700">Engraving</h4>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <div className="rounded-md border overflow-hidden">
+                                        <Table className="min-w-full">
+                                          <TableHeader className="bg-blue-50/50">
+                                            <TableRow>
+                                              <TableHead className="font-medium">Name</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Speed</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Power</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Passes</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Frequency</TableHead>
+                                              <TableHead className="font-medium w-[100px]">Line Distance</TableHead>
+                                              <TableHead className="font-medium w-[100px]">Hatch Angle</TableHead>
+                                              <TableHead className="font-medium w-[100px]">Hatch Pattern</TableHead>
+                                              <TableHead className="font-medium">Notes</TableHead>
+                                              <TableHead className="w-[60px]"></TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {engraveParams.map((param, index) => (
+                                              <TableRow 
+                                                key={`${param.name}-${index}`}
+                                                className="hover:bg-blue-50/30 cursor-pointer"
+                                                onClick={() => {
+                                                  setSelectedMaterial(material);
+                                                  setSelectedOperation('engrave');
+                                                }}
+                                              >
+                                                <TableCell className="font-medium">{param.name}</TableCell>
+                                                <TableCell>{param.speed} mm/s</TableCell>
+                                                <TableCell>{param.power}%</TableCell>
+                                                <TableCell>{param.passes}</TableCell>
+                                                <TableCell>{param.frequency} kHz</TableCell>
+                                                <TableCell>{param.lineDistance || "N/A"}</TableCell>
+                                                <TableCell>{param.hatchAngle || "N/A"}</TableCell>
+                                                <TableCell>{param.hatchPattern || "N/A"}</TableCell>
+                                                <TableCell className="max-w-[200px] truncate">
+                                                  {param.notes || "—"}
+                                                </TableCell>
+                                                <TableCell>
+                                                  <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-7 w-7"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setSelectedParameter(param);
+                                                    }}
+                                                  >
+                                                    <Info className="h-4 w-4" />
+                                                  </Button>
+                                                </TableCell>
+                                              </TableRow>
+                                            ))}
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Cutting Table */}
+                                {cutParams.length > 0 && (
+                                  <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                      <Scissors className="h-4 w-4 text-red-600" />
+                                      <h4 className="text-sm font-medium text-red-700">Cutting</h4>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <div className="rounded-md border overflow-hidden">
+                                        <Table className="min-w-full">
+                                          <TableHeader className="bg-red-50/50">
+                                            <TableRow>
+                                              <TableHead className="font-medium">Name</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Speed</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Power</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Passes</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Frequency</TableHead>
+                                              <TableHead className="font-medium w-[100px]">Line Distance</TableHead>
+                                              <TableHead className="font-medium w-[100px]">Hatch Angle</TableHead>
+                                              <TableHead className="font-medium w-[100px]">Hatch Pattern</TableHead>
+                                              <TableHead className="font-medium">Notes</TableHead>
+                                              <TableHead className="w-[60px]"></TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {cutParams.map((param, index) => (
+                                              <TableRow 
+                                                key={`${param.name}-${index}`}
+                                                className="hover:bg-red-50/30 cursor-pointer"
+                                                onClick={() => {
+                                                  setSelectedMaterial(material);
+                                                  setSelectedOperation('cut');
+                                                }}
+                                              >
+                                                <TableCell className="font-medium">{param.name}</TableCell>
+                                                <TableCell>{param.speed} mm/s</TableCell>
+                                                <TableCell>{param.power}%</TableCell>
+                                                <TableCell>{param.passes}</TableCell>
+                                                <TableCell>{param.frequency} kHz</TableCell>
+                                                <TableCell>{param.lineDistance || "N/A"}</TableCell>
+                                                <TableCell>{param.hatchAngle || "N/A"}</TableCell>
+                                                <TableCell>{param.hatchPattern || "N/A"}</TableCell>
+                                                <TableCell className="max-w-[200px] truncate">
+                                                  {param.notes || "—"}
+                                                </TableCell>
+                                                <TableCell>
+                                                  <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-7 w-7"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setSelectedParameter(param);
+                                                    }}
+                                                  >
+                                                    <Info className="h-4 w-4" />
+                                                  </Button>
+                                                </TableCell>
+                                              </TableRow>
+                                            ))}
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Photo Engraving Table */}
+                                {photoParams.length > 0 && (
+                                  <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                      <Camera className="h-4 w-4 text-purple-600" />
+                                      <h4 className="text-sm font-medium text-purple-700">Photo Engraving</h4>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <div className="rounded-md border overflow-hidden">
+                                        <Table className="min-w-full">
+                                          <TableHeader className="bg-purple-50/50">
+                                            <TableRow>
+                                              <TableHead className="font-medium">Name</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Speed</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Power</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Passes</TableHead>
+                                              <TableHead className="font-medium w-[80px]">Frequency</TableHead>
+                                              <TableHead className="font-medium w-[100px]">Line Distance</TableHead>
+                                              <TableHead className="font-medium w-[100px]">Hatch Angle</TableHead>
+                                              <TableHead className="font-medium w-[100px]">Hatch Pattern</TableHead>
+                                              <TableHead className="font-medium">Notes</TableHead>
+                                              <TableHead className="w-[60px]"></TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {photoParams.map((param, index) => (
+                                              <TableRow 
+                                                key={`${param.name}-${index}`}
+                                                className="hover:bg-purple-50/30 cursor-pointer"
+                                                onClick={() => {
+                                                  setSelectedMaterial(material);
+                                                  setSelectedOperation('photo');
+                                                }}
+                                              >
+                                                <TableCell className="font-medium">{param.name}</TableCell>
+                                                <TableCell>{param.speed} mm/s</TableCell>
+                                                <TableCell>{param.power}%</TableCell>
+                                                <TableCell>{param.passes}</TableCell>
+                                                <TableCell>{param.frequency} kHz</TableCell>
+                                                <TableCell>{param.lineDistance || "N/A"}</TableCell>
+                                                <TableCell>{param.hatchAngle || "N/A"}</TableCell>
+                                                <TableCell>{param.hatchPattern || "N/A"}</TableCell>
+                                                <TableCell className="max-w-[200px] truncate">
+                                                  {param.notes || "—"}
+                                                </TableCell>
+                                                <TableCell>
+                                                  <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-7 w-7"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setSelectedParameter(param);
+                                                    }}
+                                                  >
+                                                    <Info className="h-4 w-4" />
+                                                  </Button>
+                                                </TableCell>
+                                              </TableRow>
+                                            ))}
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </motion.div>
