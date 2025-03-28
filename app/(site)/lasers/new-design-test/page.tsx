@@ -877,10 +877,22 @@ export default function LaserNewDesignTest() {
               <motion.div
                 layoutId={`subsetting-${option.id}`}
                 className="inline-block px-2 py-1"
+                transition={{ 
+                  type: "spring", 
+                  stiffness: 400, 
+                  damping: 20,
+                  duration: 0.25 
+                }}
               >
                 <motion.span 
                   layoutId={`subsetting-text-${option.id}`}
                   className={`font-medium ${selectedMaterial.textColor}`}
+                  transition={{ 
+                    type: "spring", 
+                    stiffness: 400, 
+                    damping: 20,
+                    duration: 0.25 
+                  }}
                 >
                   {option.name}
                 </motion.span>
@@ -1104,7 +1116,7 @@ export default function LaserNewDesignTest() {
             className="flex items-center gap-3 p-4 bg-background border rounded-lg shadow-sm absolute inset-x-0"
             initial={{ opacity: currentStep === 'material' ? 0 : 1 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
           >
             <div className="flex items-center gap-2">
               {/* Material icon with shared layout ID */}
@@ -1113,14 +1125,20 @@ export default function LaserNewDesignTest() {
                 className={`h-10 w-10 rounded-md ${selectedMaterial.color} flex items-center justify-center`}
                 transition={{ 
                   type: "spring", 
-                  stiffness: 300, 
-                  damping: 25, 
-                  duration: 0.3 
+                  stiffness: 400,
+                  damping: 20, 
+                  duration: 0.25 
                 }}
               >
                 <motion.span 
                   layoutId={`material-symbol-${selectedMaterial.id}`}
                   className={`font-mono font-bold ${selectedMaterial.textColor}`}
+                  transition={{ 
+                    type: "spring", 
+                    stiffness: 400,
+                    damping: 20, 
+                    duration: 0.25 
+                  }}
                 >
                   {selectedMaterial.id === 'aluminum' ? 'Al' : 
                    selectedMaterial.id === 'brass' ? 'Br' :
@@ -1136,10 +1154,11 @@ export default function LaserNewDesignTest() {
                 </motion.span>
               </motion.div>
               
+              {/* Wrap text in layout group with the icon */}
               <motion.span 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.2, duration: 0.2 }}
+                transition={{ duration: 0.15 }}
                 className={`font-semibold ${selectedMaterial.textColor}`}
               >
                 {selectedMaterial.name}
@@ -1164,7 +1183,7 @@ export default function LaserNewDesignTest() {
                 <motion.div 
                   initial={{ opacity: 0, width: 0 }} 
                   animate={{ opacity: 1, width: 'auto' }} 
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.15 }}
                 >
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </motion.div>
@@ -1176,13 +1195,19 @@ export default function LaserNewDesignTest() {
                     className={`h-10 w-10 rounded-md ${getOperationColor(selectedOperation).bg} flex items-center justify-center`}
                     transition={{ 
                       type: "spring", 
-                      stiffness: 300, 
-                      damping: 25, 
-                      duration: 0.3 
+                      stiffness: 400, 
+                      damping: 20, 
+                      duration: 0.25 
                     }}
                   >
                     <motion.div 
                       layoutId={`operation-icon-${selectedOperation}`}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 400, 
+                        damping: 20, 
+                        duration: 0.25 
+                      }}
                     >
                       {getOperationIcon(selectedOperation)}
                     </motion.div>
@@ -1191,7 +1216,7 @@ export default function LaserNewDesignTest() {
                   <motion.span 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2, duration: 0.2 }}
+                    transition={{ duration: 0.15 }}
                     className={`font-semibold ${getOperationColor(selectedOperation).text}`}
                   >
                     {selectedOperation === 'engrave' ? 'Engraving' : 
@@ -1218,7 +1243,7 @@ export default function LaserNewDesignTest() {
                 <motion.div 
                   initial={{ opacity: 0, width: 0 }} 
                   animate={{ opacity: 1, width: 'auto' }} 
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.15 }}
                 >
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </motion.div>
@@ -1228,10 +1253,22 @@ export default function LaserNewDesignTest() {
                   <motion.div
                     layoutId={`subsetting-${selectedSubSetting.id}`}
                     className={`px-2 py-1 rounded-md ${getOperationColor(selectedOperation as OperationType).bg}`}
+                    transition={{ 
+                      type: "spring", 
+                      stiffness: 400, 
+                      damping: 20, 
+                      duration: 0.25 
+                    }}
                   >
                     <motion.span 
                       layoutId={`subsetting-text-${selectedSubSetting.id}`}
                       className={`text-sm font-medium ${getOperationColor(selectedOperation as OperationType).text}`}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 400, 
+                        damping: 20, 
+                        duration: 0.25 
+                      }}
                     >
                       {selectedSubSetting.name}
                     </motion.span>
@@ -1512,10 +1549,21 @@ export default function LaserNewDesignTest() {
                           <motion.div 
                             layoutId={`operation-${op.id}`}
                             className="flex items-center justify-center h-16 w-16 mx-auto"
-                            transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                            transition={{ 
+                              type: "spring", 
+                              stiffness: 400, 
+                              damping: 20,
+                              duration: 0.25 
+                            }}
                           >
                             <motion.div 
                               layoutId={`operation-icon-${op.id}`}
+                              transition={{ 
+                                type: "spring", 
+                                stiffness: 400, 
+                                damping: 20,
+                                duration: 0.25 
+                              }}
                             >
                               {getOperationIcon(op.id)}
                             </motion.div>
