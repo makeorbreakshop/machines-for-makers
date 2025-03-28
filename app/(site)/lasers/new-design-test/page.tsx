@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { laserParameters, LaserParameter } from "./data";
+import { laserParameters, LaserParameter, LaserParameterSource } from "./data";
 import { Search, Settings, Sparkles, Scissors, ChevronDown, ChevronRight, Info, X, FileText, Download, AlertCircle, Check, Laptop2, Zap, Cpu, FlameKindling } from "lucide-react";
 import {
   Table,
@@ -96,6 +96,11 @@ const getMachineTypeColor = (type: string) => {
   if (lowerType.includes('co2')) return "bg-red-500/80";
   if (lowerType.includes('diode')) return "bg-purple-500/80";
   return "bg-slate-500/80";
+};
+
+// Replace the getSourceBadgeColor function with a simpler one
+const getSourceBadgeColor = (sourceId: string) => {
+  return "bg-background text-foreground border-border";
 };
 
 export default function LaserNewDesignTest() {
@@ -263,41 +268,47 @@ export default function LaserNewDesignTest() {
     ];
   }, []);
 
-  // Filter parameters by material and operation type
+  // Add this grouping function
+  const groupParametersByName = (params: LaserParameter[]) => {
+    const grouped: Record<string, LaserParameter[]> = {};
+    
+    params.forEach((param: LaserParameter) => {
+      if (!grouped[param.name]) {
+        grouped[param.name] = [];
+      }
+      grouped[param.name].push(param);
+    });
+    
+    return grouped;
+  };
+
+  // Filter parameters for the selected material and operation
   const filteredParameters = useMemo(() => {
-    let filteredResults = laserParameters;
+    if (!selectedMaterial || !selectedOperation) return [];
     
-    // Filter by material
-    if (selectedMaterial && selectedMaterial.id !== 'all') {
-      filteredResults = filteredResults.filter(param => 
-        param.name.toLowerCase().includes(selectedMaterial.id)
-      );
-    }
-    
-    // Filter by operation type
-    if (selectedOperation) {
-      filteredResults = filteredResults.filter(param => {
-        const name = param.name.toLowerCase();
-        if (selectedOperation === 'cut') {
-          return name.includes('cut');
-        } else if (selectedOperation === 'photo') {
-          return name.includes('photo');
-        } else {
-          return !name.includes('cut') && !name.includes('photo');
-        }
-      });
-    }
-    
-    // Filter by search query
-    if (searchQuery) {
-      filteredResults = filteredResults.filter(param => 
-        param.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        param.notes.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    return filteredResults;
+    return laserParameters.filter(param => {
+      // Filter by search query if present
+      if (searchQuery && !param.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      
+      // Filter by selected material (match by name)
+      const materialMatches = param.name.toLowerCase().includes(selectedMaterial.id.toLowerCase());
+      
+      // Filter by operation type
+      const operationMatches = 
+        (selectedOperation === 'engrave' && !param.name.toLowerCase().includes('cut') && !param.name.toLowerCase().includes('photo')) ||
+        (selectedOperation === 'cut' && param.name.toLowerCase().includes('cut')) ||
+        (selectedOperation === 'photo' && param.name.toLowerCase().includes('photo'));
+      
+      return materialMatches && operationMatches;
+    });
   }, [selectedMaterial, selectedOperation, searchQuery]);
+  
+  // Group filtered parameters by name
+  const groupedParameters = useMemo(() => {
+    return groupParametersByName(filteredParameters);
+  }, [filteredParameters]);
 
   // Get material filtered parameters (for counter display)
   const materialParameters = useMemo(() => {
@@ -404,6 +415,173 @@ export default function LaserNewDesignTest() {
   const handleManualEntrySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     confirmMachineSelection();
+  };
+
+  // Replace the render section for parameters with this updated version
+  const renderParameters = () => {
+    if (!selectedMaterial || !selectedOperation) {
+      return (
+        <div className="flex items-center justify-center h-60 text-gray-400">
+          <div className="text-center">
+            <Settings className="mx-auto h-10 w-10 mb-2" />
+            <p>Select a material and operation to view parameters</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (filteredParameters.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-60 text-gray-400">
+          <div className="text-center">
+            <AlertCircle className="mx-auto h-10 w-10 mb-2" />
+            <p>No parameters found for this material and operation</p>
+            {searchQuery && <p className="mt-2">Try adjusting your search query</p>}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {Object.entries(groupedParameters).map(([paramName, paramGroup]) => (
+          <div key={paramName} className="space-y-2">
+            <h3 className="text-lg font-medium">{paramName}</h3>
+            <div className="rounded-md border shadow-sm overflow-hidden">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow className="bg-muted/30">
+                    <TableHead className="font-semibold w-[180px]">Source</TableHead>
+                    <TableHead className="text-center font-semibold w-[80px]">Power</TableHead>
+                    <TableHead className="text-center font-semibold w-[80px]">Speed</TableHead>
+                    <TableHead className="text-center font-semibold w-[80px]">Passes</TableHead>
+                    <TableHead className="text-center font-semibold w-[100px]">Frequency</TableHead>
+                    <TableHead className="text-center font-semibold w-[120px]">Line Distance</TableHead>
+                    <TableHead className="font-semibold">Notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paramGroup.map((param: LaserParameter, index: number) => (
+                    <TableRow 
+                      key={`${param.name}-${param.source.id}-${index}`}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      style={{ 
+                        borderLeft: `4px solid ${param.source.id === 'cloudray' ? '#06b6d4' : '#a855f7'}` 
+                      }}
+                      onClick={() => setSelectedParameter(param)}
+                    >
+                      <TableCell className="w-[180px]">
+                        <div className="flex items-center">
+                          <div className="px-2 py-1 rounded-full text-xs font-medium border">
+                            {param.source.verified && <Check className="w-3 h-3 inline-block mr-1" />}
+                            {param.source.name}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center font-semibold text-sm w-[80px]">{param.power}%</TableCell>
+                      <TableCell className="text-center text-sm w-[80px]">{param.speed}</TableCell>
+                      <TableCell className="text-center text-sm w-[80px]">{param.passes}</TableCell>
+                      <TableCell className="text-center text-sm w-[100px]">{param.frequency} kHz</TableCell>
+                      <TableCell className="text-center text-sm w-[120px]">{param.lineDistance}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {param.notes}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+  
+  // Update parameter details dialog to include source information
+  const renderParameterDetails = () => {
+    if (!selectedParameter) return null;
+    
+    return (
+      <Dialog open={selectedParameter !== null} onOpenChange={(open) => !open && setSelectedParameter(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>{selectedParameter.name}</DialogTitle>
+              <div className="px-3 py-1 rounded-full text-xs font-medium border">
+                {selectedParameter.source.verified && <Check className="w-3 h-3 inline-block mr-1" />}
+                {selectedParameter.source.name}
+              </div>
+            </div>
+          </DialogHeader>
+          
+          {/* Rest of parameter details dialog content remains the same */}
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <div>
+              <Label className="text-xs text-gray-500">Speed</Label>
+              <div className="font-medium">{selectedParameter.speed} mm/s</div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Power</Label>
+              <div className="font-medium">{selectedParameter.power}%</div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Frequency</Label>
+              <div className="font-medium">{selectedParameter.frequency} kHz</div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Passes</Label>
+              <div className="font-medium">{selectedParameter.passes}</div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Line Distance</Label>
+              <div className="font-medium">{selectedParameter.lineDistance}</div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Hatch Angle</Label>
+              <div className="font-medium">{selectedParameter.hatchAngle}</div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Hatch Pattern</Label>
+              <div className="font-medium">{selectedParameter.hatchPattern}</div>
+            </div>
+          </div>
+          
+          {selectedParameter.notes && (
+            <div className="mt-2">
+              <Label className="text-xs text-gray-500">Notes</Label>
+              <div className="text-sm mt-1 p-3 bg-gray-50 rounded-md">{selectedParameter.notes}</div>
+            </div>
+          )}
+          
+          <div className="pt-4 flex justify-between">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export as JSON
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            {selectedMachine && (
+              <Button>
+                Use with {selectedMachine.name}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
   };
 
   return (
@@ -739,20 +917,10 @@ export default function LaserNewDesignTest() {
           </div>
 
           {/* Operation Tabs */}
-          <Tabs defaultValue={selectedOperation || "all"} className="w-full material-tabs" onValueChange={(value) => {
-            if (value === "all") {
-              setSelectedOperation(null);
-            } else {
-              setSelectedOperation(value as OperationType);
-            }
+          <Tabs defaultValue={selectedOperation || "engrave"} className="w-full material-tabs" onValueChange={(value) => {
+            setSelectedOperation(value as OperationType);
           }}>
             <TabsList className="w-full justify-start mb-6 border-b bg-transparent p-0 space-x-2">
-              <TabsTrigger 
-                value="all" 
-                className="rounded-t-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-medium px-4 py-3 transition-all hover:bg-muted/30"
-              >
-                All Operations
-              </TabsTrigger>
               {operationTypes.map(op => (
                 <TabsTrigger 
                   key={op.id}
@@ -764,176 +932,10 @@ export default function LaserNewDesignTest() {
               ))}
             </TabsList>
 
-            {/* Parameters Table View */}
-            <TabsContent value="all" className="m-0">
-              <div className="rounded-md border shadow-sm" style={{ maxHeight: '70vh', overflow: 'auto' }}>
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background z-10">
-                    <TableRow className="bg-muted/30">
-                      <TableHead className="font-semibold min-w-[240px]">Parameter</TableHead>
-                      <TableHead className="w-[80px] text-center font-semibold">Power</TableHead>
-                      <TableHead className="w-[80px] text-center font-semibold">Speed</TableHead>
-                      <TableHead className="w-[80px] text-center font-semibold">Passes</TableHead>
-                      <TableHead className="w-[100px] text-center font-semibold">Frequency</TableHead>
-                      <TableHead className="w-[120px] font-semibold">Operation</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredParameters.length > 0 ? (
-                      filteredParameters.map((param, index) => {
-                        // Determine operation type
-                        let operationType: OperationType = 'engrave';
-                        const name = param.name.toLowerCase();
-                        if (name.includes('cut')) {
-                          operationType = 'cut';
-                        } else if (name.includes('photo')) {
-                          operationType = 'photo';
-                        }
-                        
-                        const operation = operationTypes.find(op => op.id === operationType);
-                        
-                        return (
-                          <Dialog key={`${param.name}-${index}`}>
-                            <DialogTrigger asChild>
-                              <TableRow key={`${param.name}-${index}`} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                                <TableCell className="font-medium">
-                                  <div className="flex flex-col">
-                                    <span className="text-base">{param.name}</span>
-                                    <span className="text-xs text-muted-foreground mt-1">{param.notes}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-center font-semibold text-sm">{param.power}%</TableCell>
-                                <TableCell className="text-center text-sm">{param.speed}</TableCell>
-                                <TableCell className="text-center text-sm">{param.passes}</TableCell>
-                                <TableCell className="text-center text-sm">{param.frequency} kHz</TableCell>
-                                <TableCell>
-                                  <span className={`font-medium ${
-                                    operationType === 'engrave' 
-                                      ? 'text-blue-600' 
-                                      : operationType === 'cut' 
-                                        ? 'text-red-600' 
-                                        : 'text-purple-600'
-                                  }`}>{operation?.label}</span>
-                                </TableCell>
-                              </TableRow>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[625px]">
-                              <DialogHeader>
-                                <DialogTitle>{param.name} - Detailed Parameters</DialogTitle>
-                              </DialogHeader>
-                              <div className="space-y-4 py-4">
-                                <Table>
-                                  <TableBody>
-                                    {Object.entries(param).map(([key, value]) => (
-                                      <TableRow key={key}>
-                                        <TableCell className="font-medium capitalize w-1/3">{key}</TableCell>
-                                        <TableCell>{value}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-32 text-center">
-                          <div className="flex flex-col items-center justify-center">
-                            <Search className="h-6 w-6 text-muted-foreground mb-2" />
-                            <p>No parameters found</p>
-                            <Button 
-                              variant="link" 
-                              size="sm" 
-                              onClick={() => setSearchQuery("")}
-                              className="mt-1"
-                            >
-                              Clear search
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-            
             {/* Operation-specific Tabs */}
             {operationTypes.map(op => (
               <TabsContent key={op.id} value={op.id} className="m-0">
-                <div className="rounded-md border shadow-sm" style={{ maxHeight: '70vh', overflow: 'auto' }}>
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-background z-10">
-                      <TableRow className="bg-muted/30">
-                        <TableHead className="font-semibold min-w-[240px]">Parameter</TableHead>
-                        <TableHead className="w-[80px] text-center font-semibold">Power</TableHead>
-                        <TableHead className="w-[80px] text-center font-semibold">Speed</TableHead>
-                        <TableHead className="w-[80px] text-center font-semibold">Passes</TableHead>
-                        <TableHead className="w-[100px] text-center font-semibold">Frequency</TableHead>
-                        <TableHead className="w-[100px] font-semibold">Operation</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredParameters
-                        .filter(param => {
-                          const name = param.name.toLowerCase();
-                          if (op.id === 'cut') {
-                            return name.includes('cut');
-                          } else if (op.id === 'photo') {
-                            return name.includes('photo');
-                          } else {
-                            return !name.includes('cut') && !name.includes('photo');
-                          }
-                        })
-                        .map((param, index) => (
-                          <Dialog key={`${op.id}-dialog-${param.name}-${index}`}>
-                            <DialogTrigger asChild>
-                              <TableRow key={`${param.name}-${op.id}-${index}`} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                                <TableCell className="font-medium">
-                                  <div className="flex flex-col">
-                                    <span className="text-base">{param.name}</span>
-                                    <span className="text-xs text-muted-foreground mt-1">{param.notes}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-center font-semibold text-sm">{param.power}%</TableCell>
-                                <TableCell className="text-center text-sm">{param.speed}</TableCell>
-                                <TableCell className="text-center text-sm">{param.passes}</TableCell>
-                                <TableCell className="text-center text-sm">{param.frequency} kHz</TableCell>
-                                <TableCell>
-                                  <span className={`font-medium ${
-                                    op.id === 'engrave' 
-                                      ? 'text-blue-600' 
-                                      : op.id === 'cut' 
-                                        ? 'text-red-600' 
-                                        : 'text-purple-600'
-                                  }`}>{op.label}</span>
-                                </TableCell>
-                              </TableRow>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[625px]">
-                              <DialogHeader>
-                                <DialogTitle>{param.name} - Detailed Parameters</DialogTitle>
-                              </DialogHeader>
-                              <div className="space-y-4 py-4">
-                                <Table>
-                                  <TableBody>
-                                    {Object.entries(param).map(([key, value]) => (
-                                      <TableRow key={key}>
-                                        <TableCell className="font-medium capitalize w-1/3">{key}</TableCell>
-                                        <TableCell>{value}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                {renderParameters()}
               </TabsContent>
             ))}
           </Tabs>
@@ -1183,6 +1185,8 @@ export default function LaserNewDesignTest() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {renderParameterDetails()}
     </div>
   );
 } 

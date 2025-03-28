@@ -1,3 +1,10 @@
+export interface LaserParameterSource {
+  id: string;
+  name: string;
+  logo?: string;
+  verified?: boolean;
+}
+
 export interface LaserParameter {
   name: string;
   passes: number;
@@ -8,7 +15,22 @@ export interface LaserParameter {
   hatchAngle: string;
   hatchPattern: string;
   notes: string;
+  source: LaserParameterSource;
 }
+
+// Define our sources
+const sources: Record<string, LaserParameterSource> = {
+  cloudray: {
+    id: "cloudray",
+    name: "Cloudray Official",
+    verified: true
+  },
+  community: {
+    id: "community",
+    name: "MFM Community",
+    verified: true
+  }
+};
 
 export const laserParameters: LaserParameter[] = [
   {
@@ -20,7 +42,21 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Clean with cloth after finishing"
+    notes: "Clean with cloth after finishing",
+    source: sources.cloudray
+  },
+  // Add a community version of the same settings with slight differences
+  {
+    name: "Aluminum General",
+    passes: 1,
+    speed: 400,
+    power: 95,
+    frequency: 30,
+    lineDistance: 0.03,
+    hatchAngle: "45°",
+    hatchPattern: "Standard",
+    notes: "Use denatured alcohol for cleaning after engraving",
+    source: sources.community
   },
   {
     name: "Aluminum Deep",
@@ -31,7 +67,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Clean with cloth after finishing"
+    notes: "Clean with cloth after finishing",
+    source: sources.cloudray
   },
   {
     name: "Aluminum Dark",
@@ -42,7 +79,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Clean with cloth after finishing"
+    notes: "Clean with cloth after finishing",
+    source: sources.cloudray
   },
   {
     name: "Aluminum White",
@@ -53,7 +91,8 @@ export const laserParameters: LaserParameter[] = [
     frequency: 45,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Clean with cloth after finishing"
+    notes: "Clean with cloth after finishing",
+    source: sources.cloudray
   },
   {
     name: "Aluminum Cut",
@@ -64,7 +103,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "None",
     hatchAngle: "None",
     hatchPattern: "None",
-    notes: "Cut with 0.01mm Diameter and Distance"
+    notes: "Cut with 0.01mm Diameter and Distance",
+    source: sources.cloudray
   },
   {
     name: "Aluminum Photos",
@@ -75,7 +115,21 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Standard",
-    notes: "May need up to 2 passes for extra details. Photo DPI should be around 300-350"
+    notes: "May need up to 2 passes for extra details. Photo DPI should be around 300-350",
+    source: sources.cloudray
+  },
+  // Community alternative for photos
+  {
+    name: "Aluminum Photos",
+    passes: 2,
+    speed: 230,
+    power: 70,
+    frequency: 40,
+    lineDistance: "Photo",
+    hatchAngle: "Photo",
+    hatchPattern: "Standard",
+    notes: "For better details, pre-clean aluminum with acetone and use 2 passes",
+    source: sources.community
   },
   {
     name: "Black Acrylic - White Raised Lettering",
@@ -86,7 +140,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.1,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Will bubble up if too much heat is used"
+    notes: "Will bubble up if too much heat is used",
+    source: sources.cloudray
   },
   {
     name: "Brass Black Deep",
@@ -97,7 +152,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Use a soft toothbrush with all purpose cleaner to clean the remaining debris. Clear Coat for extra shine"
+    notes: "Use a soft toothbrush with all purpose cleaner to clean the remaining debris. Clear Coat for extra shine",
+    source: sources.cloudray
   },
   {
     name: "Brass General",
@@ -108,7 +164,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Use a soft toothbrush with all purpose cleaner to clean the remaining debris"
+    notes: "Use a soft toothbrush with all purpose cleaner to clean the remaining debris",
+    source: sources.cloudray
   },
   {
     name: "Brass White",
@@ -119,7 +176,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Clean with cloth after finishing"
+    notes: "Clean with cloth after finishing",
+    source: sources.cloudray
   },
   {
     name: "Brass Photo Details",
@@ -130,7 +188,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: "Works best with brass general base pass"
+    notes: "Works best with brass general base pass",
+    source: sources.cloudray
   },
   {
     name: "Black Ceramic Coatings - General",
@@ -141,7 +200,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Use a soft toothbrush with all purpose cleaner to clean the remaining debris"
+    notes: "Use a soft toothbrush with all purpose cleaner to clean the remaining debris",
+    source: sources.cloudray
   },
   {
     name: "Plastic Facing General",
@@ -152,7 +212,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Remove Electric Plating to engrave base metal underneath"
+    notes: "Remove Electric Plating to engrave base metal underneath",
+    source: sources.cloudray
   },
   {
     name: "Glass Steel Second",
@@ -163,7 +224,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Snake",
-    notes: "Place steel behind glass, focus steel to steel, place glass on top, reverse image and engrave"
+    notes: "Place steel behind glass, focus steel to steel, place glass on top, reverse image and engrave",
+    source: sources.cloudray
   },
   {
     name: "Glass Black (Ivory Paint)",
@@ -174,7 +236,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.1,
     hatchAngle: "0°",
     hatchPattern: "Standard",
-    notes: "Spray ivory paint on, let tack up then engrave. Use paint thiner to remove leftover paint"
+    notes: "Spray ivory paint on, let tack up then engrave. Use paint thiner to remove leftover paint",
+    source: sources.cloudray
   },
   {
     name: "Glass White (paint) & (Enamel Paint)",
@@ -185,7 +248,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.1,
     hatchAngle: "0°",
     hatchPattern: "Standard",
-    notes: "Coat paint on, let tack up then engrave. Use paint thiner to remove leftover paint. (Black Opaque Tempera Paint can be bought on amazon)"
+    notes: "Coat paint on, let tack up then engrave. Use paint thiner to remove leftover paint. (Black Opaque Tempera Paint can be bought on amazon)",
+    source: sources.cloudray
   },
   {
     name: "Glass Engrave",
@@ -196,7 +260,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "May require multiple passes but take 1 min inbetween to cool down"
+    notes: "May require multiple passes but take 1 min inbetween to cool down",
+    source: sources.cloudray
   },
   {
     name: "Gold Yellow 10-14K Base",
@@ -207,7 +272,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Yellow 10-14K Bright",
@@ -218,7 +284,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Yellow 10-14K Cleanup",
@@ -229,7 +296,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Yellow 10-14K Details",
@@ -240,7 +308,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.001,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Yellow 10-14K Medium",
@@ -251,7 +320,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.001,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold White 10-14K Base",
@@ -262,7 +332,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold White 10-14K Cleanup",
@@ -273,7 +344,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold White 10-14K Gold Anneal",
@@ -284,7 +356,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold White 10-14K Black",
@@ -295,7 +368,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.001,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold White 10-14K Gold Anneal",
@@ -306,7 +380,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Rose 10-14K Base",
@@ -317,7 +392,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Rose 10-14K Cleanup",
@@ -328,7 +404,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Rose 10-14K Bright",
@@ -339,7 +416,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Rose 10-14K Medium",
@@ -350,7 +428,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.001,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Rose 10-14K Black",
@@ -361,7 +440,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.001,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Y/R 10-14K Photo Base",
@@ -372,7 +452,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Y/R 10-14K Photo Cleanup",
@@ -383,7 +464,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold Y/R 10-14K Photo Details",
@@ -394,7 +476,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold White 10-14K Photo Base",
@@ -405,7 +488,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold White 10-14K Photo Dark",
@@ -416,7 +500,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Gold White 10-14K Photo Details",
@@ -427,7 +512,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Granite (Black) - Gray Engrave",
@@ -438,7 +524,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Run as many times as you want for added depth, gets less efficient over time though"
+    notes: "Run as many times as you want for added depth, gets less efficient over time though",
+    source: sources.cloudray
   },
   {
     name: "Leather General",
@@ -449,7 +536,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Mainly used for Leatherette"
+    notes: "Mainly used for Leatherette",
+    source: sources.cloudray
   },
   {
     name: "Leather Dark",
@@ -460,7 +548,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Used for larger text or designs"
+    notes: "Used for larger text or designs",
+    source: sources.cloudray
   },
   {
     name: "Leather Bright",
@@ -471,7 +560,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "If you experience excessive burning. 1= 2 Pass Resistant. 2= 2 Pass Gentle"
+    notes: "If you experience excessive burning. 1= 2 Pass Resistant. 2= 2 Pass Gentle",
+    source: sources.cloudray
   },
   {
     name: "Leather Resistant",
@@ -482,7 +572,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "For use with the rotary tool on curves, same configurations as above. .38mm focus"
+    notes: "For use with the rotary tool on curves, same configurations as above. .38mm focus",
+    source: sources.cloudray
   },
   {
     name: "Powder Coat - 1 Layer Removal",
@@ -493,7 +584,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.02,
     hatchAngle: "90°",
     hatchPattern: "Standard",
-    notes: "For use with the rotary tool, will require alcohol and magic eraser to remove residue. +4mm focus"
+    notes: "For use with the rotary tool, will require alcohol and magic eraser to remove residue. +4mm focus",
+    source: sources.cloudray
   },
   {
     name: "Powder Coat - Sharp",
@@ -504,7 +596,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.02,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "No base pass. Engrave directly into the coating. Will be darker than the previous area, mark as needed."
+    notes: "No base pass. Engrave directly into the coating. Will be darker than the previous area, mark as needed.",
+    source: sources.cloudray
   },
   {
     name: "Powder Coat - Photo Removal",
@@ -515,7 +608,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Silver - Stone General Engrave",
@@ -526,7 +620,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Silver General Engrave",
@@ -537,7 +632,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Yellow color is natural fiber layer result, your settings are correct."
+    notes: "Yellow color is natural fiber layer result, your settings are correct.",
+    source: sources.cloudray
   },
   {
     name: "Silver Dark Deep",
@@ -548,7 +644,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Only works on solid silver, silver plating is too thin to stand up to this mark."
+    notes: "Only works on solid silver, silver plating is too thin to stand up to this mark.",
+    source: sources.cloudray
   },
   {
     name: "Silver Photo Base (Step 1)",
@@ -559,7 +656,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: "Use smooth surface base plate."
+    notes: "Use smooth surface base plate.",
+    source: sources.cloudray
   },
   {
     name: "Silver Photo Base (Step 1)",
@@ -570,7 +668,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: "Use for photo reactive background FIRST"
+    notes: "Use for photo reactive background FIRST",
+    source: sources.cloudray
   },
   {
     name: "Silver Photo White (Step 2)",
@@ -581,7 +680,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: "Use for photo reactive background SECOND"
+    notes: "Use for photo reactive background SECOND",
+    source: sources.cloudray
   },
   {
     name: "Silver Photo Details (Step 3)",
@@ -592,7 +692,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: "Photo",
     hatchAngle: "Photo",
     hatchPattern: "Photo",
-    notes: "Run your actual photo on top of your base with this pass. Make sure to check pixel power and enable mark low."
+    notes: "Run your actual photo on top of your base with this pass. Make sure to check pixel power and enable mark low.",
+    source: sources.cloudray
   },
   {
     name: "Silver - Base Gray",
@@ -603,7 +704,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Run as many times as needed for depth"
+    notes: "Run as many times as needed for depth",
+    source: sources.cloudray
   },
   {
     name: "Silver Shine Black",
@@ -614,7 +716,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Anodized silver. Use hairspray & paint to get to desired oxidized color."
+    notes: "Anodized silver. Use hairspray & paint to get to desired oxidized color.",
+    source: sources.cloudray
   },
   {
     name: "Steel - General Engrave",
@@ -625,7 +728,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Apply 3-in-1 Oil. Brush generously. (Optionally clean with degreaser)"
+    notes: "Apply 3-in-1 Oil. Brush generously. (Optionally clean with degreaser)",
+    source: sources.cloudray
   },
   {
     name: "Steel - Deep Engrave",
@@ -636,7 +740,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.01,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Finish with Steel General Cleaning Pass. Black Oxide or Steel White finish."
+    notes: "Finish with Steel General Cleaning Pass. Black Oxide or Steel White finish.",
+    source: sources.cloudray
   },
   {
     name: "Steel - Cleaning Pass",
@@ -647,7 +752,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Used to help burn carbon out. Helps set up material for Annealing"
+    notes: "Used to help burn carbon out. Helps set up material for Annealing",
+    source: sources.cloudray
   },
   {
     name: "Steel - Black Anneal",
@@ -658,7 +764,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Helps protect the steel by heating it after engraving, has a shiny blue rainbow effect. Oil when complete"
+    notes: "Helps protect the steel by heating it after engraving, has a shiny blue rainbow effect. Oil when complete",
+    source: sources.cloudray
   },
   {
     name: "Steel - White Anneal",
@@ -669,7 +776,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Clean with cloth after finishing"
+    notes: "Clean with cloth after finishing",
+    source: sources.cloudray
   },
   {
     name: "Steel - Rich Black Anneal",
@@ -680,7 +788,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Defocus laser 1-3mm AWAY from material for best results"
+    notes: "Defocus laser 1-3mm AWAY from material for best results",
+    source: sources.cloudray
   },
   {
     name: "Tin General Engrave",
@@ -691,7 +800,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Clean with cloth after finishing"
+    notes: "Clean with cloth after finishing",
+    source: sources.cloudray
   },
   {
     name: "Titanium General Engrave",
@@ -702,7 +812,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Clean with cloth after finishing"
+    notes: "Clean with cloth after finishing",
+    source: sources.cloudray
   },
   {
     name: "Titanium Gold Anneal",
@@ -713,7 +824,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Helps protect the steel by heating it after engraving, turns titanium GOLD. Oil when complete."
+    notes: "Helps protect the steel by heating it after engraving, turns titanium GOLD. Oil when complete.",
+    source: sources.cloudray
   },
   {
     name: "Titanium Rich Black Anneal",
@@ -724,7 +836,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Defocus laser 1-3mm AWAY from material for best results"
+    notes: "Defocus laser 1-3mm AWAY from material for best results",
+    source: sources.cloudray
   },
   {
     name: "MDF - Black Tall",
@@ -735,7 +848,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "MDF - Cut (4mm)",
@@ -746,7 +860,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Zinc General",
@@ -757,7 +872,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Zinc Coins - Deep Engrave Dark",
@@ -768,7 +884,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Zinc Coins - White Anneal",
@@ -779,7 +896,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.1,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: "Clean with cloth after finishing"
+    notes: "Clean with cloth after finishing",
+    source: sources.cloudray
   },
   {
     name: "ABS - General",
@@ -790,7 +908,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "ABS - Black",
@@ -801,7 +920,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "ABS - White",
@@ -812,7 +932,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Black Delerin - Tan",
@@ -823,7 +944,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Golf Ball - Mark",
@@ -834,7 +956,8 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   },
   {
     name: "Nylon - General",
@@ -845,6 +968,7 @@ export const laserParameters: LaserParameter[] = [
     lineDistance: 0.025,
     hatchAngle: "45°",
     hatchPattern: "Standard",
-    notes: ""
+    notes: "",
+    source: sources.cloudray
   }
 ]; 
