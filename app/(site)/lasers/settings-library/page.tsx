@@ -9,40 +9,22 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
-export default function LaserMaterialLibraryPage() {
+export default function LaserSettingsLibraryPage() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setError(null);
     
-    try {
-      const response = await fetch('/api/convertkit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to subscribe');
-      }
-
-      // Success
+    // This is where we'll connect to ConvertKit
+    // For now, just simulate an API call
+    setTimeout(() => {
+      setIsSubmitting(false);
       setIsSubmitted(true);
       setEmail("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
-    } finally {
-      setIsSubmitting(false);
-    }
+    }, 1500);
   };
 
   const materialTypes = [
@@ -92,7 +74,6 @@ export default function LaserMaterialLibraryPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       className="flex-grow"
-                      disabled={isSubmitting}
                     />
                     <Button 
                       type="submit" 
@@ -103,9 +84,6 @@ export default function LaserMaterialLibraryPage() {
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </form>
-                  {error && (
-                    <p className="text-red-500 text-sm mt-2">{error}</p>
-                  )}
                 </>
               )}
             </div>
