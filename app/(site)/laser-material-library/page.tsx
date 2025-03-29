@@ -146,10 +146,10 @@ export default function LaserMaterialLibraryPage() {
                 
                 <TabsContent value="aluminum" className="p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="border rounded-lg p-3 bg-blue-50/20">
+                    <div className="border rounded-lg p-3 bg-blue-50/50">
                       <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium">Engrave</h4>
-                        <span className="text-xs bg-muted px-2 py-0.5 rounded-full">Verified</span>
+                        <h4 className="font-medium text-blue-800">Engrave</h4>
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Verified</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
@@ -171,10 +171,10 @@ export default function LaserMaterialLibraryPage() {
                       </div>
                     </div>
                     
-                    <div className="border rounded-lg p-3 bg-red-50/20">
+                    <div className="border rounded-lg p-3 bg-red-50/50">
                       <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium">Cut</h4>
-                        <span className="text-xs bg-muted px-2 py-0.5 rounded-full">Verified</span>
+                        <h4 className="font-medium text-red-800">Cut</h4>
+                        <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Verified</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
