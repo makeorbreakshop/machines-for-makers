@@ -86,16 +86,16 @@ export default async function MachinesPage() {
   }))
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Machines</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Machines</h1>
           <p className="text-muted-foreground mt-1">
             Manage all machine listings in the database
           </p>
         </div>
         <Link href="/admin/machines/new">
-          <Button>
+          <Button className="w-full md:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Add Machine
           </Button>
@@ -108,23 +108,23 @@ export default async function MachinesPage() {
         </div>
       )}
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+      <div className="grid gap-4">
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-2 md:pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <CardTitle>All Machines</CardTitle>
                 <CardDescription>
                   {safeData.length} machines in database
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Database className="h-4 w-4" />
-                <span className="text-sm">Last updated: {new Date().toLocaleDateString()}</span>
+                <span>Last updated: {new Date().toLocaleDateString()}</span>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0 md:p-3">
             <Suspense fallback={<TableSkeleton columns={7} rows={10} />}>
               <MachinesTable data={safeData} />
             </Suspense>
@@ -134,4 +134,3 @@ export default async function MachinesPage() {
     </div>
   )
 }
-

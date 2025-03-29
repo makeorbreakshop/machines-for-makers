@@ -25,8 +25,10 @@ export default async function EditMachinePage({
     // Get categories and brands for the form
     const [categoriesResponse, brandsResponse] = await Promise.all([
       supabase.from("categories").select("*").order("name"),
-      supabase.from("brands").select("*").order("name"),
+      supabase.from("brands").select("*").order("Name"),
     ])
+
+    console.log("Brands for new machine:", brandsResponse);
 
     return (
       <div>
@@ -46,8 +48,11 @@ export default async function EditMachinePage({
   // Get categories and brands for the form
   const [categoriesResponse, brandsResponse] = await Promise.all([
     supabase.from("categories").select("*").order("name"),
-    supabase.from("brands").select("*").order("name"),
+    supabase.from("brands").select("*").order("Name"),
   ])
+
+  console.log("Brands for existing machine:", brandsResponse);
+  console.log("Machine company value:", machine["Company"]);
 
   // Helper function to convert "Yes"/"No" strings to boolean values
   const stringToBoolean = (value: string | null): boolean => {
@@ -82,6 +87,7 @@ export default async function EditMachinePage({
     wifi: stringToBoolean(machine["Wifi"]),
     camera: stringToBoolean(machine["Camera"]),
     passthrough: stringToBoolean(machine["Passthrough"]),
+    auto_focus: stringToBoolean(machine["Auto Focus"]),
     controller: machine["Controller"],
     software: machine["Software"],
     warranty: machine["Warranty"],
@@ -112,4 +118,3 @@ export default async function EditMachinePage({
     </div>
   )
 }
-
