@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Tag, Laptop2, Tv } from "lucide-react"
+import { Tag, Laptop2, Tv, FlameKindling } from "lucide-react"
 import Image from "next/image"
 import { createServerClient } from "@/lib/supabase/server"
 
@@ -69,6 +69,13 @@ export default async function Navbar() {
               >
                 <Laptop2 className="h-4 w-4 mr-1.5" />
                 Compare Products
+              </Link>
+              <Link 
+                href="/laser-material-library" 
+                className="flex items-center text-sm font-medium hover:text-primary"
+              >
+                <FlameKindling className="h-4 w-4 mr-1.5" />
+                Material Library
               </Link>
               <Link 
                 href="/promo-codes" 
