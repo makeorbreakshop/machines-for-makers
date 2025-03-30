@@ -188,6 +188,7 @@ function transformMachineData(data: any): any {
     is_featured: data["Is A Featured Resource?"],
     favorited: data["Favorited"],
     hidden: data["Hidden"],
+    product_link: data["Product Link"],
     laser_frequency: data["Laser Frequency"],
     pulse_width: data["Pulse Width"],
     best_for: data["Best for:"],

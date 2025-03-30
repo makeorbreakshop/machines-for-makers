@@ -24,15 +24,15 @@ export async function GET(request: NextRequest) {
   const brands = searchParams.getAll("brand")
   const features = searchParams.getAll("feature")
 
-  // Create Supabase client
+  // Create Supabase client with service role key to bypass RLS
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ error: "Supabase credentials not configured" }, { status: 500 })
   }
 
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey)
+  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
 
   try {
     // Build query
@@ -178,6 +178,98 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error("Error fetching machines:", error?.message, error?.details || error)
     return NextResponse.json({ error: "Failed to fetch machines", details: error?.message || String(error) }, { status: 500 })
+  }
+}
+
+export async function POST(request: Request) {
+  // Create Supabase client with service role key to bypass RLS
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return NextResponse.json({ error: "Supabase credentials not configured" }, { status: 500 })
+  }
+
+  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
+
+  try {
+    // Get machine data from request
+    const machineData = await request.json()
+    
+    // Ensure machine name is provided
+    if (!machineData.machine_name) {
+      return NextResponse.json({ error: "Machine name is required" }, { status: 400 })
+    }
+    
+    // Transform data to match database column names
+    const dbData = {
+      "Machine Name": machineData.machine_name,
+      "Internal link": machineData.slug || machineData.machine_name.toLowerCase().replace(/[^\w\s]/gi, "").replace(/\s+/g, "-"),
+      "Company": machineData.company,
+      "Machine Category": machineData.machine_category,
+      "Laser Category": machineData.laser_category,
+      "Price": machineData.price,
+      "Rating": machineData.rating,
+      "Award": machineData.award,
+      "Laser Type A": machineData.laser_type_a,
+      "Laser Power A": machineData.laser_power_a,
+      "Laser Type B": machineData.laser_type_b,
+      "LaserPower B": machineData.laser_power_b,
+      "Work Area": machineData.work_area,
+      "Speed": machineData.speed,
+      "Height": machineData.height,
+      "Machine Size": machineData.machine_size,
+      "Acceleration": machineData.acceleration,
+      "Software": machineData.software,
+      "Focus": machineData.focus,
+      "Enclosure": machineData.enclosure ? "Yes" : "No",
+      "Wifi": machineData.wifi ? "Yes" : "No",
+      "Camera": machineData.camera ? "Yes" : "No",
+      "Passthrough": machineData.passthrough ? "Yes" : "No",
+      "Controller": machineData.controller,
+      "Warranty": machineData.warranty,
+      "Excerpt (Short)": machineData.excerpt_short,
+      "Description": machineData.description,
+      "Highlights": machineData.highlights,
+      "Drawbacks": machineData.drawbacks,
+      "Is A Featured Resource?": machineData.is_featured ? "true" : "false",
+      // Set hidden to true by default for all new machines
+      "Hidden": "true",
+      "Image": machineData.image_url,
+      "Product Link": machineData.product_link,
+      "Affiliate Link": machineData.affiliate_link,
+      "YouTube Review": machineData.youtube_review,
+      "Laser Frequency": machineData.laser_frequency,
+      "Pulse Width": machineData.pulse_width,
+      "Laser Source Manufacturer": machineData.laser_source_manufacturer,
+      // Set timestamps
+      "Created On": new Date().toISOString(),
+      "Updated On": new Date().toISOString(),
+    }
+
+    // Insert into database
+    const { data, error } = await supabase
+      .from("machines")
+      .insert(dbData)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error creating machine:", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Return success with machine data and confirmation message
+    return NextResponse.json({
+      message: "Machine created successfully! The machine will remain hidden until all required fields are filled.",
+      data
+    })
+  } catch (error: any) {
+    console.error("Error creating machine:", error)
+    return NextResponse.json({ 
+      error: "Failed to create machine", 
+      details: error?.message || String(error) 
+    }, { status: 500 })
   }
 }
 

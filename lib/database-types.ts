@@ -181,3 +181,18 @@ export type Brand = {
   updated_at: string
 }
 
+// Interface for brands as they exist in the database with uppercase property names
+export interface BrandFromDB {
+  id: string
+  "Name": string
+  "Slug": string
+  "Collection ID": string | null
+  "Locale ID": string | null
+  "Item ID": string | null
+  "Created On": string | null
+  "Updated On": string | null
+  "Published On": string | null
+  "Website": string | null
+  "Logo": string | null
+}
+
