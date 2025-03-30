@@ -256,21 +256,11 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error("Error creating machine:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Return success with machine data and confirmation message
-    return NextResponse.json({
-      message: "Machine created successfully! The machine will remain hidden until all required fields are filled.",
-      data
-    })
-  } catch (error: any) {
-    console.error("Error creating machine:", error)
-    return NextResponse.json({ 
-      error: "Failed to create machine", 
-      details: error?.message || String(error) 
-    }, { status: 500 })
+    return NextResponse.json({ data })
+  } catch (error) {
+    return NextResponse.json({ error: "Invalid request data" }, { status: 400 })
   }
 }
-
