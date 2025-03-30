@@ -54,8 +54,8 @@ export default async function EditMachinePage({
     supabase.from("brands").select("*").order("Name"),
   ])
 
-  console.log("Brands for existing machine:", brandsResponse.data?.length || 0)
-  console.log("Machine company value:", machine["Company"])
+  console.log("Brands for existing machine:", brandsResponse);
+  console.log("Machine company value:", machine["Company"]);
 
   // Helper function to convert "Yes"/"No" strings to boolean values
   const stringToBoolean = (value: string | null): boolean => {
@@ -98,6 +98,7 @@ export default async function EditMachinePage({
     wifi: stringToBoolean(machine["Wifi"]),
     camera: stringToBoolean(machine["Camera"]),
     passthrough: stringToBoolean(machine["Passthrough"]),
+    auto_focus: stringToBoolean(machine["Auto Focus"]),
     controller: machine["Controller"],
     software: machine["Software"],
     warranty: machine["Warranty"],
@@ -129,4 +130,3 @@ export default async function EditMachinePage({
     </div>
   )
 }
-
