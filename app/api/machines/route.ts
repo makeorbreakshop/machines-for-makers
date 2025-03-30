@@ -24,15 +24,16 @@ export async function GET(request: NextRequest) {
   const brands = searchParams.getAll("brand")
   const features = searchParams.getAll("feature")
 
-  // Create Supabase client with service role key to bypass RLS
+  // Create Supabase client with anonymous key for reading public data
+  // Using anon key instead of service role key to fix production API key error
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!supabaseUrl || !supabaseServiceKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return NextResponse.json({ error: "Supabase credentials not configured" }, { status: 500 })
   }
 
-  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
+  const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 
   try {
     // Build query
@@ -236,7 +237,7 @@ export async function POST(request: Request) {
       // Set hidden to true by default for all new machines
       "Hidden": "true",
       "Image": machineData.image_url,
-      "Product Link": machineData.product_link,
+      "product_link": machineData.product_link,
       "Affiliate Link": machineData.affiliate_link,
       "YouTube Review": machineData.youtube_review,
       "Laser Frequency": machineData.laser_frequency,

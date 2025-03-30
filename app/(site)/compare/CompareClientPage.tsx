@@ -46,14 +46,19 @@ declare global {
 
 // Helper function for laser type matching - extracted to ensure consistent matching logic
 function matchesLaserType(product: Machine, laserType: string): boolean {
-  const normalizedType = laserType.toLowerCase().trim();
-  const productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
-  const productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
+  // Normalize by converting to lowercase, trimming spaces, and standardizing format
+  // - Replace spaces with dashes to match database format
+  // - Convert everything to lowercase for case-insensitive comparison
+  const normalizedType = laserType.toLowerCase().trim().replace(/ /g, '-');
+  
+  // Get the product's laser types and normalize them the same way
+  let productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
+  let productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
   
   console.log(`DEBUG MATCHING: Checking if machine "${product["Machine Name"]}" matches laser type "${normalizedType}"`);
   console.log(`DEBUG MATCHING: Machine has Laser Type A = "${productLaserTypeA}", Laser Type B = "${productLaserTypeB}"`);
   
-  // Direct matching on Laser Type fields (case-insensitive)
+  // Direct matching on Laser Type fields (case-insensitive with normalized format)
   const isMatch = productLaserTypeA === normalizedType || productLaserTypeB === normalizedType;
   console.log(`DEBUG MATCHING: Match result: ${isMatch}`);
   return isMatch;
@@ -414,11 +419,11 @@ export default function CompareClientPage({
   // Define the laser type mapping between UI display names and database values
   const laserTypeMap = useMemo(() => ({
     "Fiber": "Fiber",
-    "Infrared": "infrared", // Use correct spelling
+    "Infrared": "Infrared",
     "MOPA": "MOPA",
-    "CO2 RF": "co2-rf",
-    "CO2 Glass": "co2-glass", 
-    "Diode": "diode",
+    "CO2 RF": "CO2-RF",
+    "CO2 Glass": "CO2-Glass",
+    "Diode": "Diode",
   }), []);
   
   const [products, setProducts] = useState<Machine[]>(initialProducts)

@@ -63,6 +63,11 @@ export default async function EditMachinePage({
     return ["yes", "true", "1"].includes(value.toLowerCase());
   };
 
+  // Helper function to convert null to empty strings
+  const nullToEmptyString = (value: string | null): string => {
+    return value === null ? "" : value;
+  };
+
   // Log boolean conversion results for debugging
   console.log("Enclosure string value:", machine["Enclosure"])
   console.log("Enclosure converted to boolean:", stringToBoolean(machine["Enclosure"]))
@@ -74,49 +79,48 @@ export default async function EditMachinePage({
   // Transform the machine data to match the expected form field names
   const transformedMachine: MachineFormData = {
     id: machine.id,
-    machine_name: machine["Machine Name"],
-    slug: machine["Internal link"],
-    company: machine["Company"],
-    machine_category: machine["Machine Category"],
-    laser_category: machine["Laser Category"],
+    machine_name: nullToEmptyString(machine["Machine Name"]),
+    slug: nullToEmptyString(machine["Internal link"]),
+    company: nullToEmptyString(machine["Company"]),
+    machine_category: nullToEmptyString(machine["Machine Category"]),
+    laser_category: nullToEmptyString(machine["Laser Category"]),
     price: machine["Price"],
     rating: machine["Rating"],
-    award: machine["Award"],
-    laser_type_a: machine["Laser Type A"],
-    laser_power_a: machine["Laser Power A"],
-    laser_type_b: machine["Laser Type B"],
-    laser_power_b: machine["LaserPower B"],
-    work_area: machine["Work Area"],
-    speed: machine["Speed"],
-    height: machine["Height"],
-    machine_size: machine["Machine Size"],
-    acceleration: machine["Acceleration"],
-    laser_frequency: machine["Laser Frequency"],
-    pulse_width: machine["Pulse Width"],
-    focus: machine["Focus"],
+    award: nullToEmptyString(machine["Award"]),
+    laser_type_a: nullToEmptyString(machine["Laser Type A"]),
+    laser_power_a: nullToEmptyString(machine["Laser Power A"]),
+    laser_type_b: nullToEmptyString(machine["Laser Type B"]),
+    laser_power_b: nullToEmptyString(machine["LaserPower B"]),
+    work_area: nullToEmptyString(machine["Work Area"]),
+    speed: nullToEmptyString(machine["Speed"]),
+    height: nullToEmptyString(machine["Height"]),
+    machine_size: nullToEmptyString(machine["Machine Size"]),
+    acceleration: nullToEmptyString(machine["Acceleration"]),
+    laser_frequency: nullToEmptyString(machine["Laser Frequency"]),
+    pulse_width: nullToEmptyString(machine["Pulse Width"]),
+    focus: nullToEmptyString(machine["Focus"]),
     enclosure: stringToBoolean(machine["Enclosure"]),
     wifi: stringToBoolean(machine["Wifi"]),
     camera: stringToBoolean(machine["Camera"]),
     passthrough: stringToBoolean(machine["Passthrough"]),
-    auto_focus: stringToBoolean(machine["Auto Focus"]),
-    controller: machine["Controller"],
-    software: machine["Software"],
-    warranty: machine["Warranty"],
-    laser_source_manufacturer: machine["Laser Source Manufacturer"],
-    excerpt_short: machine["Excerpt (Short)"],
-    description: machine["Description"],
-    highlights: machine["Highlights"],
-    drawbacks: machine["Drawbacks"],
+    controller: nullToEmptyString(machine["Controller"]),
+    software: nullToEmptyString(machine["Software"]),
+    warranty: nullToEmptyString(machine["Warranty"]),
+    laser_source_manufacturer: nullToEmptyString(machine["Laser Source Manufacturer"]),
+    excerpt_short: nullToEmptyString(machine["Excerpt (Short)"]),
+    description: nullToEmptyString(machine["Description"]),
+    highlights: nullToEmptyString(machine["Highlights"]),
+    drawbacks: nullToEmptyString(machine["Drawbacks"]),
     is_featured: stringToBoolean(machine["Is A Featured Resource?"]),
     hidden: stringToBoolean(machine["Hidden"]),
-    image_url: machine["Image"],
-    product_link: machine["Product Link"],
-    affiliate_link: machine["Affiliate Link"],
-    youtube_review: machine["YouTube Review"],
+    image_url: nullToEmptyString(machine["Image"]),
+    product_link: nullToEmptyString(machine["product_link"]),
+    affiliate_link: nullToEmptyString(machine["Affiliate Link"]),
+    youtube_review: nullToEmptyString(machine["YouTube Review"]),
     // Include created/updated dates
-    created_at: machine["Created On"],
-    updated_at: machine["Updated On"],
-    published_at: machine["Published On"],
+    created_at: nullToEmptyString(machine["Created On"]),
+    updated_at: nullToEmptyString(machine["Updated On"]),
+    published_at: nullToEmptyString(machine["Published On"]),
   }
 
   return (

@@ -94,7 +94,7 @@ export async function PUT(
       "Is A Featured Resource?": machineData.is_featured ? "true" : "false",
       "Hidden": machineData.hidden ? "true" : "false",
       "Image": machineData.image_url,
-      "Product Link": machineData.product_link,
+      "product_link": machineData.product_link,
       "Affiliate Link": machineData.affiliate_link,
       "YouTube Review": machineData.youtube_review,
       "Laser Frequency": machineData.laser_frequency,

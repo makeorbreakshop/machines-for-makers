@@ -22,6 +22,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { FileUpload } from "@/components/admin/file-upload"
 
 // Define the form schema
 const formSchema = z.object({
@@ -878,7 +879,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
             <Card>
               <CardContent className="pt-6">
                 {/* Combined Accordion for all specifications */}
-                <Accordion type="multiple" defaultValue={["laser-config", "physical-specs", "tech-specs"]}>
+                <Accordion type="multiple" defaultValue={["laser-config", "physical-specs", "tech-specs", "features"]}>
                   {/* Laser Configuration */}
                   <AccordionItem value="laser-config" id="laser-config">
                     <AccordionTrigger>Laser Configuration</AccordionTrigger>
@@ -1132,6 +1133,115 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                       </div>
                     </AccordionContent>
                   </AccordionItem>
+
+                  {/* Features Section */}
+                  <AccordionItem value="features" id="features">
+                    <AccordionTrigger>Features</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                        <FormField
+                          control={form.control}
+                          name="enclosure"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center space-x-2 rounded-md border p-3">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <FormLabel className="flex-1 cursor-pointer">Enclosed Design</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="wifi"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center space-x-2 rounded-md border p-3">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <FormLabel className="flex-1 cursor-pointer">WiFi Connectivity</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="camera"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center space-x-2 rounded-md border p-3">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <FormLabel className="flex-1 cursor-pointer">Built-in Camera</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="passthrough"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center space-x-2 rounded-md border p-3">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <FormLabel className="flex-1 cursor-pointer">Pass-Through Slots</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="software"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Software Compatibility</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  {...field} 
+                                  value={field.value ?? ""}
+                                  placeholder="e.g. LightBurn, LaserGRBL"
+                                />
+                              </FormControl>
+                              <FormDescription>List compatible software, including LightBurn if applicable</FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={form.control}
+                          name="controller"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Controller Type</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  {...field} 
+                                  value={field.value ?? ""}
+                                  placeholder="e.g. Ruida, GRBL, Custom"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
                 </Accordion>
               </CardContent>
             </Card>
@@ -1243,10 +1353,48 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     name="image_url"
                     render={({ field }) => (
                       <FormItem>
-                        <PublishRequiredFormLabel>Image URL</PublishRequiredFormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <PublishRequiredFormLabel>Machine Image</PublishRequiredFormLabel>
+                        <div className="space-y-4">
+                          {field.value && (
+                            <div className="relative w-full max-w-sm border rounded-md overflow-hidden">
+                              <img 
+                                src={field.value} 
+                                alt="Machine preview" 
+                                className="w-full h-auto object-contain"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = "/placeholder-image.svg";
+                                }}
+                              />
+                            </div>
+                          )}
+                          <div className="grid grid-cols-1 gap-4">
+                            <div>
+                              <FormLabel className="text-sm text-muted-foreground">Option 1: Upload Image</FormLabel>
+                              <FileUpload 
+                                onUploadComplete={(url) => {
+                                  field.onChange(url);
+                                  form.trigger("image_url");
+                                }} 
+                              />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <FormLabel className="text-sm text-muted-foreground">Option 2: Enter Image URL</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder="https://example.com/image.jpg" 
+                                  {...field} 
+                                  onChange={(e) => {
+                                    field.onChange(e.target.value);
+                                    form.trigger("image_url");
+                                  }}
+                                />
+                              </FormControl>
+                            </div>
+                          </div>
+                        </div>
+                        <FormDescription>
+                          Upload a product image or enter an image URL. Images should be in JPG, PNG or WebP format.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
