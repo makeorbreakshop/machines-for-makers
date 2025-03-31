@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import TranscriptionService from '@/lib/services/transcription-service';
+import { requireAdminAuth } from '@/lib/auth-utils';
+
+// Set the configuration for this API route
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // Maximum duration in seconds (5 minutes)
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Check admin authentication
+    const adminAuth = await requireAdminAuth();
+    if (!adminAuth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
     const { id } = params;
     
     if (!id) {

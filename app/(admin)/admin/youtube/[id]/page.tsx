@@ -79,25 +79,30 @@ export default function YouTubeVideoPage({ params }: { params: { id: string } })
     },
   });
 
-  // Add a new mutation for transcription
+  // Update the transcribe mutation to provide better feedback
   const transcribeMutation = useMutation({
     mutationFn: async () => {
+      toast.info("Starting transcription process. This may take a few minutes...", {
+        duration: 5000,
+      });
+      
       const response = await fetch(`/api/admin/youtube/videos/${params.id}/transcribe`, {
         method: 'POST',
       });
       
       if (!response.ok) {
-        throw new Error('Failed to transcribe video');
+        const errorData = await response.json();
+        throw new Error(errorData.details || 'Failed to transcribe video');
       }
       
       return response.json();
     },
     onSuccess: (data) => {
-      toast.success('Video transcribed successfully');
+      toast.success('Video transcribed successfully!');
       refetch(); // Refresh the data to show the new transcript
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error(`Transcription failed: ${error.message}`);
     },
   });
 
@@ -292,8 +297,14 @@ export default function YouTubeVideoPage({ params }: { params: { id: string } })
                     <Button 
                       onClick={() => transcribeMutation.mutate()} 
                       disabled={transcribeMutation.isPending}
+                      className="gap-2"
                     >
-                      {transcribeMutation.isPending ? "Transcribing..." : "Transcribe Video"}
+                      {transcribeMutation.isPending ? (
+                        <>
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+                          Transcribing...
+                        </>
+                      ) : "Transcribe Video"}
                     </Button>
                   )}
                 </CardHeader>
@@ -305,7 +316,13 @@ export default function YouTubeVideoPage({ params }: { params: { id: string } })
                   ) : (
                     <div className="text-center p-8 text-muted-foreground">
                       {transcribeMutation.isPending ? (
-                        <p>Transcribing video... This may take a few minutes.</p>
+                        <div className="space-y-4">
+                          <div className="flex justify-center">
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-blue-600"></div>
+                          </div>
+                          <p>Transcribing video... This may take a few minutes.</p>
+                          <p className="text-sm">We're downloading the audio and sending it to OpenAI for processing.</p>
+                        </div>
                       ) : (
                         <p>No transcript available. Click the Transcribe button to generate one.</p>
                       )}
@@ -355,7 +372,15 @@ export default function YouTubeVideoPage({ params }: { params: { id: string } })
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Button className="w-full" disabled={!transcript}>
+                <Button 
+                  className="w-full" 
+                  disabled={!transcript}
+                  onClick={() => {
+                    toast.info('Review generation will be implemented in the next phase', {
+                      duration: 3000,
+                    });
+                  }}
+                >
                   Generate Review
                 </Button>
               </div>

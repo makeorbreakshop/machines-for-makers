@@ -3,6 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import { YouTubeService } from './youtube-service';
 import YouTubeDbService from './youtube-db-service';
 import OpenAI from 'openai';
+import fs from 'fs';
+import ytdl from 'ytdl-core';
+import { pipeline } from 'stream/promises';
+import path from 'path';
+import { promises as fsPromises } from 'fs';
+import * as os from 'os';
 
 export class TranscriptionService {
   private supabase;
@@ -21,12 +27,10 @@ export class TranscriptionService {
     );
     this.youtubeDbService = new YouTubeDbService();
     
-    // Initialize OpenAI client if API key is available
-    if (process.env.OPENAI_API_KEY) {
-      this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY
-      });
-    }
+    // Initialize OpenAI client
+    this.openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
   }
 
   /**
@@ -52,10 +56,6 @@ export class TranscriptionService {
       // Get the audio URL
       const audioUrl = await this.youtubeService.getVideoAudioUrl(video.youtube_id);
       
-      // Create a transient file URL for OpenAI to access
-      // For production, you'd download the audio, potentially convert it, and create a File object
-      // This is a simplified approach for demonstration
-      
       // Call OpenAI Whisper API
       const openaiResponse = await this.callWhisperApi(audioUrl, video.youtube_id);
       
@@ -79,52 +79,80 @@ export class TranscriptionService {
     try {
       console.log(`Processing transcription for YouTube video: ${youtubeId}`);
       
-      // If we have the OpenAI client and this is a production environment, make the real API call
-      if (this.openai && process.env.NODE_ENV === 'production') {
-        // In a real implementation, you would:
-        // 1. Download the audio from YouTube using ytdl-core or similar
-        // 2. Convert it to a format Whisper accepts
-        // 3. Send it to OpenAI
-        
-        /*
-        // Example implementation with real file processing:
-        import fs from 'fs';
-        import ytdl from 'ytdl-core';
-        import { pipeline } from 'stream/promises';
-        import ffmpeg from 'fluent-ffmpeg';
-        
-        // Download audio from YouTube
-        const audioFilePath = `/tmp/${youtubeId}.mp3`;
-        await pipeline(
-          ytdl(audioUrl, { quality: 'highestaudio' }),
-          fs.createWriteStream(audioFilePath)
-        );
-        
-        // Convert to format accepted by Whisper if needed
-        
-        // Send to OpenAI
-        const transcription = await this.openai.audio.transcriptions.create({
-          file: fs.createReadStream(audioFilePath),
-          model: 'whisper-1',
-          response_format: 'json'
-        });
-        
-        // Clean up temp file
-        fs.unlinkSync(audioFilePath);
-        
-        return { text: transcription.text };
-        */
+      // Create temporary directory if it doesn't exist
+      const tmpDir = path.join(os.tmpdir(), 'youtube-transcription');
+      try {
+        await fsPromises.mkdir(tmpDir, { recursive: true });
+      } catch (err: any) {
+        console.log('Temp directory already exists or cannot be created');
       }
       
-      // For demo purposes or development, we'll simulate a successful response
-      console.log(`Simulating transcription for YouTube video: ${youtubeId}`);
+      // Set up file paths
+      const audioFilePath = path.join(tmpDir, `${youtubeId}.mp3`);
       
-      // Generate a simulated transcript for testing
-      return {
-        text: `This is a simulated transcript for the YouTube video ${youtubeId}. In a production environment, this would be the actual transcription from OpenAI's Whisper API. The video would be processed and the audio sent to the API for transcription.\n\nThe transcript would contain all the spoken content from the video, formatted in paragraphs with proper punctuation.\n\nIt would capture technical details, product specifications, and the reviewer's opinions about the machine being reviewed.\n\nThis transcript would then be used as the basis for generating an AI review of the product.`
-      };
-    } catch (error) {
-      console.error('Error calling Whisper API:', error);
+      console.log(`Downloading audio to ${audioFilePath}`);
+      
+      // Download audio from YouTube
+      try {
+        const videoStream = ytdl(audioUrl, { 
+          quality: 'highestaudio',
+          filter: 'audioonly'
+        });
+        
+        const writeStream = fs.createWriteStream(audioFilePath);
+        
+        // Use pipeline for proper error handling and cleanup
+        await pipeline(videoStream, writeStream);
+        
+        console.log('Audio download complete');
+      } catch (err: any) {
+        console.error('Error downloading audio:', err);
+        throw new Error(`Failed to download audio: ${err.message}`);
+      }
+      
+      // Send to OpenAI
+      try {
+        console.log('Sending to OpenAI Whisper API');
+        
+        if (!this.openai) {
+          throw new Error('OpenAI client not initialized - API key missing');
+        }
+        
+        const fileStream = fs.createReadStream(audioFilePath);
+        const fileName = path.basename(audioFilePath);
+        
+        // Create a transcription with OpenAI
+        const transcription = await this.openai.audio.transcriptions.create({
+          file: fileStream,
+          model: 'whisper-1',
+          response_format: 'text'
+        });
+        
+        console.log('Transcription complete');
+        
+        // Clean up temp file
+        try {
+          await fsPromises.unlink(audioFilePath);
+          console.log('Temporary audio file deleted');
+        } catch (err: any) {
+          console.warn('Could not delete temporary file:', err);
+        }
+        
+        return { text: transcription };
+      } catch (err: any) {
+        console.error('Error with OpenAI transcription:', err);
+        
+        // Clean up temp file even if transcription fails
+        try {
+          await fsPromises.unlink(audioFilePath);
+        } catch (cleanupErr: any) {
+          console.warn('Could not delete temporary file during error cleanup:', cleanupErr);
+        }
+        
+        throw new Error(`OpenAI transcription failed: ${err.message}`);
+      }
+    } catch (error: any) {
+      console.error('Error in transcription process:', error);
       throw error;
     }
   }
