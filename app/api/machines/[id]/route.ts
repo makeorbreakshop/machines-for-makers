@@ -3,6 +3,9 @@ import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database-types"
 
+// Specify nodejs runtime to ensure environment variables are properly accessible
+export const runtime = 'nodejs';
+
 // GET a specific machine by ID
 export async function GET(
   request: Request,
@@ -60,8 +63,20 @@ export async function PUT(
     console.log("Updating machine with ID:", params.id)
     console.log("Form data received:", JSON.stringify(machineData, null, 2))
 
+    // Fetch the current machine data to check if Hidden status is changing
+    const { data: currentMachine, error: fetchError } = await supabase
+      .from("machines")
+      .select("Hidden, \"Published On\"")
+      .eq("id", params.id)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching current machine state:", fetchError.message)
+      return NextResponse.json({ error: fetchError.message }, { status: 500 })
+    }
+
     // Transform data to match database column names (similar to POST endpoint)
-    const dbData = {
+    const dbData: Record<string, any> = {
       "Machine Name": machineData.machine_name,
       "Internal link": machineData.slug,
       "Company": machineData.company,
@@ -102,6 +117,16 @@ export async function PUT(
       "Laser Source Manufacturer": machineData.laser_source_manufacturer,
       // Update timestamp
       "Updated On": new Date().toISOString(),
+    }
+
+    // If machine is being made visible for the first time, set Published On
+    if (
+      currentMachine?.Hidden === "true" && // Was previously hidden
+      machineData.hidden === false && // Now being made visible
+      !currentMachine["Published On"] // Has never been published before
+    ) {
+      console.log("First-time publishing detected. Setting Published On date.")
+      dbData["Published On"] = new Date().toISOString();
     }
 
     console.log("Transformed data for Supabase:", JSON.stringify(dbData, null, 2))
@@ -148,4 +173,3 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid request data" }, { status: 400 })
   }
 }
-
