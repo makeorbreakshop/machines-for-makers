@@ -6,6 +6,7 @@ import "./globals.css"
 import { Sidebar } from "@/components/admin/sidebar"
 import LogoutButton from "@/components/admin/logout-button"
 import AuthProvider from "@/components/admin/auth-provider"
+import { Providers } from "@/components/admin/providers"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -37,15 +38,17 @@ export default function AdminLayout({
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
         {/* AuthProvider handles authentication for all admin pages */}
         <AuthProvider>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <div className="flex-1 p-8">
-              <div className="flex justify-end mb-4">
-                <LogoutButton />
+          <Providers>
+            <div className="flex min-h-screen">
+              <Sidebar />
+              <div className="flex-1 p-8">
+                <div className="flex justify-end mb-4">
+                  <LogoutButton />
+                </div>
+                {children}
               </div>
-              {children}
             </div>
-          </div>
+          </Providers>
         </AuthProvider>
       </ThemeProvider>
     </div>
