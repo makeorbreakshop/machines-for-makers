@@ -43,6 +43,23 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Debug info
+    console.log("===== PUT REQUEST DEBUG =====");
+    console.log("Node environment:", process.env.NODE_ENV);
+    console.log("Vercel environment:", process.env.VERCEL_ENV);
+    console.log("Request path:", request.url);
+    console.log("Request headers:", Object.fromEntries(request.headers.entries()));
+    console.log("Cookie header:", request.headers.get('cookie'));
+    console.log("Authorization header:", request.headers.get('authorization'));
+    
+    // Debug Supabase config
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    console.log("Supabase URL exists:", !!supabaseUrl);
+    console.log("Supabase Service Key exists:", !!supabaseServiceKey);
+    console.log("Supabase URL prefix:", supabaseUrl?.substring(0, 10));
+    console.log("Service Key length:", supabaseServiceKey?.length);
+    
     // Use the createAdminClient utility to ensure correct configuration
     const supabase = createAdminClient();
     
@@ -60,6 +77,11 @@ export async function PUT(
 
     if (fetchError) {
       console.error("Error fetching current machine state:", fetchError.message)
+      console.error("Fetch error details:", {
+        code: fetchError.code,
+        details: fetchError.details,
+        hint: fetchError.hint
+      });
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
 
@@ -129,7 +151,12 @@ export async function PUT(
     console.log("Machine updated successfully:", data[0].id)
     return NextResponse.json({ data: data[0] })
   } catch (error: any) {
-    console.error("Error updating machine:", error?.message || String(error), error?.stack || '')
+    console.error("Detailed error in PUT:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause,
+    });
     return NextResponse.json({ error: "Invalid request data", details: error?.message || String(error) }, { status: 400 })
   }
 }
