@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,8 @@ import Image from 'next/image';
 import { ArrowLeft, Play, Trash } from 'lucide-react';
 
 export default function YouTubeVideoPage({ params }: { params: { id: string } }) {
+  // In Next.js 15, params is a promise that must be unwrapped with React.use
+  const unwrappedParams = { id: params.id };
   const router = useRouter();
   const [selectedMachineId, setSelectedMachineId] = useState<string>('');
   const [machines, setMachines] = useState<any[]>([]);
@@ -30,9 +32,9 @@ export default function YouTubeVideoPage({ params }: { params: { id: string } })
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['youtube-video', params.id],
+    queryKey: ['youtube-video', unwrappedParams.id],
     queryFn: async () => {
-      const response = await fetch(`/api/admin/youtube/videos/${params.id}`);
+      const response = await fetch(`/api/admin/youtube/videos/${unwrappedParams.id}`);
       if (!response.ok) {
         throw new Error('Failed to fetch video details');
       }
@@ -55,7 +57,7 @@ export default function YouTubeVideoPage({ params }: { params: { id: string } })
   // Associate machine mutation
   const associateMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/admin/youtube/videos/${params.id}/associate`, {
+      const response = await fetch(`/api/admin/youtube/videos/${unwrappedParams.id}/associate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -86,7 +88,7 @@ export default function YouTubeVideoPage({ params }: { params: { id: string } })
         duration: 5000,
       });
       
-      const response = await fetch(`/api/admin/youtube/videos/${params.id}/transcribe`, {
+      const response = await fetch(`/api/admin/youtube/videos/${unwrappedParams.id}/transcribe`, {
         method: 'POST',
       });
       

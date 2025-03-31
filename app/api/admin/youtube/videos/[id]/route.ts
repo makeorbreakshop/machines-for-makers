@@ -15,7 +15,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    // In Next.js 15, params is a promise that must be awaited
+    const id = params.id;
     const dbService = new YouTubeDbService();
     
     // Get video details

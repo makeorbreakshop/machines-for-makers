@@ -161,7 +161,7 @@ export class YouTubeDbService {
   ): Promise<{ id: string; name: string }[]> {
     const { data, error } = await this.supabase
       .from('machine_videos')
-      .select('machines:machine_id("id", "Machine Name")')
+      .select('machines!fk_machine_videos_machine_id("id", "Machine Name")')
       .eq('youtube_video_id', youtubeVideoId);
 
     if (error) {

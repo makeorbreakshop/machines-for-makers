@@ -17,7 +17,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const { id } = params;
+    // In Next.js 15, params is accessed directly
+    const id = params.id;
     
     if (!id) {
       return NextResponse.json(
