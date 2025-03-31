@@ -27,12 +27,26 @@ import UnifiedFilter from "@/components/unified-filter"
 
 // Dynamically import heavy components with increased loading delay to prevent hydration issues
 const ComparisonTable = dynamic(() => import('@/components/comparison-table'), {
-  loading: () => <div className="w-full p-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Loading comparison table...</div>,
+  loading: () => (
+    <div className="w-full h-[500px] p-8 flex items-center justify-center bg-gray-50 border rounded-lg">
+      <div className="flex flex-col items-center">
+        <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+        <span>Loading comparison table...</span>
+      </div>
+    </div>
+  ),
   ssr: false
 })
 
 const EnhancedComparisonTable = dynamic(() => import('@/components/enhanced-comparison-table'), {
-  loading: () => <div className="w-full p-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Loading enhanced comparison table...</div>,
+  loading: () => (
+    <div className="w-full h-[500px] p-8 flex items-center justify-center bg-gray-50 border rounded-lg">
+      <div className="flex flex-col items-center">
+        <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+        <span>Loading enhanced comparison table...</span>
+      </div>
+    </div>
+  ),
   ssr: false
 })
 
@@ -220,29 +234,29 @@ const FeaturesList = React.memo(function FeaturesList() {
   return (
     <div className="mb-8">
       <h2 className="text-xl font-semibold mb-4">Features</h2>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5" style={{ minHeight: '80px' }}>
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Camera className="h-5 w-5 mr-2" />
+          <Camera className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>Camera</span>
         </Button>
         
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Wifi className="h-5 w-5 mr-2" />
+          <Wifi className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>WiFi</span>
         </Button>
         
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Box className="h-5 w-5 mr-2" />
+          <Box className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>Enclosure</span>
         </Button>
         
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Box className="h-5 w-5 mr-2" />
+          <Box className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>Auto Focus</span>
         </Button>
         
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Box className="h-5 w-5 mr-2" />
+          <Box className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>Passthrough</span>
         </Button>
       </div>
