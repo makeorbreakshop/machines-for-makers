@@ -19,13 +19,53 @@ export async function GET(request: Request) {
     // Get first and last characters of the service key for debugging
     // This shows enough to verify the key without exposing the full key
     const serviceKeyFirstChars = serviceKey?.substring(0, 4) || "";
-    const serviceKeyLastChars = serviceKey?.substring(serviceKey.length - 4) || "";
+    const serviceKeyLastChars = serviceKey?.length ? serviceKey.substring(serviceKey.length - 4) : "";
+    
+    // IMPORTANT: Add detailed key examination
+    const keyDetails = {
+      exactValue: serviceKey, // SECURITY: Remove this in production after debugging!
+      length: serviceKey?.length || 0,
+      startsWithDollarBrace: serviceKey?.startsWith('${') || false,
+      endsWithBrace: serviceKey?.endsWith('}') || false,
+      containsTemplateVar: serviceKey?.includes('SUPABASE_SERVICE_ROLE_KEY') || false,
+      charCodes: serviceKey?.split('').map(c => c.charCodeAt(0)),
+      base64Encoded: serviceKey ? Buffer.from(serviceKey).toString('base64') : '',
+    };
     
     // Test if key has whitespace issues
     const hasLeadingSpace = serviceKey?.startsWith(" ") || false;
     const hasTrailingSpace = serviceKey?.endsWith(" ") || false;
     const containsNewline = serviceKey?.includes("\n") || false;
     const containsCarriageReturn = serviceKey?.includes("\r") || false;
+    
+    // Try with a manually hard-coded key for testing
+    // IMPORTANT: DO NOT USE IN PRODUCTION - FOR DEBUGGING ONLY
+    // Replace this with your actual service role key temporarily for testing
+    const hardcodedKey = "YOUR_ACTUAL_SERVICE_ROLE_KEY_HERE"; // Replace this!
+    let hardcodedTest: { success: boolean, error: string | null, keyWorks?: boolean } = { 
+      success: false, 
+      error: null 
+    };
+    
+    try {
+      if (supabaseUrl && hardcodedKey !== "YOUR_ACTUAL_SERVICE_ROLE_KEY_HERE") {
+        const manualClient = createClient(supabaseUrl, hardcodedKey);
+        const { data, error } = await manualClient.from("machines").select("id").limit(1);
+        
+        hardcodedTest = {
+          success: !error,
+          error: error ? error.message : null,
+          keyWorks: !error
+        };
+      } else {
+        hardcodedTest = {
+          success: false,
+          error: "Hardcoded key not replaced or URL missing"
+        };
+      }
+    } catch (e: any) {
+      hardcodedTest.error = e.message;
+    }
     
     // Try a direct client creation with trimmed values
     let directClientTest: { success: boolean, error: string | null, urlTrimmed?: boolean, keyTrimmed?: boolean } = { 
@@ -90,8 +130,10 @@ export async function GET(request: Request) {
         containsNewline,
         containsCarriageReturn
       },
+      keyDetails, // IMPORTANT: Remove in production after debugging!
       directClientTest,
-      adminClientTest
+      adminClientTest,
+      hardcodedTest
     });
   } catch (error: any) {
     console.error("Auth test error:", error);
