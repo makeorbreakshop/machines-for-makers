@@ -23,6 +23,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { FileUpload } from "@/components/admin/file-upload"
+import Image from "next/image"
 
 // Define the form schema
 const formSchema = z.object({
@@ -1356,15 +1357,35 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                         <PublishRequiredFormLabel>Machine Image</PublishRequiredFormLabel>
                         <div className="space-y-4">
                           {field.value && (
-                            <div className="relative w-full max-w-sm border rounded-md overflow-hidden">
-                              <img 
-                                src={field.value} 
-                                alt="Machine preview" 
-                                className="w-full h-auto object-contain"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = "/placeholder-image.svg";
-                                }}
-                              />
+                            <div className="border rounded-md p-4 bg-slate-50">
+                              <p className="text-sm font-medium mb-2">Current Image</p>
+                              <div className="relative h-48 w-full max-w-md border rounded-md overflow-hidden bg-white">
+                                <Image 
+                                  src={field.value} 
+                                  alt="Machine preview"
+                                  fill
+                                  className="object-contain"
+                                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
+                                  onError={(e) => {
+                                    // Fallback to placeholder if image fails to load
+                                    (e.target as HTMLImageElement).src = "/placeholder-image.svg";
+                                  }}
+                                  priority={false}
+                                />
+                              </div>
+                              <div className="mt-2 flex justify-between items-center">
+                                <p className="text-xs text-muted-foreground">
+                                  Image will be optimized for web display: resized to max 1200px width and converted to WebP format.
+                                </p>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => field.onChange("")}
+                                  className="text-xs text-destructive hover:text-destructive/90"
+                                >
+                                  Remove
+                                </Button>
+                              </div>
                             </div>
                           )}
                           <div className="grid grid-cols-1 gap-4">
@@ -1382,7 +1403,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                               <FormControl>
                                 <Input 
                                   placeholder="https://example.com/image.jpg" 
-                                  {...field} 
+                                  value={field.value || ""}
                                   onChange={(e) => {
                                     field.onChange(e.target.value);
                                     form.trigger("image_url");
@@ -1394,6 +1415,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                         </div>
                         <FormDescription>
                           Upload a product image or enter an image URL. Images should be in JPG, PNG or WebP format.
+                          For best results, use images with a white background and at least 1200px width.
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

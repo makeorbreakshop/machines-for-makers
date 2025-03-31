@@ -253,76 +253,79 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             )}
           </div>
           
-          <div className="flex justify-end mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={resetUpload}
-              disabled={isUploading}
-            >
-              Reset
-            </Button>
-          </div>
+          {optimizationData && (
+            <div className="mt-3 flex justify-end">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={resetUpload}
+                className="text-xs"
+              >
+                Upload another
+              </Button>
+            </div>
+          )}
         </div>
       )}
-      
-      {/* Upload Area */}
-      {!preview && !optimizationData && (
-        <div 
-          className={`
-            border-2 border-dashed rounded-md p-10 
-            ${dragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/20'} 
-            transition-colors duration-200 ease-in-out
-          `}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-        >
-          <div className="flex flex-col items-center justify-center gap-3 text-center">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <Upload className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium text-sm">Drag a file here, or click to browse</p>
-              <p className="text-xs mt-1 text-muted-foreground">JPG, PNG, GIF or WebP (max 10MB)</p>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleButtonClick}
-              className="mt-2"
-              disabled={isUploading}
-            >
-              Select file
-            </Button>
-            <Input 
-              ref={inputRef}
-              type="file" 
-              className="hidden" 
-              accept={allowedFileTypes.join(',')}
-              onChange={handleFileChange} 
-              disabled={isUploading}
-            />
-          </div>
-        </div>
-      )}
-      
-      {/* Upload Progress */}
-      {isUploading && (
+
+      {/* Upload area - hide when optimization is complete */}
+      {!optimizationData && (
         <div className="space-y-2">
-          <div className="flex justify-between text-xs">
-            <span>Uploading...</span>
-            <span>{uploadProgress}%</span>
+          <div 
+            className={`border-2 border-dashed rounded-md p-4 transition-colors ${
+              dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20"
+            }`}
+            onDragEnter={handleDrag}
+            onDragOver={handleDrag}
+            onDragLeave={handleDrag}
+            onDrop={handleDrop}
+          >
+            <div className="flex flex-col items-center justify-center space-y-2 text-center">
+              <ImageIcon className="h-8 w-8 text-muted-foreground" />
+              <div className="text-sm text-muted-foreground">
+                <span className="font-medium">Drag and drop</span> your image here or{" "}
+                <span 
+                  className="cursor-pointer text-primary font-medium hover:underline"
+                  onClick={handleButtonClick}
+                >
+                  click to browse
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Supports JPG, PNG, GIF, WebP (max 10MB)
+              </div>
+              
+              <Input 
+                ref={inputRef}
+                type="file" 
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleFileChange} 
+                disabled={isUploading} 
+                className="hidden"
+              />
+              
+              {isUploading && (
+                <div className="w-full flex justify-center items-center space-x-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-xs text-muted-foreground">
+                    {uploadProgress < 50 ? "Uploading..." : "Optimizing..."} {uploadProgress}%
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-primary transition-all duration-300 ease-in-out" 
-              style={{ width: `${uploadProgress}%` }}
-            ></div>
-          </div>
+          
+          {isUploading && (
+            <div className="w-full bg-slate-200 rounded-full h-2">
+              <div
+                className="bg-primary h-2 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
+
