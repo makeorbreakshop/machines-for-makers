@@ -9,6 +9,7 @@ import { pipeline } from 'stream/promises';
 import path from 'path';
 import { promises as fsPromises } from 'fs';
 import * as os from 'os';
+import youtubeDl from 'youtube-dl-exec';
 
 export class TranscriptionService {
   private supabase;
@@ -92,22 +93,69 @@ export class TranscriptionService {
       
       console.log(`Downloading audio to ${audioFilePath}`);
       
-      // Download audio from YouTube
+      // Download audio from YouTube with improved error handling
       try {
-        const videoStream = ytdl(audioUrl, { 
-          quality: 'highestaudio',
-          filter: 'audioonly'
-        });
+        // Direct YouTube URL format
+        const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
+        console.log(`Using YouTube URL: ${youtubeUrl}`);
         
-        const writeStream = fs.createWriteStream(audioFilePath);
-        
-        // Use pipeline for proper error handling and cleanup
-        await pipeline(videoStream, writeStream);
-        
-        console.log('Audio download complete');
+        try {
+          // First attempt: Using ytdl-core
+          console.log('Trying download with ytdl-core...');
+          const videoStream = ytdl(youtubeUrl, { 
+            quality: 'highestaudio',
+            filter: 'audioonly',
+            requestOptions: {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+              }
+            }
+          });
+          
+          // Add error event handling for the stream
+          videoStream.on('error', (err) => {
+            console.error('Video stream error:', err);
+          });
+          
+          const writeStream = fs.createWriteStream(audioFilePath);
+          writeStream.on('error', (err) => {
+            console.error('Write stream error:', err);
+          });
+          
+          // Use pipeline for proper error handling and cleanup
+          await pipeline(videoStream, writeStream);
+          
+          console.log('Audio download complete with ytdl-core');
+        } catch (ytdlErr) {
+          console.error('ytdl-core download failed, trying youtube-dl-exec as fallback:', ytdlErr);
+          
+          // Second attempt: Using youtube-dl-exec as fallback
+          try {
+            await youtubeDl(youtubeUrl, {
+              extractAudio: true,
+              audioFormat: 'mp3',
+              audioQuality: 0, // Best quality
+              output: audioFilePath,
+              noCheckCertificates: true,
+              noWarnings: true,
+              preferFreeFormats: true,
+              addHeader: ['User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36']
+            });
+            
+            console.log('Audio download complete with youtube-dl-exec');
+          } catch (youtubeDlErr: any) {
+            console.error('Both download methods failed:', youtubeDlErr);
+            throw new Error(`All download methods failed. YouTube may be blocking downloads: ${youtubeDlErr.message}`);
+          }
+        }
       } catch (err: any) {
         console.error('Error downloading audio:', err);
-        throw new Error(`Failed to download audio: ${err.message}`);
+        // Create a more descriptive error message
+        let errorMessage = `Failed to download audio: ${err.message}`;
+        if (err.message?.includes('functions') || err.message?.includes('extract')) {
+          errorMessage = 'YouTube download failed. This may be due to YouTube restrictions or a temporary issue.';
+        }
+        throw new Error(errorMessage);
       }
       
       // Send to OpenAI

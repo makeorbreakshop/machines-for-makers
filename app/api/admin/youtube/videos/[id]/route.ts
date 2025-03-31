@@ -16,7 +16,8 @@ export async function GET(
     }
 
     // In Next.js 15, params is a promise that must be awaited
-    const id = params.id;
+    const unwrappedParams = await params;
+    const id = unwrappedParams.id;
     const dbService = new YouTubeDbService();
     
     // Get video details
