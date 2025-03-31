@@ -429,6 +429,18 @@ export class YouTubeService {
       totalResults: videos.length,
     };
   }
+
+  /**
+   * Get YouTube video audio URL for transcription
+   */
+  async getVideoAudioUrl(videoId: string): Promise<string> {
+    // For production, you would use a proper YouTube audio extraction service or library
+    // This is a simplified approach that works for demonstration purposes
+    // You can replace this with a more robust solution
+    
+    // Return the audio URL format that can be used with ytdl-core or similar libraries
+    return `https://www.youtube.com/watch?v=${videoId}`;
+  }
 }
 
 export default YouTubeService; 

@@ -79,6 +79,28 @@ export default function YouTubeVideoPage({ params }: { params: { id: string } })
     },
   });
 
+  // Add a new mutation for transcription
+  const transcribeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/admin/youtube/videos/${params.id}/transcribe`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to transcribe video');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast.success('Video transcribed successfully');
+      refetch(); // Refresh the data to show the new transcript
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   // Update machines list when data changes
   useEffect(() => {
     if (machinesData?.machines) {
@@ -266,18 +288,27 @@ export default function YouTubeVideoPage({ params }: { params: { id: string } })
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Transcript</CardTitle>
-                  <Button variant="outline" disabled={video?.status !== 'new'}>
-                    {video?.status === 'transcribed' ? 'Refresh Transcript' : 'Generate Transcript'}
-                  </Button>
+                  {!transcript && (
+                    <Button 
+                      onClick={() => transcribeMutation.mutate()} 
+                      disabled={transcribeMutation.isPending}
+                    >
+                      {transcribeMutation.isPending ? "Transcribing..." : "Transcribe Video"}
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent>
                   {transcript ? (
-                    <div className="whitespace-pre-line bg-slate-50 p-4 rounded-md max-h-[500px] overflow-y-auto">
+                    <div className="whitespace-pre-line bg-slate-50 p-4 rounded-md max-h-96 overflow-y-auto">
                       {transcript}
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center h-40">
-                      <p className="text-muted-foreground">No transcript available</p>
+                    <div className="text-center p-8 text-muted-foreground">
+                      {transcribeMutation.isPending ? (
+                        <p>Transcribing video... This may take a few minutes.</p>
+                      ) : (
+                        <p>No transcript available. Click the Transcribe button to generate one.</p>
+                      )}
                     </div>
                   )}
                 </CardContent>
