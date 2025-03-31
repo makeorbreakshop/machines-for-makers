@@ -6,9 +6,6 @@ import { createAdminClient } from "@/lib/supabase/admin"
 // Specify nodejs runtime to ensure environment variables are properly accessible
 export const runtime = 'nodejs';
 
-// Specify nodejs runtime to ensure environment variables are properly accessible
-export const runtime = 'nodejs';
-
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
 
