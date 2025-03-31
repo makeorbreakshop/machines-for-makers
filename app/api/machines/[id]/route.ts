@@ -1,4 +1,5 @@
 import { createServerClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database-types"
@@ -11,17 +12,10 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  // Create Supabase client with service role key to bypass RLS
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ error: "Supabase credentials not configured" }, { status: 500 })
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
-
   try {
+    // Use the createAdminClient utility to ensure correct configuration
+    const supabase = createAdminClient();
+
     const { data, error } = await supabase
       .from("machines")
       .select(`
@@ -37,8 +31,9 @@ export async function GET(
     }
 
     return NextResponse.json({ data })
-  } catch (error) {
-    return NextResponse.json({ error: "Invalid request data" }, { status: 400 })
+  } catch (error: any) {
+    console.error("Error fetching machine:", error?.message || error);
+    return NextResponse.json({ error: "Invalid request data", details: error?.message || error }, { status: 400 })
   }
 }
 
@@ -47,17 +42,10 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  // Create Supabase client with service role key to bypass RLS
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ error: "Supabase credentials not configured" }, { status: 500 })
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
-
   try {
+    // Use the createAdminClient utility to ensure correct configuration
+    const supabase = createAdminClient();
+    
     const machineData = await request.json()
     
     console.log("Updating machine with ID:", params.id)
@@ -151,17 +139,10 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  // Create Supabase client with service role key to bypass RLS
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ error: "Supabase credentials not configured" }, { status: 500 })
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
-
   try {
+    // Use the createAdminClient utility to ensure correct configuration
+    const supabase = createAdminClient();
+
     const { error } = await supabase.from("machines").delete().eq("id", params.id)
 
     if (error) {
@@ -169,7 +150,8 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true })
-  } catch (error) {
-    return NextResponse.json({ error: "Invalid request data" }, { status: 400 })
+  } catch (error: any) {
+    console.error("Error deleting machine:", error?.message || error);
+    return NextResponse.json({ error: "Invalid request data", details: error?.message || error }, { status: 400 })
   }
 }

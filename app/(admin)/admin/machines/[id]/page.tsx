@@ -6,6 +6,8 @@ import { requireAdminAuth } from "@/lib/auth-utils"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
+// Add nodejs runtime as per DEVELOPMENT_GUIDELINES for server components using Supabase
+export const runtime = 'nodejs'
 
 // Define the form data type
 interface MachinePageProps {

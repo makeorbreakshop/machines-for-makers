@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database-types"
+import { createAdminClient } from "@/lib/supabase/admin"
+
+// Specify nodejs runtime to ensure environment variables are properly accessible
+export const runtime = 'nodejs';
 
 // Specify nodejs runtime to ensure environment variables are properly accessible
 export const runtime = 'nodejs';
@@ -186,17 +190,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
-  // Create Supabase client with service role key to bypass RLS
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ error: "Supabase credentials not configured" }, { status: 500 })
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
-
   try {
+    // Use the createAdminClient utility to ensure correct configuration
+    const supabase = createAdminClient();
+
     // Get machine data from request
     const machineData = await request.json()
     

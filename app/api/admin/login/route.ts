@@ -68,8 +68,8 @@ console.log("ADMIN_PASSWORD exists in env, raw length:", process.env.ADMIN_PASSW
 console.log("ADMIN_PASSWORD cleaned length:", cleanEnvPassword.length)
 console.log("ADMIN_PASSWORD first 3 chars:", cleanEnvPassword.substring(0, 3))
 
-// Use edge runtime to ensure consistent behavior
-export const runtime = 'edge';
+// Use nodejs runtime to ensure environment variables are properly accessible
+export const runtime = 'nodejs';
 
 // Helper function to convert ArrayBuffer to Base64 string
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
