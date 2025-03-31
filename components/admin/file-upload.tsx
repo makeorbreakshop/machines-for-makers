@@ -2,21 +2,51 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Upload, Loader2, ImageIcon } from "lucide-react"
+import { Upload, Loader2, ImageIcon, FileIcon, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
+import Image from "next/image"
 
 interface FileUploadProps {
   onUploadComplete: (url: string) => void
+}
+
+interface OptimizationData {
+  originalSize: number;
+  optimizedSize: number;
+  compressionRatio: string;
+  url: string;
+  originalDimensions?: {
+    width: number;
+    height: number;
+  };
+  optimizedDimensions?: {
+    width: number;
+    height: number;
+  };
+  processing?: {
+    resized: boolean;
+    format: string;
+  };
 }
 
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [dragActive, setDragActive] = useState(false)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [originalFile, setOriginalFile] = useState<File | null>(null)
+  const [optimizationData, setOptimizationData] = useState<OptimizationData | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  
+  // Clean up preview URL when component unmounts
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview)
+    }
+  }, [preview])
   
   const allowedFileTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"]
 
@@ -38,8 +68,14 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const handleFileUpload = async (file: File) => {
     if (!file || !validateFile(file)) return;
 
+    // Create preview
+    const previewUrl = URL.createObjectURL(file)
+    setPreview(previewUrl)
+    setOriginalFile(file)
+    
     setIsUploading(true)
     setUploadProgress(0)
+    setOptimizationData(null)
 
     try {
       // Create form data
@@ -66,26 +102,34 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       clearInterval(progressInterval)
 
       if (!response.ok) {
-        throw new Error("Upload failed")
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error("Upload error details:", errorData);
+        throw new Error(errorData.message || errorData.error || "Upload failed");
       }
 
       const data = await response.json()
       setUploadProgress(100)
 
-      // Call the callback with the uploaded file URL
-      onUploadComplete(data.url)
-      
-      // Show success message with optimization details
+      // Save optimization data
       if (data.originalSize && data.optimizedSize) {
-        toast.success(`Image uploaded and optimized`, {
-          description: `Reduced from ${formatBytes(data.originalSize)} to ${formatBytes(data.optimizedSize)} (${data.compressionRatio} smaller)`
+        setOptimizationData(data)
+        
+        const optimizationMessage = data.processing?.resized
+          ? `Resized and converted to WebP`
+          : `Converted to WebP format`;
+        
+        toast.success(`Image upload successful`, {
+          description: `${optimizationMessage}. Size reduced from ${formatBytes(data.originalSize)} to ${formatBytes(data.optimizedSize)} (${data.compressionRatio} smaller)`
         });
       } else {
         toast.success("Image uploaded successfully");
       }
+
+      // Call the callback with the uploaded file URL
+      onUploadComplete(data.url)
     } catch (error) {
       console.error("Error uploading file:", error)
-      toast.error("Error uploading file. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Error uploading file. Please try again.");
     } finally {
       setIsUploading(false)
       // Reset the input
@@ -135,61 +179,150 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     inputRef.current?.click()
   }
 
+  const resetUpload = () => {
+    setPreview(null)
+    setOriginalFile(null)
+    setOptimizationData(null)
+    if (inputRef.current) inputRef.current.value = ""
+  }
+
   return (
-    <div className="space-y-2">
-      <div 
-        className={`border-2 border-dashed rounded-md p-4 transition-colors ${
-          dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20"
-        }`}
-        onDragEnter={handleDrag}
-        onDragOver={handleDrag}
-        onDragLeave={handleDrag}
-        onDrop={handleDrop}
-      >
-        <div className="flex flex-col items-center justify-center space-y-2 text-center">
-          <ImageIcon className="h-8 w-8 text-muted-foreground" />
-          <div className="text-sm text-muted-foreground">
-            <span className="font-medium">Drag and drop</span> your image here or{" "}
-            <span 
-              className="cursor-pointer text-primary font-medium hover:underline"
-              onClick={handleButtonClick}
+    <div className="space-y-4">
+      {/* Preview area */}
+      {(preview || optimizationData) && (
+        <div className="rounded-md border p-4 bg-slate-50">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {preview && (
+              <div className="relative min-w-32 max-w-48">
+                <p className="text-xs font-medium mb-1 text-muted-foreground">Original</p>
+                <div className="relative h-32 border rounded-md overflow-hidden bg-white">
+                  <Image
+                    src={preview}
+                    alt="Original preview"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 768px) 100vw, 192px"
+                  />
+                </div>
+                {originalFile && (
+                  <div className="mt-1 space-y-0.5">
+                    <p className="text-xs text-muted-foreground">{formatBytes(originalFile.size)}</p>
+                    {optimizationData?.originalDimensions && (
+                      <p className="text-xs text-muted-foreground">
+                        {optimizationData.originalDimensions.width} × {optimizationData.originalDimensions.height} px
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {optimizationData && (
+              <div className="relative min-w-32 max-w-48">
+                <div className="flex items-center gap-1">
+                  <p className="text-xs font-medium mb-1 text-muted-foreground">Optimized</p>
+                  <CheckCircle className="h-3 w-3 text-green-500" />
+                </div>
+                <div className="relative h-32 border rounded-md overflow-hidden bg-white">
+                  <Image
+                    src={optimizationData.url}
+                    alt="Optimized preview"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 768px) 100vw, 192px"
+                  />
+                </div>
+                <div className="mt-1 space-y-0.5">
+                  <p className="text-xs text-muted-foreground">
+                    {formatBytes(optimizationData.optimizedSize)} 
+                    <span className="text-green-600 ml-1">
+                      ({optimizationData.compressionRatio} smaller)
+                    </span>
+                  </p>
+                  {optimizationData.optimizedDimensions && (
+                    <p className="text-xs text-muted-foreground">
+                      {optimizationData.optimizedDimensions.width} × {optimizationData.optimizedDimensions.height} px
+                      {optimizationData.processing?.resized && (
+                        <span className="text-amber-600 ml-1">(resized)</span>
+                      )}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">Format: WebP</p>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetUpload}
+              disabled={isUploading}
             >
-              click to browse
-            </span>
+              Reset
+            </Button>
           </div>
-          <div className="text-xs text-muted-foreground">
-            Supports JPG, PNG, GIF, WebP (max 10MB)
-          </div>
-          
-          <Input 
-            ref={inputRef}
-            type="file" 
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            onChange={handleFileChange} 
-            disabled={isUploading} 
-            className="hidden"
-          />
-          
-          {isUploading && (
-            <div className="w-full flex justify-center items-center space-x-2">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <span className="text-xs text-muted-foreground">
-                Optimizing & uploading... {uploadProgress}%
-              </span>
-            </div>
-          )}
         </div>
-      </div>
+      )}
       
+      {/* Upload Area */}
+      {!preview && !optimizationData && (
+        <div 
+          className={`
+            border-2 border-dashed rounded-md p-10 
+            ${dragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/20'} 
+            transition-colors duration-200 ease-in-out
+          `}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
+          <div className="flex flex-col items-center justify-center gap-3 text-center">
+            <div className="p-3 bg-primary/10 rounded-full">
+              <Upload className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium text-sm">Drag a file here, or click to browse</p>
+              <p className="text-xs mt-1 text-muted-foreground">JPG, PNG, GIF or WebP (max 10MB)</p>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleButtonClick}
+              className="mt-2"
+              disabled={isUploading}
+            >
+              Select file
+            </Button>
+            <Input 
+              ref={inputRef}
+              type="file" 
+              className="hidden" 
+              accept={allowedFileTypes.join(',')}
+              onChange={handleFileChange} 
+              disabled={isUploading}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* Upload Progress */}
       {isUploading && (
-        <div className="w-full bg-slate-200 rounded-full h-2">
-          <div
-            className="bg-primary h-2 rounded-full transition-all duration-300"
-            style={{ width: `${uploadProgress}%` }}
-          ></div>
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs">
+            <span>Uploading...</span>
+            <span>{uploadProgress}%</span>
+          </div>
+          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-primary transition-all duration-300 ease-in-out" 
+              style={{ width: `${uploadProgress}%` }}
+            ></div>
+          </div>
         </div>
       )}
     </div>
   )
 }
-
