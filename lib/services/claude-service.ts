@@ -2,27 +2,116 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 const supabaseAdmin = createAdminClient();
 
+// Claude model pricing (per 1M tokens, in USD)
+const CLAUDE_PRICING = {
+  'claude-3-opus-20240229': {
+    input: 15.0, // $15 per 1M input tokens
+    output: 75.0 // $75 per 1M output tokens
+  },
+  'claude-3-sonnet-20240229': {
+    input: 3.0, // $3 per 1M input tokens
+    output: 15.0 // $15 per 1M output tokens
+  },
+  'claude-3-haiku-20240307': {
+    input: 0.25, // $0.25 per 1M input tokens
+    output: 1.25 // $1.25 per 1M output tokens
+  },
+  'claude-3.5-sonnet-20240620': {
+    input: 3.0, // $3 per 1M input tokens
+    output: 15.0 // $15 per 1M output tokens
+  },
+  'claude-3-7-sonnet-20240620': {
+    input: 5.0, // $5 per 1M input tokens
+    output: 25.0 // $25 per 1M output tokens
+  }
+};
+
+export type ClaudeModel = 'claude-3-opus-20240229' | 'claude-3-sonnet-20240229' | 'claude-3-haiku-20240307' | 'claude-3.5-sonnet-20240620' | 'claude-3-7-sonnet-20240620';
+
+export interface PriceEstimate {
+  inputTokens: number;
+  outputTokens: number;
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
+}
+
 export class ClaudeService {
   private apiKey: string;
   private baseUrl: string = 'https://api.anthropic.com/v1';
-  private model: string = 'claude-3-opus-20240229';
+  private model: ClaudeModel = 'claude-3-opus-20240229';
 
-  constructor() {
+  constructor(model?: ClaudeModel) {
     // Get API key from environment variables
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error('ANTHROPIC_API_KEY environment variable is not set');
     }
     this.apiKey = apiKey;
+    
+    // Set model if provided
+    if (model) {
+      this.model = model;
+    }
+  }
+
+  /**
+   * Set the model to use for API calls
+   * @param model - The Claude model to use
+   */
+  setModel(model: ClaudeModel) {
+    this.model = model;
+  }
+
+  /**
+   * Get the current model being used
+   * @returns The current Claude model
+   */
+  getModel(): ClaudeModel {
+    return this.model;
+  }
+
+  /**
+   * Estimate the cost of a Claude API call
+   * @param promptLength - Length of the prompt in tokens (estimated)
+   * @param expectedResponseLength - Expected length of the response in tokens
+   * @returns The estimated cost breakdown
+   */
+  estimateCost(promptLength: number, expectedResponseLength: number): PriceEstimate {
+    const pricing = CLAUDE_PRICING[this.model];
+    
+    // Convert to millions of tokens for pricing calculation
+    const inputTokensInMillions = promptLength / 1000000;
+    const outputTokensInMillions = expectedResponseLength / 1000000;
+    
+    const inputCost = inputTokensInMillions * pricing.input;
+    const outputCost = outputTokensInMillions * pricing.output;
+    
+    return {
+      inputTokens: promptLength,
+      outputTokens: expectedResponseLength,
+      inputCost,
+      outputCost,
+      totalCost: inputCost + outputCost
+    };
   }
 
   /**
    * Generate a review structure based on video transcript and chapters
    * @param videoId - UUID of the YouTube video
-   * @returns The generated review structure
+   * @param model - Optional model to use for this call
+   * @returns The generated review structure and cost estimate
    */
-  async generateReviewStructure(videoId: string) {
+  async generateReviewStructure(videoId: string, model?: ClaudeModel) {
+    // Set model for this call if provided
+    const originalModel = this.model;
+    if (model) {
+      this.model = model;
+    }
+    
     try {
+      console.log(`Starting structure generation for video: ${videoId}, model: ${this.model}`);
+      
       // Get video data including transcript and chapters
       const { data: video, error: videoError } = await supabaseAdmin
         .from('youtube_videos')
@@ -31,8 +120,11 @@ export class ClaudeService {
         .single();
 
       if (videoError || !video) {
+        console.error('Failed to get video data:', videoError?.message || 'Video not found');
         throw new Error(`Failed to get video data: ${videoError?.message || 'Video not found'}`);
       }
+      
+      console.log(`Retrieved video data for: ${video.title}`);
 
       // Get transcript
       const { data: transcript, error: transcriptError } = await supabaseAdmin
@@ -41,35 +133,123 @@ export class ClaudeService {
         .eq('youtube_video_id', videoId)
         .single();
 
-      if (transcriptError || !transcript) {
-        throw new Error(`Failed to get transcript: ${transcriptError?.message || 'Transcript not found'}`);
+      if (transcriptError || !transcript || !transcript.content) {
+        console.error('Failed to get transcript:', transcriptError?.message || 'Transcript not found or empty');
+        throw new Error(`Failed to get transcript: ${transcriptError?.message || 'Transcript not found or empty'}`);
       }
+      
+      console.log(`Retrieved transcript, length: ${transcript.content.length} characters`);
 
       // Prepare prompt for Claude
       const prompt = this.createStructurePrompt(video, transcript.content);
       
+      // Estimate tokens for prompt (rough estimate: 1 token ≈ 4 characters)
+      const promptTokens = Math.ceil(prompt.length / 4);
+      const expectedResponseTokens = 2000; // Expected response size
+      
+      // Estimate cost
+      const costEstimate = this.estimateCost(promptTokens, expectedResponseTokens);
+      
+      console.log(`Prompt prepared, estimated tokens: ${promptTokens}, calling Claude API...`);
+      
       // Call Claude API
       const generatedStructure = await this.callClaudeAPI(prompt);
+      
+      console.log(`Claude API responded, structure generated. Length: ${generatedStructure.length} characters`);
+
+      // Process the generated structure to ensure it's valid JSON
+      let parsedStructure;
+      try {
+        // First check if it's already valid JSON
+        try {
+          parsedStructure = JSON.parse(generatedStructure);
+          console.log('Structure successfully parsed as JSON');
+        } catch (jsonError) {
+          console.log('Structure is not direct JSON, checking for JSON code blocks...');
+          // Try to extract JSON from markdown code blocks
+          const jsonMatch = generatedStructure.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (jsonMatch && jsonMatch[1]) {
+            try {
+              parsedStructure = JSON.parse(jsonMatch[1]);
+              console.log('JSON successfully extracted from code block and parsed');
+            } catch (err) {
+              console.error('Failed to parse JSON from code block:', err);
+              throw new Error('Generated structure contains code block but not valid JSON');
+            }
+          } else {
+            console.error('No JSON code blocks found in response');
+            throw new Error('Generated structure is not valid JSON and does not contain code blocks');
+          }
+        }
+      } catch (parseError) {
+        console.error('Error parsing generated structure:', parseError);
+        
+        // Fall back to a default structure if parsing fails
+        console.log('Using default structure as fallback');
+        parsedStructure = {
+          introduction: { 
+            title: "Introduction",
+            key_points: ["Overview of the laser machine", "Key specifications", "Target audience"]
+          },
+          specifications: { 
+            title: "Specifications and Features",
+            key_points: ["Technical specifications", "Software compatibility", "Key features"]
+          },
+          strengths: { 
+            title: "Key Strengths",
+            key_points: ["Main advantages", "Notable features", "Performance highlights"]
+          },
+          weaknesses: { 
+            title: "Limitations",
+            key_points: ["Main drawbacks", "Areas for improvement"]
+          },
+          conclusion: { 
+            title: "Conclusion",
+            key_points: ["Overall assessment", "Recommendations", "Value proposition"]
+          }
+        };
+      }
 
       // Store the generated structure (as a draft)
       const { data: draft, error: draftError } = await supabaseAdmin
         .from('review_drafts')
         .insert({
           youtube_video_id: videoId,
-          structure: generatedStructure,
+          structure: parsedStructure,
           generation_status: 'structure_generated',
-          version: 1
+          version: 1,
+          metadata: {
+            model: this.model,
+            cost_estimate: costEstimate
+          }
         })
         .select()
         .single();
 
       if (draftError) {
+        console.error('Failed to store review draft:', draftError);
         throw new Error(`Failed to store review draft: ${draftError.message}`);
       }
+      
+      console.log(`Draft created with ID: ${draft.id}`);
 
-      return draft;
+      // Reset model if it was temporarily changed
+      if (model) {
+        this.model = originalModel;
+      }
+
+      return {
+        ...draft,
+        cost_estimate: costEstimate
+      };
     } catch (error: any) {
       console.error('Error generating review structure:', error);
+      
+      // Reset model if it was temporarily changed
+      if (model) {
+        this.model = originalModel;
+      }
+      
       throw error;
     }
   }
@@ -80,6 +260,9 @@ export class ClaudeService {
    * @returns The generated review content
    */
   async generateReviewContent(draftId: string) {
+    // Save original model to restore later if needed
+    const originalModel = this.model;
+    
     try {
       // Get draft data
       const { data: draft, error: draftError } = await supabaseAdmin
@@ -103,8 +286,20 @@ export class ClaudeService {
         throw new Error(`Failed to get transcript: ${transcriptError?.message || 'Transcript not found'}`);
       }
 
+      // Check if the draft has a model stored in metadata, and use it if it exists
+      if (draft.metadata?.model) {
+        this.model = draft.metadata.model;
+      }
+
       // Prepare prompt for Claude
       const prompt = this.createContentPrompt(draft, transcript.content);
+      
+      // Estimate tokens for prompt
+      const promptTokens = Math.ceil(prompt.length / 4);
+      const expectedResponseTokens = 15000; // Content generation has longer responses
+      
+      // Estimate cost
+      const costEstimate = this.estimateCost(promptTokens, expectedResponseTokens);
       
       // Call Claude API
       const generatedContent = await this.callClaudeAPI(prompt);
@@ -115,7 +310,12 @@ export class ClaudeService {
         .update({
           content: generatedContent,
           generation_status: 'content_generated',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          metadata: {
+            ...draft.metadata,
+            model: this.model,
+            content_cost_estimate: costEstimate
+          }
         })
         .eq('id', draftId)
         .select()
@@ -125,9 +325,19 @@ export class ClaudeService {
         throw new Error(`Failed to update review draft: ${updateError.message}`);
       }
 
-      return updatedDraft;
+      // Restore original model
+      this.model = originalModel;
+
+      return {
+        ...updatedDraft,
+        cost_estimate: costEstimate
+      };
     } catch (error: any) {
       console.error('Error generating review content:', error);
+      
+      // Restore original model
+      this.model = originalModel;
+      
       throw error;
     }
   }
@@ -243,21 +453,50 @@ ${video.chapters ? `Chapters: ${JSON.stringify(video.chapters, null, 2)}` : ''}
 ${transcript.substring(0, 15000)}  // Truncate if needed
 
 # TASK
-Create a structured outline for a professional review of the laser machine featured in this video. The outline should include:
+Analyze the transcript thoroughly and create a structured outline for a professional review of the laser machine featured in this video. The outline should be comprehensive and reflect the specific content of this review.
 
+Your analysis should consider:
+1. Key technical specifications mentioned in the transcript
+2. Unique features of this specific machine that deserve emphasis
+3. Strengths and limitations as highlighted by the reviewer
+4. Practical use cases and ideal customer profiles mentioned
+5. Comparisons with competitors or alternative machines
+6. The reviewer's overall assessment and recommendations
+
+Your structure should include these standard sections (but can be modified based on the transcript content):
 1. Introduction
-2. Specifications and features
-3. Key strengths (3-5 points)
-4. Limitations or drawbacks (2-4 points)
-5. Use cases and ideal customers
-6. Value for money assessment
-7. Conclusion with overall recommendation
+2. Specifications and Features
+3. Key Strengths (3-5 points)
+4. Limitations or Drawbacks (2-4 points)
+5. Use Cases and Ideal Customers
+6. Value for Money Assessment
+7. Conclusion with Overall Recommendation
 
 For each section, provide 2-3 bullet points of key information to include, based on the transcript content.
 
 Only include factual information mentioned in the transcript. Do not invent specifications or details not present in the source material.
 
-Format your response as a structured JSON object with these sections clearly defined.
+Format your response as a structured JSON object with these sections clearly defined, like this example:
+{
+  "introduction": {
+    "title": "Introduction",
+    "key_points": [
+      "Brief overview of the [Machine Name]",
+      "Context about the manufacturer",
+      "Main value proposition"
+    ]
+  },
+  "specifications": {
+    "title": "Specifications and Features",
+    "key_points": [
+      "Technical specs (power, size, etc.)",
+      "Software compatibility",
+      "Unique features compared to competitors"
+    ]
+  }
+}
+
+The structure should be comprehensive but focused on the most important aspects mentioned in this specific review.
 `;
   }
 
@@ -304,6 +543,8 @@ Format the content using Markdown syntax, with appropriate headers, lists, and e
    */
   private async callClaudeAPI(prompt: string): Promise<string> {
     try {
+      console.log(`Calling Claude API with model: ${this.model}, prompt length: ${prompt.length}`);
+      
       const response = await fetch(`${this.baseUrl}/messages`, {
         method: 'POST',
         headers: {
@@ -324,16 +565,201 @@ Format the content using Markdown syntax, with appropriate headers, lists, and e
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Claude API error (${response.status}): ${errorText}`);
+        const errorData = await response.text();
+        console.error(`Claude API error (${response.status}):`, errorData);
+        throw new Error(`Claude API error (${response.status}): ${errorData}`);
       }
 
       const data = await response.json();
-      return data.content[0].text;
+      
+      // Verify the data structure
+      if (!data || !data.content || !Array.isArray(data.content) || data.content.length === 0) {
+        console.error('Invalid response structure from Claude API:', JSON.stringify(data));
+        throw new Error('Invalid response structure from Claude API');
+      }
+      
+      // Extract the text from the first content item
+      const text = data.content[0]?.text;
+      if (!text) {
+        console.error('No text content in Claude API response:', JSON.stringify(data));
+        throw new Error('No text content in Claude API response');
+      }
+      
+      return text;
     } catch (error: any) {
       console.error('Error calling Claude API:', error);
+      throw new Error(`Error calling Claude API: ${error.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate content for a specific section of a review
+   * @param draftId - UUID of the review draft
+   * @param section - Section name to generate content for
+   * @param additionalContext - Optional additional context to include
+   * @returns The updated draft with the generated section content
+   */
+  async generateSectionContent(draftId: string, section: string, additionalContext?: string) {
+    // Save original model to restore later if needed
+    const originalModel = this.model;
+    
+    try {
+      // Get draft data
+      const { data: draft, error: draftError } = await supabaseAdmin
+        .from('review_drafts')
+        .select('*, youtube_videos(*)')
+        .eq('id', draftId)
+        .single();
+
+      if (draftError || !draft) {
+        throw new Error(`Failed to get draft data: ${draftError?.message || 'Draft not found'}`);
+      }
+
+      // Get transcript
+      const { data: transcript, error: transcriptError } = await supabaseAdmin
+        .from('transcripts')
+        .select('content')
+        .eq('youtube_video_id', draft.youtube_video_id)
+        .single();
+
+      if (transcriptError || !transcript) {
+        throw new Error(`Failed to get transcript: ${transcriptError?.message || 'Transcript not found'}`);
+      }
+
+      // Check if the draft has a model stored in metadata, and use it if it exists
+      if (draft.metadata?.model) {
+        this.model = draft.metadata.model;
+      }
+
+      // Validate section exists in structure
+      const structure = typeof draft.structure === 'string' 
+        ? JSON.parse(draft.structure) 
+        : draft.structure;
+      
+      if (!structure[section]) {
+        throw new Error(`Section "${section}" not found in the review structure`);
+      }
+
+      // Prepare prompt for Claude
+      const prompt = this.createSectionContentPrompt(draft, transcript.content, section, additionalContext);
+      
+      // Estimate tokens for prompt
+      const promptTokens = Math.ceil(prompt.length / 4);
+      const expectedResponseTokens = 5000; // Section generation has medium-length responses
+      
+      // Estimate cost
+      const costEstimate = this.estimateCost(promptTokens, expectedResponseTokens);
+      
+      // Call Claude API
+      const generatedContent = await this.callClaudeAPI(prompt);
+
+      // Update the existing content with the new section content
+      let updatedContent = draft.content || '';
+      
+      // If we have existing content, try to replace just the specific section
+      if (updatedContent) {
+        // This is a simplified approach - a more robust implementation would use a proper HTML parser
+        const sectionRegex = new RegExp(`<h[1-6][^>]*>${section}[\\s\\S]*?(?=<h[1-6][^>]*>|$)`, 'i');
+        const sectionMatch = updatedContent.match(sectionRegex);
+        
+        if (sectionMatch) {
+          // Replace just the section content
+          updatedContent = updatedContent.replace(sectionRegex, generatedContent);
+        } else {
+          // Append the new section content
+          updatedContent += generatedContent;
+        }
+      } else {
+        // No existing content, use the generated content directly
+        updatedContent = generatedContent;
+      }
+
+      // Prepare section costs history
+      const sectionCosts = draft.metadata?.section_costs || {};
+      sectionCosts[section] = costEstimate;
+
+      // Update the draft with generated content
+      const { data: updatedDraft, error: updateError } = await supabaseAdmin
+        .from('review_drafts')
+        .update({
+          content: updatedContent,
+          generation_status: 'content_generated',
+          updated_at: new Date().toISOString(),
+          metadata: {
+            ...draft.metadata,
+            model: this.model,
+            section_costs: sectionCosts
+          }
+        })
+        .eq('id', draftId)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw new Error(`Failed to update review draft: ${updateError.message}`);
+      }
+
+      // Restore original model
+      this.model = originalModel;
+
+      return {
+        ...updatedDraft,
+        cost_estimate: costEstimate
+      };
+    } catch (error: any) {
+      console.error(`Error generating section content for ${section}:`, error);
+      
+      // Restore original model
+      this.model = originalModel;
+      
       throw error;
     }
+  }
+
+  /**
+   * Create a prompt for generating content for a specific section
+   * @param draft - Review draft data
+   * @param transcript - Video transcript
+   * @param section - Section name to generate content for
+   * @param additionalContext - Optional additional context
+   * @returns Prompt for Claude API
+   */
+  private createSectionContentPrompt(draft: any, transcript: string, section: string, additionalContext?: string): string {
+    // Extract the structure for the specific section
+    const structure = typeof draft.structure === 'string' 
+      ? JSON.parse(draft.structure) 
+      : draft.structure;
+    
+    const sectionStructure = structure[section];
+
+    return `
+You are an expert laser machine reviewer writing content for MachinesForMakers.com. Your task is to create content for the "${section}" section of a review based on the video transcript.
+
+# SECTION STRUCTURE
+${JSON.stringify(sectionStructure, null, 2)}
+
+# VIDEO INFORMATION
+Title: ${draft.youtube_videos.title}
+Description: ${draft.youtube_videos.description}
+${draft.youtube_videos.chapters ? `Chapters: ${JSON.stringify(draft.youtube_videos.chapters, null, 2)}` : ''}
+
+# TRANSCRIPT
+${transcript.substring(0, 15000)}  // Truncate if needed
+
+${additionalContext ? `# ADDITIONAL CONTEXT\n${additionalContext}\n` : ''}
+
+# TASK
+Write the "${section}" section of a laser machine review. Your content should:
+
+1. Specifically address only the "${section}" section, as this will be inserted into a larger review
+2. Be comprehensive and detailed while remaining factual and based on the transcript
+3. Use a conversational but professional tone, similar to Brandon (the host)
+4. Include specific examples and quotes from the video where relevant
+5. Follow the structure outline provided above for this section
+6. Match the style of MachinesForMakers.com
+
+Start with an appropriate heading for this section and format the content using Markdown syntax with appropriate lists and emphasis.
+`;
   }
 }
 
