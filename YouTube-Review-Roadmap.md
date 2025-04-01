@@ -36,27 +36,42 @@ A system to integrate YouTube videos from the Make or Break Shop channel with th
    - Created machine association functionality
    - Built tabs for transcript, chapters, and machine associations
 
+4. **Transcription System**
+   - Implemented UI for requesting transcription
+   - Successfully integrated with yt-dlp for audio extraction
+   - Implemented OpenAI Whisper API integration for transcription
+   - Set up transcript storage and retrieval in database
+   - Added transcription status monitoring endpoint
+   - Implemented error handling and reporting
+
+5. **AI Review Generation**
+   - Integrated Claude API for content generation
+   - Created review structure from chapters and transcript
+   - Built specialized editor for review content
+   - Implemented multi-step generation with approval checkpoints
+   - Added review draft management system
+   - Created review publishing workflow
+
 ### In Progress 🔄
 
-1. **Transcription System**
-   - UI for requesting transcription is in place
-   - OpenAI Whisper API integration needs to be implemented
-   - Transcript storage and management needs to be completed
-
-### Planned 📝
-
-1. **AI Review Generation**
-   - Integrate Claude API for content generation
-   - Create review structure from chapters and transcript
-   - Build specialized editor for review content
-   - Implement multi-step generation with approval checkpoints
-
-2. **Media Enhancement**
+1. **Media Enhancement**
    - Add screenshot capture from embedded player
    - Create media management interface for captured images
    - Enable organization and tagging of media
 
-3. **Review Publishing**
+2. **Review Publishing**
+   - Connect generated reviews to machine pages
+   - Create publishing workflow with preview
+   - Update frontend to display YouTube-based reviews
+
+### Planned 📝
+
+1. **Media Enhancement**
+   - Add screenshot capture from embedded player
+   - Create media management interface for captured images
+   - Enable organization and tagging of media
+
+2. **Review Publishing**
    - Connect generated reviews to machine pages
    - Create publishing workflow with preview
    - Update frontend to display YouTube-based reviews
@@ -91,6 +106,19 @@ A system to integrate YouTube videos from the Make or Break Shop channel with th
    - `machine_id` (UUID, foreign key)
    - `youtube_video_id` (UUID, foreign key)
    - `created_at` (timestamp)
+
+4. **`review_drafts`**
+   - `id` (UUID, primary key)
+   - `youtube_video_id` (UUID, foreign key)
+   - `machine_id` (UUID, foreign key, nullable)
+   - `title` (text, nullable)
+   - `structure` (JSONB)
+   - `content` (text, nullable)
+   - `rating` (integer, nullable)
+   - `generation_status` (text)
+   - `version` (integer)
+   - `created_at` (timestamp)
+   - `updated_at` (timestamp)
 
 ### Updates to Existing Tables
 
@@ -132,28 +160,40 @@ A system to integrate YouTube videos from the Make or Break Shop channel with th
    - Implemented storage of associations in the junction table
    - Built UI for viewing and managing associated machines
 
-### Phase 2: Transcription System (In Progress 🔄)
+### Phase 2: Transcription System (Completed ✅)
 
 1. **Transcription Request**
-   - UI for requesting transcription is in place
-   - Need to implement OpenAI Whisper API integration
-   - Need to store transcripts in the database
+   - Implemented UI for requesting transcription
+   - Successfully integrated with yt-dlp for audio extraction
+   - Implemented OpenAI Whisper API integration
+   - Created transcription status monitoring endpoint
+   - Added error handling and reporting
 
 2. **Transcript Review**
-   - UI for viewing transcripts is in place
-   - Need to add editing capabilities
+   - Built UI for viewing transcripts
+   - Implemented transcript storage and retrieval from database
+   - Created transcript status indicators in admin UI
 
-### Phase 3: AI Review Generation (Planned 📝)
+### Phase 3: AI Review Generation (Completed ✅)
 
 1. **Review Structure Generation**
-   - Extract chapter markers from YouTube video as initial structure when available
-   - Generate initial review structure using Claude
-   - Review and modify structure in specialized editor
+   - Integrated Claude API for AI-based content generation
+   - Created service for generating structured review outlines from transcripts
+   - Implemented chapter marker extraction for initial structure
+   - Built UI for reviewing and approving generated structures
 
 2. **Content Generation**
-   - Generate detailed content based on approved structure
-   - Populate review with content from transcript
-   - Allow admin to edit and enhance
+   - Developed content generation system based on approved structures
+   - Created API endpoints for multi-step generation process
+   - Built interface for previewing and editing generated content
+   - Implemented pros and cons extraction
+   - Added draft versioning and management
+
+3. **Review Publishing**
+   - Created workflow for publishing finalized reviews
+   - Implemented machine association for reviews
+   - Added rating and metadata management
+   - Built confirmation and success indicators
 
 ### Phase 4: Media Enhancement (Planned 📝)
 
@@ -252,4 +292,18 @@ To setup the YouTube API integration:
    - If API key issues occur, the system has multiple fallback mechanisms
    - Check API request logs for detailed error messages
    - Ensure the API key has the correct permissions and no restrictions
-   - For development, the system can operate with limited functionality even without an API key 
+   - For development, the system can operate with limited functionality even without an API key
+
+## Claude API Integration Notes
+
+To setup the Claude API integration:
+
+1. **API Key Configuration**:
+   - Create an Anthropic account and obtain an API key
+   - Add the key to your `.env.local` file as `ANTHROPIC_API_KEY`
+
+2. **Usage Notes**:
+   - The system uses Claude-3 Opus for best quality reviews
+   - Review generation is a two-step process: structure generation followed by content generation
+   - Each step saves drafts to allow for review and editing before proceeding
+   - Content generation prompt uses the approved structure as context 
