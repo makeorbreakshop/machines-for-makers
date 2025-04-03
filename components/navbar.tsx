@@ -14,9 +14,9 @@ export default function Navbar() {
     // Fetch logo URL when component mounts
     const fetchLogoUrl = async () => {
       try {
-        const response = await fetch('/api/site-settings?key=logo_url')
+        const response = await fetch('/api/logo')
         const data = await response.json()
-        setLogoUrl(data.value)
+        setLogoUrl(data.url)
       } catch (error) {
         console.error('Error fetching logo URL:', error)
       }
