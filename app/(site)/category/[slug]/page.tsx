@@ -90,7 +90,11 @@ export default async function CategoryPage({ params }: { params: { slug: string 
               </Tabs>
             </div>
             <div className="flex items-center gap-2">
-              <FilterButton categories={categories || []} brands={brands || []} />
+              <FilterButton 
+                categories={categories || []} 
+                brands={brands || []}
+                onApplyFilters={() => {}}
+              />
               <Button variant="outline" size="sm">
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                 Sort
@@ -201,9 +205,9 @@ export default async function CategoryPage({ params }: { params: { slug: string 
           </div>
         </div>
 
-        <ProductsGrid products={products} />
+        <ProductsGrid products={products} totalProducts={products?.length || 0} />
 
-        {/* FAQ Section for SEO */}
+        {/* FAQ Section for SEO - temporarily hidden
         <div className="mt-12 mb-8">
           <h2 className="text-2xl font-bold mb-6">Frequently Asked Questions</h2>
           <div className="space-y-4">
@@ -221,6 +225,7 @@ export default async function CategoryPage({ params }: { params: { slug: string 
             </div>
           </div>
         </div>
+        */}
       </div>
     </>
   )
