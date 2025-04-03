@@ -110,4 +110,4 @@ If you encounter issues:
 - Verify Supabase credentials and permissions
 - Ensure the storage bucket exists and is accessible
 - Check network connectivity for downloading images from Webflow
-- Try running in test mode with a specific machine ID to isolate issues 
+- Try running in test mode with a specific machine ID to isolate issues

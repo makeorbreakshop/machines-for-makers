@@ -111,4 +111,4 @@ fi
 
 echo -e "\n${YELLOW}Test complete.${NC}"
 echo "If the test was successful, you can run the full migration with:"
-echo -e "${GREEN}node migrate-review-images.js${NC}" 
+echo -e "${GREEN}node migrate-review-images.js${NC}"
