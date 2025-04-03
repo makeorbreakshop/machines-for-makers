@@ -90,6 +90,8 @@ export type Machine = {
   "Excerpt (Short)": string | null
   "Excerpt (Long)": string | null
   "Description": string | null
+  "Review": string | null
+  "Brandon's Take": string | null
   "Highlights": string | null
   "Drawbacks": string | null
   "YouTube Review": string | null

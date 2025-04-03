@@ -246,7 +246,7 @@ export default async function LaserCategoryPage({ params }: { params: { slug: st
 
         <ProductsGrid products={products} totalProducts={products.length} />
 
-        {/* FAQ Section for SEO */}
+        {/* FAQ Section - temporarily hidden
         <div className="mt-12 mb-8">
           <h2 className="text-2xl font-bold mb-6">Frequently Asked Questions</h2>
           <div className="space-y-4">
@@ -264,6 +264,7 @@ export default async function LaserCategoryPage({ params }: { params: { slug: st
             </div>
           </div>
         </div>
+        */}
       </div>
     </>
   )

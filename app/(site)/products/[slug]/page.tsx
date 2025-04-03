@@ -15,6 +15,8 @@ import { ProductPromoHighlight } from "@/components/product-promo-highlight"
 import { ProductPromoSimple } from "@/components/product-promo-simple"
 import { PromoCode, PromoCodeDisplay } from "@/types/promo-codes"
 import { createServerClient } from '@/lib/supabase/server'
+import { MobileSpecsSelector } from "./components/mobile-specs-selector"
+import ExpertReview from "@/components/expert-review"
 
 // Implement ISR with a 1-hour revalidation period
 export const revalidate = 3600
@@ -108,7 +110,14 @@ export async function generateMetadata({ params }: { params: { slug: string } })
       title,
       description,
       type: "article",
-      images: [product.image_url || ""],
+      images: [
+        {
+          url: product.image_url || "",
+          width: 800,
+          height: 600,
+          alt: `${product.machine_name} - ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter`
+        }
+      ],
       publishedTime: product.published_at,
       modifiedTime: product.updated_at,
     },
@@ -116,7 +125,12 @@ export async function generateMetadata({ params }: { params: { slug: string } })
       card: "summary_large_image",
       title,
       description,
-      images: [product.image_url || ""],
+      images: [
+        {
+          url: product.image_url || "",
+          alt: `${product.machine_name} - ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter`
+        }
+      ],
     },
   }
 }
@@ -383,33 +397,60 @@ export default async function ProductPage({ params }: { params: { slug: string }
       "@type": "Product",
       name: product.machine_name,
       image: product.image_url,
-      description: product.description,
+      description: product.description ? stripHtmlTags(product.description).substring(0, 5000) : product.excerpt_short,
       brand: {
         "@type": "Brand",
         name: product.company,
       },
+      sku: product.id,
+      mpn: product.id,
+      category: getCategoryLabel(product.category_id),
       offers: {
         "@type": "Offer",
+        url: `https://machinesformakers.com/products/${slug}`,
         price: product.price,
         priceCurrency: "USD",
         availability: "https://schema.org/InStock",
+        itemCondition: "https://schema.org/NewCondition"
       },
+      review: (product.review || product["Brandon's Take"]) ? {
+        "@type": "Review",
+        reviewRating: {
+          "@type": "Rating",
+          ratingValue: product.rating || "9",
+          bestRating: "10"
+        },
+        author: {
+          "@type": "Person",
+          name: "Brandon (Machines for Makers Expert)"
+        },
+        datePublished: product.updated_at || new Date().toISOString().split('T')[0],
+        reviewBody: product.review ? 
+          stripHtmlTags(product.review).substring(0, 1000) : 
+          (product["Brandon's Take"] ? stripHtmlTags(product["Brandon's Take"]).substring(0, 1000) : "")
+      } : undefined,
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: product.rating || "9",
+        reviewCount: reviews?.length || 1,
+        bestRating: "10"
+      }
     };
 
     return (
       <>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
 
-        <div className="container mx-auto px-4 py-6">
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 space-y-8 md:space-y-12">
+          <div className="grid md:grid-cols-2 gap-6 lg:gap-12 mb-4 md:mb-8">
             <div className="relative">
               {product.award && (
                 <Badge className="absolute top-4 right-4 bg-sky-500 hover:bg-sky-600">{product.award}</Badge>
               )}
-              <div className="aspect-square relative bg-white rounded-lg p-4">
+              <div className="aspect-[4/3] md:aspect-square relative bg-white rounded-lg p-4 md:p-6 shadow-sm">
                 <Image
                   src={product.image_url || "/placeholder.svg?height=500&width=500"}
-                  alt={product.machine_name}
+                  alt={`${product.machine_name} - ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter`}
                   fill
                   priority
                   className="object-contain"
@@ -418,95 +459,126 @@ export default async function ProductPage({ params }: { params: { slug: string }
               </div>
             </div>
 
-            <div>
-              <div className="mb-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <Link
-                      href={`/brands/${product.company?.toLowerCase().replace(/\s+/g, "-")}`}
-                      className="text-sm text-primary"
-                    >
-                      {product.company}
-                    </Link>
-                    <h1 className="text-3xl font-bold mt-1">{product.machine_name}</h1>
+            <div className="space-y-4 md:space-y-6">
+              <div>
+                <div className="flex flex-col space-y-1 md:space-y-2">
+                  <Link
+                    href={`/brands/${product.company?.toLowerCase().replace(/\s+/g, "-")}`}
+                    className="text-sm text-primary"
+                  >
+                    {product.company}
+                  </Link>
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-center space-y-2 md:space-y-0">
+                    <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold">{product.machine_name}</h1>
+                    
+                    {product.rating && (
+                      <div className="flex items-center">
+                        <RatingMeter 
+                          rating={product.rating} 
+                          size="md" 
+                          showLabel={false}
+                        />
+                        <span className="sr-only">Rating: {product.rating} out of 10</span>
+                      </div>
+                    )}
                   </div>
-                  
-                  {product.rating && (
-                    <RatingMeter 
-                      rating={product.rating} 
-                      size="md" 
-                      showLabel={false}
-                    />
-                  )}
                 </div>
               </div>
 
               {/* Quick summary for featured snippet optimization */}
-              <div className="bg-muted/30 p-3 rounded-lg mb-4">
-                <p className="text-lg">{product.excerpt_short}</p>
-                <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+              <div className="bg-muted/30 p-3 md:p-5 rounded-lg border border-muted/40">
+                <p className="text-sm md:text-base">{product.excerpt_short}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mt-3 md:mt-4 text-xs md:text-sm" aria-label="Product specifications">
                   <div className="flex items-center">
-                    <span className="font-medium mr-2">Laser Type:</span> {product.laser_type_a}
+                    <span className="font-medium mr-1 md:mr-2">Laser Type:</span> 
+                    <span itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
+                      <meta itemProp="name" content="Laser Type" />
+                      <span itemProp="value">{product.laser_type_a}</span>
+                    </span>
                   </div>
                   <div className="flex items-center">
-                    <span className="font-medium mr-2">Power:</span> {product.laser_power_a}W
+                    <span className="font-medium mr-1 md:mr-2">Power:</span> 
+                    <span itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
+                      <meta itemProp="name" content="Power" />
+                      <span itemProp="value">{product.laser_power_a}W</span>
+                    </span>
                   </div>
                   <div className="flex items-center">
-                    <span className="font-medium mr-2">Work Area:</span> {product.work_area}
+                    <span className="font-medium mr-1 md:mr-2">Work Area:</span> 
+                    <span itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
+                      <meta itemProp="name" content="Work Area" />
+                      <span itemProp="value">{product.work_area}</span>
+                    </span>
                   </div>
                   <div className="flex items-center">
-                    <span className="font-medium mr-2">Speed:</span> {product.speed}
+                    <span className="font-medium mr-1 md:mr-2">Speed:</span> 
+                    <span itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
+                      <meta itemProp="name" content="Speed" />
+                      <span itemProp="value">{product.speed}</span>
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 mb-4">
-                <div className="text-3xl font-bold">{formattedPrice}</div>
-                {promoCodes.length > 0 && promoCodes[0].discountText !== 'Special offer' && (
-                  <ProductPromoSimple promoCode={promoCodes[0]} />
-                )}
-              </div>
+              <div className="sticky top-0 z-10 bg-white/95 py-2 md:static md:bg-transparent md:py-0 space-y-4">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <div className="text-2xl md:text-3xl lg:text-4xl font-bold" itemProp="offers" itemScope itemType="https://schema.org/Offer">
+                    <meta itemProp="priceCurrency" content="USD" />
+                    <meta itemProp="price" content={product.price?.toString() || ""} />
+                    <link itemProp="availability" href="https://schema.org/InStock" />
+                    {formattedPrice}
+                  </div>
+                  {promoCodes.length > 0 && promoCodes[0].discountText !== 'Special offer' && (
+                    <ProductPromoSimple promoCode={promoCodes[0]} />
+                  )}
+                </div>
 
-              <div className="grid gap-3 mb-5">
-                {product.affiliate_link && (
-                  <Button size="lg" className="w-full" asChild>
-                    <Link href={product.affiliate_link} target="_blank" rel="noopener noreferrer">
-                      <ShoppingCart className="mr-2 h-5 w-5" /> Buy Now
-                    </Link>
-                  </Button>
-                )}
-                <AddToCompareButton product={product} />
+                <div className="flex flex-col space-y-3 md:space-y-4">
+                  {product.affiliate_link && (
+                    <Button size="lg" className="w-full py-6 text-base" asChild>
+                      <Link 
+                        href={product.affiliate_link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        aria-label={`Buy ${product.machine_name} now`}
+                      >
+                        <ShoppingCart className="mr-3 h-5 w-5" /> Buy Now
+                      </Link>
+                    </Button>
+                  )}
+                  <AddToCompareButton product={product} />
+                </div>
               </div>
 
               {/* Move the list of promo codes after the buy button */}
               {promoCodes.length > 1 && (
-                <ProductPromoCodes promoCodes={promoCodes.slice(1)} className="mb-4" />
+                <ProductPromoCodes promoCodes={promoCodes.slice(1)} className="mb-2 md:mb-4" />
               )}
 
               {/* Quick Verdict - Only show if pros or cons are available */}
               {(highlights.length > 0 || drawbacks.length > 0) && (
-                <div className="border-t pt-6">
-                  <h3 className="font-semibold mb-2">Quick Verdict</h3>
-                  <div className="grid md:grid-cols-2 gap-6 mb-6">
+                <div className="border-t pt-4 md:pt-6">
+                  <h3 className="font-semibold mb-3 text-base md:text-lg">Quick Verdict</h3>
+                  <div className="flex flex-col space-y-4 md:grid md:grid-cols-2 md:gap-8 md:space-y-0">
                     {highlights.length > 0 && (
-                      <div>
+                      <div className="bg-green-50/50 p-3 rounded-lg border border-green-100">
                         <h4 className="font-medium mb-2 text-green-600">Pros</h4>
-                        <ul className="space-y-1">
+                        <ul className="space-y-2">
                           {highlights.map((pro: string, index: number) => (
-                            <li key={index} className="text-sm flex items-start">
-                              <span className="text-green-600 mr-2">✓</span> {pro}
+                            <li key={index} className="text-xs md:text-sm flex items-start">
+                              <span className="text-green-600 mr-2 mt-0.5">✓</span> {pro}
                             </li>
                           ))}
                         </ul>
                       </div>
                     )}
                     {drawbacks.length > 0 && (
-                      <div>
+                      <div className="bg-red-50/50 p-3 rounded-lg border border-red-100">
                         <h4 className="font-medium mb-2 text-red-600">Cons</h4>
-                        <ul className="space-y-1">
+                        <ul className="space-y-2">
                           {drawbacks.map((con: string, index: number) => (
-                            <li key={index} className="text-sm flex items-start">
-                              <span className="text-red-600 mr-2">✗</span> {con}
+                            <li key={index} className="text-xs md:text-sm flex items-start">
+                              <span className="text-red-600 mr-2 mt-0.5">✗</span> {con}
                             </li>
                           ))}
                         </ul>
@@ -518,82 +590,95 @@ export default async function ProductPage({ params }: { params: { slug: string }
             </div>
           </div>
 
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold mb-4" id="specifications">
-              Specifications
-            </h2>
-            <Tabs defaultValue="basic">
-              <TabsList className="w-full justify-start">
-                <TabsTrigger value="basic">Basic Information</TabsTrigger>
-                <TabsTrigger value="laser">Laser Specifications</TabsTrigger>
-                <TabsTrigger value="dimensions">Machine Dimensions</TabsTrigger>
-                <TabsTrigger value="performance">Performance</TabsTrigger>
-                <TabsTrigger value="features">Features</TabsTrigger>
-              </TabsList>
-              
-              {/* Basic Information */}
-              <TabsContent value="basic" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Brand" value={product.company} />
-                  <SpecItem label="Price" value={formattedPrice} />
-                  <SpecItem label="Expert Score" value={product.rating ? `${product.rating}/10` : null} />
-                  <SpecItem label="Warranty" value={product.warranty} />
-                  <SpecItem label="Software" value={product.software} />
+          <div className="space-y-4 md:space-y-6">
+            <div className="max-w-3xl mx-auto">
+              <h2 className="text-xl md:text-2xl lg:text-3xl font-bold hidden md:block" id="specifications">
+                Specifications
+              </h2>
+            </div>
+            
+            {/* Mobile Specs Selector (Client Component) */}
+            <MobileSpecsSelector product={product} formattedPrice={formattedPrice} />
+            
+            {/* Desktop Tabs (Only visible on MD and up) */}
+            <div className="hidden md:block">
+              <Tabs defaultValue="basic">
+                <TabsList className="w-full overflow-x-auto flex-nowrap hide-scrollbar">
+                  <TabsTrigger value="basic" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Basic Information</TabsTrigger>
+                  <TabsTrigger value="laser" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Laser Specifications</TabsTrigger>
+                  <TabsTrigger value="dimensions" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Machine Dimensions</TabsTrigger>
+                  <TabsTrigger value="performance" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Performance</TabsTrigger>
+                  <TabsTrigger value="features" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Features</TabsTrigger>
+                </TabsList>
+                
+                <div className="max-w-3xl mx-auto">
+                  {/* Basic Information */}
+                  <TabsContent value="basic" className="mt-4 md:mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                      <SpecItem label="Brand" value={product.company} propName="brand" />
+                      <SpecItem label="Price" value={formattedPrice} propName="price" />
+                      <SpecItem label="Expert Score" value={product.rating ? `${product.rating}/10` : null} propName="rating" />
+                      <SpecItem label="Warranty" value={product.warranty} propName="warranty" />
+                      <SpecItem label="Software" value={product.software} propName="software" />
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Laser Specifications */}
+                  <TabsContent value="laser" className="mt-4 md:mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                      <SpecItem label="Laser Type" value={product.laser_type_a} propName="laserType" />
+                      <SpecItem label="Power (W)" value={product.laser_power_a ? `${product.laser_power_a}` : null} propName="power" />
+                      <SpecItem label="Laser Source" value={product.laser_source_manufacturer} propName="laserSource" />
+                      <SpecItem label="Frequency" value={product.laser_frequency} propName="frequency" />
+                      <SpecItem label="Pulse Width" value={product.pulse_width} propName="pulseWidth" />
+                      {product.laser_power_b && (
+                        <SpecItem label="Secondary Laser" value={`${product.laser_power_b}W ${product.laser_type_b}`} propName="secondaryLaser" />
+                      )}
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Machine Dimensions */}
+                  <TabsContent value="dimensions" className="mt-4 md:mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                      <SpecItem label="Work Area (mm)" value={product.work_area} propName="workArea" />
+                      <SpecItem label="Machine Size (mm)" value={product.machine_size} propName="machineSize" />
+                      <SpecItem label="Height (mm)" value={product.height} propName="height" />
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Performance */}
+                  <TabsContent value="performance" className="mt-4 md:mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                      <SpecItem label="Speed (mm/s)" value={product.speed} propName="speed" />
+                      <SpecItem label="Acceleration" value={product.acceleration} propName="acceleration" />
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Features */}
+                  <TabsContent value="features" className="mt-4 md:mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                      <SpecItem label="Focus" value={product.focus} propName="focus" />
+                      <SpecItem label="Enclosure" value={product.enclosure} propName="enclosure" />
+                      <SpecItem label="WiFi" value={product.wifi} propName="wifi" />
+                      <SpecItem label="Camera" value={product.camera} propName="camera" />
+                      <SpecItem label="Passthrough" value={product.passthrough} propName="passthrough" />
+                      <SpecItem label="Controller" value={product.controller} propName="controller" />
+                    </div>
+                  </TabsContent>
                 </div>
-              </TabsContent>
-              
-              {/* Laser Specifications */}
-              <TabsContent value="laser" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Laser Type" value={product.laser_type_a} />
-                  <SpecItem label="Power (W)" value={product.laser_power_a ? `${product.laser_power_a}` : null} />
-                  <SpecItem label="Laser Source" value={product.laser_source_manufacturer} />
-                  <SpecItem label="Frequency" value={product.laser_frequency} />
-                  <SpecItem label="Pulse Width" value={product.pulse_width} />
-                  {product.laser_power_b && (
-                    <SpecItem label="Secondary Laser" value={`${product.laser_power_b}W ${product.laser_type_b}`} />
-                  )}
-                </div>
-              </TabsContent>
-              
-              {/* Machine Dimensions */}
-              <TabsContent value="dimensions" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Work Area (mm)" value={product.work_area} />
-                  <SpecItem label="Machine Size (mm)" value={product.machine_size} />
-                  <SpecItem label="Height (mm)" value={product.height} />
-                </div>
-              </TabsContent>
-              
-              {/* Performance */}
-              <TabsContent value="performance" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Speed (mm/s)" value={product.speed} />
-                  <SpecItem label="Acceleration" value={product.acceleration} />
-                </div>
-              </TabsContent>
-              
-              {/* Features */}
-              <TabsContent value="features" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Focus" value={product.focus} />
-                  <SpecItem label="Enclosure" value={product.enclosure} />
-                  <SpecItem label="WiFi" value={product.wifi} />
-                  <SpecItem label="Camera" value={product.camera} />
-                  <SpecItem label="Passthrough" value={product.passthrough} />
-                  <SpecItem label="Controller" value={product.controller} />
-                </div>
-              </TabsContent>
-            </Tabs>
+              </Tabs>
+            </div>
           </div>
 
           {/* Only show Video Review section if youtubeVideoId is available */}
           {youtubeVideoId && (
-            <div className="mb-6 mt-2">
-              <h2 className="text-2xl font-bold mb-4" id="video-review">
-                Video Review
-              </h2>
-              <div className="aspect-video rounded-lg overflow-hidden">
+            <div className="space-y-4 md:space-y-6">
+              <div className="max-w-3xl mx-auto">
+                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold" id="video-review">
+                  Video Review
+                </h2>
+              </div>
+              <div className="max-w-3xl mx-auto aspect-video w-full rounded-lg overflow-hidden shadow-md">
                 <iframe
                   width="100%"
                   height="100%"
@@ -602,6 +687,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
+                  loading="lazy"
                 ></iframe>
               </div>
             </div>
@@ -609,86 +695,83 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
           {/* Only show In-Depth Review if description is available */}
           {product.description && (
-            <div className="mb-6 mt-2 prose prose-blue max-w-none">
-              <h2 className="text-2xl font-bold mb-4 not-prose" id="in-depth-review">
-                In-Depth Review
-              </h2>
-              <div dangerouslySetInnerHTML={{ __html: product.description }} />
-            </div>
+            <section className="space-y-4 md:space-y-6" itemProp="description">
+              <div className="max-w-3xl mx-auto">
+                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold not-prose" id="in-depth-review">
+                  In-Depth Review
+                </h2>
+              </div>
+              <div className="max-w-3xl mx-auto prose prose-sm md:prose-base lg:prose-lg prose-blue max-w-none
+                  prose-headings:font-bold 
+                  prose-headings:text-foreground
+                  prose-headings:mb-6
+                  prose-headings:mt-8
+                  prose-h2:text-2xl 
+                  prose-h2:md:text-3xl
+                  prose-h2:leading-tight
+                  prose-h3:text-xl 
+                  prose-h3:md:text-2xl
+                  prose-h3:leading-tight
+                  prose-h4:text-lg
+                  prose-h4:md:text-xl
+                  prose-h4:leading-tight" 
+                dangerouslySetInnerHTML={{ __html: product.description }} 
+              />
+            </section>
           )}
+
+          {/* Expert Review - show if Review or Brandon's Take is available */}
+          <ExpertReview 
+            review={product["Review"]} 
+            brandonsTake={product["Brandon's Take"]} 
+          />
 
           {/* Best for section - only show if data is available */}
           {product.best_for && (
-            <div className="mb-6 mt-2 bg-muted/20 p-6 rounded-lg">
-              <h2 className="text-2xl font-bold mb-4">Best For</h2>
-              <p className="text-lg">{product.best_for}</p>
-            </div>
-          )}
-
-          {/* FAQ Section - only show if we have minimum data needed */}
-          {product.machine_name && product.laser_type_a && (
-            <div className="mb-6 mt-2">
-              <h2 className="text-2xl font-bold mb-4" id="faq">
-                Frequently Asked Questions
-              </h2>
-              <div className="space-y-3">
-                <div className="border rounded-lg p-3">
-                  <h3 className="font-bold text-lg mb-2">Is the {product.machine_name} good for beginners?</h3>
-                  <p>
-                    {product.laser_category?.includes("diode")
-                      ? `Yes, the ${product.machine_name} is suitable for beginners. It offers a good balance of features and ease of use, with ${product.software} software that has a relatively gentle learning curve.`
-                      : `The ${product.machine_name} is a ${product.laser_category?.includes("pro") ? "professional-grade" : "mid-level"} machine that may require some experience with laser cutters. However, with proper training and by following the manual, beginners can learn to use it effectively.`}
-                  </p>
-                </div>
-                <div className="border rounded-lg p-3">
-                  <h3 className="font-bold text-lg mb-2">What materials can the {product.machine_name} cut?</h3>
-                  <p>
-                    {product.laser_type_a === "CO2"
-                      ? `The ${product.machine_name} can cut and engrave a wide range of materials including wood, acrylic, leather, paper, cardboard, and some plastics. It can also engrave on glass, stone, and anodized aluminum. It cannot cut metal or reflective materials.`
-                      : product.laser_type_a === "Fiber"
-                        ? `The ${product.machine_name} specializes in marking and engraving metals like stainless steel, aluminum, brass, and copper. It can also mark some plastics. It's not designed for cutting thick materials.`
-                        : `The ${product.machine_name} can cut materials like thin wood (up to 10mm depending on power), acrylic, leather, paper, and cardboard. It can also engrave on harder materials like glass and anodized aluminum.`}
-                  </p>
-                </div>
-                <div className="border rounded-lg p-3">
-                  <h3 className="font-bold text-lg mb-2">How does the {product.machine_name} compare to similar models?</h3>
-                  <p>
-                    The {product.machine_name} offers{" "}
-                    {Number.parseInt(product.laser_power_a || "0") > 50 ? "high" : "moderate"} power at {formattedPrice},
-                    making it{" "}
-                    {Number.parseInt(product.price?.toString() || "0") < 2000 ? "more affordable" : "a premium option"} in
-                    its category. Compared to competitors, it stands out for its{" "}
-                    {product.award ? product.award.toLowerCase() : "balance of features and performance"}. Check our
-                    comparison table for a detailed analysis against similar models.
-                  </p>
-                </div>
+            <div className="space-y-4 md:space-y-6">
+              <div className="max-w-3xl mx-auto">
+                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold mb-4 md:mb-6">Best For</h2>
+              </div>
+              <div className="max-w-3xl mx-auto bg-muted/20 p-6 md:p-8 rounded-lg border border-muted/30">
+                <p className="text-base md:text-lg">{product.best_for}</p>
               </div>
             </div>
           )}
 
           {/* Customer Reviews - only show if there are reviews available */}
           {reviews && reviews.length > 0 && (
-            <div className="mb-6 mt-2">
-              <h2 className="text-2xl font-bold mb-4" id="customer-reviews">
-                Customer Reviews
-              </h2>
-              <ProductReviews reviews={reviews} />
-            </div>
+            <section className="space-y-4 md:space-y-6" itemProp="review" itemScope itemType="https://schema.org/Review">
+              <div className="max-w-3xl mx-auto">
+                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold" id="customer-reviews">
+                  Customer Reviews
+                </h2>
+              </div>
+              <div className="max-w-3xl mx-auto">
+                <ProductReviews reviews={reviews} />
+              </div>
+            </section>
           )}
 
           {/* Where to Buy - only show if affiliate link is available */}
           {product.affiliate_link && (
-            <div className="mb-6 mt-2">
-              <h2 className="text-2xl font-bold mb-4" id="where-to-buy">
-                Where to Buy
-              </h2>
-              <div className="border rounded-lg p-3 flex justify-between items-center">
+            <div className="space-y-4 md:space-y-6">
+              <div className="max-w-3xl mx-auto">
+                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold" id="where-to-buy">
+                  Where to Buy
+                </h2>
+              </div>
+              <div className="max-w-3xl mx-auto border rounded-lg p-4 md:p-6 flex flex-col md:flex-row md:justify-between md:items-center space-y-3 md:space-y-0 md:space-x-6">
                 <div>
-                  <div className="font-medium">Official Store</div>
-                  <div className="text-xl font-bold">{formattedPrice}</div>
+                  <div className="font-medium text-base md:text-lg">Official Store</div>
+                  <div className="text-xl md:text-2xl font-bold">{formattedPrice}</div>
                 </div>
-                <Button asChild>
-                  <Link href={product.affiliate_link} target="_blank" rel="noopener noreferrer">
+                <Button size="lg" className="px-8" asChild>
+                  <Link 
+                    href={product.affiliate_link} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    aria-label={`Buy ${product.machine_name} from official store`}
+                  >
                     View Deal
                   </Link>
                 </Button>
@@ -698,7 +781,14 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
           {/* Related products - only show if there are related products available */}
           {relatedProducts && relatedProducts.length > 0 && (
-            <RelatedProducts products={relatedProducts} currentProductId={product.id} />
+            <div className="space-y-4 md:space-y-6">
+              <h2 className="text-xl md:text-2xl lg:text-3xl font-bold mb-2 md:mb-4 text-center md:text-left" id="related-products">Related Products</h2>
+              <RelatedProducts 
+                products={relatedProducts} 
+                currentProductId={product.id}
+                showHeading={false}
+              />
+            </div>
           )}
         </div>
       </>
@@ -709,11 +799,21 @@ export default async function ProductPage({ params }: { params: { slug: string }
   }
 }
 
-function SpecItem({ label, value }: { label: string; value: string | null }) {
+function SpecItem({ 
+  label, 
+  value, 
+  propName
+}: { 
+  label: string; 
+  value: string | null; 
+  propName?: string;
+}) {
   return value ? (
-    <div className="p-3 bg-muted rounded-lg">
-      <div className="font-medium">{label}</div>
-      <div className="text-lg">{value}</div>
+    <div className="p-2 md:p-3 bg-muted rounded-lg" itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
+      <meta itemProp="name" content={label} />
+      <meta itemProp="value" content={value} />
+      <div className="font-medium text-sm md:text-base">{label}</div>
+      <div className="text-base md:text-lg">{value}</div>
     </div>
   ) : null
 }
@@ -741,6 +841,12 @@ function extractYoutubeId(url: string | null): string | null {
   const match = url.match(regExp)
   
   return match && match[2].length === 11 ? match[2] : null
+}
+
+// Helper function to strip HTML tags for use in schema description
+function stripHtmlTags(html: string | null | undefined): string {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
 // Helper function to get human-readable category label
