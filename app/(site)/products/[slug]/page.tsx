@@ -15,8 +15,16 @@ import { ProductPromoHighlight } from "@/components/product-promo-highlight"
 import { ProductPromoSimple } from "@/components/product-promo-simple"
 import { PromoCode, PromoCodeDisplay } from "@/types/promo-codes"
 import { createServerClient } from '@/lib/supabase/server'
-import { MobileSpecsSelector } from "./components/mobile-specs-selector"
+import { MobileSpecsSelector } from "@/components/product-v2/MobileSpecsSelector"
 import ExpertReview from "@/components/expert-review"
+
+// Import new V2 components
+import { ProductHero } from "@/components/product-v2/ProductHero"
+import { ProductTabs } from "@/components/product-v2/ProductTabs"
+import { SpecificationsTable } from "@/components/product-v2/SpecificationsTable"
+import { ProsConsSection } from "@/components/product-v2/ProsConsSection"
+import { EnhancedRelatedProducts } from "@/components/product-v2/EnhancedRelatedProducts"
+import { EnhancedExpertReview } from "@/components/product-v2/EnhancedExpertReview"
 
 // Implement ISR with a 1-hour revalidation period
 export const revalidate = 3600
@@ -437,365 +445,136 @@ export default async function ProductPage({ params }: { params: { slug: string }
       }
     };
 
+    // Define sections for the tabbed navigation
+    const pageSections = [
+      { id: "overview", label: "Overview" },
+      { id: "specifications", label: "Specifications" },
+      { id: "expert-review", label: "Expert Review" },
+      { id: "alternatives", label: "Alternatives" },
+      { id: "user-reviews", label: "User Reviews" },
+    ];
+
     return (
       <>
+        {/* Schema.org structured data */}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
+        
+        {/* Enhanced Hero Section */}
+        <ProductHero 
+          product={product} 
+          images={images} 
+          highlights={highlights}
+        />
+        
+        {/* Tabbed Navigation */}
+        <ProductTabs sections={pageSections} />
 
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 space-y-8 md:space-y-12">
-          <div className="grid md:grid-cols-2 gap-6 lg:gap-12 mb-4 md:mb-8">
-            <div className="relative">
-              {product.award && (
-                <Badge className="absolute top-4 right-4 bg-sky-500 hover:bg-sky-600">{product.award}</Badge>
+        <div className="container px-4 mx-auto max-w-7xl">
+          {/* Overview Section */}
+          <section id="overview" className="py-12">
+            <div className="max-w-5xl mx-auto">
+              <h2 className="text-3xl font-bold mb-8">Overview</h2>
+              
+              {/* First promo code highlight if available */}
+              {promoCodes.length > 0 && promoCodes[0].isActive && (
+                <div className="mb-8">
+                  <ProductPromoHighlight promoCode={promoCodes[0]} />
+                </div>
               )}
-              <div className="aspect-[4/3] md:aspect-square relative bg-white rounded-lg p-4 md:p-6 shadow-sm">
-                <Image
-                  src={product.image_url || "/placeholder.svg?height=500&width=500"}
-                  alt={`${product.machine_name} - ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter`}
-                  fill
-                  priority
-                  className="object-contain"
-                  sizes="(max-width: 768px) 100vw, 50vw"
+              
+              {/* Description */}
+              <div className="prose prose-lg max-w-none mb-10">
+                {product.description ? (
+                  <div dangerouslySetInnerHTML={{ __html: product.description }} />
+                ) : (
+                  <p>{product.excerpt_short}</p>
+                )}
+              </div>
+              
+              {/* Pros & Cons Section */}
+              <div className="mb-10">
+                <ProsConsSection 
+                  highlights={highlights} 
+                  drawbacks={drawbacks} 
                 />
               </div>
-            </div>
-
-            <div className="space-y-4 md:space-y-6">
-              <div>
-                <div className="flex flex-col space-y-1 md:space-y-2">
-                  <Link
-                    href={`/brands/${product.company?.toLowerCase().replace(/\s+/g, "-")}`}
-                    className="text-sm text-primary"
-                  >
-                    {product.company}
-                  </Link>
-                  <div className="flex flex-col md:flex-row md:justify-between md:items-center space-y-2 md:space-y-0">
-                    <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold">{product.machine_name}</h1>
-                    
-                    {product.rating && (
-                      <div className="flex items-center">
-                        <RatingMeter 
-                          rating={product.rating} 
-                          size="md" 
-                          showLabel={false}
-                        />
-                        <span className="sr-only">Rating: {product.rating} out of 10</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick summary for featured snippet optimization */}
-              <div className="bg-muted/30 p-3 md:p-5 rounded-lg border border-muted/40">
-                <p className="text-sm md:text-base">{product.excerpt_short}</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mt-3 md:mt-4 text-xs md:text-sm" aria-label="Product specifications">
-                  <div className="flex items-center">
-                    <span className="font-medium mr-1 md:mr-2">Laser Type:</span> 
-                    <span itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
-                      <meta itemProp="name" content="Laser Type" />
-                      <span itemProp="value">{product.laser_type_a}</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="font-medium mr-1 md:mr-2">Power:</span> 
-                    <span itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
-                      <meta itemProp="name" content="Power" />
-                      <span itemProp="value">{product.laser_power_a}W</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="font-medium mr-1 md:mr-2">Work Area:</span> 
-                    <span itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
-                      <meta itemProp="name" content="Work Area" />
-                      <span itemProp="value">{product.work_area}</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="font-medium mr-1 md:mr-2">Speed:</span> 
-                    <span itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
-                      <meta itemProp="name" content="Speed" />
-                      <span itemProp="value">{product.speed}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="sticky top-0 z-10 bg-white/95 py-2 md:static md:bg-transparent md:py-0 space-y-4">
-                <div className="flex items-center gap-2 md:gap-3">
-                  <div className="text-2xl md:text-3xl lg:text-4xl font-bold" itemProp="offers" itemScope itemType="https://schema.org/Offer">
-                    <meta itemProp="priceCurrency" content="USD" />
-                    <meta itemProp="price" content={product.price?.toString() || ""} />
-                    <link itemProp="availability" href="https://schema.org/InStock" />
-                    {formattedPrice}
-                  </div>
-                  {promoCodes.length > 0 && promoCodes[0].discountText !== 'Special offer' && (
-                    <ProductPromoSimple promoCode={promoCodes[0]} />
-                  )}
-                </div>
-
-                <div className="flex flex-col space-y-3 md:space-y-4">
-                  {product.affiliate_link && (
-                    <Button size="lg" className="w-full py-6 text-base" asChild>
-                      <Link 
-                        href={product.affiliate_link} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        aria-label={`Buy ${product.machine_name} now`}
-                      >
-                        <ShoppingCart className="mr-3 h-5 w-5" /> Buy Now
-                      </Link>
-                    </Button>
-                  )}
-                  <AddToCompareButton product={product} />
-                </div>
-              </div>
-
-              {/* Move the list of promo codes after the buy button */}
-              {promoCodes.length > 1 && (
-                <ProductPromoCodes promoCodes={promoCodes.slice(1)} className="mb-2 md:mb-4" />
-              )}
-
-              {/* Quick Verdict - Only show if pros or cons are available */}
-              {(highlights.length > 0 || drawbacks.length > 0) && (
-                <div className="border-t pt-4 md:pt-6">
-                  <h3 className="font-semibold mb-3 text-base md:text-lg">Quick Verdict</h3>
-                  <div className="flex flex-col space-y-4 md:grid md:grid-cols-2 md:gap-8 md:space-y-0">
-                    {highlights.length > 0 && (
-                      <div className="bg-green-50/50 p-3 rounded-lg border border-green-100">
-                        <h4 className="font-medium mb-2 text-green-600">Pros</h4>
-                        <ul className="space-y-2">
-                          {highlights.map((pro: string, index: number) => (
-                            <li key={index} className="text-xs md:text-sm flex items-start">
-                              <span className="text-green-600 mr-2 mt-0.5">✓</span> {pro}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {drawbacks.length > 0 && (
-                      <div className="bg-red-50/50 p-3 rounded-lg border border-red-100">
-                        <h4 className="font-medium mb-2 text-red-600">Cons</h4>
-                        <ul className="space-y-2">
-                          {drawbacks.map((con: string, index: number) => (
-                            <li key={index} className="text-xs md:text-sm flex items-start">
-                              <span className="text-red-600 mr-2 mt-0.5">✗</span> {con}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+              
+              {/* YouTube Video */}
+              {youtubeVideoId && (
+                <div className="my-10">
+                  <h3 className="text-2xl font-bold mb-4">Video Review</h3>
+                  <div className="relative rounded-xl overflow-hidden aspect-video shadow-md">
+                    <iframe
+                      className="absolute inset-0 w-full h-full"
+                      src={`https://www.youtube.com/embed/${youtubeVideoId}`}
+                      title={`${product.machine_name} Video Review`}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    ></iframe>
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-
-          <div className="space-y-4 md:space-y-6">
-            <div className="max-w-3xl mx-auto">
-              <h2 className="text-xl md:text-2xl lg:text-3xl font-bold hidden md:block" id="specifications">
-                Specifications
-              </h2>
-            </div>
-            
-            {/* Mobile Specs Selector (Client Component) */}
-            <MobileSpecsSelector product={product} formattedPrice={formattedPrice} />
-            
-            {/* Desktop Tabs (Only visible on MD and up) */}
-            <div className="hidden md:block">
-              <Tabs defaultValue="basic">
-                <TabsList className="w-full overflow-x-auto flex-nowrap hide-scrollbar">
-                  <TabsTrigger value="basic" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Basic Information</TabsTrigger>
-                  <TabsTrigger value="laser" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Laser Specifications</TabsTrigger>
-                  <TabsTrigger value="dimensions" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Machine Dimensions</TabsTrigger>
-                  <TabsTrigger value="performance" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Performance</TabsTrigger>
-                  <TabsTrigger value="features" className="px-4 py-2 md:px-6 md:py-3 whitespace-nowrap">Features</TabsTrigger>
-                </TabsList>
-                
-                <div className="max-w-3xl mx-auto">
-                  {/* Basic Information */}
-                  <TabsContent value="basic" className="mt-4 md:mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                      <SpecItem label="Brand" value={product.company} propName="brand" />
-                      <SpecItem label="Price" value={formattedPrice} propName="price" />
-                      <SpecItem label="Expert Score" value={product.rating ? `${product.rating}/10` : null} propName="rating" />
-                      <SpecItem label="Warranty" value={product.warranty} propName="warranty" />
-                      <SpecItem label="Software" value={product.software} propName="software" />
-                    </div>
-                  </TabsContent>
-                  
-                  {/* Laser Specifications */}
-                  <TabsContent value="laser" className="mt-4 md:mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                      <SpecItem label="Laser Type" value={product.laser_type_a} propName="laserType" />
-                      <SpecItem label="Power (W)" value={product.laser_power_a ? `${product.laser_power_a}` : null} propName="power" />
-                      <SpecItem label="Laser Source" value={product.laser_source_manufacturer} propName="laserSource" />
-                      <SpecItem label="Frequency" value={product.laser_frequency} propName="frequency" />
-                      <SpecItem label="Pulse Width" value={product.pulse_width} propName="pulseWidth" />
-                      {product.laser_power_b && (
-                        <SpecItem label="Secondary Laser" value={`${product.laser_power_b}W ${product.laser_type_b}`} propName="secondaryLaser" />
-                      )}
-                    </div>
-                  </TabsContent>
-                  
-                  {/* Machine Dimensions */}
-                  <TabsContent value="dimensions" className="mt-4 md:mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                      <SpecItem label="Work Area (mm)" value={product.work_area} propName="workArea" />
-                      <SpecItem label="Machine Size (mm)" value={product.machine_size} propName="machineSize" />
-                      <SpecItem label="Height (mm)" value={product.height} propName="height" />
-                    </div>
-                  </TabsContent>
-                  
-                  {/* Performance */}
-                  <TabsContent value="performance" className="mt-4 md:mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                      <SpecItem label="Speed (mm/s)" value={product.speed} propName="speed" />
-                      <SpecItem label="Acceleration" value={product.acceleration} propName="acceleration" />
-                    </div>
-                  </TabsContent>
-                  
-                  {/* Features */}
-                  <TabsContent value="features" className="mt-4 md:mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                      <SpecItem label="Focus" value={product.focus} propName="focus" />
-                      <SpecItem label="Enclosure" value={product.enclosure} propName="enclosure" />
-                      <SpecItem label="WiFi" value={product.wifi} propName="wifi" />
-                      <SpecItem label="Camera" value={product.camera} propName="camera" />
-                      <SpecItem label="Passthrough" value={product.passthrough} propName="passthrough" />
-                      <SpecItem label="Controller" value={product.controller} propName="controller" />
-                    </div>
-                  </TabsContent>
-                </div>
-              </Tabs>
-            </div>
-          </div>
-
-          {/* Only show Video Review section if youtubeVideoId is available */}
-          {youtubeVideoId && (
-            <div className="space-y-4 md:space-y-6">
-              <div className="max-w-3xl mx-auto">
-                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold" id="video-review">
-                  Video Review
-                </h2>
-              </div>
-              <div className="max-w-3xl mx-auto aspect-video w-full rounded-lg overflow-hidden shadow-md">
-                <iframe
-                  width="100%"
-                  height="100%"
-                  src={`https://www.youtube.com/embed/${youtubeVideoId}`}
-                  title={`${product.machine_name} Video Review`}
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  loading="lazy"
-                ></iframe>
+              
+              {/* Add to compare button */}
+              <div className="mt-8 flex justify-end">
+                <AddToCompareButton product={product} />
               </div>
             </div>
-          )}
-
-          {/* Only show In-Depth Review if description is available */}
-          {product.description && (
-            <section className="space-y-4 md:space-y-6" itemProp="description">
-              <div className="max-w-3xl mx-auto">
-                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold not-prose" id="in-depth-review">
-                  In-Depth Review
-                </h2>
-              </div>
-              <div className="max-w-3xl mx-auto prose prose-sm md:prose-base lg:prose-lg prose-blue max-w-none
-                  prose-headings:font-bold 
-                  prose-headings:text-foreground
-                  prose-headings:mb-6
-                  prose-headings:mt-8
-                  prose-h2:text-2xl 
-                  prose-h2:md:text-3xl
-                  prose-h2:leading-tight
-                  prose-h3:text-xl 
-                  prose-h3:md:text-2xl
-                  prose-h3:leading-tight
-                  prose-h4:text-lg
-                  prose-h4:md:text-xl
-                  prose-h4:leading-tight" 
-                dangerouslySetInnerHTML={{ __html: product.description }} 
-              />
-            </section>
-          )}
-
-          {/* Expert Review - show if Review or Brandon's Take is available */}
-          <ExpertReview 
-            review={product["Review"]} 
-            brandonsTake={product["Brandon's Take"]} 
-          />
-
-          {/* Best for section - only show if data is available */}
-          {product.best_for && (
-            <div className="space-y-4 md:space-y-6">
-              <div className="max-w-3xl mx-auto">
-                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold mb-4 md:mb-6">Best For</h2>
-              </div>
-              <div className="max-w-3xl mx-auto bg-muted/20 p-6 md:p-8 rounded-lg border border-muted/30">
-                <p className="text-base md:text-lg">{product.best_for}</p>
+          </section>
+          
+          {/* Specifications Section */}
+          <section id="specifications" className="py-12 border-t">
+            <div className="max-w-5xl mx-auto">
+              <h2 className="text-3xl font-bold mb-8">Specifications</h2>
+              <SpecificationsTable product={product} />
+              
+              {/* Mobile specs selector */}
+              <div className="md:hidden mt-8">
+                <MobileSpecsSelector product={product} />
               </div>
             </div>
-          )}
-
-          {/* Customer Reviews - only show if there are reviews available */}
-          {reviews && reviews.length > 0 && (
-            <section className="space-y-4 md:space-y-6" itemProp="review" itemScope itemType="https://schema.org/Review">
-              <div className="max-w-3xl mx-auto">
-                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold" id="customer-reviews">
-                  Customer Reviews
-                </h2>
-              </div>
-              <div className="max-w-3xl mx-auto">
-                <ProductReviews reviews={reviews} />
-              </div>
-            </section>
-          )}
-
-          {/* Where to Buy - only show if affiliate link is available */}
-          {product.affiliate_link && (
-            <div className="space-y-4 md:space-y-6">
-              <div className="max-w-3xl mx-auto">
-                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold" id="where-to-buy">
-                  Where to Buy
-                </h2>
-              </div>
-              <div className="max-w-3xl mx-auto border rounded-lg p-4 md:p-6 flex flex-col md:flex-row md:justify-between md:items-center space-y-3 md:space-y-0 md:space-x-6">
-                <div>
-                  <div className="font-medium text-base md:text-lg">Official Store</div>
-                  <div className="text-xl md:text-2xl font-bold">{formattedPrice}</div>
-                </div>
-                <Button size="lg" className="px-8" asChild>
-                  <Link 
-                    href={product.affiliate_link} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    aria-label={`Buy ${product.machine_name} from official store`}
-                  >
-                    View Deal
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Related products - only show if there are related products available */}
-          {relatedProducts && relatedProducts.length > 0 && (
-            <div className="space-y-4 md:space-y-6">
-              <h2 className="text-xl md:text-2xl lg:text-3xl font-bold mb-2 md:mb-4 text-center md:text-left" id="related-products">Related Products</h2>
-              <RelatedProducts 
-                products={relatedProducts} 
+          </section>
+          
+          {/* Expert Review Section */}
+          <section id="expert-review" className="border-t">
+            <EnhancedExpertReview 
+              review={product.review}
+              brandonsTake={product.brandons_take}
+            />
+          </section>
+          
+          {/* Alternatives Section */}
+          <section id="alternatives" className="py-12 border-t">
+            <div className="max-w-5xl mx-auto">
+              <EnhancedRelatedProducts 
+                products={relatedProducts}
                 currentProductId={product.id}
-                showHeading={false}
               />
             </div>
-          )}
+            
+            {/* Additional promo codes */}
+            {promoCodes.length > 1 && (
+              <div className="mt-8 max-w-5xl mx-auto">
+                <h3 className="text-xl font-bold mb-4">Available Discounts</h3>
+                <ProductPromoCodes promoCodes={promoCodes.filter(code => code.isActive)} />
+              </div>
+            )}
+          </section>
+          
+          {/* User Reviews Section */}
+          <section id="user-reviews" className="py-12 border-t">
+            <div className="max-w-5xl mx-auto">
+              <h2 className="text-3xl font-bold mb-8">User Reviews</h2>
+              <ProductReviews reviews={reviews} />
+            </div>
+          </section>
         </div>
       </>
     )
   } catch (error) {
-    console.error("Error in ProductPage:", error);
-    notFound();
+    console.error("Error in product page:", error)
+    notFound()
   }
 }
 
