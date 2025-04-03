@@ -1,21 +1,44 @@
-import Link from "next/link"
-import { Tag, Laptop2, Tv, FlameKindling } from "lucide-react"
-import Image from "next/image"
-import { createServerClient } from "@/lib/supabase/server"
+"use client"
 
-export default async function Navbar() {
-  // Fetch logo URL from site settings
-  const supabase = createServerClient()
-  const { data } = await supabase
-    .from("site_settings")
-    .select("value")
-    .eq("key", "logo_url")
-    .single()
+import Link from "next/link"
+import { Tag, Laptop2, Tv, FlameKindling, Menu, X } from "lucide-react"
+import Image from "next/image"
+import { useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
+
+export default function Navbar() {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   
-  const logoUrl = data?.value || null
+  useEffect(() => {
+    // Fetch logo URL when component mounts
+    const fetchLogoUrl = async () => {
+      try {
+        const response = await fetch('/api/site-settings?key=logo_url')
+        const data = await response.json()
+        setLogoUrl(data.value)
+      } catch (error) {
+        console.error('Error fetching logo URL:', error)
+      }
+    }
+    
+    fetchLogoUrl()
+  }, [])
+  
+  // Close menu when window is resized to desktop size
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768 && isMenuOpen) {
+        setIsMenuOpen(false)
+      }
+    }
+    
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [isMenuOpen])
 
   return (
-    <header className="border-b">
+    <header className="border-b relative z-30">
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-8">
@@ -103,6 +126,75 @@ export default async function Navbar() {
               </Link>
             </nav>
           </div>
+          
+          {/* Mobile Menu Button */}
+          <button 
+            className="md:hidden p-2 text-gray-600 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={isMenuOpen}
+          >
+            {isMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
+        </div>
+        
+        {/* Mobile Menu */}
+        <div 
+          className={cn(
+            "fixed inset-0 z-50 bg-white md:hidden transition-transform duration-300 ease-in-out transform",
+            isMenuOpen ? "translate-x-0" : "translate-x-full"
+          )}
+          style={{ top: '61px' }} // Height of the header
+        >
+          <nav className="flex flex-col p-6 space-y-6 border-t">
+            <Link 
+              href="/compare" 
+              className="flex items-center text-lg font-medium hover:text-primary"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Laptop2 className="h-5 w-5 mr-2" />
+              Compare Products
+            </Link>
+            <Link 
+              href="/laser-material-library" 
+              className="flex items-center text-lg font-medium hover:text-primary"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <FlameKindling className="h-5 w-5 mr-2" />
+              Material Library
+            </Link>
+            <Link 
+              href="/promo-codes" 
+              className="flex items-center text-lg font-medium hover:text-primary"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Tag className="h-5 w-5 mr-2" />
+              Promo Codes
+            </Link>
+            <Link 
+              href="https://www.youtube.com/@makeorbreakshop" 
+              className="flex items-center text-lg font-medium hover:text-primary"
+              target="_blank" 
+              rel="noopener noreferrer"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Tv className="h-5 w-5 mr-2" />
+              YouTube
+            </Link>
+            <Link 
+              href="https://makeorbreakshop.mykajabi.com/learn-lightburn-for-lasers" 
+              className="flex items-center text-lg font-medium hover:text-primary"
+              target="_blank" 
+              rel="noopener noreferrer"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Learn Lightburn
+            </Link>
+          </nav>
         </div>
       </div>
     </header>
