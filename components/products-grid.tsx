@@ -66,6 +66,7 @@ export default function ProductsGrid({
                 )}
 
                 <Link href={`/products/${product["Internal link"]}`} className="block h-[180px] relative">
+                  <div className="absolute inset-0 bg-gray-100 animate-pulse opacity-20"></div>
                   <Image
                     src={product["Image"] || "/placeholder.svg?height=200&width=200"}
                     alt={product["Machine Name"] || `Product ${product.id || "image"}`}
@@ -75,6 +76,8 @@ export default function ProductsGrid({
                     loading="lazy"
                     quality={75}
                     priority={false}
+                    placeholder="blur"
+                    blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YxZjFmMSIvPjwvc3ZnPg=="
                   />
                 </Link>
               </div>

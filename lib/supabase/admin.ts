@@ -7,6 +7,10 @@ export function createAdminClient() {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
   if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("Admin client creation failed:", {
+      urlExists: !!supabaseUrl,
+      keyExists: !!supabaseServiceKey
+    })
     throw new Error("Supabase URL or Service Role Key not available")
   }
   
@@ -19,6 +23,10 @@ export function createEdgeAdminClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
   if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("Edge admin client creation failed:", {
+      urlExists: !!supabaseUrl,
+      keyExists: !!supabaseAnonKey
+    })
     throw new Error("Supabase URL or Anon Key not available")
   }
   

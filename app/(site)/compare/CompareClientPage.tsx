@@ -27,12 +27,26 @@ import UnifiedFilter from "@/components/unified-filter"
 
 // Dynamically import heavy components with increased loading delay to prevent hydration issues
 const ComparisonTable = dynamic(() => import('@/components/comparison-table'), {
-  loading: () => <div className="w-full p-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Loading comparison table...</div>,
+  loading: () => (
+    <div className="w-full h-[500px] p-8 flex items-center justify-center bg-gray-50 border rounded-lg">
+      <div className="flex flex-col items-center">
+        <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+        <span>Loading comparison table...</span>
+      </div>
+    </div>
+  ),
   ssr: false
 })
 
 const EnhancedComparisonTable = dynamic(() => import('@/components/enhanced-comparison-table'), {
-  loading: () => <div className="w-full p-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Loading enhanced comparison table...</div>,
+  loading: () => (
+    <div className="w-full h-[500px] p-8 flex items-center justify-center bg-gray-50 border rounded-lg">
+      <div className="flex flex-col items-center">
+        <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+        <span>Loading enhanced comparison table...</span>
+      </div>
+    </div>
+  ),
   ssr: false
 })
 
@@ -46,14 +60,19 @@ declare global {
 
 // Helper function for laser type matching - extracted to ensure consistent matching logic
 function matchesLaserType(product: Machine, laserType: string): boolean {
-  const normalizedType = laserType.toLowerCase().trim();
-  const productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
-  const productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
+  // Normalize by converting to lowercase, trimming spaces, and standardizing format
+  // - Replace spaces with dashes to match database format
+  // - Convert everything to lowercase for case-insensitive comparison
+  const normalizedType = laserType.toLowerCase().trim().replace(/ /g, '-');
+  
+  // Get the product's laser types and normalize them the same way
+  let productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
+  let productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
   
   console.log(`DEBUG MATCHING: Checking if machine "${product["Machine Name"]}" matches laser type "${normalizedType}"`);
   console.log(`DEBUG MATCHING: Machine has Laser Type A = "${productLaserTypeA}", Laser Type B = "${productLaserTypeB}"`);
   
-  // Direct matching on Laser Type fields (case-insensitive)
+  // Direct matching on Laser Type fields (case-insensitive with normalized format)
   const isMatch = productLaserTypeA === normalizedType || productLaserTypeB === normalizedType;
   console.log(`DEBUG MATCHING: Match result: ${isMatch}`);
   return isMatch;
@@ -215,29 +234,29 @@ const FeaturesList = React.memo(function FeaturesList() {
   return (
     <div className="mb-8">
       <h2 className="text-xl font-semibold mb-4">Features</h2>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5" style={{ minHeight: '80px' }}>
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Camera className="h-5 w-5 mr-2" />
+          <Camera className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>Camera</span>
         </Button>
         
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Wifi className="h-5 w-5 mr-2" />
+          <Wifi className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>WiFi</span>
         </Button>
         
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Box className="h-5 w-5 mr-2" />
+          <Box className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>Enclosure</span>
         </Button>
         
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Box className="h-5 w-5 mr-2" />
+          <Box className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>Auto Focus</span>
         </Button>
         
         <Button variant="outline" className="flex items-center justify-center w-full h-auto py-3">
-          <Box className="h-5 w-5 mr-2" />
+          <Box className="h-5 w-5 mr-2 flex-shrink-0" />
           <span>Passthrough</span>
         </Button>
       </div>
@@ -414,11 +433,11 @@ export default function CompareClientPage({
   // Define the laser type mapping between UI display names and database values
   const laserTypeMap = useMemo(() => ({
     "Fiber": "Fiber",
-    "Infrared": "infrared", // Use correct spelling
+    "Infrared": "Infrared",
     "MOPA": "MOPA",
-    "CO2 RF": "co2-rf",
-    "CO2 Glass": "co2-glass", 
-    "Diode": "diode",
+    "CO2 RF": "CO2-RF",
+    "CO2 Glass": "CO2-Glass",
+    "Diode": "Diode",
   }), []);
   
   const [products, setProducts] = useState<Machine[]>(initialProducts)

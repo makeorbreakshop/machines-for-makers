@@ -15,6 +15,19 @@ import { ProductPromoHighlight } from "@/components/product-promo-highlight"
 import { ProductPromoSimple } from "@/components/product-promo-simple"
 import { PromoCode, PromoCodeDisplay } from "@/types/promo-codes"
 import { createServerClient } from '@/lib/supabase/server'
+import { MobileSpecsSelector } from "@/components/product-v2/MobileSpecsSelector"
+import ExpertReview from "@/components/expert-review"
+import { getProductPromoCodes } from "@/lib/promo-service"
+
+// Import V2 components
+import { ProductHero } from "@/components/product-v2/ProductHero"
+import { ProductTabs } from "@/components/product-v2/ProductTabs"
+import { SpecificationsTable } from "@/components/product-v2/SpecificationsTable"
+import { SpecificationsTab } from "@/components/product-v2/SpecificationsTab"
+import { ProsConsSection } from "@/components/product-v2/ProsConsSection"
+import { EnhancedRelatedProducts } from "@/components/product-v2/EnhancedRelatedProducts"
+import { EnhancedExpertReview } from "@/components/product-v2/EnhancedExpertReview"
+import { AtAGlance } from "@/components/product-v2/AtAGlance"
 
 // Implement ISR with a 1-hour revalidation period
 export const revalidate = 3600
@@ -93,30 +106,65 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     }
   }
 
-  // More SEO-optimized title format
-  const title = `${product.machine_name} Review: ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter & Engraver (2025)`
+  // More SEO-optimized title format with year and type
+  const currentYear = new Date().getFullYear();
+  const title = `${product.machine_name} Review: ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter & Engraver (${currentYear})`
 
-  // More detailed meta description
-  const description =
-    product.excerpt_short ||
-    `Comprehensive review of the ${product.machine_name} ${product.laser_type_a} laser cutter. Learn about specs, performance, pros and cons, and if it's right for your needs.`
+  // More detailed meta description with keywords
+  const description = product.excerpt_short 
+    ? `${product.excerpt_short.trim()}. Read our expert review, specifications, and buyer's guide.`
+    : `Comprehensive review of the ${product.machine_name} ${product.laser_type_a} laser cutter. Learn about specs, performance, pros and cons, and if it's right for your needs. Expert buying advice for ${currentYear}.`;
 
+  // Category info for breadcrumbs
+  const categoryLabel = getCategoryLabel(product.category_id);
+  
   return {
     title,
     description,
+    keywords: [
+      product.machine_name,
+      `${product.laser_type_a} laser`,
+      `${product.laser_power_a}W laser cutter`,
+      "laser engraver",
+      "laser cutting machine",
+      "laser engraving",
+      product.company,
+      "laser cutter review",
+      `${currentYear} laser cutter`,
+    ].filter(Boolean),
+    alternates: {
+      canonical: `https://machinesformakers.com/products/${slug}`,
+    },
     openGraph: {
       title,
       description,
       type: "article",
-      images: [product.image_url || ""],
+      url: `https://machinesformakers.com/products/${slug}`,
+      images: [
+        {
+          url: product.image_url || "",
+          width: 1200,
+          height: 630,
+          alt: `${product.machine_name} - ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter`
+        }
+      ],
       publishedTime: product.published_at,
       modifiedTime: product.updated_at,
+      siteName: "Machines for Makers",
+      locale: "en_US",
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [product.image_url || ""],
+      images: [
+        {
+          url: product.image_url || "",
+          alt: `${product.machine_name} - ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter`
+        }
+      ],
+      site: "@machinesmakers",
+      creator: "@machinesmakers",
     },
   }
 }
@@ -134,6 +182,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
       company: product.company,
       brand_id: product.brand_id,
       category_id: product.category_id,
+      has_review: !!product.review,
+      review_length: product.review ? product.review.length : 0,
     } : "Not found");
     if (error) console.error("Error fetching product:", error);
 
@@ -168,195 +218,11 @@ export default async function ProductPage({ params }: { params: { slug: string }
       console.error("Error fetching images:", err);
     }
 
-    // Get promo codes for this product from the server directly
+    // Get promo codes using our new service
     let promoCodes: PromoCodeDisplay[] = [];
     try {
-      const supabase = await createServerClient()
-      
-      console.log(`Fetching promo codes for product: ${product.machine_name} (ID: ${product.id})`)
-      console.log(`Product details - Brand ID: ${product.brand_id}, Category ID: ${product.category_id}, Company: ${product.company}`)
-      
-      // Process xTool brand separately with direct approach
-      if (product.company?.toLowerCase() === 'xtool') {
-        console.log('Processing xTool brand promo code with direct approach');
-        try {
-          // Direct query for xTool promo codes
-          const { data: xToolData, error: xToolError } = await supabase
-            .from('promo_codes')
-            .select('*')
-            .eq('applies_to_brand_id', '2b0c2371-bedb-4af3-8457-be2d26a378c8');
-
-          console.log('Direct xTool promo code query result:', xToolData);
-          
-          if (xToolError) {
-            console.error('Error fetching xTool promo codes:', xToolError);
-            throw xToolError; // Rethrow to trigger catch block for proper error handling
-          }
-
-          // If we found promo codes in the database, use those
-          if (xToolData && xToolData.length > 0) {
-            try {
-              console.log('xTool database promo code raw data:', JSON.stringify(xToolData[0]));
-              
-              // Create properly formatted promo codes with forced active status, manually
-              const dbPromoCode = xToolData[0];
-              
-              // Create a directly formatted version without using the helper function
-              const manuallyFormattedCode = {
-                code: dbPromoCode.code,
-                description: dbPromoCode.description || '',
-                discountText: dbPromoCode.discount_amount ? `$${dbPromoCode.discount_amount} off` : 'Special offer',
-                validUntil: dbPromoCode.valid_until ? new Date(dbPromoCode.valid_until).toLocaleDateString() : null,
-                isActive: true, // Force active
-                affiliateLink: dbPromoCode.affiliate_link || null
-              };
-              
-              console.log('Manually formatted xTool promo code:', manuallyFormattedCode);
-              
-              // Add this to our promo codes array directly
-              promoCodes = [manuallyFormattedCode];
-            } catch (formatError) {
-              console.error('Error formatting xTool promo codes:', formatError);
-              throw formatError;
-            }
-          } else {
-            // Create a hardcoded fallback promo code for xTool
-            const hardcodedXToolPromoCode = {
-              id: 'hardcoded-xtool-promo',
-              code: 'xToolBrandon',
-              description: '$80 Off purchases of $1000 or more',
-              discount_amount: '80',
-              discount_percent: null,
-              valid_from: '2023-01-01T00:00:00.000Z',
-              valid_until: null,
-              applies_to_brand_id: '2b0c2371-bedb-4af3-8457-be2d26a378c8',
-              affiliate_link: 'https://www.xtool.com/discount/xToolBrandon?ref=rw0h_cdiytm5',
-              isActive: true,
-              discountText: '$80 off',
-              validUntil: null,
-              is_global: false,
-              current_uses: 0,
-              applies_to_machine_id: null,
-              applies_to_category_id: null,
-              created_at: '2023-01-01T00:00:00.000Z',
-              updated_at: '2023-01-01T00:00:00.000Z',
-              max_uses: null
-            };
-            console.log('Using hardcoded xTool promo code fallback:', hardcodedXToolPromoCode);
-            promoCodes = [hardcodedXToolPromoCode];
-          }
-        } catch (error) {
-          console.error('Error fetching xTool promo codes:', error);
-          
-          // In case of error, still provide the hardcoded fallback
-          const hardcodedXToolPromoCode = {
-            id: 'hardcoded-xtool-promo',
-            code: 'xToolBrandon',
-            description: '$80 Off purchases of $1000 or more',
-            discount_amount: '80',
-            discount_percent: null,
-            valid_from: '2023-01-01T00:00:00.000Z',
-            valid_until: null,
-            applies_to_brand_id: '2b0c2371-bedb-4af3-8457-be2d26a378c8',
-            affiliate_link: 'https://www.xtool.com/discount/xToolBrandon?ref=rw0h_cdiytm5',
-            isActive: true,
-            discountText: '$80 off',
-            validUntil: null,
-            is_global: false,
-            current_uses: 0,
-            applies_to_machine_id: null,
-            applies_to_category_id: null,
-            created_at: '2023-01-01T00:00:00.000Z',
-            updated_at: '2023-01-01T00:00:00.000Z',
-            max_uses: null
-          };
-          console.log('Using hardcoded xTool promo code fallback due to error:', hardcodedXToolPromoCode);
-          promoCodes = [hardcodedXToolPromoCode];
-        }
-      } else {
-        // Regular approach for non-xTool products
-        // First get machine-specific codes
-        if (product.id) {
-          const { data: machineData, error: machineError } = await supabase
-            .from('promo_codes')
-            .select('*')
-            .eq('applies_to_machine_id', product.id)
-          
-          console.log(`Machine-specific promo codes for ID ${product.id}:`, machineData || 'No data')
-          if (machineError) console.error('Error fetching machine-specific promo codes:', machineError)
-          
-          if (!machineError && machineData) {
-            promoCodes = [...promoCodes, ...machineData.map(serverFormatPromoCodeForDisplay)]
-          }
-        }
-        
-        // Then get brand-specific codes
-        if (product.brand_id) {
-          const { data: brandData, error: brandError } = await supabase
-            .from('promo_codes')
-            .select('*')
-            .eq('applies_to_brand_id', product.brand_id)
-          
-          console.log(`Brand-specific promo codes for brand ID ${product.brand_id}:`, brandData || 'No data')
-          if (brandError) console.error('Error fetching brand-specific promo codes:', brandError)
-          
-          if (!brandError && brandData) {
-            promoCodes = [...promoCodes, ...brandData.map(serverFormatPromoCodeForDisplay)]
-          }
-        }
-        
-        // Then get category-specific codes
-        if (product.category_id) {
-          const { data: categoryData, error: categoryError } = await supabase
-            .from('promo_codes')
-            .select('*')
-            .eq('applies_to_category_id', product.category_id)
-          
-          console.log(`Category-specific promo codes for category ID ${product.category_id}:`, categoryData || 'No data')
-          if (categoryError) console.error('Error fetching category-specific promo codes:', categoryError)
-          
-          if (!categoryError && categoryData) {
-            promoCodes = [...promoCodes, ...categoryData.map(serverFormatPromoCodeForDisplay)]
-          }
-        }
-        
-        // Finally get global codes
-        const { data: globalData, error: globalError } = await supabase
-          .from('promo_codes')
-          .select('*')
-          .eq('is_global', true)
-        
-        console.log('Global promo codes:', globalData || 'No data')
-        if (globalError) console.error('Error fetching global promo codes:', globalError)
-        
-        if (!globalError && globalData) {
-          promoCodes = [...promoCodes, ...globalData.map(serverFormatPromoCodeForDisplay)]
-        }
-      }
-      
-      // Remove any duplicate promo codes (by code)
-      const beforeDeduplication = promoCodes.length;
-      promoCodes = promoCodes.filter((code, index, self) => 
-        index === self.findIndex((c) => c.code === code.code)
-      )
-      console.log(`Removed ${beforeDeduplication - promoCodes.length} duplicate promo codes`)
-      
-      // Sort promo codes by discount value (highest first)
-      promoCodes.sort((a, b) => {
-        // Extract numeric values from discount text (e.g., "10% off" → 10)
-        const valueA = parseInt(a.discountText.match(/(\d+)/)?.[0] || '0')
-        const valueB = parseInt(b.discountText.match(/(\d+)/)?.[0] || '0')
-        
-        // Sort by active status first, then by discount value
-        if (a.isActive !== b.isActive) {
-          return a.isActive ? -1 : 1
-        }
-        
-        return valueB - valueA
-      })
-      
-      console.log(`Final promo codes count: ${promoCodes.length}`)
-      console.log('Active promo codes:', promoCodes.filter(code => code.isActive))
+      promoCodes = await getProductPromoCodes(product);
+      console.log(`Retrieved ${promoCodes.length} promo codes, ${promoCodes.filter(c => c.isActive).length} active`);
     } catch (err) {
       console.error("Error fetching promo codes:", err);
     }
@@ -371,349 +237,235 @@ export default async function ProductPage({ params }: { params: { slug: string }
     // Extract YouTube video ID if present
     const youtubeVideoId = product.youtube_review ? extractYoutubeId(product.youtube_review) : null;
 
-    // Add a final debug log to see what promo codes are available right before displaying
-    console.log('Final promo codes available for display:', promoCodes)
-    console.log('Are any promo codes active?', promoCodes.some(code => code.isActive))
-    const firstPromoCode = promoCodes.length > 0 ? promoCodes[0] : null;
+    // Get the first active promo code for prominent display
+    const firstPromoCode = promoCodes.find(code => code.isActive) || null;
     console.log('First promo code for prominent display:', firstPromoCode);
 
-    // Schema.org structured data for product
-    const productSchema = {
+    // Define sections for the tabbed navigation - filtered by available content
+    const pageSections = [
+      ...(youtubeVideoId ? [{ id: "video-review", label: "Video Review" }] : []),
+      { id: "specifications", label: "Technical Specs" },
+      ...(product.review ? [{ id: "expert-review", label: "Expert Review" }] : []),
+      { id: "alternatives", label: "Alternatives" },
+    ];
+
+    // Create product schema with proper typing
+    const productSchema: {
+      "@context": string;
+      "@type": string;
+      name: string;
+      image: string[];
+      description: string;
+      brand: { "@type": string; name: string };
+      sku: string;
+      mpn: string;
+      category: string;
+      offers: {
+        "@type": string;
+        url: string;
+        price: number;
+        priceCurrency: string;
+        availability: string;
+        itemCondition: string;
+      };
+      review?: {
+        "@type": string;
+        reviewRating: {
+          "@type": string;
+          ratingValue: string;
+          bestRating: string;
+        };
+        author: {
+          "@type": string;
+          name: string;
+        };
+      };
+      aggregateRating?: {
+        "@type": string;
+        ratingValue: string;
+        reviewCount: string;
+      };
+      video?: {
+        "@type": string;
+        name: string;
+        description: string;
+        thumbnailUrl: string;
+        uploadDate: string;
+        contentUrl: string;
+        embedUrl: string;
+      };
+    } = {
       "@context": "https://schema.org",
       "@type": "Product",
       name: product.machine_name,
-      image: product.image_url,
-      description: product.description,
+      image: images.map(img => img.url),
+      description: product.description || product.excerpt_short || "",
       brand: {
         "@type": "Brand",
-        name: product.company,
+        name: product.company || ""
       },
+      sku: product.id,
+      mpn: product.id,
+      category: "Laser Cutter",
       offers: {
         "@type": "Offer",
-        price: product.price,
+        url: `https://machinesformakers.com/products/${product.slug}`,
+        price: product.price || 0,
         priceCurrency: "USD",
         availability: "https://schema.org/InStock",
-      },
+        itemCondition: "https://schema.org/NewCondition"
+      }
     };
+
+    // Add review to schema if available
+    if (product.review) {
+      productSchema.review = {
+        "@type": "Review",
+        reviewRating: {
+          "@type": "Rating",
+          ratingValue: product.rating?.toString() || "5",
+          bestRating: "5"
+        },
+        author: {
+          "@type": "Person",
+          name: "Brandon"
+        }
+      };
+    }
+
+    // Add aggregate rating if available
+    if (product.rating) {
+      productSchema.aggregateRating = {
+        "@type": "AggregateRating",
+        ratingValue: product.rating.toString(),
+        reviewCount: "1"
+      };
+    }
+
+    // Update Schema.org structured data to include video if present
+    if (youtubeVideoId) {
+      productSchema.video = {
+        "@type": "VideoObject",
+        name: `${product.machine_name} Video Review`,
+        description: `Detailed video review of the ${product.machine_name}`,
+        thumbnailUrl: `https://img.youtube.com/vi/${youtubeVideoId}/maxresdefault.jpg`,
+        uploadDate: product.updated_at || new Date().toISOString().split('T')[0],
+        contentUrl: `https://www.youtube.com/watch?v=${youtubeVideoId}`,
+        embedUrl: `https://www.youtube.com/embed/${youtubeVideoId}`
+      };
+    }
 
     return (
       <>
+        {/* Schema.org structured data */}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
-
-        <div className="container mx-auto px-4 py-6">
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
-            <div className="relative">
-              {product.award && (
-                <Badge className="absolute top-4 right-4 bg-sky-500 hover:bg-sky-600">{product.award}</Badge>
-              )}
-              <div className="aspect-square relative bg-white rounded-lg p-4">
-                <Image
-                  src={product.image_url || "/placeholder.svg?height=500&width=500"}
-                  alt={product.machine_name}
-                  fill
-                  priority
-                  className="object-contain"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <Link
-                      href={`/brands/${product.company?.toLowerCase().replace(/\s+/g, "-")}`}
-                      className="text-sm text-primary"
-                    >
-                      {product.company}
-                    </Link>
-                    <h1 className="text-3xl font-bold mt-1">{product.machine_name}</h1>
-                  </div>
-                  
-                  {product.rating && (
-                    <RatingMeter 
-                      rating={product.rating} 
-                      size="md" 
-                      showLabel={false}
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Quick summary for featured snippet optimization */}
-              <div className="bg-muted/30 p-3 rounded-lg mb-4">
-                <p className="text-lg">{product.excerpt_short}</p>
-                <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
-                  <div className="flex items-center">
-                    <span className="font-medium mr-2">Laser Type:</span> {product.laser_type_a}
-                  </div>
-                  <div className="flex items-center">
-                    <span className="font-medium mr-2">Power:</span> {product.laser_power_a}W
-                  </div>
-                  <div className="flex items-center">
-                    <span className="font-medium mr-2">Work Area:</span> {product.work_area}
-                  </div>
-                  <div className="flex items-center">
-                    <span className="font-medium mr-2">Speed:</span> {product.speed}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 mb-4">
-                <div className="text-3xl font-bold">{formattedPrice}</div>
-                {promoCodes.length > 0 && promoCodes[0].discountText !== 'Special offer' && (
-                  <ProductPromoSimple promoCode={promoCodes[0]} />
-                )}
-              </div>
-
-              <div className="grid gap-3 mb-5">
-                {product.affiliate_link && (
-                  <Button size="lg" className="w-full" asChild>
-                    <Link href={product.affiliate_link} target="_blank" rel="noopener noreferrer">
-                      <ShoppingCart className="mr-2 h-5 w-5" /> Buy Now
-                    </Link>
-                  </Button>
-                )}
-                <AddToCompareButton product={product} />
-              </div>
-
-              {/* Move the list of promo codes after the buy button */}
-              {promoCodes.length > 1 && (
-                <ProductPromoCodes promoCodes={promoCodes.slice(1)} className="mb-4" />
-              )}
-
-              {/* Quick Verdict - Only show if pros or cons are available */}
-              {(highlights.length > 0 || drawbacks.length > 0) && (
-                <div className="border-t pt-6">
-                  <h3 className="font-semibold mb-2">Quick Verdict</h3>
-                  <div className="grid md:grid-cols-2 gap-6 mb-6">
-                    {highlights.length > 0 && (
-                      <div>
-                        <h4 className="font-medium mb-2 text-green-600">Pros</h4>
-                        <ul className="space-y-1">
-                          {highlights.map((pro: string, index: number) => (
-                            <li key={index} className="text-sm flex items-start">
-                              <span className="text-green-600 mr-2">✓</span> {pro}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {drawbacks.length > 0 && (
-                      <div>
-                        <h4 className="font-medium mb-2 text-red-600">Cons</h4>
-                        <ul className="space-y-1">
-                          {drawbacks.map((con: string, index: number) => (
-                            <li key={index} className="text-sm flex items-start">
-                              <span className="text-red-600 mr-2">✗</span> {con}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold mb-4" id="specifications">
-              Specifications
-            </h2>
-            <Tabs defaultValue="basic">
-              <TabsList className="w-full justify-start">
-                <TabsTrigger value="basic">Basic Information</TabsTrigger>
-                <TabsTrigger value="laser">Laser Specifications</TabsTrigger>
-                <TabsTrigger value="dimensions">Machine Dimensions</TabsTrigger>
-                <TabsTrigger value="performance">Performance</TabsTrigger>
-                <TabsTrigger value="features">Features</TabsTrigger>
-              </TabsList>
-              
-              {/* Basic Information */}
-              <TabsContent value="basic" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Brand" value={product.company} />
-                  <SpecItem label="Price" value={formattedPrice} />
-                  <SpecItem label="Expert Score" value={product.rating ? `${product.rating}/10` : null} />
-                  <SpecItem label="Warranty" value={product.warranty} />
-                  <SpecItem label="Software" value={product.software} />
-                </div>
-              </TabsContent>
-              
-              {/* Laser Specifications */}
-              <TabsContent value="laser" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Laser Type" value={product.laser_type_a} />
-                  <SpecItem label="Power (W)" value={product.laser_power_a ? `${product.laser_power_a}` : null} />
-                  <SpecItem label="Laser Source" value={product.laser_source_manufacturer} />
-                  <SpecItem label="Frequency" value={product.laser_frequency} />
-                  <SpecItem label="Pulse Width" value={product.pulse_width} />
-                  {product.laser_power_b && (
-                    <SpecItem label="Secondary Laser" value={`${product.laser_power_b}W ${product.laser_type_b}`} />
-                  )}
-                </div>
-              </TabsContent>
-              
-              {/* Machine Dimensions */}
-              <TabsContent value="dimensions" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Work Area (mm)" value={product.work_area} />
-                  <SpecItem label="Machine Size (mm)" value={product.machine_size} />
-                  <SpecItem label="Height (mm)" value={product.height} />
-                </div>
-              </TabsContent>
-              
-              {/* Performance */}
-              <TabsContent value="performance" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Speed (mm/s)" value={product.speed} />
-                  <SpecItem label="Acceleration" value={product.acceleration} />
-                </div>
-              </TabsContent>
-              
-              {/* Features */}
-              <TabsContent value="features" className="mt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <SpecItem label="Focus" value={product.focus} />
-                  <SpecItem label="Enclosure" value={product.enclosure} />
-                  <SpecItem label="WiFi" value={product.wifi} />
-                  <SpecItem label="Camera" value={product.camera} />
-                  <SpecItem label="Passthrough" value={product.passthrough} />
-                  <SpecItem label="Controller" value={product.controller} />
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          {/* Only show Video Review section if youtubeVideoId is available */}
+        
+        {/* Enhanced Hero Section */}
+        <div className="mt-[-20px]">
+          <ProductHero 
+            product={product} 
+            images={images} 
+            highlights={highlights}
+            promoCode={firstPromoCode}
+          />
+        </div>
+        
+        {/* Tab navigation */}
+        <ProductTabs 
+          sections={pageSections}
+          showAtAGlance={highlights.length > 0 || drawbacks.length > 0 || (product["Brandon's Take"] && product["Brandon's Take"].trim() !== '')}
+        />
+        
+        {/* Main content container */}
+        <div className="container px-4 mx-auto max-w-5xl">
+          {/* Video Review section */}
           {youtubeVideoId && (
-            <div className="mb-6 mt-2">
-              <h2 className="text-2xl font-bold mb-4" id="video-review">
-                Video Review
-              </h2>
-              <div className="aspect-video rounded-lg overflow-hidden">
-                <iframe
-                  width="100%"
-                  height="100%"
-                  src={`https://www.youtube.com/embed/${youtubeVideoId}`}
-                  title={`${product.machine_name} Video Review`}
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                ></iframe>
-              </div>
-            </div>
-          )}
-
-          {/* Only show In-Depth Review if description is available */}
-          {product.description && (
-            <div className="mb-6 mt-2 prose prose-blue max-w-none">
-              <h2 className="text-2xl font-bold mb-4 not-prose" id="in-depth-review">
-                In-Depth Review
-              </h2>
-              <div dangerouslySetInnerHTML={{ __html: product.description }} />
-            </div>
-          )}
-
-          {/* Best for section - only show if data is available */}
-          {product.best_for && (
-            <div className="mb-6 mt-2 bg-muted/20 p-6 rounded-lg">
-              <h2 className="text-2xl font-bold mb-4">Best For</h2>
-              <p className="text-lg">{product.best_for}</p>
-            </div>
-          )}
-
-          {/* FAQ Section - only show if we have minimum data needed */}
-          {product.machine_name && product.laser_type_a && (
-            <div className="mb-6 mt-2">
-              <h2 className="text-2xl font-bold mb-4" id="faq">
-                Frequently Asked Questions
-              </h2>
-              <div className="space-y-3">
-                <div className="border rounded-lg p-3">
-                  <h3 className="font-bold text-lg mb-2">Is the {product.machine_name} good for beginners?</h3>
-                  <p>
-                    {product.laser_category?.includes("diode")
-                      ? `Yes, the ${product.machine_name} is suitable for beginners. It offers a good balance of features and ease of use, with ${product.software} software that has a relatively gentle learning curve.`
-                      : `The ${product.machine_name} is a ${product.laser_category?.includes("pro") ? "professional-grade" : "mid-level"} machine that may require some experience with laser cutters. However, with proper training and by following the manual, beginners can learn to use it effectively.`}
-                  </p>
-                </div>
-                <div className="border rounded-lg p-3">
-                  <h3 className="font-bold text-lg mb-2">What materials can the {product.machine_name} cut?</h3>
-                  <p>
-                    {product.laser_type_a === "CO2"
-                      ? `The ${product.machine_name} can cut and engrave a wide range of materials including wood, acrylic, leather, paper, cardboard, and some plastics. It can also engrave on glass, stone, and anodized aluminum. It cannot cut metal or reflective materials.`
-                      : product.laser_type_a === "Fiber"
-                        ? `The ${product.machine_name} specializes in marking and engraving metals like stainless steel, aluminum, brass, and copper. It can also mark some plastics. It's not designed for cutting thick materials.`
-                        : `The ${product.machine_name} can cut materials like thin wood (up to 10mm depending on power), acrylic, leather, paper, and cardboard. It can also engrave on harder materials like glass and anodized aluminum.`}
-                  </p>
-                </div>
-                <div className="border rounded-lg p-3">
-                  <h3 className="font-bold text-lg mb-2">How does the {product.machine_name} compare to similar models?</h3>
-                  <p>
-                    The {product.machine_name} offers{" "}
-                    {Number.parseInt(product.laser_power_a || "0") > 50 ? "high" : "moderate"} power at {formattedPrice},
-                    making it{" "}
-                    {Number.parseInt(product.price?.toString() || "0") < 2000 ? "more affordable" : "a premium option"} in
-                    its category. Compared to competitors, it stands out for its{" "}
-                    {product.award ? product.award.toLowerCase() : "balance of features and performance"}. Check our
-                    comparison table for a detailed analysis against similar models.
-                  </p>
+            <section id="video-review" className="py-8">
+              {/* At A Glance section with key specs and verdict */}
+              {(highlights.length > 0 || drawbacks.length > 0 || (product["Brandon's Take"] && product["Brandon's Take"].trim() !== '')) && (
+                <AtAGlance 
+                  highlights={highlights} 
+                  drawbacks={drawbacks} 
+                  verdict={product["Brandon's Take"]}
+                  product={product}
+                />
+              )}
+              
+              <div className="max-w-5xl mx-auto mt-8">              
+                {/* First promo code highlight if available */}
+                {firstPromoCode && (
+                  <div className="mb-8">
+                    <ProductPromoHighlight promoCode={firstPromoCode} />
+                  </div>
+                )}
+                
+                {/* Video Review heading */}
+                <h2 className="text-3xl font-bold mb-6">Video Review</h2>
+                
+                {/* YouTube Video */}
+                <div className="relative rounded-xl overflow-hidden aspect-video shadow-md">
+                  <iframe
+                    className="absolute inset-0 w-full h-full"
+                    src={`https://www.youtube.com/embed/${youtubeVideoId}`}
+                    title={`${product.machine_name} Video Review`}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  ></iframe>
                 </div>
               </div>
-            </div>
+            </section>
           )}
-
-          {/* Customer Reviews - only show if there are reviews available */}
-          {reviews && reviews.length > 0 && (
-            <div className="mb-6 mt-2">
-              <h2 className="text-2xl font-bold mb-4" id="customer-reviews">
-                Customer Reviews
-              </h2>
-              <ProductReviews reviews={reviews} />
-            </div>
+            
+          {/* Specifications section */}
+          <section id="specifications" className="py-8 border-t">
+            <SpecificationsTab product={product} />
+          </section>
+          
+          {/* Expert Review Section */}
+          {product.review && (
+            <section id="expert-review" className="py-8 border-t">
+              <h2 className="text-3xl font-bold mb-6">Expert Review</h2>
+              <EnhancedExpertReview 
+                review={product.review}
+                brandonsTake={product["Brandon's Take"]}
+                className="px-0 py-0 max-w-none"
+              />
+            </section>
           )}
-
-          {/* Where to Buy - only show if affiliate link is available */}
-          {product.affiliate_link && (
-            <div className="mb-6 mt-2">
-              <h2 className="text-2xl font-bold mb-4" id="where-to-buy">
-                Where to Buy
-              </h2>
-              <div className="border rounded-lg p-3 flex justify-between items-center">
-                <div>
-                  <div className="font-medium">Official Store</div>
-                  <div className="text-xl font-bold">{formattedPrice}</div>
-                </div>
-                <Button asChild>
-                  <Link href={product.affiliate_link} target="_blank" rel="noopener noreferrer">
-                    View Deal
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Related products - only show if there are related products available */}
-          {relatedProducts && relatedProducts.length > 0 && (
-            <RelatedProducts products={relatedProducts} currentProductId={product.id} />
-          )}
+          
+          {/* Alternatives Section */}
+          <section id="alternatives" className="py-8 border-t">
+            <h2 className="text-3xl font-bold mb-6">Alternative Options</h2>
+            <EnhancedRelatedProducts 
+              products={relatedProducts} 
+              currentProductId={product.id}
+            />
+          </section>
         </div>
       </>
     )
   } catch (error) {
-    console.error("Error in ProductPage:", error);
-    notFound();
+    console.error("Error in product page:", error)
+    notFound()
   }
 }
 
-function SpecItem({ label, value }: { label: string; value: string | null }) {
+function SpecItem({ 
+  label, 
+  value, 
+  propName
+}: { 
+  label: string; 
+  value: string | null; 
+  propName?: string;
+}) {
   return value ? (
-    <div className="p-3 bg-muted rounded-lg">
-      <div className="font-medium">{label}</div>
-      <div className="text-lg">{value}</div>
+    <div className="p-2 md:p-3 bg-muted rounded-lg" itemProp="additionalProperty" itemScope itemType="https://schema.org/PropertyValue">
+      <meta itemProp="name" content={label} />
+      <meta itemProp="value" content={value} />
+      <div className="font-medium text-sm md:text-base">{label}</div>
+      <div className="text-base md:text-lg">{value}</div>
     </div>
   ) : null
 }
@@ -741,6 +493,12 @@ function extractYoutubeId(url: string | null): string | null {
   const match = url.match(regExp)
   
   return match && match[2].length === 11 ? match[2] : null
+}
+
+// Helper function to strip HTML tags for use in schema description
+function stripHtmlTags(html: string | null | undefined): string {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
 // Helper function to get human-readable category label

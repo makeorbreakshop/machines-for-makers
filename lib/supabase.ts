@@ -188,6 +188,7 @@ function transformMachineData(data: any): any {
     is_featured: data["Is A Featured Resource?"],
     favorited: data["Favorited"],
     hidden: data["Hidden"],
+    product_link: data["Product Link"],
     laser_frequency: data["Laser Frequency"],
     pulse_width: data["Pulse Width"],
     best_for: data["Best for:"],
@@ -197,6 +198,8 @@ function transformMachineData(data: any): any {
     published_at: data["Published On"],
     rating: data["Rating"],
     award: data["Award"],
+    review: data["Review"],
+    brandonsTake: data["Brandon's Take"],
     // Only include reviews and images if they exist in the data
     ...(data.reviews && { reviews: data.reviews }),
     ...(data.images && { images: data.images }),
@@ -348,7 +351,7 @@ export async function getBrands() {
 }
 
 // Get related products
-export async function getRelatedProducts(currentProduct: Machine, limit = 3) {
+export async function getRelatedProducts(currentProduct: Machine, limit = 6) {
   if (!supabase) {
     return { data: [], error: null }
   }
@@ -443,7 +446,12 @@ export async function getRelatedProducts(currentProduct: Machine, limit = 3) {
       }))
     );
 
-    const result = sortedProducts.slice(0, limit);
+    // Add minimum similarity score threshold
+    const MIN_SIMILARITY_SCORE = 15;
+    const result = sortedProducts
+      .filter(product => product.similarityScore >= MIN_SIMILARITY_SCORE)
+      .slice(0, limit);
+    
     console.log('Returning related products:', result);
 
     return { 

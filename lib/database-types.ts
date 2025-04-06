@@ -90,6 +90,8 @@ export type Machine = {
   "Excerpt (Short)": string | null
   "Excerpt (Long)": string | null
   "Description": string | null
+  "Review": string | null
+  "Brandon's Take": string | null
   "Highlights": string | null
   "Drawbacks": string | null
   "YouTube Review": string | null
@@ -179,5 +181,20 @@ export type Brand = {
   website_url: string | null
   created_at: string
   updated_at: string
+}
+
+// Interface for brands as they exist in the database with uppercase property names
+export interface BrandFromDB {
+  id: string
+  "Name": string
+  "Slug": string
+  "Collection ID": string | null
+  "Locale ID": string | null
+  "Item ID": string | null
+  "Created On": string | null
+  "Updated On": string | null
+  "Published On": string | null
+  "Website": string | null
+  "Logo": string | null
 }
 

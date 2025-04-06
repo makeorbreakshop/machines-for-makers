@@ -23,6 +23,8 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
+// Add nodejs runtime as per DEVELOPMENT_GUIDELINES for admin routes
+export const runtime = 'nodejs';
 
 // Admin layout - each page will handle its own authentication
 export default function AdminLayout({

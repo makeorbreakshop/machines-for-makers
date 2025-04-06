@@ -112,7 +112,7 @@ export default async function HomePage() {
           <h2 className="text-3xl font-bold mb-12 text-center">Top Picks</h2>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {directAwardProducts.map((product: TopPickProduct) => (
+            {directAwardProducts.map((product: TopPickProduct, index: number) => (
               <Link key={product.id} href={`/products/${product.slug}`}>
                 <Card className="overflow-hidden h-full transition-transform hover:scale-[1.02]">
                   <div className="relative h-52 flex items-center justify-center">
@@ -120,9 +120,12 @@ export default async function HomePage() {
                       src={product.image_url || "/placeholder.svg?height=200&width=200"}
                       alt={product.machine_name || `Featured product ${product.id || "image"}`}
                       fill
-                      loading="lazy"
+                      loading={index < 3 ? "eager" : "lazy"}
+                      priority={index === 0} 
                       className="object-contain p-1"
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      placeholder="blur"
+                      blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YxZjFmMSIvPjwvc3ZnPg=="
                     />
                   </div>
                   <CardContent className="p-6">

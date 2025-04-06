@@ -8,11 +8,33 @@ Machines for Makers is a web application designed to help makers, hobbyists, and
 
 ## Features
 
+### Current Public User Features
 - **Advanced Filtering**: Filter machines by type, price range, power, speed, and special features
 - **Interactive Comparison**: Select and compare multiple machines side by side
 - **Search Functionality**: Quickly find machines with fuzzy search
 - **Detailed Machine Pages**: View comprehensive specifications, photos, and user reviews
 - **Responsive Design**: Works seamlessly on desktop and mobile devices
+- **Category Browsing**: Browse machines by category (laser cutters, 3D printers, CNC machines)
+- **Promo Codes**: Find available promotional discounts for various machines
+
+### Current Admin Features
+- **Machine Management**: Add, edit, and delete machine listings with detailed specifications
+- **Brand Management**: Manage manufacturer and brand information
+- **Category Administration**: Create and modify machine categories
+- **Review Moderation**: Approve, edit, or remove user-submitted reviews
+- **Settings Configuration**: Manage site-wide settings and configurations
+- **Secure Authentication**: Protected admin interface with secure login system
+
+### Planned Future Enhancements
+- Material compatibility charts
+- Cost calculator for total ownership costs
+- Size visualizer for comparing machine dimensions
+- Decision helper for personalized recommendations
+- Wishlist functionality
+- Community resources section
+- Software compatibility information
+- Maker guides and tutorials
+- Exportable comparison charts
 
 ## Tech Stack
 
@@ -22,6 +44,30 @@ Machines for Makers is a web application designed to help makers, hobbyists, and
 - **Search**: Fuse.js for fuzzy searching
 - **State Management**: React Context API
 - **Authentication**: Supabase Auth
+- **Routing**: Next.js App Router with route groups for admin section
+
+## Current Site Sections
+
+### Home Page
+- Featured machines carousel
+- Top picks in each category
+- Quick category selection
+
+### Machine Category Pages
+- Filtering options by specifications
+- Sorting by key specifications
+- Grid view of machines
+- Specification highlights for each machine
+
+### Machine Detail Pages
+- Image gallery
+- Technical specifications
+- User reviews and ratings
+- Similar machines suggestions
+
+### Comparison Tool
+- Side-by-side specification comparison
+- Visual highlights of key differences
 
 ## Getting Started
 
@@ -58,10 +104,35 @@ Machines for Makers is a web application designed to help makers, hobbyists, and
 ## Project Structure
 
 - `/app` - Next.js app router pages and API routes
+  - `/(site)` - Public-facing website routes
+  - `/(admin)` - Admin panel routes with authentication
+  - `api` - API endpoints
 - `/components` - Reusable UI components
 - `/hooks` - Custom React hooks
 - `/lib` - Utility functions, types, and services
 - `/public` - Static assets
+- `/types` - TypeScript type definitions
+- `/database` - Database schemas and types
+
+## Admin Access
+
+The admin panel is accessible at `/admin` and requires authentication. Admin features include:
+
+1. **Dashboard**: Overview of site statistics and recent activity
+2. **Machines**: CRUD operations for machine listings and specifications
+3. **Brands**: Manage manufacturer information
+4. **Categories**: Organize machines by type and features
+5. **Reviews**: Moderate user-submitted reviews
+6. **Settings**: Configure site-wide settings
+
+## Deployment Architecture
+
+The application follows Next.js best practices for deployment:
+
+- **Server Components**: Fetch data directly from Supabase for optimal performance
+- **API Routes**: Use Edge runtime for public endpoints, Node.js runtime for admin functionality
+- **Security**: Route group architecture with client-side authentication for admin routes
+- **Caching**: Strategic use of caching for public-facing content
 
 ## Contributing
 
@@ -106,4 +177,4 @@ The application has been optimized for better performance metrics:
 To run a performance audit yourself:
 1. Build the application: `npm run build`
 2. Start the production server: `npm start`
-3. Run Lighthouse from Chrome DevTools on the deployed application 
+3. Run Lighthouse from Chrome DevTools on the deployed application

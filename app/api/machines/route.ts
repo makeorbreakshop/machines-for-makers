@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database-types"
+import { createAdminClient } from "@/lib/supabase/admin"
+
+// Specify nodejs runtime to ensure environment variables are properly accessible
+export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -24,15 +28,16 @@ export async function GET(request: NextRequest) {
   const brands = searchParams.getAll("brand")
   const features = searchParams.getAll("feature")
 
-  // Create Supabase client
+  // Create Supabase client with anonymous key for reading public data
+  // Using anon key instead of service role key to fix production API key error
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return NextResponse.json({ error: "Supabase credentials not configured" }, { status: 500 })
   }
 
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey)
+  const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 
   try {
     // Build query
@@ -181,3 +186,78 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: Request) {
+  try {
+    // Use the createAdminClient utility to ensure correct configuration
+    const supabase = createAdminClient();
+
+    // Get machine data from request
+    const machineData = await request.json()
+    
+    // Ensure machine name is provided
+    if (!machineData.machine_name) {
+      return NextResponse.json({ error: "Machine name is required" }, { status: 400 })
+    }
+    
+    // Transform data to match database column names
+    const dbData = {
+      "Machine Name": machineData.machine_name,
+      "Internal link": machineData.slug || machineData.machine_name.toLowerCase().replace(/[^\w\s]/gi, "").replace(/\s+/g, "-"),
+      "Company": machineData.company,
+      "Machine Category": machineData.machine_category,
+      "Laser Category": machineData.laser_category,
+      "Price": machineData.price,
+      "Rating": machineData.rating,
+      "Award": machineData.award,
+      "Laser Type A": machineData.laser_type_a,
+      "Laser Power A": machineData.laser_power_a,
+      "Laser Type B": machineData.laser_type_b,
+      "LaserPower B": machineData.laser_power_b,
+      "Work Area": machineData.work_area,
+      "Speed": machineData.speed,
+      "Height": machineData.height,
+      "Machine Size": machineData.machine_size,
+      "Acceleration": machineData.acceleration,
+      "Software": machineData.software,
+      "Focus": machineData.focus,
+      "Enclosure": machineData.enclosure ? "Yes" : "No",
+      "Wifi": machineData.wifi ? "Yes" : "No",
+      "Camera": machineData.camera ? "Yes" : "No",
+      "Passthrough": machineData.passthrough ? "Yes" : "No",
+      "Controller": machineData.controller,
+      "Warranty": machineData.warranty,
+      "Excerpt (Short)": machineData.excerpt_short,
+      "Description": machineData.description,
+      "Highlights": machineData.highlights,
+      "Drawbacks": machineData.drawbacks,
+      "Is A Featured Resource?": machineData.is_featured ? "true" : "false",
+      // Set hidden to true by default for all new machines
+      "Hidden": "true",
+      "Image": machineData.image_url,
+      "product_link": machineData.product_link,
+      "Affiliate Link": machineData.affiliate_link,
+      "YouTube Review": machineData.youtube_review,
+      "Laser Frequency": machineData.laser_frequency,
+      "Pulse Width": machineData.pulse_width,
+      "Laser Source Manufacturer": machineData.laser_source_manufacturer,
+      // Set timestamps
+      "Created On": new Date().toISOString(),
+      "Updated On": new Date().toISOString(),
+    }
+
+    // Insert into database
+    const { data, error } = await supabase
+      .from("machines")
+      .insert(dbData)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ data })
+  } catch (error) {
+    return NextResponse.json({ error: "Invalid request data" }, { status: 400 })
+  }
+}
