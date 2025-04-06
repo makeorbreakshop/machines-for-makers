@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Tag, Laptop2, Tv, FlameKindling, Menu, X } from "lucide-react"
+import { Tag, Laptop2, Tv, FlameKindling, Menu, X, Flame } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
@@ -117,11 +117,10 @@ export default function Navbar() {
                 YouTube
               </Link>
               <Link 
-                href="https://makeorbreakshop.mykajabi.com/learn-lightburn-for-lasers" 
-                className="text-sm font-medium hover:text-primary"
-                target="_blank" 
-                rel="noopener noreferrer"
+                href="/learn-lightburn" 
+                className="flex items-center text-sm font-medium hover:text-primary"
               >
+                <Flame className="h-4 w-4 mr-1.5" />
                 Learn Lightburn
               </Link>
             </nav>
@@ -186,12 +185,11 @@ export default function Navbar() {
               YouTube
             </Link>
             <Link 
-              href="https://makeorbreakshop.mykajabi.com/learn-lightburn-for-lasers" 
+              href="/learn-lightburn" 
               className="flex items-center text-lg font-medium hover:text-primary"
-              target="_blank" 
-              rel="noopener noreferrer"
               onClick={() => setIsMenuOpen(false)}
             >
+              <Flame className="h-5 w-5 mr-2" />
               Learn Lightburn
             </Link>
           </nav>
