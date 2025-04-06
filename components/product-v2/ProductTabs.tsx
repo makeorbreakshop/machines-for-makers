@@ -1,80 +1,98 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { useState, useEffect } from "react"
 
-interface ProductTabsProps {
-  sections: {
-    id: string
-    label: string
-  }[]
-  className?: string
+interface Section {
+  id: string
+  label: string
 }
 
-export function ProductTabs({ sections, className }: ProductTabsProps) {
-  const [activeSection, setActiveSection] = useState<string>(sections[0]?.id || "")
+interface ProductTabsProps {
+  sections: Section[]
+  activeSection?: string
+  className?: string
+  showAtAGlance?: boolean
+}
 
-  // Handle scrolling to sections
-  const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId)
-    if (element) {
-      const offsetTop = element.getBoundingClientRect().top + window.scrollY
-      // Subtract some pixels to account for the sticky header
-      const offset = 100
-      window.scrollTo({
-        top: offsetTop - offset,
-        behavior: "smooth",
-      })
-    }
-  }
-
-  // Update active section based on scroll position
+export function ProductTabs({ sections, activeSection, className, showAtAGlance = false }: ProductTabsProps) {
+  const [current, setCurrent] = useState<string | undefined>(activeSection || sections[0]?.id)
+  const [hasAtAGlanceElement, setHasAtAGlanceElement] = useState<boolean>(false)
+  
+  // Check if at-a-glance element exists on mount
+  useEffect(() => {
+    const atAGlanceElement = document.getElementById("at-a-glance")
+    setHasAtAGlanceElement(!!atAGlanceElement)
+  }, [])
+  
+  // Track scroll position to highlight the correct tab
   useEffect(() => {
     const handleScroll = () => {
-      const scrollPosition = window.scrollY + 150 // Add offset for sticky header
+      const scrollPosition = window.scrollY + 100 // Offset
 
       // Find the section that is currently in view
-      for (let i = sections.length - 1; i >= 0; i--) {
-        const section = document.getElementById(sections[i].id)
-        if (section) {
-          const sectionTop = section.offsetTop
-          if (scrollPosition >= sectionTop) {
-            setActiveSection(sections[i].id)
-            break
-          }
+      const atAGlanceElement = document.getElementById("at-a-glance")
+      if (atAGlanceElement) {
+        const top = atAGlanceElement.offsetTop
+        const height = atAGlanceElement.offsetHeight
+        
+        if (scrollPosition >= top && scrollPosition < top + height) {
+          setCurrent("at-a-glance")
+          return
+        }
+      }
+      
+      for (const section of sections) {
+        const element = document.getElementById(section.id)
+        if (!element) continue
+        
+        const top = element.offsetTop
+        const height = element.offsetHeight
+        
+        if (scrollPosition >= top && scrollPosition < top + height) {
+          setCurrent(section.id)
+          break
         }
       }
     }
 
     window.addEventListener("scroll", handleScroll)
-    // Initial check for active section
-    handleScroll()
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll)
-    }
+    return () => window.removeEventListener("scroll", handleScroll)
   }, [sections])
 
   return (
-    <div className={cn("sticky top-0 z-30 w-full bg-white border-b", className)}>
-      <div className="container px-4 mx-auto max-w-7xl">
-        <div className="overflow-x-auto scrollbar-hide py-1">
-          <nav className="flex space-x-1 min-w-max">
-            {sections.map((section) => (
-              <button
-                key={section.id}
-                onClick={() => scrollToSection(section.id)}
-                className={cn(
-                  "px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-colors",
-                  activeSection === section.id
-                    ? "bg-primary/10 text-primary"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                )}
-              >
-                {section.label}
-              </button>
-            ))}
-          </nav>
+    <div className={cn("sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm", className)}>
+      <div className="container px-4 mx-auto max-w-5xl">
+        <div className="flex overflow-x-auto scrollbar-hide gap-8">
+          {(hasAtAGlanceElement || showAtAGlance) && (
+            <Link
+              href="#at-a-glance"
+              className={cn(
+                "flex-shrink-0 uppercase text-sm font-medium py-4 border-b-2 transition-colors",
+                current === "at-a-glance" 
+                  ? "border-primary text-primary" 
+                  : "border-transparent text-gray-700 hover:text-gray-900 hover:border-gray-300"
+              )}
+            >
+              At A Glance
+            </Link>
+          )}
+          
+          {sections.map((section) => (
+            <Link
+              key={section.id}
+              href={`#${section.id}`}
+              className={cn(
+                "flex-shrink-0 uppercase text-sm font-medium py-4 border-b-2 transition-colors",
+                current === section.id 
+                  ? "border-primary text-primary" 
+                  : "border-transparent text-gray-700 hover:text-gray-900 hover:border-gray-300"
+              )}
+            >
+              {section.label}
+            </Link>
+          ))}
         </div>
       </div>
     </div>

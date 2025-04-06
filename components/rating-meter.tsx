@@ -51,7 +51,7 @@ export default function RatingMeter({
     <div className={cn("flex flex-col items-end", className)}>
       <div className="flex items-baseline">
         <span className={cn("font-bold leading-none", fontSize, getColorClass())}>
-          {rating.toFixed(1)}
+          {rating === null || rating === undefined ? "N/A" : rating.toFixed(1)}
         </span>
         <span className={cn("text-gray-500 font-medium ml-0.5", denominator)}>/10</span>
       </div>

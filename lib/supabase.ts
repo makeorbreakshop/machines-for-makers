@@ -198,8 +198,8 @@ function transformMachineData(data: any): any {
     published_at: data["Published On"],
     rating: data["Rating"],
     award: data["Award"],
-    "Review": data["Review"],
-    "Brandon's Take": data["Brandon's Take"],
+    review: data["Review"],
+    brandonsTake: data["Brandon's Take"],
     // Only include reviews and images if they exist in the data
     ...(data.reviews && { reviews: data.reviews }),
     ...(data.images && { images: data.images }),

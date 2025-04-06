@@ -49,8 +49,6 @@ export function EnhancedRelatedProducts({
 
   return (
     <section className={cn("py-8", className)}>
-      <h2 className="text-2xl font-bold mb-6">Related Machines You Might Like</h2>
-      
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Featured Product - Takes up 2 columns on desktop */}
         <Card className="col-span-1 md:col-span-2 overflow-hidden">

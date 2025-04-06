@@ -9,6 +9,7 @@ import { PromoCodeDisplay } from "@/types/promo-codes"
 import AddToCompareButton from "@/components/add-to-compare-button"
 import Image from "next/image"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
 interface ProductHeroProps {
   product: any
@@ -78,6 +79,49 @@ export function ProductHero({ product, images, highlights, promoCode }: ProductH
           <span className="text-slate-700 font-medium truncate">{product.machine_name}</span>
         </div>
         
+        {/* Mobile product title - shown only on mobile */}
+        <div className="lg:hidden mb-6">
+          {/* Award badge if available */}
+          {product.award && (
+            <div className="mb-3">
+              <Badge className="bg-primary/10 text-primary border-primary/20 px-3 py-1 uppercase tracking-wide text-xs font-semibold">
+                {product.award}
+              </Badge>
+            </div>
+          )}
+          
+          {/* Product title */}
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">
+            {product.machine_name}
+          </h1>
+          
+          {/* Short excerpt if available */}
+          {product.excerpt_short && (
+            <p className="text-slate-600 mb-3 leading-relaxed">{product.excerpt_short}</p>
+          )}
+          
+          {/* Mobile price display */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="text-2xl font-bold text-slate-900">{priceRangeDisplay}</div>
+            {product.rating && (
+              <div className="flex items-center">
+                <div className="flex items-center">
+                  {[...Array(5)].map((_, i) => (
+                    <Star 
+                      key={i} 
+                      className={cn(
+                        "h-4 w-4",
+                        i < Math.round(product.rating/2) ? "text-amber-400 fill-amber-400" : "text-slate-300"
+                      )} 
+                    />
+                  ))}
+                </div>
+                <span className="ml-1 text-xs font-medium text-slate-600">{product.rating}/10</span>
+              </div>
+            )}
+          </div>
+        </div>
+        
         {/* Two-column layout for product details */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
           {/* Left column - Image Gallery */}
@@ -85,7 +129,7 @@ export function ProductHero({ product, images, highlights, promoCode }: ProductH
             {/* Main product image */}
             {allImages.length > 0 && (
               <div 
-                className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 mb-4 bg-white shadow-sm hover:shadow-md transition-shadow duration-300"
+                className={`relative overflow-hidden rounded-xl border border-slate-200 mb-3 bg-white shadow-sm hover:shadow-md transition-shadow duration-300 ${allImages.length === 1 ? 'aspect-[4/3]' : 'aspect-[16/11]'}`}
                 onClick={() => openGallery(allImages.indexOf(selectedImage || allImages[0]))}
               >
                 <Image
@@ -107,7 +151,7 @@ export function ProductHero({ product, images, highlights, promoCode }: ProductH
             {/* Thumbnail gallery */}
             {allImages.length > 1 && (
               <div className="grid grid-cols-5 gap-2">
-                {allImages.slice(0, 5).map((image, index) => (
+                {allImages.slice(0, 4).map((image, index) => (
                   <div 
                     key={index} 
                     className={`relative aspect-square overflow-hidden rounded-lg cursor-pointer bg-white
@@ -126,79 +170,68 @@ export function ProductHero({ product, images, highlights, promoCode }: ProductH
                   </div>
                 ))}
                 
-                {/* Show "more images" thumbnail if we have more than 5 */}
-                {allImages.length > 5 && (
+                {/* Show "more images" thumbnail if we have more than 4 */}
+                {allImages.length > 4 && (
                   <div 
                     className="relative aspect-square overflow-hidden rounded-lg cursor-pointer bg-slate-50 flex items-center justify-center border border-slate-200 hover:border-primary/50 transition-colors"
-                    onClick={() => openGallery(5)}
+                    onClick={() => openGallery(4)}
                   >
                     <div className="text-center">
                       <ImageIcon className="h-5 w-5 mx-auto text-slate-400" />
-                      <span className="text-xs font-medium text-slate-500">+{allImages.length - 5}</span>
+                      <span className="text-xs font-medium text-slate-500">+{allImages.length - 4}</span>
                     </div>
                   </div>
                 )}
-              </div>
-            )}
-            
-            {/* Company/Brand below images if available */}
-            {product.company && (
-              <div className="mt-4 flex items-center">
-                <span className="text-sm text-slate-500">Made by:</span>
-                <Link 
-                  href={`/brand/${product.company?.toLowerCase()}`} 
-                  className="ml-2 text-sm text-primary font-medium hover:underline"
-                >
-                  {product.company}
-                </Link>
               </div>
             )}
           </div>
           
           {/* Right column - Title, specs and purchase options */}
           <div className="flex flex-col">
-            {/* Award badge if available */}
-            {product.award && (
-              <div className="mb-3">
-                <Badge className="bg-primary/10 text-primary border-primary/20 px-3 py-1 uppercase tracking-wide text-xs font-semibold">
-                  {product.award}
-                </Badge>
-              </div>
-            )}
-            
-            {/* Product title */}
-            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight mb-2">
-              {product.machine_name}
-            </h1>
-            
-            {/* Short excerpt if available */}
-            {product.excerpt_short && (
-              <p className="text-slate-600 mb-6 leading-relaxed">{product.excerpt_short}</p>
-            )}
-            
-            {/* Rating if available */}
-            {product.rating && (
-              <div className="flex items-center mb-6">
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star 
-                      key={i} 
-                      className={`h-5 w-5 ${i < Math.round(product.rating/2) ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}`} 
-                    />
-                  ))}
+            {/* Award badge if available - only on desktop */}
+            <div className="hidden lg:block">
+              {product.award && (
+                <div className="mb-3">
+                  <Badge className="bg-primary/10 text-primary border-primary/20 px-3 py-1 uppercase tracking-wide text-xs font-semibold">
+                    {product.award}
+                  </Badge>
                 </div>
-                <span className="ml-2 text-sm font-medium text-slate-600">{product.rating}/10</span>
-              </div>
-            )}
+              )}
+              
+              {/* Product title - only on desktop */}
+              <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight mb-2">
+                {product.machine_name}
+              </h1>
+              
+              {/* Short excerpt if available - only on desktop */}
+              {product.excerpt_short && (
+                <p className="text-slate-600 mb-6 leading-relaxed">{product.excerpt_short}</p>
+              )}
+              
+              {/* Rating if available - only on desktop */}
+              {product.rating && (
+                <div className="flex items-center mb-6">
+                  <div className="flex items-center">
+                    {[...Array(5)].map((_, i) => (
+                      <Star 
+                        key={i} 
+                        className={`h-5 w-5 ${i < Math.round(product.rating/2) ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}`} 
+                      />
+                    ))}
+                  </div>
+                  <span className="ml-2 text-sm font-medium text-slate-600">{product.rating}/10</span>
+                </div>
+              )}
+            </div>
             
             {/* Price section with promo code */}
             <div className="mb-6">
               {/* Price and promo code display */}
               <div className="flex items-center gap-3 mb-6">
-                <div className="text-3xl font-bold text-slate-900">{priceRangeDisplay}</div>
+                <div className="hidden lg:block text-3xl font-bold text-slate-900">{priceRangeDisplay}</div>
                 {promoCode && promoCode.isActive && (
                   <div className="bg-[#E7F6EC] text-[#027A48] px-3 py-1.5 rounded-lg flex items-center gap-2 font-mono text-sm">
-                    <span>xToolBrandon ($80 off)</span>
+                    <span>{promoCode.code} ({promoCode.discountText})</span>
                     <button
                       onClick={handleCopyCode}
                       className="text-[#027A48] hover:text-[#027A48]/80 transition-colors flex items-center gap-1"

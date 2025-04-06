@@ -17,14 +17,17 @@ import { PromoCode, PromoCodeDisplay } from "@/types/promo-codes"
 import { createServerClient } from '@/lib/supabase/server'
 import { MobileSpecsSelector } from "@/components/product-v2/MobileSpecsSelector"
 import ExpertReview from "@/components/expert-review"
+import { getProductPromoCodes } from "@/lib/promo-service"
 
-// Import new V2 components
+// Import V2 components
 import { ProductHero } from "@/components/product-v2/ProductHero"
 import { ProductTabs } from "@/components/product-v2/ProductTabs"
 import { SpecificationsTable } from "@/components/product-v2/SpecificationsTable"
+import { SpecificationsTab } from "@/components/product-v2/SpecificationsTab"
 import { ProsConsSection } from "@/components/product-v2/ProsConsSection"
 import { EnhancedRelatedProducts } from "@/components/product-v2/EnhancedRelatedProducts"
 import { EnhancedExpertReview } from "@/components/product-v2/EnhancedExpertReview"
+import { AtAGlance } from "@/components/product-v2/AtAGlance"
 
 // Implement ISR with a 1-hour revalidation period
 export const revalidate = 3600
@@ -103,31 +106,52 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     }
   }
 
-  // More SEO-optimized title format
-  const title = `${product.machine_name} Review: ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter & Engraver (2025)`
+  // More SEO-optimized title format with year and type
+  const currentYear = new Date().getFullYear();
+  const title = `${product.machine_name} Review: ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter & Engraver (${currentYear})`
 
-  // More detailed meta description
-  const description =
-    product.excerpt_short ||
-    `Comprehensive review of the ${product.machine_name} ${product.laser_type_a} laser cutter. Learn about specs, performance, pros and cons, and if it's right for your needs.`
+  // More detailed meta description with keywords
+  const description = product.excerpt_short 
+    ? `${product.excerpt_short.trim()}. Read our expert review, specifications, and buyer's guide.`
+    : `Comprehensive review of the ${product.machine_name} ${product.laser_type_a} laser cutter. Learn about specs, performance, pros and cons, and if it's right for your needs. Expert buying advice for ${currentYear}.`;
 
+  // Category info for breadcrumbs
+  const categoryLabel = getCategoryLabel(product.category_id);
+  
   return {
     title,
     description,
+    keywords: [
+      product.machine_name,
+      `${product.laser_type_a} laser`,
+      `${product.laser_power_a}W laser cutter`,
+      "laser engraver",
+      "laser cutting machine",
+      "laser engraving",
+      product.company,
+      "laser cutter review",
+      `${currentYear} laser cutter`,
+    ].filter(Boolean),
+    alternates: {
+      canonical: `https://machinesformakers.com/products/${slug}`,
+    },
     openGraph: {
       title,
       description,
       type: "article",
+      url: `https://machinesformakers.com/products/${slug}`,
       images: [
         {
           url: product.image_url || "",
-          width: 800,
-          height: 600,
+          width: 1200,
+          height: 630,
           alt: `${product.machine_name} - ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter`
         }
       ],
       publishedTime: product.published_at,
       modifiedTime: product.updated_at,
+      siteName: "Machines for Makers",
+      locale: "en_US",
     },
     twitter: {
       card: "summary_large_image",
@@ -139,6 +163,8 @@ export async function generateMetadata({ params }: { params: { slug: string } })
           alt: `${product.machine_name} - ${product.laser_power_a}W ${product.laser_type_a} Laser Cutter`
         }
       ],
+      site: "@machinesmakers",
+      creator: "@machinesmakers",
     },
   }
 }
@@ -156,6 +182,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
       company: product.company,
       brand_id: product.brand_id,
       category_id: product.category_id,
+      has_review: !!product.review,
+      review_length: product.review ? product.review.length : 0,
     } : "Not found");
     if (error) console.error("Error fetching product:", error);
 
@@ -190,195 +218,11 @@ export default async function ProductPage({ params }: { params: { slug: string }
       console.error("Error fetching images:", err);
     }
 
-    // Get promo codes for this product from the server directly
+    // Get promo codes using our new service
     let promoCodes: PromoCodeDisplay[] = [];
     try {
-      const supabase = await createServerClient()
-      
-      console.log(`Fetching promo codes for product: ${product.machine_name} (ID: ${product.id})`)
-      console.log(`Product details - Brand ID: ${product.brand_id}, Category ID: ${product.category_id}, Company: ${product.company}`)
-      
-      // Process xTool brand separately with direct approach
-      if (product.company?.toLowerCase() === 'xtool') {
-        console.log('Processing xTool brand promo code with direct approach');
-        try {
-          // Direct query for xTool promo codes
-          const { data: xToolData, error: xToolError } = await supabase
-            .from('promo_codes')
-            .select('*')
-            .eq('applies_to_brand_id', '2b0c2371-bedb-4af3-8457-be2d26a378c8');
-
-          console.log('Direct xTool promo code query result:', xToolData);
-          
-          if (xToolError) {
-            console.error('Error fetching xTool promo codes:', xToolError);
-            throw xToolError; // Rethrow to trigger catch block for proper error handling
-          }
-
-          // If we found promo codes in the database, use those
-          if (xToolData && xToolData.length > 0) {
-            try {
-              console.log('xTool database promo code raw data:', JSON.stringify(xToolData[0]));
-              
-              // Create properly formatted promo codes with forced active status, manually
-              const dbPromoCode = xToolData[0];
-              
-              // Create a directly formatted version without using the helper function
-              const manuallyFormattedCode = {
-                code: dbPromoCode.code,
-                description: dbPromoCode.description || '',
-                discountText: dbPromoCode.discount_amount ? `$${dbPromoCode.discount_amount} off` : 'Special offer',
-                validUntil: dbPromoCode.valid_until ? new Date(dbPromoCode.valid_until).toLocaleDateString() : null,
-                isActive: true, // Force active
-                affiliateLink: dbPromoCode.affiliate_link || null
-              };
-              
-              console.log('Manually formatted xTool promo code:', manuallyFormattedCode);
-              
-              // Add this to our promo codes array directly
-              promoCodes = [manuallyFormattedCode];
-            } catch (formatError) {
-              console.error('Error formatting xTool promo codes:', formatError);
-              throw formatError;
-            }
-          } else {
-            // Create a hardcoded fallback promo code for xTool
-            const hardcodedXToolPromoCode = {
-              id: 'hardcoded-xtool-promo',
-              code: 'xToolBrandon',
-              description: '$80 Off purchases of $1000 or more',
-              discount_amount: '80',
-              discount_percent: null,
-              valid_from: '2023-01-01T00:00:00.000Z',
-              valid_until: null,
-              applies_to_brand_id: '2b0c2371-bedb-4af3-8457-be2d26a378c8',
-              affiliate_link: 'https://www.xtool.com/discount/xToolBrandon?ref=rw0h_cdiytm5',
-              isActive: true,
-              discountText: '$80 off',
-              validUntil: null,
-              is_global: false,
-              current_uses: 0,
-              applies_to_machine_id: null,
-              applies_to_category_id: null,
-              created_at: '2023-01-01T00:00:00.000Z',
-              updated_at: '2023-01-01T00:00:00.000Z',
-              max_uses: null
-            };
-            console.log('Using hardcoded xTool promo code fallback:', hardcodedXToolPromoCode);
-            promoCodes = [hardcodedXToolPromoCode];
-          }
-        } catch (error) {
-          console.error('Error fetching xTool promo codes:', error);
-          
-          // In case of error, still provide the hardcoded fallback
-          const hardcodedXToolPromoCode = {
-            id: 'hardcoded-xtool-promo',
-            code: 'xToolBrandon',
-            description: '$80 Off purchases of $1000 or more',
-            discount_amount: '80',
-            discount_percent: null,
-            valid_from: '2023-01-01T00:00:00.000Z',
-            valid_until: null,
-            applies_to_brand_id: '2b0c2371-bedb-4af3-8457-be2d26a378c8',
-            affiliate_link: 'https://www.xtool.com/discount/xToolBrandon?ref=rw0h_cdiytm5',
-            isActive: true,
-            discountText: '$80 off',
-            validUntil: null,
-            is_global: false,
-            current_uses: 0,
-            applies_to_machine_id: null,
-            applies_to_category_id: null,
-            created_at: '2023-01-01T00:00:00.000Z',
-            updated_at: '2023-01-01T00:00:00.000Z',
-            max_uses: null
-          };
-          console.log('Using hardcoded xTool promo code fallback due to error:', hardcodedXToolPromoCode);
-          promoCodes = [hardcodedXToolPromoCode];
-        }
-      } else {
-        // Regular approach for non-xTool products
-        // First get machine-specific codes
-        if (product.id) {
-          const { data: machineData, error: machineError } = await supabase
-            .from('promo_codes')
-            .select('*')
-            .eq('applies_to_machine_id', product.id)
-          
-          console.log(`Machine-specific promo codes for ID ${product.id}:`, machineData || 'No data')
-          if (machineError) console.error('Error fetching machine-specific promo codes:', machineError)
-          
-          if (!machineError && machineData) {
-            promoCodes = [...promoCodes, ...machineData.map(serverFormatPromoCodeForDisplay)]
-          }
-        }
-        
-        // Then get brand-specific codes
-        if (product.brand_id) {
-          const { data: brandData, error: brandError } = await supabase
-            .from('promo_codes')
-            .select('*')
-            .eq('applies_to_brand_id', product.brand_id)
-          
-          console.log(`Brand-specific promo codes for brand ID ${product.brand_id}:`, brandData || 'No data')
-          if (brandError) console.error('Error fetching brand-specific promo codes:', brandError)
-          
-          if (!brandError && brandData) {
-            promoCodes = [...promoCodes, ...brandData.map(serverFormatPromoCodeForDisplay)]
-          }
-        }
-        
-        // Then get category-specific codes
-        if (product.category_id) {
-          const { data: categoryData, error: categoryError } = await supabase
-            .from('promo_codes')
-            .select('*')
-            .eq('applies_to_category_id', product.category_id)
-          
-          console.log(`Category-specific promo codes for category ID ${product.category_id}:`, categoryData || 'No data')
-          if (categoryError) console.error('Error fetching category-specific promo codes:', categoryError)
-          
-          if (!categoryError && categoryData) {
-            promoCodes = [...promoCodes, ...categoryData.map(serverFormatPromoCodeForDisplay)]
-          }
-        }
-        
-        // Finally get global codes
-        const { data: globalData, error: globalError } = await supabase
-          .from('promo_codes')
-          .select('*')
-          .eq('is_global', true)
-        
-        console.log('Global promo codes:', globalData || 'No data')
-        if (globalError) console.error('Error fetching global promo codes:', globalError)
-        
-        if (!globalError && globalData) {
-          promoCodes = [...promoCodes, ...globalData.map(serverFormatPromoCodeForDisplay)]
-        }
-      }
-      
-      // Remove any duplicate promo codes (by code)
-      const beforeDeduplication = promoCodes.length;
-      promoCodes = promoCodes.filter((code, index, self) => 
-        index === self.findIndex((c) => c.code === code.code)
-      )
-      console.log(`Removed ${beforeDeduplication - promoCodes.length} duplicate promo codes`)
-      
-      // Sort promo codes by discount value (highest first)
-      promoCodes.sort((a, b) => {
-        // Extract numeric values from discount text (e.g., "10% off" → 10)
-        const valueA = parseInt(a.discountText.match(/(\d+)/)?.[0] || '0')
-        const valueB = parseInt(b.discountText.match(/(\d+)/)?.[0] || '0')
-        
-        // Sort by active status first, then by discount value
-        if (a.isActive !== b.isActive) {
-          return a.isActive ? -1 : 1
-        }
-        
-        return valueB - valueA
-      })
-      
-      console.log(`Final promo codes count: ${promoCodes.length}`)
-      console.log('Active promo codes:', promoCodes.filter(code => code.isActive))
+      promoCodes = await getProductPromoCodes(product);
+      console.log(`Retrieved ${promoCodes.length} promo codes, ${promoCodes.filter(c => c.isActive).length} active`);
     } catch (err) {
       console.error("Error fetching promo codes:", err);
     }
@@ -393,66 +237,123 @@ export default async function ProductPage({ params }: { params: { slug: string }
     // Extract YouTube video ID if present
     const youtubeVideoId = product.youtube_review ? extractYoutubeId(product.youtube_review) : null;
 
-    // Add a final debug log to see what promo codes are available right before displaying
-    console.log('Final promo codes available for display:', promoCodes)
-    console.log('Are any promo codes active?', promoCodes.some(code => code.isActive))
-    const firstPromoCode = promoCodes.length > 0 ? promoCodes[0] : null;
+    // Get the first active promo code for prominent display
+    const firstPromoCode = promoCodes.find(code => code.isActive) || null;
     console.log('First promo code for prominent display:', firstPromoCode);
 
-    // Schema.org structured data for product
-    const productSchema = {
+    // Define sections for the tabbed navigation - filtered by available content
+    const pageSections = [
+      ...(youtubeVideoId ? [{ id: "video-review", label: "Video Review" }] : []),
+      { id: "specifications", label: "Technical Specs" },
+      ...(product.review ? [{ id: "expert-review", label: "Expert Review" }] : []),
+      { id: "alternatives", label: "Alternatives" },
+    ];
+
+    // Create product schema with proper typing
+    const productSchema: {
+      "@context": string;
+      "@type": string;
+      name: string;
+      image: string[];
+      description: string;
+      brand: { "@type": string; name: string };
+      sku: string;
+      mpn: string;
+      category: string;
+      offers: {
+        "@type": string;
+        url: string;
+        price: number;
+        priceCurrency: string;
+        availability: string;
+        itemCondition: string;
+      };
+      review?: {
+        "@type": string;
+        reviewRating: {
+          "@type": string;
+          ratingValue: string;
+          bestRating: string;
+        };
+        author: {
+          "@type": string;
+          name: string;
+        };
+      };
+      aggregateRating?: {
+        "@type": string;
+        ratingValue: string;
+        reviewCount: string;
+      };
+      video?: {
+        "@type": string;
+        name: string;
+        description: string;
+        thumbnailUrl: string;
+        uploadDate: string;
+        contentUrl: string;
+        embedUrl: string;
+      };
+    } = {
       "@context": "https://schema.org",
       "@type": "Product",
       name: product.machine_name,
-      image: product.image_url,
-      description: product.description ? stripHtmlTags(product.description).substring(0, 5000) : product.excerpt_short,
+      image: images.map(img => img.url),
+      description: product.description || product.excerpt_short || "",
       brand: {
         "@type": "Brand",
-        name: product.company,
+        name: product.company || ""
       },
       sku: product.id,
       mpn: product.id,
-      category: getCategoryLabel(product.category_id),
+      category: "Laser Cutter",
       offers: {
         "@type": "Offer",
-        url: `https://machinesformakers.com/products/${slug}`,
-        price: product.price,
+        url: `https://machinesformakers.com/products/${product.slug}`,
+        price: product.price || 0,
         priceCurrency: "USD",
         availability: "https://schema.org/InStock",
         itemCondition: "https://schema.org/NewCondition"
-      },
-      review: (product.review || product["Brandon's Take"]) ? {
-        "@type": "Review",
-        reviewRating: {
-          "@type": "Rating",
-          ratingValue: product.rating || "9",
-          bestRating: "10"
-        },
-        author: {
-          "@type": "Person",
-          name: "Brandon (Machines for Makers Expert)"
-        },
-        datePublished: product.updated_at || new Date().toISOString().split('T')[0],
-        reviewBody: product.review ? 
-          stripHtmlTags(product.review).substring(0, 1000) : 
-          (product["Brandon's Take"] ? stripHtmlTags(product["Brandon's Take"]).substring(0, 1000) : "")
-      } : undefined,
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: product.rating || "9",
-        reviewCount: reviews?.length || 1,
-        bestRating: "10"
       }
     };
 
-    // Define sections for the tabbed navigation
-    const pageSections = [
-      { id: "overview", label: "Overview" },
-      { id: "specifications", label: "Specifications" },
-      { id: "expert-review", label: "Expert Review" },
-      { id: "alternatives", label: "Alternatives" },
-      { id: "user-reviews", label: "User Reviews" },
-    ];
+    // Add review to schema if available
+    if (product.review) {
+      productSchema.review = {
+        "@type": "Review",
+        reviewRating: {
+          "@type": "Rating",
+          ratingValue: product.rating?.toString() || "5",
+          bestRating: "5"
+        },
+        author: {
+          "@type": "Person",
+          name: "Brandon"
+        }
+      };
+    }
+
+    // Add aggregate rating if available
+    if (product.rating) {
+      productSchema.aggregateRating = {
+        "@type": "AggregateRating",
+        ratingValue: product.rating.toString(),
+        reviewCount: "1"
+      };
+    }
+
+    // Update Schema.org structured data to include video if present
+    if (youtubeVideoId) {
+      productSchema.video = {
+        "@type": "VideoObject",
+        name: `${product.machine_name} Video Review`,
+        description: `Detailed video review of the ${product.machine_name}`,
+        thumbnailUrl: `https://img.youtube.com/vi/${youtubeVideoId}/maxresdefault.jpg`,
+        uploadDate: product.updated_at || new Date().toISOString().split('T')[0],
+        contentUrl: `https://www.youtube.com/watch?v=${youtubeVideoId}`,
+        embedUrl: `https://www.youtube.com/embed/${youtubeVideoId}`
+      };
+    }
 
     return (
       <>
@@ -460,114 +361,86 @@ export default async function ProductPage({ params }: { params: { slug: string }
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
         
         {/* Enhanced Hero Section */}
-        <ProductHero 
-          product={product} 
-          images={images} 
-          highlights={highlights}
+        <div className="mt-[-20px]">
+          <ProductHero 
+            product={product} 
+            images={images} 
+            highlights={highlights}
+            promoCode={firstPromoCode}
+          />
+        </div>
+        
+        {/* Tab navigation */}
+        <ProductTabs 
+          sections={pageSections}
+          showAtAGlance={highlights.length > 0 || drawbacks.length > 0 || (product["Brandon's Take"] && product["Brandon's Take"].trim() !== '')}
         />
         
-        {/* Tabbed Navigation */}
-        <ProductTabs sections={pageSections} />
-
-        <div className="container px-4 mx-auto max-w-7xl">
-          {/* Overview Section */}
-          <section id="overview" className="py-12">
-            <div className="max-w-5xl mx-auto">
-              <h2 className="text-3xl font-bold mb-8">Overview</h2>
-              
-              {/* First promo code highlight if available */}
-              {promoCodes.length > 0 && promoCodes[0].isActive && (
-                <div className="mb-8">
-                  <ProductPromoHighlight promoCode={promoCodes[0]} />
-                </div>
-              )}
-              
-              {/* Description */}
-              <div className="prose prose-lg max-w-none mb-10">
-                {product.description ? (
-                  <div dangerouslySetInnerHTML={{ __html: product.description }} />
-                ) : (
-                  <p>{product.excerpt_short}</p>
-                )}
-              </div>
-              
-              {/* Pros & Cons Section */}
-              <div className="mb-10">
-                <ProsConsSection 
+        {/* Main content container */}
+        <div className="container px-4 mx-auto max-w-5xl">
+          {/* Video Review section */}
+          {youtubeVideoId && (
+            <section id="video-review" className="py-8">
+              {/* At A Glance section with key specs and verdict */}
+              {(highlights.length > 0 || drawbacks.length > 0 || (product["Brandon's Take"] && product["Brandon's Take"].trim() !== '')) && (
+                <AtAGlance 
                   highlights={highlights} 
                   drawbacks={drawbacks} 
+                  verdict={product["Brandon's Take"]}
+                  product={product}
                 />
-              </div>
-              
-              {/* YouTube Video */}
-              {youtubeVideoId && (
-                <div className="my-10">
-                  <h3 className="text-2xl font-bold mb-4">Video Review</h3>
-                  <div className="relative rounded-xl overflow-hidden aspect-video shadow-md">
-                    <iframe
-                      className="absolute inset-0 w-full h-full"
-                      src={`https://www.youtube.com/embed/${youtubeVideoId}`}
-                      title={`${product.machine_name} Video Review`}
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    ></iframe>
-                  </div>
-                </div>
               )}
               
-              {/* Add to compare button */}
-              <div className="mt-8 flex justify-end">
-                <AddToCompareButton product={product} />
+              <div className="max-w-5xl mx-auto mt-8">              
+                {/* First promo code highlight if available */}
+                {firstPromoCode && (
+                  <div className="mb-8">
+                    <ProductPromoHighlight promoCode={firstPromoCode} />
+                  </div>
+                )}
+                
+                {/* Video Review heading */}
+                <h2 className="text-3xl font-bold mb-6">Video Review</h2>
+                
+                {/* YouTube Video */}
+                <div className="relative rounded-xl overflow-hidden aspect-video shadow-md">
+                  <iframe
+                    className="absolute inset-0 w-full h-full"
+                    src={`https://www.youtube.com/embed/${youtubeVideoId}`}
+                    title={`${product.machine_name} Video Review`}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  ></iframe>
+                </div>
               </div>
-            </div>
-          </section>
-          
-          {/* Specifications Section */}
-          <section id="specifications" className="py-12 border-t">
-            <div className="max-w-5xl mx-auto">
-              <h2 className="text-3xl font-bold mb-8">Specifications</h2>
-              <SpecificationsTable product={product} />
-              
-              {/* Mobile specs selector */}
-              <div className="md:hidden mt-8">
-                <MobileSpecsSelector product={product} />
-              </div>
-            </div>
+            </section>
+          )}
+            
+          {/* Specifications section */}
+          <section id="specifications" className="py-8 border-t">
+            <SpecificationsTab product={product} />
           </section>
           
           {/* Expert Review Section */}
-          <section id="expert-review" className="border-t">
-            <EnhancedExpertReview 
-              review={product.review}
-              brandonsTake={product.brandons_take}
-            />
-          </section>
+          {product.review && (
+            <section id="expert-review" className="py-8 border-t">
+              <h2 className="text-3xl font-bold mb-6">Expert Review</h2>
+              <EnhancedExpertReview 
+                review={product.review}
+                brandonsTake={product["Brandon's Take"]}
+                className="px-0 py-0 max-w-none"
+              />
+            </section>
+          )}
           
           {/* Alternatives Section */}
-          <section id="alternatives" className="py-12 border-t">
-            <div className="max-w-5xl mx-auto">
-              <EnhancedRelatedProducts 
-                products={relatedProducts}
-                currentProductId={product.id}
-              />
-            </div>
-            
-            {/* Additional promo codes */}
-            {promoCodes.length > 1 && (
-              <div className="mt-8 max-w-5xl mx-auto">
-                <h3 className="text-xl font-bold mb-4">Available Discounts</h3>
-                <ProductPromoCodes promoCodes={promoCodes.filter(code => code.isActive)} />
-              </div>
-            )}
-          </section>
-          
-          {/* User Reviews Section */}
-          <section id="user-reviews" className="py-12 border-t">
-            <div className="max-w-5xl mx-auto">
-              <h2 className="text-3xl font-bold mb-8">User Reviews</h2>
-              <ProductReviews reviews={reviews} />
-            </div>
+          <section id="alternatives" className="py-8 border-t">
+            <h2 className="text-3xl font-bold mb-6">Alternative Options</h2>
+            <EnhancedRelatedProducts 
+              products={relatedProducts} 
+              currentProductId={product.id}
+            />
           </section>
         </div>
       </>

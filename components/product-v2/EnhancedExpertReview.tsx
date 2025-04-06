@@ -1,8 +1,6 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { QuoteIcon } from "lucide-react"
 
 interface EnhancedExpertReviewProps {
   review: string | null
@@ -15,120 +13,129 @@ export function EnhancedExpertReview({
   brandonsTake, 
   className = "" 
 }: EnhancedExpertReviewProps) {
-  // Use full review if available, otherwise fallback to Brandon's Take
-  const reviewContent = review || brandonsTake
+  // Log everything we receive to debug
+  console.log("EnhancedExpertReview Debug:", { 
+    hasReview: !!review, 
+    reviewType: typeof review,
+    reviewLength: review?.length || 0,
+    reviewExcerpt: review?.substring(0, 100),
+    hasBrandonsTake: !!brandonsTake
+  });
   
-  // Don't render if no review content is available
+  // Use review if available, otherwise fallback to Brandon's Take
+  const reviewContent = review || brandonsTake;
+  
+  // Don't render if absolutely no content
   if (!reviewContent) {
+    console.warn("No review content available to display");
     return null;
   }
-
-  // Determine review type for display
-  const isFullReview = !!review
   
   return (
     <section 
       className={cn(
-        "py-10 md:py-16 bg-gradient-to-b from-white to-gray-50",
+        "",
         className
       )} 
       itemProp="review" 
       itemScope 
       itemType="https://schema.org/Review"
     >
-      <div className="container px-4 mx-auto max-w-5xl">
-        <div className="max-w-4xl mx-auto">
-          {/* Expert review header */}
-          <div className="mb-10 flex flex-col sm:flex-row sm:items-center">
-            <div className="flex items-center mb-4 sm:mb-0">
-              <div className="relative">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-2xl mr-4 border-2 border-primary/20">
-                  B
-                </div>
-                <div className="absolute -bottom-1 -right-1 bg-primary text-white text-xs font-bold py-1 px-2 rounded-full">
-                  Expert
-                </div>
-              </div>
-              <div>
-                <h3 className="font-bold text-2xl text-gray-900 mb-1" itemProp="author" itemScope itemType="https://schema.org/Person">
-                  <span itemProp="name">Brandon's Review</span>
-                </h3>
-                <Badge variant="outline" className="text-sm py-1 px-3 font-medium bg-white shadow-sm border-gray-200">
-                  Founder, Machines for Makers
-                </Badge>
-              </div>
-            </div>
-          </div>
+      <div 
+        id="enhanced-review-content"
+        className="prose prose-sm md:prose-base lg:prose-lg prose-slate max-w-none
+          prose-headings:font-bold 
+          prose-headings:text-gray-900
+          prose-headings:mb-4
+          prose-headings:mt-8
+          prose-headings:tracking-tight
           
-          {/* Featured quote - could be extracted from review or hardcoded */}
-          <div className="mb-8 bg-gradient-to-r from-primary/5 to-primary/10 rounded-xl p-6 relative">
-            <QuoteIcon className="h-12 w-12 text-primary/20 absolute top-4 left-4" />
-            <blockquote className="text-xl md:text-2xl text-gray-800 font-medium italic ml-8 relative z-10">
-              "Expert hands-on review from someone who's tested dozens of machines"
-            </blockquote>
-          </div>
+          prose-h2:text-2xl 
+          prose-h2:md:text-3xl
+          prose-h2:leading-tight
+          prose-h2:border-b
+          prose-h2:border-gray-100
+          prose-h2:pb-3
           
-          {/* Review content with enhanced typography */}
-          <div 
-            className="prose prose-sm md:prose-base lg:prose-lg prose-slate max-w-none
-              bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8
-              
-              prose-headings:font-bold 
-              prose-headings:text-gray-900
-              prose-headings:mb-4
-              prose-headings:mt-8
-              
-              prose-h2:text-2xl 
-              prose-h2:md:text-3xl
-              prose-h2:leading-tight
-              prose-h2:border-b
-              prose-h2:border-gray-100
-              prose-h2:pb-3
-              
-              prose-h3:text-xl 
-              prose-h3:md:text-2xl
-              prose-h3:leading-tight
-              
-              prose-p:text-base
-              prose-p:md:text-lg
-              prose-p:leading-relaxed
-              prose-p:text-gray-700
-              
-              prose-li:text-base
-              prose-li:md:text-lg
-              prose-li:marker:text-primary
-              
-              prose-a:text-primary
-              prose-a:font-medium
-              prose-a:no-underline
-              prose-a:border-b
-              prose-a:border-primary/30
-              prose-a:hover:border-primary
-              
-              prose-strong:font-bold
-              prose-strong:text-gray-900
-              
-              prose-blockquote:border-l-4
-              prose-blockquote:border-primary/30
-              prose-blockquote:bg-gray-50
-              prose-blockquote:rounded-r-lg
-              prose-blockquote:pl-5
-              prose-blockquote:py-2
-              prose-blockquote:pr-4
-              prose-blockquote:italic
-              prose-blockquote:text-gray-700
-              
-              prose-img:rounded-lg
-              prose-img:shadow-md
-              
-              first-of-type:prose-p:text-xl first-of-type:prose-p:font-medium"
-            itemProp="reviewBody"
-            dangerouslySetInnerHTML={{ __html: reviewContent }}
-          />
+          prose-h3:text-xl 
+          prose-h3:md:text-2xl
+          prose-h3:leading-tight
+          prose-h3:mt-6
           
-          <meta itemProp="reviewRating" content="5" />
-        </div>
-      </div>
+          prose-h4:text-lg
+          prose-h4:md:text-xl
+          prose-h4:leading-tight
+          
+          prose-p:text-base
+          prose-p:md:text-lg
+          prose-p:leading-relaxed
+          prose-p:mb-6
+          prose-p:text-gray-700
+          
+          prose-li:text-base
+          prose-li:md:text-lg
+          prose-li:mb-2
+          prose-li:leading-relaxed
+          prose-li:marker:text-primary
+          
+          prose-a:text-primary
+          prose-a:font-medium
+          prose-a:transition-colors
+          prose-a:no-underline
+          prose-a:border-b
+          prose-a:border-primary/30
+          prose-a:hover:border-primary
+          
+          prose-strong:font-bold
+          prose-strong:text-gray-900
+          
+          prose-blockquote:border-l-4
+          prose-blockquote:border-primary/30
+          prose-blockquote:bg-gray-50
+          prose-blockquote:rounded-r-lg
+          prose-blockquote:pl-5
+          prose-blockquote:py-2
+          prose-blockquote:pr-4
+          prose-blockquote:my-6
+          prose-blockquote:italic
+          prose-blockquote:text-gray-700
+          
+          prose-img:rounded-lg
+          prose-img:shadow-md
+          prose-img:my-8
+          prose-img:mx-auto
+          prose-img:max-w-full
+          prose-img:h-auto
+          prose-img:object-contain
+          prose-img:max-h-[500px]
+          prose-img:border
+          prose-img:border-gray-100
+          
+          prose-figure:my-8
+          prose-figure:mx-auto
+          prose-figure:max-w-full
+          
+          [&_figure]:block [&_figure]:my-12 [&_figure]:mx-auto [&_figure]:max-w-full
+          
+          [&_figure.w-richtext-figure-type-image]:block [&_figure.w-richtext-figure-type-image]:my-12 [&_figure.w-richtext-figure-type-image]:mx-auto 
+          [&_figure.w-richtext-figure-type-image]:max-w-full [&_figure.w-richtext-figure-type-image]:overflow-hidden
+          
+          [&_figure.w-richtext-align-fullwidth]:w-full
+          
+          [&_figure > div]:flex [&_figure > div]:justify-center [&_figure > div]:items-center [&_figure > div]:w-full
+          [&_figure img]:block [&_figure img]:mx-auto [&_figure img]:max-w-full [&_figure img]:max-h-[600px] [&_figure img]:h-auto [&_figure img]:rounded-lg [&_figure img]:shadow-md [&_figure img]:object-cover
+          
+          [&_h2]:text-2xl [&_h2]:md:text-3xl [&_h2]:font-bold [&_h2]:text-gray-900 [&_h2]:mb-4 [&_h2]:mt-8 [&_h2]:leading-tight
+          [&_h3]:text-xl [&_h3]:md:text-2xl [&_h3]:font-bold [&_h3]:text-gray-900 [&_h3]:mb-3 [&_h3]:mt-6 [&_h3]:leading-tight
+          
+          [&_p]:mb-6 [&_p+p]:mt-6
+          
+          first-of-type:prose-p:text-lg first-of-type:prose-p:md:text-xl first-of-type:prose-p:leading-relaxed first-of-type:prose-p:text-gray-700 first-of-type:prose-p:font-medium"
+        itemProp="reviewBody"
+        dangerouslySetInnerHTML={{ __html: reviewContent }}
+      />
+      
+      <meta itemProp="reviewRating" content="5" />
     </section>
   )
 } 
