@@ -20,7 +20,7 @@ export default function Footer() {
             <h4 className="font-medium mb-4">Resources</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/learn-lightburn" className="text-muted-foreground hover:text-foreground">
+                <Link href="/learn-lightburn-for-lasers" className="text-muted-foreground hover:text-foreground">
                   Learn Lightburn
                 </Link>
               </li>

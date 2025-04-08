@@ -20,6 +20,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: '**',
       },
+      {
+        protocol: 'https',
+        hostname: 'xspderyoeancoqhdcloo.supabase.co',
+      },
     ],
   },
   // Add security headers

@@ -42,6 +42,9 @@ export default function LearnLightburnPage() {
   // Course price - centralized for easy updating
   const coursePrice = "$197";
   
+  // Podia checkout URL - used for all CTA buttons
+  const podiaCheckoutUrl = "https://course.makeorbreakshop.com/learn-lightburn-for-lasers/buy";
+  
   // Track scroll position for progress bar
   const [scrollProgress, setScrollProgress] = React.useState(0);
   
@@ -59,49 +62,22 @@ export default function LearnLightburnPage() {
 
   return (
     <div>
-      {/* Sticky header with progress bar and CTA */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-white/95 shadow-md backdrop-blur-sm">
-        <div className="container mx-auto px-4 max-w-6xl flex items-center justify-between py-2">
-          <div className="flex items-center gap-4">
-            <div className="hidden md:block">
-              <Image 
-                src={`${supabaseImageUrlBase}/hero/7a2ca51-8fe4-4ccc-cdd2-7c8fea70d8ae_learn-lightburn-logo-1_1744054561004.webp`}
-                alt="Learn Lightburn" 
-                width={120} 
-                height={40}
-                className="h-8 w-auto"
-                unoptimized
-              />
-            </div>
-            <div className="flex-1 min-w-0 md:max-w-md">
-              <Progress value={scrollProgress} className="h-2 w-full" />
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="hidden md:block text-lg font-bold">{coursePrice}</span>
-            <Button 
-              size="sm"
-              className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 font-semibold"
-              onClick={() => {
-                // Scroll to purchase section or open checkout
-                const purchaseSection = document.getElementById('buy-now');
-                if (purchaseSection) {
-                  purchaseSection.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
-            >
-              Sign Up Now
-            </Button>
-          </div>
-        </div>
+      {/* Fixed Progress Bar */}
+      <div className="fixed top-0 left-0 right-0 h-1 z-50">
+        <Progress value={scrollProgress} className="w-full h-full bg-transparent" />
       </div>
       
-      {/* Add padding to account for sticky header */}
-      <div className="h-14"></div>
-      
       {/* Hero Section with blue background */}
-      <section className="py-12 md:py-20 bg-[#2e88c7] text-white">
-        <div className="container mx-auto px-4 max-w-6xl">
+      <section className="py-12 md:py-20 bg-[#2e88c7] text-white relative overflow-hidden">
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0" style={{ 
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundSize: '60px 60px'
+          }}></div>
+        </div>
+        
+        <div className="container mx-auto px-4 max-w-6xl relative z-10">
           <div className="flex flex-col md:flex-row gap-10 items-center">
             <div className="md:w-1/2 text-center md:text-left">
               <h1 className="text-3xl md:text-5xl font-bold mb-6 tracking-tight">
@@ -114,28 +90,12 @@ export default function LearnLightburnPage() {
               <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start mb-8">
                 <Button 
                   size="lg" 
-                  className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 font-semibold"
+                  className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 hover:scale-105 transition-all duration-300 font-semibold"
                   onClick={() => {
-                    const buySection = document.getElementById('buy-now');
-                    if (buySection) {
-                      buySection.scrollIntoView({ behavior: 'smooth' });
-                    }
+                    window.location.href = podiaCheckoutUrl;
                   }}
                 >
                   Get Started Now
-                </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline"
-                  className="border-white text-white hover:bg-white/10"
-                  onClick={() => {
-                    const faqSection = document.getElementById('faq');
-                    if (faqSection) {
-                      faqSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                  }}
-                >
-                  Learn More
                 </Button>
               </div>
               
@@ -146,7 +106,7 @@ export default function LearnLightburnPage() {
                   "30-day money-back guarantee"
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <Check className="h-5 w-5 text-[#ff6b00]" />
+                    <Check className="h-5 w-5 text-green-500" />
                     <p className="text-lg">{item}</p>
                   </div>
                 ))}
@@ -154,14 +114,14 @@ export default function LearnLightburnPage() {
             </div>
             
             <div className="md:w-1/2">
-              <div className="relative aspect-video bg-black/20 rounded-lg overflow-hidden shadow-2xl border-2 border-white/30">
+              <div className="relative aspect-video bg-black/20 rounded-lg overflow-hidden shadow-2xl border-2 border-white/30 group transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]">
                 {/* Replace with actual video embed or thumbnail with play button */}
                 <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={() => {
                   // Open video modal or play video
                   // This would typically connect to a video modal component
                   alert("Video playback would start here");
                 }}>
-                  <div className="h-20 w-20 rounded-full bg-[#ff6b00] flex items-center justify-center">
+                  <div className="h-20 w-20 rounded-full bg-[#ff6b00] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-white ml-1">
                       <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
                     </svg>
@@ -183,9 +143,14 @@ export default function LearnLightburnPage() {
       {/* Testimonial section - Updated to carousel with multiple testimonials */}
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4 max-w-5xl">
-          <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center">
-            What Students Are Saying
-          </h2>
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold mb-4">
+              What Students Are Saying
+            </h2>
+            <p className="text-xl text-gray-600">
+              <span className="font-bold text-[#2e88c7]">500+</span> Happy Students and Counting
+            </p>
+          </div>
           
           <Carousel 
             className="mx-auto"
@@ -199,26 +164,30 @@ export default function LearnLightburnPage() {
                 {
                   quote: "I learned a lot from these videos especially not knowing anything about this space!",
                   author: "Derrick",
-                  rating: 5
+                  rating: 5,
+                  image: `${supabaseImageUrlBase}/testimonials/derrick.webp` // Add actual image path if available
                 },
                 {
                   quote: "The pace of the information presented was the biggest plus for me!",
                   author: "Carl",
-                  rating: 5
+                  rating: 5,
+                  image: `${supabaseImageUrlBase}/testimonials/carl.webp` // Add actual image path if available
                 },
                 {
                   quote: "Easy to follow modules that made perfect sense from the beginning.",
                   author: "Steve Mosely (MakingAtHome)",
-                  rating: 5
+                  rating: 5,
+                  image: `${supabaseImageUrlBase}/testimonials/steve.webp` // Add actual image path if available
                 },
                 {
                   quote: "I was wasting so much material before this course. Now I get perfect results first time!",
                   author: "Jennifer K.",
-                  rating: 5
+                  rating: 5,
+                  image: `${supabaseImageUrlBase}/testimonials/jennifer.webp` // Add actual image path if available
                 },
               ].map((testimonial, i) => (
                 <CarouselItem key={i} className="md:basis-3/4">
-                  <Card className="border border-gray-200 h-full">
+                  <Card className="border border-gray-200 h-full hover:shadow-lg transition-shadow duration-300">
                     <CardContent className="pt-6 pb-2 px-6">
                       <div className="flex mb-4">
                         {Array(testimonial.rating).fill(0).map((_, i) => (
@@ -229,7 +198,14 @@ export default function LearnLightburnPage() {
                         "{testimonial.quote}"
                       </p>
                     </CardContent>
-                    <CardFooter className="px-6 pb-6">
+                    <CardFooter className="px-6 pb-6 flex items-center gap-3">
+                      {testimonial.image && (
+                        <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                          <div className="bg-gray-200 w-full h-full flex items-center justify-center text-gray-500">
+                            {testimonial.author.charAt(0)}
+                          </div>
+                        </div>
+                      )}
                       <p className="text-lg text-gray-700 font-medium">- {testimonial.author}</p>
                     </CardFooter>
                   </Card>
@@ -258,7 +234,7 @@ export default function LearnLightburnPage() {
               </div>
               <div className="h-20 w-48 relative">
                 <Image 
-                  src={`${supabaseImageUrlBase}/partners/56a880a-655-ed0b-54f0-28e61d051eb_screenshot_2025-02-24_at_3_1744054567106.webp`} 
+                  src={`${supabaseImageUrlBase}/partners/56a880a-655-ed0b-54f0-28e61d051eb_screenshot_2025-02-24_at_3_1744054558302.webp`} 
                   alt="OneLaser" 
                   fill
                   className="object-contain"
@@ -271,9 +247,17 @@ export default function LearnLightburnPage() {
         </div>
       </section>
       
-      {/* Does This Sound Like You Section - Maintained as part of the hero section */}
-      <section className="py-12 mb-0 bg-[#2e88c7] text-white border-t border-white/10">
-        <div className="container mx-auto px-4 max-w-6xl">
+      {/* Does This Sound Like You? Section - Maintained as part of the hero section */}
+      <section className="py-12 mb-0 bg-[#2e88c7] text-white border-t border-white/10 relative overflow-hidden">
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0" style={{ 
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='1' fill-rule='evenodd'/%3E%3C/svg%3E")`,
+            backgroundSize: '100px 100px'
+          }}></div>
+        </div>
+        
+        <div className="container mx-auto px-4 max-w-6xl relative z-10">
           <div className="max-w-4xl mx-auto px-6">
             <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center">Does This Sound Like You?</h2>
             <div className="space-y-4">
@@ -285,8 +269,8 @@ export default function LearnLightburnPage() {
                 "Your laser isn't performing like you know it can",
                 "You waste time fighting confusing software instead of creating"
               ].map((item, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div className="mt-1 flex-shrink-0">
+                <div key={i} className="flex items-start gap-3 hover:translate-x-1 transition-transform duration-200">
+                  <div className="mt-1 flex-shrink-0 bg-green-500 rounded-full p-1">
                     <Check className="h-5 w-5 text-white" />
                   </div>
                   <p className="text-lg">{item}</p>
@@ -305,7 +289,13 @@ export default function LearnLightburnPage() {
             <h2 className="text-2xl md:text-4xl font-bold mb-8">
               My $2,000 Laser Cutter Was a Complete Waste of Money... Until I Discovered This Simple System That Changed Everything
             </h2>
-            <Button size="lg" className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 font-semibold px-8 py-6 text-lg">
+            <Button 
+              size="lg" 
+              className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 hover:scale-105 transition-all duration-300 font-semibold px-8 py-6 text-lg"
+              onClick={() => {
+                window.location.href = podiaCheckoutUrl;
+              }}
+            >
               Sign up now
             </Button>
           </div>
@@ -317,13 +307,13 @@ export default function LearnLightburnPage() {
             <p>
               Fast forward a few months and I had my YouTube channel up and running. Video after video, I kept seeing comments like…
             </p>
-            <div className="bg-[#f5f7f8] p-4 rounded-md italic">
+            <div className="bg-[#f5f7f8] p-4 rounded-md italic border-l-4 border-[#2e88c7] shadow-sm">
               <p className="mb-2">"How do I fix this alignment issue?"</p>
               <p className="mb-2">"Why won't my laser cut all the way through?"</p>
               <p className="mb-2">"How do I get rid of these burn marks?"</p>
               <p>"Why won't this #$%&** work!"</p>
             </div>
-            <p className="italic">That's when it hit me.</p>
+            <p className="italic text-xl font-medium text-[#2e88c7]">That's when it hit me.</p>
             <p>
               I could save others from the smoke-filled room I was stuck in.
             </p>
@@ -339,31 +329,18 @@ export default function LearnLightburnPage() {
             <p>
               If you're staring at your laser right now, surrounded by failed attempts and feeling that knot in your stomach, I've been there.
             </p>
-            <p className="italic">
+            <p className="italic text-xl">
               The secret to laser cutting success isn't becoming more technical.
             </p>
-            <p className="font-bold">
+            <p className="font-bold text-xl">
               It's following a clear roadmap for artists and entrepreneurs, not tech specialists.
             </p>
-          </div>
-
-          {/* Add frustrated laser user image - Improved shadow to match original */}
-          <div className="max-w-3xl mx-auto mt-10">
-            <Image 
-              src={`${supabaseImageUrlBase}/story/ac7aded-178c-d125-77bc-ac5a8435dc5_screenshot_2025-02-25_at_8_20_21_am_1744054564012.webp`}
-              alt="Frustrated with laser cutter" 
-              width={700} 
-              height={394}
-              className="mx-auto rounded-lg shadow-xl"
-              sizes="(max-width: 768px) 90vw, 700px"
-              unoptimized
-            />
           </div>
         </div>
       </section>
       
       {/* Personal Story Section - Light background with styling to match original */}
-      <section className="py-16 mb-16 bg-[#f5f7f8]">
+      <section className="py-16 bg-[#f5f7f8] -mt-16">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="prose prose-lg max-w-3xl mx-auto space-y-6">
             <p className="italic text-center text-2xl font-medium">
@@ -417,6 +394,19 @@ export default function LearnLightburnPage() {
             <p>
               And then…finally, something that didn't look half bad!
             </p>
+            
+            {/* Add ornament image at the end of the story */}
+            <div className="pt-4">
+              <Image 
+                src={`${supabaseImageUrlBase}/story/ac7aded-178c-d125-77bc-ac5a8435dc5_screenshot_2025-02-25_at_8_20_21_am_1744054564012.webp`}
+                alt="Successful ornament design" 
+                width={700} 
+                height={394}
+                className="mx-auto rounded-lg shadow-xl"
+                sizes="(max-width: 768px) 90vw, 700px"
+                unoptimized
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -431,20 +421,20 @@ export default function LearnLightburnPage() {
             (12 million views and counting...)
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 gap-3 max-w-2xl mx-auto">
             {[
-              `${supabaseImageUrlBase}/comments/2f4a655-f7e5-5b1f-86f-32ad2de3f40c_screenshot_2025-02-25_at_12_1744054554850.webp`,
-              `${supabaseImageUrlBase}/comments/4b746fb-bea-5f84-b6e4-a87225ec2811_screenshot_2025-02-25_at_12_1744054555563.webp`,
-              `${supabaseImageUrlBase}/comments/5d7bdb0-bddf-ee4b-236e-5a88efbf12d_screenshot_2025-02-25_at_12_1744054558835.webp`,
-              `${supabaseImageUrlBase}/comments/cc23fee-cbb0-36e1-547-d72baaf4383_screenshot_2025-02-25_at_12_1744054567537.webp`
+              `${supabaseImageUrlBase}/comments/670e0fe-5b1a-f836-dd5b-b4dafe803bc_screenshot_2025-02-24_at_1_1744054559647.webp`,
+              `${supabaseImageUrlBase}/comments/f1bc77c-0be-82e1-ee6a-f4c81eac7662_screenshot_2025-02-24_at_1_1744054568655.webp`,
+              `${supabaseImageUrlBase}/comments/60cf0b-6e76-058-6820-5dd1f74c223_screenshot_2025-02-24_at_1_1744054559269.webp`,
+              `${supabaseImageUrlBase}/comments/ff6f25-77c1-7fec-2e1c-238b5000f80_screenshot_2025-02-24_at_1_1744054570162.webp`
             ].map((imageSrc, i) => (
               <div key={i} className="bg-white shadow-md rounded-xl overflow-hidden border border-gray-200">
                 <Image 
                   src={imageSrc}
-                  alt={`YouTube Comment ${i + 1}`}
-                  width={500}
-                  height={175}
-                  className="w-full object-contain"
+                  alt={`YouTube Comment ${i + 5}`}
+                  width={600}
+                  height={200}
+                  className="w-full object-scale-down"
                   unoptimized
                 />
               </div>
@@ -460,14 +450,23 @@ export default function LearnLightburnPage() {
             How do you ACTUALLY learn Lightburn without wasting time?
           </h2>
           
-          <div className="prose prose-lg max-w-3xl mx-auto">
-            <p>The secret to mastering your laser is simple.</p>
-            <ol className="pl-5 space-y-2">
-              <li>Learn every setting and feature Lightburn has to offer.</li>
-              <li>Focus just on the ones that matter</li>
-              <li>Ignore everything else.</li>
-            </ol>
-            <p>
+          <div className="prose prose-lg max-w-3xl mx-auto space-y-4">
+            <p className="text-xl font-medium">The secret to mastering your laser is simple.</p>
+            <div className="space-y-3">
+              {[
+                "Learn every setting and feature Lightburn has to offer.",
+                "Focus just on the ones that matter",
+                "Ignore everything else."
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className="mt-1 flex-shrink-0 bg-green-500 rounded-full p-1">
+                    <Check className="h-5 w-5 text-white" />
+                  </div>
+                  <span className="text-lg">{item}</span>
+                </div>
+              ))}
+            </div>
+            <p className="pt-2">
               The best way to do that is to spend hours and hours learning the specific settings and processes that work with your laser.
             </p>
             <p>
@@ -483,8 +482,8 @@ export default function LearnLightburnPage() {
           
           {/* Benefits box - enhanced styling to match original */}
           <div className="mt-10 bg-[#2e88c7] text-white rounded-xl p-8 shadow-lg max-w-4xl mx-auto">
-            <p className="text-xl font-semibold mb-6">Sign up today so you can:</p>
-            <div className="space-y-4">
+            <h3 className="text-xl font-bold mb-6">Sign up today so you can:</h3>
+            <ul className="space-y-5">
               {[
                 "Trade endless YouTube searches for a complete, tested framework built by someone who's faced your exact challenges",
                 "Navigate Lightburn with confidence and ease, even if you consider yourself \"non-technical\"",
@@ -494,21 +493,29 @@ export default function LearnLightburnPage() {
                 "Replace software confusion with logical workflows that make every project feel effortless",
                 "Maximize your current laser's capabilities, producing results that rival machines costing thousands more"
               ].map((item, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div className="mt-1 flex-shrink-0">
+                <li key={i} className="flex items-start gap-4">
+                  <div className="mt-1 flex-shrink-0 bg-green-500 rounded-full p-1">
                     <Check className="h-5 w-5 text-white" />
                   </div>
-                  <p className="text-lg">{item}</p>
-                </div>
+                  <span className="text-lg">{item}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </div>
       </section>
       
-      {/* Triple Beam Process - Updated layout to match original site */}
-      <section className="py-16 mb-16 bg-[#2e88c7] text-white">
-        <div className="container mx-auto px-4 max-w-6xl">
+      {/* Triple Beam Process - Updated layout to match original */}
+      <section className="py-16 mb-16 bg-[#2e88c7] text-white relative overflow-hidden">
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0" style={{ 
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='52' height='26' viewBox='0 0 52 26' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M10 10c0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6h2c0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4v2c-3.314 0-6-2.686-6-6 0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6zm25.464-1.95l8.486 8.486-1.414 1.414-8.486-8.486 1.414-1.414z' /%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundSize: '52px 26px'
+          }}></div>
+        </div>
+        
+        <div className="container mx-auto px-4 max-w-6xl relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-4xl font-bold mb-4">
               Introducing The Triple Beam Process
@@ -518,60 +525,69 @@ export default function LearnLightburnPage() {
             </p>
           </div>
           
-          {/* Changed to a vertical stack layout to match original */}
-          <div className="max-w-3xl mx-auto space-y-8">
+          {/* Changed to a side-by-side layout to match original */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             {/* Beam 1 */}
-            <div>
-              <Image 
-                src={`${supabaseImageUrlBase}/process/2a78750-4353-da37-13dc-ccf751e6a75_screenshot_2025-02-25_at_2_49_40_pm-1_1744054554064.webp`}
-                alt="Beam 1: The Design" 
-                width={600} 
-                height={350}
-                className="w-full rounded-lg shadow-lg mx-auto mb-4"
-                unoptimized
-              />
-              <div className="text-center">
-                <h3 className="text-xl font-bold mb-2">Beam 1: The Design</h3>
-                <p className="text-lg">
-                  Transform your ideas into laser-ready files—whether creating from scratch or importing existing artwork.
-                </p>
+            <div className="flex flex-col items-center text-center group">
+              <div className="relative overflow-hidden rounded-lg shadow-lg mb-4 hover:shadow-xl transition-all duration-300 transform group-hover:-translate-y-2">
+                <Image 
+                  src={`${supabaseImageUrlBase}/process/2a78750-4353-da37-13dc-ccf751e6a75_screenshot_2025-02-25_at_2_49_40_pm-1_1744054554064.webp`}
+                  alt="Beam 1: The Design" 
+                  width={300} 
+                  height={200}
+                  className="w-full rounded-lg shadow-lg mb-0 group-hover:scale-105 transition-transform duration-300"
+                  unoptimized
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#2e88c7]/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
+                  <span className="text-white font-bold text-lg">Step 1</span>
+                </div>
               </div>
+              <h3 className="text-xl font-bold mb-2">Beam 1: The Design</h3>
+              <p className="text-lg">
+                Transform your ideas into laser-ready files—whether creating from scratch or importing existing artwork.
+              </p>
             </div>
             
             {/* Beam 2 */}
-            <div>
-              <Image 
-                src={`${supabaseImageUrlBase}/process/ee4cb6-bbfc-268e-03e8-825d730d480_screenshot_2025-02-25_at_2_49_55_pm-1_1744054568114.webp`}
-                alt="Beam 2: The Settings" 
-                width={600} 
-                height={350}
-                className="w-full rounded-lg shadow-lg mx-auto mb-4"
-                unoptimized
-              />
-              <div className="text-center">
-                <h3 className="text-xl font-bold mb-2">Beam 2: The Settings</h3>
-                <p className="text-lg">
-                  Eliminate guesswork with proven settings that work every time. Use the test file process to focus in on what matters!
-                </p>
+            <div className="flex flex-col items-center text-center group">
+              <div className="relative overflow-hidden rounded-lg shadow-lg mb-4 hover:shadow-xl transition-all duration-300 transform group-hover:-translate-y-2">
+                <Image 
+                  src={`${supabaseImageUrlBase}/process/ee4cb6-bbfc-268e-03e8-825d730d480_screenshot_2025-02-25_at_2_49_55_pm-1_1744054568114.webp`}
+                  alt="Beam 2: The Settings" 
+                  width={300} 
+                  height={200}
+                  className="w-full rounded-lg shadow-lg mb-0 group-hover:scale-105 transition-transform duration-300"
+                  unoptimized
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#2e88c7]/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
+                  <span className="text-white font-bold text-lg">Step 2</span>
+                </div>
               </div>
+              <h3 className="text-xl font-bold mb-2">Beam 2: The Settings</h3>
+              <p className="text-lg">
+                Eliminate guesswork with proven settings that work every time. Use the test file process to focus in on what matters!
+              </p>
             </div>
             
             {/* Beam 3 */}
-            <div>
-              <Image 
-                src={`${supabaseImageUrlBase}/process/a26832e-38e6-cae3-8aea-b132b662ee8_build11_1744054563382.webp`}
-                alt="Beam 3: The Machine" 
-                width={600} 
-                height={350}
-                className="w-full rounded-lg shadow-lg mx-auto mb-4"
-                unoptimized
-              />
-              <div className="text-center">
-                <h3 className="text-xl font-bold mb-2">Beam 3: The Machine</h3>
-                <p className="text-lg">
-                  Learn how to properly connect, position, and operate your laser for perfect results every time.
-                </p>
+            <div className="flex flex-col items-center text-center group">
+              <div className="relative overflow-hidden rounded-lg shadow-lg mb-4 hover:shadow-xl transition-all duration-300 transform group-hover:-translate-y-2">
+                <Image 
+                  src={`${supabaseImageUrlBase}/process/a26832e-38e6-cae3-8aea-b132b662ee8_build11_1744054563382.webp`}
+                  alt="Beam 3: The Machine" 
+                  width={300} 
+                  height={200}
+                  className="w-full rounded-lg shadow-lg mb-0 group-hover:scale-105 transition-transform duration-300"
+                  unoptimized
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#2e88c7]/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
+                  <span className="text-white font-bold text-lg">Step 3</span>
+                </div>
               </div>
+              <h3 className="text-xl font-bold mb-2">Beam 3: The Machine</h3>
+              <p className="text-lg">
+                Learn how to properly connect, position, and operate your laser for perfect results every time.
+              </p>
             </div>
           </div>
         
@@ -580,86 +596,132 @@ export default function LearnLightburnPage() {
             <p className="text-lg font-medium mb-8">
               <strong>You can implement the Triple Beam Process in just a few evenings</strong> — perfect if your trying to balance full-time work with a laser side hustle.
             </p>
-            <Button size="lg" className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 text-lg font-semibold px-8 py-6">
+            <Button 
+              size="lg" 
+              className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 hover:scale-105 transition-all duration-300 text-lg font-semibold px-8 py-6"
+              onClick={() => {
+                window.location.href = podiaCheckoutUrl;
+              }}
+            >
               Sign Up Now
             </Button>
           </div>
-          
-          <div className="mt-12 max-w-xl mx-auto bg-white/20 p-6 rounded-xl text-center">
-            <p className="italic mb-2">Easy to follow modules</p>
-            <p className="font-semibold">-Steve Mosely (MakingAtHome)</p>
+        </div>
+      </section>
+      
+      {/* Steve Mosley Testimonial - Standalone section with gray background */}
+      <section className="py-12 bg-gray-800 text-white -mt-1">
+        <div className="container mx-auto px-4 max-w-6xl">
+          <div className="max-w-3xl mx-auto text-center">
+            <p className="italic text-xl mb-4">"Easy to follow modules that made perfect sense from the beginning."</p>
+            <p className="font-semibold text-lg">-Steve Mosely (MakingAtHome)</p>
           </div>
         </div>
       </section>
       
       {/* Course Features - Grid layout to match original */}
-      <section className="py-16 mb-16 bg-[#f5f7f8]">
+      <section className="py-16 bg-[#f5f7f8] -mt-1">
         <div className="container mx-auto px-4 max-w-6xl">
           <h2 className="text-2xl md:text-3xl font-bold mb-12 text-center">
             Everything you Get Access To
           </h2>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 max-w-5xl mx-auto">
-            {[
-              {
-                title: "Processes",
-                description: "Follow proven frameworks that replace guesswork with reliable results every time.",
-                icon: <ArrowRight className="h-12 w-12 text-[#2e88c7]" />
-              },
-              {
-                title: "Video Training",
-                description: "Master the Triple Beam Process with on demand video training.",
-                icon: <Video className="h-12 w-12 text-[#2e88c7]" />
-              },
-              {
-                title: "Test Files",
-                description: "Dial in your perfect settings for any machine, material, and cut type.",
-                icon: <Beaker className="h-12 w-12 text-[#2e88c7]" />
-              },
-              {
-                title: "Community Support",
-                description: "Connect with fellow laser lovers to share ideas and get help when you need it.",
-                icon: <Users className="h-12 w-12 text-[#2e88c7]" />
-              },
-              {
-                title: "Material Libraries",
-                description: "Gain instant access to material settings libraries.",
-                icon: <Library className="h-12 w-12 text-[#2e88c7]" />
-              },
-              {
-                title: "Design Files",
-                description: "Ready-to-use designs that speed up your project workflow.",
-                icon: <Palette className="h-12 w-12 text-[#2e88c7]" />
-              },
-              {
-                title: "Lifetime Access",
-                description: "Enjoy unlimited access and free updates for as long as the course exists.",
-                icon: <Lock className="h-12 w-12 text-[#2e88c7]" />
-              }
-            ].map((feature, i) => (
-              <Card key={i} className="flex flex-col items-center text-center h-full border-none bg-white/80 backdrop-blur shadow-md hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
-                <CardHeader className="pb-2">
-                  <div className="p-4 bg-[#2e88c7]/10 rounded-full mb-2">
-                    {feature.icon}
-                  </div>
-                  <CardTitle className="text-xl font-bold">{feature.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p>{feature.description}</p>
-                </CardContent>
-              </Card>
-            ))}
+          {/* Bento Grid layout for features */}
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-6 max-w-5xl mx-auto">
+            {/* Feature 1 - Processes - Large card spanning 3 columns */}
+            <div className="md:col-span-3 bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group overflow-hidden p-6 flex flex-col">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-4 bg-[#2e88c7]/10 rounded-full flex items-center justify-center group-hover:bg-[#2e88c7]/20 transition-colors duration-300">
+                  <ArrowRight className="h-8 w-8 text-[#2e88c7] group-hover:scale-110 transition-transform duration-300" />
+                </div>
+                <h3 className="text-xl font-bold">Processes</h3>
+              </div>
+              <p className="text-gray-600 mb-2">Follow proven frameworks that replace guesswork with reliable results every time.</p>
+              <div className="mt-auto pt-4 border-t border-gray-100">
+                <span className="text-sm text-[#2e88c7] font-medium flex items-center">
+                  Learn more <ArrowRight className="h-4 w-4 ml-1" />
+                </span>
+              </div>
+            </div>
+            
+            {/* Feature 2 - Video Training - Regular card spanning 3 columns */}
+            <div className="md:col-span-3 bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group overflow-hidden p-6 flex flex-col">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-4 bg-[#2e88c7]/10 rounded-full flex items-center justify-center group-hover:bg-[#2e88c7]/20 transition-colors duration-300">
+                  <Video className="h-8 w-8 text-[#2e88c7] group-hover:scale-110 transition-transform duration-300" />
+                </div>
+                <h3 className="text-xl font-bold">Video Training</h3>
+              </div>
+              <p className="text-gray-600 mb-2">Master the Triple Beam Process with on demand video training.</p>
+              <div className="mt-auto pt-4 border-t border-gray-100">
+                <span className="text-sm text-[#2e88c7] font-medium flex items-center">
+                  Learn more <ArrowRight className="h-4 w-4 ml-1" />
+                </span>
+              </div>
+            </div>
+            
+            {/* Feature 3 - Test Files - Spanning 2 columns */}
+            <div className="md:col-span-2 bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group overflow-hidden p-6 flex flex-col">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-4 bg-[#2e88c7]/10 rounded-full flex items-center justify-center group-hover:bg-[#2e88c7]/20 transition-colors duration-300">
+                  <Beaker className="h-7 w-7 text-[#2e88c7] group-hover:scale-110 transition-transform duration-300" />
+                </div>
+                <h3 className="text-xl font-bold">Test Files</h3>
+              </div>
+              <p className="text-gray-600">Dial in your perfect settings for any machine, material, and cut type.</p>
+            </div>
+            
+            {/* Feature 4 - Community Support - Spanning 2 columns */}
+            <div className="md:col-span-2 bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group overflow-hidden p-6 flex flex-col">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-4 bg-[#2e88c7]/10 rounded-full flex items-center justify-center group-hover:bg-[#2e88c7]/20 transition-colors duration-300">
+                  <Users className="h-7 w-7 text-[#2e88c7] group-hover:scale-110 transition-transform duration-300" />
+                </div>
+                <h3 className="text-xl font-bold">Community</h3>
+              </div>
+              <p className="text-gray-600">Connect with fellow laser enthusiasts to share ideas and get help.</p>
+            </div>
+            
+            {/* Feature 5 - Material Libraries - Spanning 2 columns */}
+            <div className="md:col-span-2 bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group overflow-hidden p-6 flex flex-col">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-4 bg-[#2e88c7]/10 rounded-full flex items-center justify-center group-hover:bg-[#2e88c7]/20 transition-colors duration-300">
+                  <Library className="h-7 w-7 text-[#2e88c7] group-hover:scale-110 transition-transform duration-300" />
+                </div>
+                <h3 className="text-xl font-bold">Material Libraries</h3>
+              </div>
+              <p className="text-gray-600">Gain instant access to material settings libraries for perfect results.</p>
+            </div>
+            
+            {/* Feature 6 - Design Files - Spanning 3 columns */}
+            <div className="md:col-span-3 bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group overflow-hidden p-6 flex flex-col">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-4 bg-[#2e88c7]/10 rounded-full flex items-center justify-center group-hover:bg-[#2e88c7]/20 transition-colors duration-300">
+                  <Palette className="h-7 w-7 text-[#2e88c7] group-hover:scale-110 transition-transform duration-300" />
+                </div>
+                <h3 className="text-xl font-bold">Design Files</h3>
+              </div>
+              <p className="text-gray-600">Ready-to-use designs that speed up your project workflow.</p>
+            </div>
+            
+            {/* Feature 7 - Lifetime Access - Spanning 3 columns */}
+            <div className="md:col-span-3 bg-[#2e88c7] text-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group overflow-hidden p-6 flex flex-col">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-4 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition-colors duration-300">
+                  <Lock className="h-7 w-7 text-white group-hover:scale-110 transition-transform duration-300" />
+                </div>
+                <h3 className="text-xl font-bold">Lifetime Access</h3>
+              </div>
+              <p className="text-white/90">Enjoy unlimited access and free updates for as long as the course exists.</p>
+            </div>
           </div>
           
           <div className="mt-16 text-center">
             <Button
               size="lg"
-              className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 font-semibold px-8 py-6 text-lg"
+              className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 hover:scale-105 transition-all duration-300 font-semibold px-8 py-6 text-lg"
               onClick={() => {
-                const buySection = document.getElementById('buy-now');
-                if (buySection) {
-                  buySection.scrollIntoView({ behavior: 'smooth' });
-                }
+                window.location.href = podiaCheckoutUrl;
               }}
             >
               Get Access Now
@@ -669,14 +731,23 @@ export default function LearnLightburnPage() {
       </section>
       
       {/* Bonus #1 - Improved styling to match original */}
-      <section className="py-16 mb-16 bg-[#2e88c7] text-white">
+      <section className="py-16 bg-[#2e88c7] text-white -mt-1">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">
-              Bonus #1: Project Cost Calculator
+            <div className="flex items-center justify-center mb-6">
+              <div className="bg-[#ff6b00] text-white px-4 py-1 rounded-full text-sm font-bold">
+                BONUS #1
+              </div>
+            </div>
+            <h2 className="text-2xl md:text-3xl font-bold mb-2 text-center">
+              Project Cost Calculator
             </h2>
-            <p className="text-lg text-center mb-6">
+            <p className="text-lg text-center mb-2">
               Stop guessing. Know exactly what each project costs and what to charge.
+            </p>
+            <p className="text-center mb-6 text-xl">
+              <span className="line-through text-white/70 mr-2">$97 Value</span>
+              <span className="font-bold">Included Free</span>
             </p>
             <ul className="space-y-4 max-w-2xl mx-auto">
               {[
@@ -686,7 +757,7 @@ export default function LearnLightburnPage() {
                 "Calculate true profit margins on every product you make"
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <div className="mt-1 flex-shrink-0">
+                  <div className="mt-1 flex-shrink-0 bg-green-500 rounded-full p-1">
                     <Check className="h-5 w-5 text-white" />
                   </div>
                   <p className="text-lg">{item}</p>
@@ -699,7 +770,7 @@ export default function LearnLightburnPage() {
       
       {/* Testimonial - Styled to match original */}
       <section className="py-10 mb-16 max-w-xl mx-auto text-center">
-        <div className="bg-[#f5f7f8] p-6 rounded-xl shadow-sm">
+        <div className="bg-gray-800 text-white p-6 rounded-xl shadow-sm">
           <p className="italic mb-2 text-lg">The pace of the information presented was the biggest plus for me!</p>
           <p className="font-semibold">-Carl</p>
         </div>
@@ -709,11 +780,20 @@ export default function LearnLightburnPage() {
       <section className="py-16 mb-16 bg-[#2e88c7] text-white">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">
-              Bonus #2: Laser Resource Directory
+            <div className="flex items-center justify-center mb-6">
+              <div className="bg-[#ff6b00] text-white px-4 py-1 rounded-full text-sm font-bold">
+                BONUS #2
+              </div>
+            </div>
+            <h2 className="text-2xl md:text-3xl font-bold mb-2 text-center">
+              Laser Resource Directory
             </h2>
-            <p className="text-lg text-center mb-6">
+            <p className="text-lg text-center mb-2">
               Everything I use daily to create professional projects faster and cheaper.
+            </p>
+            <p className="text-center mb-6 text-xl">
+              <span className="line-through text-white/70 mr-2">$49 Value</span>
+              <span className="font-bold">Included Free</span>
             </p>
             <ul className="space-y-4 max-w-2xl mx-auto">
               {[
@@ -722,7 +802,7 @@ export default function LearnLightburnPage() {
                 "Save with exclusive discount codes for essential supplies and software"
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <div className="mt-1 flex-shrink-0">
+                  <div className="mt-1 flex-shrink-0 bg-green-500 rounded-full p-1">
                     <Check className="h-5 w-5 text-white" />
                   </div>
                   <p className="text-lg">{item}</p>
@@ -753,34 +833,43 @@ export default function LearnLightburnPage() {
               <h2 className="text-2xl md:text-3xl font-bold mb-6">
                 Hey there, I'm Brandon
               </h2>
-              <div className="prose prose-lg">
+              <div className="prose prose-lg space-y-4">
                 <p>
                   I'm the guy behind the Make or Break Shop YouTube channel that's helped over 12.1 million viewers (and counting).
                 </p>
+                
                 <p>
                   I review and test tons of different laser machines and teach people how to use them. I've probably gotten my hands on more different types of lasers than almost anyone out there.
                 </p>
+                
                 <p>
                   <strong>What is my background?</strong>
                 </p>
+                
                 <p>
                   I studied Aerospace Engineering, which helped me figure out the technical stuff, but let me tell you – I still hit all the same frustrating roadblocks you're probably facing.
                 </p>
+                
                 <p>
                   <strong>Man, did I waste a lot of material and time in the beginning.</strong>
                 </p>
+                
                 <p>
                   I've tested pretty much everything: cheap Ortur diode lasers, desktop CO2 machines from OMTech, xTool, and OneLaser, professional Thunder Laser systems, and even those fancy fiber lasers. If it cuts or engraves, I've probably played with it.
                 </p>
+                
                 <p>
                   After tons of trial and error (and a few choice words), I figured out a system that actually works without all the headaches. No more guessing at settings or ruining expensive materials.
                 </p>
+                
                 <p>
                   When I'm not geeking out over lasers, I'm making stuff for my three kids. They love the projects they can color themselves. And yeah, there's usually something Star Wars-related happening in my workshop too.
                 </p>
+                
                 <p>
                   I made this course because I wish someone had just told me this stuff from the beginning. <strong>Skip the frustration. Make cool stuff sooner.</strong> That's the deal.
                 </p>
+                
                 <p>
                   Let's get your laser doing what you actually bought it for!
                 </p>
@@ -791,13 +880,13 @@ export default function LearnLightburnPage() {
       </section>
       
       {/* More YouTube Comments - Updated styling to match original */}
-      <section className="py-16 mb-16 bg-[#2e88c7] text-white">
+      <section className="py-16 bg-[#2e88c7] text-white">
         <div className="container mx-auto px-4 max-w-6xl">
           <h2 className="text-2xl md:text-3xl font-bold mb-10 text-center">
             A few more recent YouTube comments
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 gap-3 max-w-2xl mx-auto">
             {[
               `${supabaseImageUrlBase}/comments/670e0fe-5b1a-f836-dd5b-b4dafe803bc_screenshot_2025-02-24_at_1_1744054559647.webp`,
               `${supabaseImageUrlBase}/comments/f1bc77c-0be-82e1-ee6a-f4c81eac7662_screenshot_2025-02-24_at_1_1744054568655.webp`,
@@ -808,9 +897,9 @@ export default function LearnLightburnPage() {
                 <Image 
                   src={imageSrc}
                   alt={`YouTube Comment ${i + 5}`}
-                  width={500}
-                  height={175}
-                  className="w-full object-contain"
+                  width={600}
+                  height={200}
+                  className="w-full object-scale-down"
                   unoptimized
                 />
               </div>
@@ -820,7 +909,7 @@ export default function LearnLightburnPage() {
       </section>
       
       {/* Project Examples - Improved grid layout to match original */}
-      <section className="py-16 mb-16 bg-[#f5f7f8]">
+      <section className="py-16 bg-[#f5f7f8] -mt-1">
         <div className="container mx-auto px-4 max-w-6xl">
           <h2 className="text-2xl md:text-3xl font-bold mb-10 text-center">
             The Type of Stuff We Will Make!
@@ -860,7 +949,7 @@ export default function LearnLightburnPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <div className="bg-[#1c5a84]/30 p-8 rounded-xl">
               <h3 className="text-xl font-bold mb-6 flex items-center">
-                <Check className="h-6 w-6 mr-3" />
+                <Check className="h-6 w-6 mr-3 text-green-500" />
                 This is for you if:
               </h3>
               <ul className="space-y-4">
@@ -871,7 +960,7 @@ export default function LearnLightburnPage() {
                   "You want to create products, not troubleshoot equipment"
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-3">
-                    <span className="text-white mt-1 text-lg">•</span>
+                    <Check className="h-5 w-5 text-green-500 mt-1" />
                     <span className="text-lg">{item}</span>
                   </li>
                 ))}
@@ -880,7 +969,7 @@ export default function LearnLightburnPage() {
             
             <div className="bg-[#1c5a84]/30 p-8 rounded-xl">
               <h3 className="text-xl font-bold mb-6 flex items-center">
-                <X className="h-6 w-6 mr-3" />
+                <X className="h-6 w-6 mr-3 text-red-500" />
                 This is not for you if:
               </h3>
               <ul className="space-y-4">
@@ -891,7 +980,7 @@ export default function LearnLightburnPage() {
                   "You prefer figuring things out through trial and error"
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-3">
-                    <span className="text-white mt-1 text-lg">•</span>
+                    <X className="h-5 w-5 text-red-500 mt-1" />
                     <span className="text-lg">{item}</span>
                   </li>
                 ))}
@@ -902,7 +991,7 @@ export default function LearnLightburnPage() {
       </section>
       
       {/* Money Back Guarantee - Updated styling to match original */}
-      <section className="py-16 mb-16 bg-[#2e88c7] text-white">
+      <section className="py-16 mb-16 bg-gray-800 text-white -mt-1">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-8">
             <div className="md:w-1/3">
@@ -934,7 +1023,7 @@ export default function LearnLightburnPage() {
             Get started today and stop wasting materials and time
           </p>
           
-          <Card className="border-2 border-[#2e88c7] shadow-xl">
+          <Card className="border-2 border-[#2e88c7] shadow-xl hover:shadow-2xl transition-shadow duration-300">
             <CardHeader className="pb-4 text-center bg-[#2e88c7] text-white rounded-t-lg">
               <CardTitle className="text-3xl font-bold">Learn Lightburn for Lasers</CardTitle>
               <CardDescription className="text-white/90 text-lg">Complete Course + Bonus Materials</CardDescription>
@@ -958,8 +1047,8 @@ export default function LearnLightburnPage() {
                   "Lifetime Access to All Updates"
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <div className="mt-1 flex-shrink-0">
-                      <Check className="h-5 w-5 text-green-600" />
+                    <div className="mt-1 flex-shrink-0 bg-green-500 rounded-full p-1">
+                      <Check className="h-5 w-5 text-white" />
                     </div>
                     <p className="text-lg">{item}</p>
                   </div>
@@ -969,13 +1058,9 @@ export default function LearnLightburnPage() {
             <CardFooter className="flex flex-col gap-4 pt-0 pb-8">
               <Button 
                 size="lg" 
-                className="w-full bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 font-semibold py-6 text-xl"
+                className="w-full bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 hover:scale-105 transition-all duration-300 font-semibold py-6 text-xl"
                 onClick={() => {
-                  // Add your checkout logic here
-                  const buySection = document.getElementById('buy-now');
-                  if (buySection) {
-                    buySection.scrollIntoView({ behavior: 'smooth' });
-                  }
+                  window.location.href = podiaCheckoutUrl;
                 }}
               >
                 Sign Up Now
@@ -1009,128 +1094,129 @@ export default function LearnLightburnPage() {
           </p>
           
           <div className="max-w-4xl mx-auto">
-            <div className="mb-8">
-              <input
-                type="text"
-                placeholder="Search questions..."
-                className="flex h-12 w-full rounded-md border border-input bg-background px-4 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2e88c7] focus-visible:ring-offset-2"
-                onChange={(e) => {
-                  // Simple client-side search functionality
-                  const searchTerm = e.target.value.toLowerCase();
-                  const accordionItems = document.querySelectorAll('[data-faq-item]');
-                  
-                  accordionItems.forEach((item) => {
-                    const question = item.querySelector('[data-question]')?.textContent?.toLowerCase() || '';
-                    const answer = item.querySelector('[data-answer]')?.textContent?.toLowerCase() || '';
-                    
-                    if (question.includes(searchTerm) || answer.includes(searchTerm)) {
-                      item.classList.remove('hidden');
-                    } else {
-                      item.classList.add('hidden');
-                    }
-                  });
-                }}
-              />
-            </div>
-            
             <Accordion type="single" collapsible className="w-full space-y-4">
               {[
                 {
-                  question: "Will this work for my specific laser machine?",
-                  answer: "Yes! Whether you've got a budget diode laser or a fancy professional system, the Triple Beam Process works with any machine that runs Lightburn. I've tested these methods on dozens of different lasers, from Ortur and xTool to high-end Thunder Lasers."
+                  category: "Course Content",
+                  questions: [
+                    {
+                      question: "Will this work for my specific laser machine?",
+                      answer: "Yes! Whether you've got a budget diode laser or a fancy professional system, the Triple Beam Process works with any machine that runs Lightburn. I've tested these methods on dozens of different lasers, from Ortur and xTool to high-end Thunder Lasers."
+                    },
+                    {
+                      question: "Do I Need Lighburn?",
+                      answer: "Yep! The course lessons can work across the different types of Lightburn licenses but all the training will be centered on the software suite."
+                    },
+                    {
+                      question: "How is this different from watching free YouTube tutorials?",
+                      answer: "YouTube (even my channel!) gives you puzzle pieces without the full picture. This course is the complete roadmap that connects everything together. Plus, you get proven settings libraries, project templates, and community support you won't find scattered across random videos."
+                    },
+                    {
+                      question: "Does this work for both cutting and engraving projects?",
+                      answer: "Yep! The course covers everything from perfect clean-edge cuts to detailed engravings with proper depth and contrast. You'll master both skills across various materials."
+                    }
+                  ]
                 },
                 {
-                  question: "I'm not tech-savvy at all. Will I be able to follow along?",
-                  answer: "Don't worry about being \"technical\" - many of our best students had zero tech background. I've designed this course specifically for regular people who want results, not tech specialists. Everything is broken down into simple, clear steps anyone can follow."
+                  category: "Getting Started",
+                  questions: [
+                    {
+                      question: "I'm not tech-savvy at all. Will I be able to follow along?",
+                      answer: "Don't worry about being \"technical\" - many of our best students had zero tech background. I've designed this course specifically for regular people who want results, not tech specialists. Everything is broken down into simple, clear steps anyone can follow."
+                    },
+                    {
+                      question: "I have a small workspace. Will this still work for me?",
+                      answer: "Absolutely! Many students run successful laser businesses from spare bedrooms or small corners of their homes. The techniques focus on efficiency and precision, not space. You'd be amazed what you can create in even the tightest setup."
+                    },
+                    {
+                      question: "How much time will I need to dedicate to this?",
+                      answer: "Most students see dramatic improvements with just 2-3 hours of practice per week. You'll work at your own pace and start seeing results with your very first project after the initial modules."
+                    },
+                    {
+                      question: "What if I've already been using my laser for a while?",
+                      answer: "Even laser veterans discover major \"ah-ha!\" moments throughout the course. You'll eliminate those persistent issues you've been living with and learn workflow tricks that make you think, \"Why didn't anyone tell me this before?\""
+                    }
+                  ]
                 },
                 {
-                  question: "Do I Need Lighburn?",
-                  answer: "Yep! The course lessons can work across the different types of Lightburn licenses but all the training will be centered on the software suite."
+                  category: "Business & Results",
+                  questions: [
+                    {
+                      question: "Will this help me reduce costs?",
+                      answer: "The course typically pays for itself in saved materials within weeks. Our testing process and settings library eliminate the costly trial-and-error that burns through expensive materials."
+                    },
+                    {
+                      question: "Can I really make money with my laser after taking this course?",
+                      answer: "Many students turn their laser skills into profitable side businesses within weeks of completing the course. While results depend on your effort and local market, you'll have the technical foundation to create products people will actually pay for. The efficiency and quality you'll learn are essential for profitability."
+                    },
+                    {
+                      question: "Do I need to be artistic or good at design?",
+                      answer: "Not at all! The included templates and step-by-step design processes work regardless of your artistic skills. I've helped plenty of self-described \"non-creative\" people create professional-looking products their customers love."
+                    },
+                    {
+                      question: "What makes your method different from others?",
+                      answer: "The Triple Beam Process connects design, settings, and operation as one integrated system, not as separate challenges. Instead of random tips and tricks, you get a repeatable framework that works for any project on any machine."
+                    }
+                  ]
                 },
                 {
-                  question: "How is this different from watching free YouTube tutorials?",
-                  answer: "YouTube (even my channel!) gives you puzzle pieces without the full picture. This course is the complete roadmap that connects everything together. Plus, you get proven settings libraries, project templates, and community support you won't find scattered across random videos."
-                },
-                {
-                  question: "I have a small workspace. Will this still work for me?",
-                  answer: "Absolutely! Many students run successful laser businesses from spare bedrooms or small corners of their homes. The techniques focus on efficiency and precision, not space. You'd be amazed what you can create in even the tightest setup."
-                },
-                {
-                  question: "How much time will I need to dedicate to this?",
-                  answer: "Most students see dramatic improvements with just 2-3 hours of practice per week. You'll work at your own pace and start seeing results with your very first project after the initial modules."
-                },
-                {
-                  question: "What if I've already been using my laser for a while?",
-                  answer: "Even laser veterans discover major \"ah-ha!\" moments throughout the course. You'll eliminate those persistent issues you've been living with and learn workflow tricks that make you think, \"Why didn't anyone tell me this before?\""
-                },
-                {
-                  question: "What makes your method different from others?",
-                  answer: "The Triple Beam Process connects design, settings, and operation as one integrated system, not as separate challenges. Instead of random tips and tricks, you get a repeatable framework that works for any project on any machine."
-                },
-                {
-                  question: "Do I need to be artistic or good at design?",
-                  answer: "Not at all! The included templates and step-by-step design processes work regardless of your artistic skills. I've helped plenty of self-described \"non-creative\" people create professional-looking products their customers love."
-                },
-                {
-                  question: "What if I'm not satisfied with the course?",
-                  answer: "You're covered by a 30-day satisfaction guarantee. If you're not happy, just let me know and I'll refund you fully. No hoops to jump through, no hard feelings."
-                },
-                {
-                  question: "How do I access the course after purchasing?",
-                  answer: "You'll get immediate lifetime access to everything through our online platform. Watch videos, download resources, and join the community from any device — it's yours for as long as the course exists."
-                },
-                {
-                  question: "Does this work for both cutting and engraving projects?",
-                  answer: "Yep! The course covers everything from perfect clean-edge cuts to detailed engravings with proper depth and contrast. You'll master both skills across various materials."
-                },
-                {
-                  question: "Will this help me reduce costs?",
-                  answer: "The course typically pays for itself in saved materials within weeks. Our testing process and settings library eliminate the costly trial-and-error that burns through expensive materials."
-                },
-                {
-                  question: "Can I really make money with my laser after taking this course?",
-                  answer: "Many students turn their laser skills into profitable side businesses within weeks of completing the course. While results depend on your effort and local market, you'll have the technical foundation to create products people will actually pay for. The efficiency and quality you'll learn are essential for profitability."
-                },
-                {
-                  question: "When does the course start?",
-                  answer: "Right away! The moment you purchase, you'll have access to all modules. It's completely self-paced, so you can jump straight to what matters most to you."
-                },
-                {
-                  question: "Are there any other costs beyond the course fee?",
-                  answer: "Nope! Your one-time payment covers everything — lifetime access, future updates, the community, and all bonus resources. The only additional costs would be materials for your projects, but you'll actually save on those by eliminating wasteful mistakes."
+                  category: "Purchase & Access",
+                  questions: [
+                    {
+                      question: "What if I'm not satisfied with the course?",
+                      answer: "You're covered by a 30-day satisfaction guarantee. If you're not happy, just let me know and I'll refund you fully. No hoops to jump through, no hard feelings."
+                    },
+                    {
+                      question: "How do I access the course after purchasing?",
+                      answer: "You'll get immediate lifetime access to everything through our online platform. Watch videos, download resources, and join the community from any device — it's yours for as long as the course exists."
+                    },
+                    {
+                      question: "When does the course start?",
+                      answer: "Right away! The moment you purchase, you'll have access to all modules. It's completely self-paced, so you can jump straight to what matters most to you."
+                    },
+                    {
+                      question: "Are there any other costs beyond the course fee?",
+                      answer: "Nope! Your one-time payment covers everything — lifetime access, future updates, the community, and all bonus resources. The only additional costs would be materials for your projects, but you'll actually save on those by eliminating wasteful mistakes."
+                    }
+                  ]
                 }
-              ].map((faq, i) => (
-                <AccordionItem 
-                  key={i} 
-                  value={`item-${i}`} 
-                  className="border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow data-[state=open]:shadow-md bg-white"
-                  data-faq-item
-                >
-                  <AccordionTrigger 
-                    className="text-left font-semibold px-6 py-4 hover:no-underline hover:bg-[#f5f7f8] transition-all text-lg"
-                    data-question
-                  >
-                    {faq.question}
-                  </AccordionTrigger>
-                  <AccordionContent 
-                    className="px-6 pt-2 pb-6 bg-white text-lg"
-                    data-answer
-                  >
-                    {faq.answer}
-                  </AccordionContent>
-                </AccordionItem>
+              ].map((category, categoryIndex) => (
+                <div key={categoryIndex} className="mb-8">
+                  <h3 className="text-xl font-semibold mb-4 text-[#2e88c7]">{category.category}</h3>
+                  {category.questions.map((faq, i) => (
+                    <AccordionItem 
+                      key={i} 
+                      value={`category-${categoryIndex}-item-${i}`} 
+                      className="border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow data-[state=open]:shadow-md bg-white mb-3"
+                      data-faq-item
+                    >
+                      <AccordionTrigger 
+                        className="text-left font-semibold px-6 py-4 hover:no-underline hover:bg-[#f5f7f8] transition-all text-lg"
+                        data-question
+                      >
+                        {faq.question}
+                      </AccordionTrigger>
+                      <AccordionContent 
+                        className="px-6 pt-2 pb-6 bg-white text-lg"
+                        data-answer
+                      >
+                        {faq.answer}
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </div>
               ))}
             </Accordion>
             
             <div className="mt-12 text-center">
               <p className="text-lg text-gray-700 mb-6">
-                Still have questions? Contact us directly and we'll be happy to help!
+                Have more questions? I'm here to help.
               </p>
               <Button 
                 variant="outline" 
                 className="border-[#2e88c7] text-[#2e88c7] hover:bg-[#2e88c7]/10"
                 onClick={() => {
-                  window.location.href = "mailto:support@makeorbreakshop.com?subject=Question about Learn Lightburn Course";
+                  window.location.href = "mailto:info@makerbreakshop.com?subject=Question about Learn Lightburn Course";
                 }}
               >
                 Contact Support
@@ -1141,72 +1227,85 @@ export default function LearnLightburnPage() {
       </section>
       
       {/* Call to Action - Enhanced styling to match original */}
-      <section className="py-16 mb-16 bg-[#2e88c7] text-white">
+      <section className="py-16 mb-16 bg-[#2e88c7]">
         <div className="container mx-auto px-4 max-w-6xl">
-          <div className="max-w-3xl mx-auto text-center">
-            <h2 className="text-2xl md:text-3xl font-bold mb-8">
-              What Can Your Laser Really Do?
-            </h2>
-            <div className="mb-8">
-              <Button 
-                size="lg" 
-                className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 font-semibold px-8 py-6 text-lg"
-                onClick={() => {
-                  // Add your checkout logic here
-                  const buySection = document.getElementById('buy-now');
-                  if (buySection) {
-                    buySection.scrollIntoView({ behavior: 'smooth' });
-                  }
-                }}
-              >
-                Sign Up Now
-              </Button>
+          <div className="flex flex-col md:flex-row overflow-hidden rounded-2xl shadow-xl">
+            {/* Left side with content */}
+            <div className="md:w-1/2 bg-[#2e88c7] text-white p-8 md:p-12 flex flex-col justify-center relative overflow-hidden">
+              {/* Subtle background pattern */}
+              <div className="absolute inset-0 opacity-5">
+                <div className="absolute inset-0" style={{ 
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M0 38.59l2.83-2.83 1.41 1.41L1.41 40H0v-1.41zM0 20.83l2.83-2.83 1.41 1.41L1.41 22.24H0v-1.41zM0 3.06l2.83-2.83 1.41 1.41L1.41 4.47H0V3.06zm20 0l2.83-2.83 1.41 1.41L21.41 4.47h-1.41V3.06zm0 17.77l2.83-2.83 1.41 1.41-2.83 2.83h-1.41v-1.41zm0 17.77l2.83-2.83 1.41 1.41-2.83 2.83h-1.41v-1.41zM20 10.35l2.83-2.83 1.41 1.41-2.83 2.83h-1.41v-1.41zm-9.42 0l2.83 2.83-1.41 1.41-2.83-2.83V0h1.41zm9.42 8.94l2.83-2.83 1.41 1.41-2.83 2.83h-1.41v-1.41zm0 17.77l2.83-2.83 1.41 1.41-2.83 2.83h-1.41v-1.41zM38.59 0l-2.83 2.83-1.41-1.41L37.18 0h1.41zm0 17.77l-2.83 2.83-1.41-1.41 2.83-2.83h1.41v1.41zm0 17.77l-2.83 2.83-1.41-1.41 2.83-2.83h1.41v1.41zm0-26.71l-2.83 2.83-1.41-1.41 2.83-2.83h1.41v1.41zm20 28.12l2.83-2.83 1.41 1.41-2.83 2.83h-1.41v-1.41zm-9.42-9.42l2.83-2.83 1.41 1.41-2.83 2.83h-1.41v-1.41zm0 17.77l2.83-2.83 1.41 1.41-2.83 2.83h-1.41v-1.41zm-9.42-17.77l2.83-2.83 1.41 1.41-2.83 2.83H0v-1.41zM8.94 0l2.83 2.83-1.41 1.41L7.53 1.41 8.94 0zm19.88 0l-2.83 2.83 1.41 1.41 2.83-2.83-1.41-1.41zM8.94 30.53l2.83 2.83-1.41 1.41-2.83-2.83 1.41-1.41zm19.88 0l-2.83 2.83 1.41 1.41 2.83-2.83-1.41-1.41z'%3E%3C/path%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                  backgroundSize: '40px 40px'
+                }}></div>
+              </div>
+              
+              <div className="relative z-10">
+                <h2 className="text-2xl md:text-3xl font-bold mb-6">
+                  What Can Your Laser Really Do?
+                </h2>
+                
+                <div className="prose prose-lg prose-invert space-y-4 mb-8">
+                  <p>
+                    Your laser sits there right now—an investment either generating value or collecting dust.
+                  </p>
+                  
+                  <p>
+                    This isn't just another course. You get immediate access to everything: the complete process, proven settings library, and templates that eliminate guesswork.
+                  </p>
+                  
+                  <div className="flex items-center gap-2 py-2">
+                    <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <p className="m-0">Eliminate expensive material waste</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 py-2">
+                    <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <p className="m-0">Create professional results on day one</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 py-2">
+                    <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <p className="m-0">30-day satisfaction guarantee</p>
+                  </div>
+                </div>
+                
+                <div className="mt-auto">
+                  <Button 
+                    size="lg" 
+                    className="bg-[#ff6b00] text-white hover:bg-[#ff6b00]/90 hover:scale-105 transition-all duration-300 font-semibold px-8 py-6 text-lg w-full md:w-auto"
+                    onClick={() => {
+                      window.location.href = podiaCheckoutUrl;
+                    }}
+                  >
+                    Unlock Your Laser's Potential Now
+                  </Button>
+                  <p className="text-white/80 text-sm mt-4 italic">Start mastering your laser in minutes...</p>
+                </div>
+              </div>
             </div>
-            <div className="prose prose-lg prose-invert mx-auto">
-              <p>
-                Your laser sits there right now—an investment either generating value or collecting dust.
-              </p>
-              <p>
-                This isn't just another course dripping content week by week. You get immediate access to everything: the complete process, proven settings library, and templates that eliminate guesswork.
-              </p>
-              <p>
-                The question is simple: Do you want to keep wasting expensive materials on trial and error? Or would you prefer creating professional results today, turning frustration into profitable projects?
-              </p>
-              <p>
-                Every day you wait is another day of unrealized potential. With our 30-day satisfaction guarantee, the only risk is continuing down the path you're on now.
-              </p>
-              <p>
-                Your laser's potential is waiting. Unlock it today.
-              </p>
+            
+            {/* Right side with image */}
+            <div className="md:w-1/2 bg-gray-100 relative min-h-[300px] md:min-h-0">
+              <Image 
+                src={`${supabaseImageUrlBase}/projects/c7b2ce-825-5c3-c676-4f2ace10426_dsc00625_1744054566683.webp`}
+                alt="Laser project example" 
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 50vw"
+                unoptimized
+              />
+              <div className="absolute inset-0 bg-gradient-to-tr from-[#2e88c7]/80 to-transparent opacity-40"></div>
+              <div className="absolute bottom-6 left-6 right-6 bg-white/90 backdrop-blur p-4 rounded-lg shadow-lg">
+                <p className="font-medium text-[#2e88c7]">
+                  "I was wasting so much material before this course. Now I get perfect results first time!"
+                </p>
+                <p className="text-sm mt-1 text-gray-600">- Jennifer K., Course Student</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
-      
-      {/* Footer - Enhanced styling to match original */}
-      <footer className="py-10 bg-[#f5f7f8] text-center">
-        <div className="container mx-auto px-4">
-          <div className="mb-6">
-            {/* Footer logo */}
-            <div className="relative h-16 w-40 mx-auto">
-              <Image 
-                src={`${supabaseImageUrlBase}/partners/cb08701-a54-e663-fd0f-1274057035b8_screenshot_2025-02-24_at_3_1744054567106.webp`} 
-                alt="Make or Break Shop" 
-                fill
-                className="object-contain"
-                sizes="160px"
-                unoptimized
-              />
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Make or Break Shop
-          </p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Powered by Machines for Makers
-          </p>
-        </div>
-      </footer>
     </div>
   )
 } 

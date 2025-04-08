@@ -117,7 +117,7 @@ export default function Navbar() {
                 YouTube
               </Link>
               <Link 
-                href="/learn-lightburn" 
+                href="/learn-lightburn-for-lasers" 
                 className="flex items-center text-sm font-medium hover:text-primary"
               >
                 <Flame className="h-4 w-4 mr-1.5" />
@@ -185,7 +185,7 @@ export default function Navbar() {
               YouTube
             </Link>
             <Link 
-              href="/learn-lightburn" 
+              href="/learn-lightburn-for-lasers" 
               className="flex items-center text-lg font-medium hover:text-primary"
               onClick={() => setIsMenuOpen(false)}
             >
