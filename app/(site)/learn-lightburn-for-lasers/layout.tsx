@@ -1,9 +1,14 @@
 import { Metadata } from "next"
+import Script from "next/script"
 
 export const metadata: Metadata = {
   title: "Learn Lightburn for Lasers - From Beginner to Pro in Days Not Months",
   description: "Discover the exact Lightburn process for flawless cut and engraves so you can stop wasting expensive materials and time. Master your laser cutter with our comprehensive course.",
   keywords: "Lightburn, laser cutting, laser engraving, CNC laser, diode laser, CO2 laser, laser software, laser course, laser tutorial",
+  other: {
+    username: "user_2tGYSHl6wqvmWecL2tSfahhyB9h",
+    offer: "Learn Lightburn for Lasers v2"
+  },
   openGraph: {
     title: "Learn Lightburn for Lasers - From Beginner to Pro in Days Not Months",
     description: "Stop wasting expensive materials and time. Master Lightburn with our comprehensive course and create flawless laser cuts and engravings.",
@@ -76,6 +81,7 @@ export default function LearnLightburnLayout({
 
   return (
     <>
+      <Script src="https://d15dfsr886zcp9.cloudfront.net/tracker_script.js" defer />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
