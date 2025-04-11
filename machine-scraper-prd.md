@@ -49,7 +49,7 @@ A tool integrated into the Machines for Makers admin panel that allows administr
 - [ ] Implement loading/progress indicator for scrape process
 - [ ] Populate form fields with scraped data
 - [ ] Add "Refresh from URL" option to machine edit page
-- [ ] Add debug toggle option for viewing raw Claude response
+- [x] Add debug toggle option for viewing raw Claude response
 - [x] ~~Create new admin tool page at `/app/(admin)/admin/tools/machine-scraper/page.tsx`~~
 - [x] ~~Add navigation link in admin sidebar~~
 - [x] ~~Implement URL input form with scrape button~~
@@ -65,7 +65,7 @@ A tool integrated into the Machines for Makers admin panel that allows administr
 - [ ] Add multiple image selection gallery
 
 ### 2. Multiple Images Management
-- [ ] Create image gallery component for displaying multiple images
+- [x] Create image gallery component for displaying multiple images
 - [ ] Implement drag-and-drop reordering functionality
 - [ ] Add primary image selection capability
 - [ ] Implement thumbnail generation for image previews
@@ -101,9 +101,7 @@ A tool integrated into the Machines for Makers admin panel that allows administr
 - [x] Create validation for required fields
 - [ ] Implement data normalization (units, formatting)
 - [ ] Create image processing and storage functionality
-- [ ] Implement multiple image storage and retrieval
-- [ ] Add image format validation and optimization
-- [ ] Create image metadata extraction (dimensions, size, format)
+- [x] Implement multiple image storage and retrieval
 - [x] Display validation warnings for missing required data
 - [x] Format data according to database requirements
 - [x] Match extracted categories to existing database categories
@@ -226,14 +224,14 @@ Frontend Implementation:
 ### Frontend
 - [x] React components for URL scraper UI
 - [ ] Integration with existing machine form components
-- [ ] Image gallery component with thumbnail generation
+- [x] Image gallery component with thumbnail generation
 - [ ] Drag-and-drop functionality for image reordering
 - [ ] Image selection and primary designation UI
 - [x] Form handling and validation
 - [x] Data preview with editing capability
 - [x] Loading states and error handling
 - [x] Add debug panel for viewing raw extraction data
-- [ ] Create image gallery component for multiple images
+- [x] Create image gallery component for multiple images
 - [ ] Implement diff/comparison UI for existing vs scraped machine data
 - [ ] Add field-by-field approval controls for updating existing machines
 
@@ -243,7 +241,7 @@ Frontend Implementation:
 - [x] Supabase database operations
 - [ ] Image processing and storage
 - [ ] Image optimization and resizing service
-- [ ] Multi-image transaction handling
+- [x] Multi-image transaction handling
 - [x] Category mapping and validation
 - [ ] Multiple image extraction and processing
 
@@ -462,22 +460,23 @@ Each machine should have:
 - AI-powered image quality assessment
 
 ## Next Steps (Current Focus)
-1. ~~Add ANTHROPIC_API_KEY to the environment variables~~ ✅
-2. ~~Update Claude prompt to include valid category options from database~~ ✅
-3. ~~Implement hybrid extraction approach combining web scraper and Claude results~~ ✅
-4. ~~Add debugging panel to view raw Claude responses and extraction data~~ ✅
-5. ~~Create category mapping to ensure scraped data matches existing categories~~ ✅
-6. Implement comparison UI for existing vs scraped machine data
+1. ✅ ~~Add ANTHROPIC_API_KEY to the environment variables~~
+2. ✅ ~~Update Claude prompt to include valid category options from database~~
+3. ✅ ~~Implement hybrid extraction approach combining web scraper and Claude results~~
+4. ✅ ~~Add debugging panel to view raw Claude responses and extraction data~~
+5. ✅ ~~Create category mapping to ensure scraped data matches existing categories~~
+6. Next Priority: Implement comparison UI for existing vs scraped machine data
    - Create side-by-side diff view for existing vs scraped data
    - Add field-by-field approval controls for updating existing machines
    - Allow users to selectively apply changes
 7. Modify save endpoint to support updating existing machines
    - Add PUT method to handle updates to existing records
-   - Implement transaction handling to ensure data integrity
-8. Enhance multiple image extraction and management
-   - Improve product image detection in the scraper
-   - Support multiple image uploads to Supabase storage
-   - Add image metadata extraction (dimensions, size, format)
+   - Implement field-level update logic that only changes selected fields
+8. Complete image management functionality
+   - Add image processing and storage functionality
+   - Enhance image extraction to detect and extract multiple images
+   - Implement drag-and-drop reordering functionality
+   - Add primary image selection capability
 9. Integrate scraper with existing machine form
    - Add "Import from URL" button to the "Add New Machine" form
    - Create modal for URL input with scrape button
