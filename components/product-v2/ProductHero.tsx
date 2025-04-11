@@ -38,10 +38,31 @@ export function ProductHero({ product, images, highlights, promoCode }: ProductH
   };
 
   // Create array of image URLs for the gallery
-  const allImages = [
-    product.image_url,
-    ...(images?.map(img => img.url) || [])
-  ].filter(Boolean)
+  // First collect all image URLs
+  const imageUrls = new Set<string>();
+  
+  // Add primary image if it exists
+  if (product.image_url) {
+    imageUrls.add(product.image_url);
+  }
+  
+  // Add additional images from the images array
+  if (images && images.length > 0) {
+    images.forEach(img => {
+      if (img.url) {
+        imageUrls.add(img.url);
+      }
+    });
+  }
+  
+  // Convert to array and filter out any null/undefined/empty values
+  const allImages = Array.from(imageUrls).filter(Boolean);
+  
+  console.log("Product page images:", { 
+    primaryImage: product.image_url,
+    additionalImages: images?.map(img => img.url),
+    deduplicated: allImages
+  });
 
   // Format price with commas
   const formattedPrice = product.price 

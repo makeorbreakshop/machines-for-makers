@@ -18,8 +18,15 @@ export function ProductGallery({ images, productName, className }: ProductGaller
   const [modalOpen, setModalOpen] = useState(false)
   const [modalImageIndex, setModalImageIndex] = useState(0)
   
-  // Filter out any null or undefined image URLs
-  const validImages = images.filter(Boolean)
+  // Deduplicate images
+  const uniqueImagesSet = new Set(images.filter(Boolean));
+  const validImages = Array.from(uniqueImagesSet);
+  
+  // Log the deduplication results
+  console.log("ProductGallery images:", {
+    original: images.length,
+    deduplicated: validImages.length
+  });
   
   // If no images, show a placeholder
   if (validImages.length === 0) {
