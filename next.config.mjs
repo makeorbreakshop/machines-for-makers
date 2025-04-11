@@ -26,6 +26,10 @@ const nextConfig = {
       },
     ],
   },
+  // Ensure environment variables are available in edge runtime
+  env: {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  },
   // Add security headers
   async headers() {
     return [

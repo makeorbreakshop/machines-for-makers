@@ -50,6 +50,30 @@ export default async function EditMachinePage({
 
   console.log("Fetched machine data:", JSON.stringify(machine, null, 2))
 
+  // Get additional images for this machine
+  const { data: additionalImages } = await supabase
+    .from("images")
+    .select("*")
+    .eq("machine_id", params.id)
+    .order("sort_order", { ascending: true });
+
+  console.log(`Found ${additionalImages?.length || 0} additional images for machine ${params.id}`);
+
+  // Create a combined array of all images, starting with the primary image
+  const allImages: string[] = [];
+  if (machine["Image"]) {
+    allImages.push(machine["Image"]);
+  }
+  
+  // Add any additional images that aren't already included
+  if (additionalImages && additionalImages.length > 0) {
+    additionalImages.forEach(img => {
+      if (!allImages.includes(img.url)) {
+        allImages.push(img.url);
+      }
+    });
+  }
+
   // Get categories and brands for the form
   const [categoriesResponse, brandsResponse] = await Promise.all([
     supabase.from("categories").select("*").order("name"),
@@ -119,7 +143,7 @@ export default async function EditMachinePage({
     product_link: nullToEmptyString(machine["product_link"]),
     affiliate_link: nullToEmptyString(machine["Affiliate Link"]),
     youtube_review: nullToEmptyString(machine["YouTube Review"]),
-    // Include created/updated dates
+    images: allImages,
     created_at: nullToEmptyString(machine["Created On"]),
     updated_at: nullToEmptyString(machine["Updated On"]),
     published_at: nullToEmptyString(machine["Published On"]),
@@ -127,7 +151,9 @@ export default async function EditMachinePage({
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-8">Edit Machine: {machine["Machine Name"]}</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold">Edit Machine: {machine["Machine Name"]}</h1>
+      </div>
       <MachineForm 
         machine={transformedMachine as any} 
         categories={categoriesResponse.data || []} 

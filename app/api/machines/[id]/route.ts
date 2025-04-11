@@ -85,46 +85,50 @@ export async function PUT(
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
 
+    // Extract images array for separate handling
+    const { images = [], ...restMachineData } = machineData;
+    console.log(`Processing ${images.length} images for machine ${params.id}`);
+
     // Transform data to match database column names (similar to POST endpoint)
     const dbData: Record<string, any> = {
-      "Machine Name": machineData.machine_name,
-      "Internal link": machineData.slug,
-      "Company": machineData.company,
-      "Machine Category": machineData.machine_category,
-      "Laser Category": machineData.laser_category,
-      "Price": machineData.price,
-      "Rating": machineData.rating,
-      "Award": machineData.award,
-      "Laser Type A": machineData.laser_type_a,
-      "Laser Power A": machineData.laser_power_a,
-      "Laser Type B": machineData.laser_type_b,
-      "LaserPower B": machineData.laser_power_b,
-      "Work Area": machineData.work_area,
-      "Speed": machineData.speed,
-      "Height": machineData.height,
-      "Machine Size": machineData.machine_size,
-      "Acceleration": machineData.acceleration,
-      "Software": machineData.software,
-      "Focus": machineData.focus,
-      "Enclosure": machineData.enclosure ? "Yes" : "No",
-      "Wifi": machineData.wifi ? "Yes" : "No",
-      "Camera": machineData.camera ? "Yes" : "No",
-      "Passthrough": machineData.passthrough ? "Yes" : "No",
-      "Controller": machineData.controller,
-      "Warranty": machineData.warranty,
-      "Excerpt (Short)": machineData.excerpt_short,
-      "Description": machineData.description,
-      "Highlights": machineData.highlights,
-      "Drawbacks": machineData.drawbacks,
-      "Is A Featured Resource?": machineData.is_featured ? "true" : "false",
-      "Hidden": machineData.hidden ? "true" : "false",
-      "Image": machineData.image_url,
-      "product_link": machineData.product_link,
-      "Affiliate Link": machineData.affiliate_link,
-      "YouTube Review": machineData.youtube_review,
-      "Laser Frequency": machineData.laser_frequency,
-      "Pulse Width": machineData.pulse_width,
-      "Laser Source Manufacturer": machineData.laser_source_manufacturer,
+      "Machine Name": restMachineData.machine_name,
+      "Internal link": restMachineData.slug,
+      "Company": restMachineData.company,
+      "Machine Category": restMachineData.machine_category,
+      "Laser Category": restMachineData.laser_category,
+      "Price": restMachineData.price,
+      "Rating": restMachineData.rating,
+      "Award": restMachineData.award,
+      "Laser Type A": restMachineData.laser_type_a,
+      "Laser Power A": restMachineData.laser_power_a,
+      "Laser Type B": restMachineData.laser_type_b,
+      "LaserPower B": restMachineData.laser_power_b,
+      "Work Area": restMachineData.work_area,
+      "Speed": restMachineData.speed,
+      "Height": restMachineData.height,
+      "Machine Size": restMachineData.machine_size,
+      "Acceleration": restMachineData.acceleration,
+      "Software": restMachineData.software,
+      "Focus": restMachineData.focus,
+      "Enclosure": restMachineData.enclosure ? "Yes" : "No",
+      "Wifi": restMachineData.wifi ? "Yes" : "No",
+      "Camera": restMachineData.camera ? "Yes" : "No",
+      "Passthrough": restMachineData.passthrough ? "Yes" : "No",
+      "Controller": restMachineData.controller,
+      "Warranty": restMachineData.warranty,
+      "Excerpt (Short)": restMachineData.excerpt_short,
+      "Description": restMachineData.description,
+      "Highlights": restMachineData.highlights,
+      "Drawbacks": restMachineData.drawbacks,
+      "Is A Featured Resource?": restMachineData.is_featured ? "true" : "false",
+      "Hidden": restMachineData.hidden ? "true" : "false",
+      "Image": restMachineData.image_url, // Still maintain primary image for backwards compatibility
+      "product_link": restMachineData.product_link,
+      "Affiliate Link": restMachineData.affiliate_link,
+      "YouTube Review": restMachineData.youtube_review,
+      "Laser Frequency": restMachineData.laser_frequency,
+      "Pulse Width": restMachineData.pulse_width,
+      "Laser Source Manufacturer": restMachineData.laser_source_manufacturer,
       // Update timestamp
       "Updated On": new Date().toISOString(),
     }
@@ -132,7 +136,7 @@ export async function PUT(
     // If machine is being made visible for the first time, set Published On
     if (
       currentMachine?.Hidden === "true" && // Was previously hidden
-      machineData.hidden === false && // Now being made visible
+      restMachineData.hidden === false && // Now being made visible
       !currentMachine["Published On"] // Has never been published before
     ) {
       console.log("First-time publishing detected. Setting Published On date.")
@@ -141,15 +145,77 @@ export async function PUT(
 
     console.log("Transformed data for Supabase:", JSON.stringify(dbData, null, 2))
 
-    const { data, error } = await supabase.from("machines").update(dbData).eq("id", params.id).select()
+    // Start a transaction to update both machine and images
+    const { data, error } = await supabase.rpc('update_machine_with_images', {
+      p_machine_id: params.id,
+      p_machine_data: dbData,
+      p_images: images.map((url: string, index: number) => ({
+        url, 
+        machine_id: params.id,
+        sort_order: index,
+        alt_text: `${restMachineData.machine_name || 'Machine'} image ${index + 1}`
+      }))
+    }).single();
 
+    // Fallback if RPC is not available (less ideal but works)
+    if (error && error.message.includes('function "update_machine_with_images" does not exist')) {
+      console.log("RPC function not available, using fallback method");
+      
+      // Update machine data
+      const { data: machineUpdateData, error: machineUpdateError } = await supabase
+        .from("machines")
+        .update(dbData)
+        .eq("id", params.id)
+        .select();
+      
+      if (machineUpdateError) {
+        console.error("Error updating machine:", machineUpdateError.message, machineUpdateError.details || '')
+        return NextResponse.json({ error: machineUpdateError.message }, { status: 500 })
+      }
+      
+      // Delete existing images for this machine
+      const { error: deleteImagesError } = await supabase
+        .from("images")
+        .delete()
+        .eq("machine_id", params.id);
+      
+      if (deleteImagesError) {
+        console.error("Error deleting existing images:", deleteImagesError.message)
+        // Continue anyway, as the machine update was successful
+      }
+      
+      // Insert new images if any
+      if (images.length > 0) {
+        const imageRecords = images.map((url: string, index: number) => ({
+          machine_id: params.id,
+          url: url,
+          alt_text: `${restMachineData.machine_name || 'Machine'} image ${index + 1}`,
+          sort_order: index
+        }));
+        
+        const { error: insertImagesError } = await supabase
+          .from("images")
+          .insert(imageRecords);
+        
+        if (insertImagesError) {
+          console.error("Error inserting images:", insertImagesError.message)
+          // We'll still return success for the machine update
+        } else {
+          console.log(`Successfully saved ${images.length} images for machine ${params.id}`);
+        }
+      }
+      
+      console.log("Machine updated successfully:", machineUpdateData?.[0]?.id)
+      return NextResponse.json({ data: machineUpdateData?.[0] })
+    }
+    
     if (error) {
-      console.error("Error updating machine:", error.message, error.details || '')
+      console.error("Error in transaction:", error.message, error.details || '')
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    console.log("Machine updated successfully:", data[0].id)
-    return NextResponse.json({ data: data[0] })
+    console.log("Machine and images updated successfully in transaction")
+    return NextResponse.json({ data })
   } catch (error: any) {
     console.error("Detailed error in PUT:", {
       name: error.name,

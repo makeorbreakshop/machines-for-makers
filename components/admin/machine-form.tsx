@@ -23,7 +23,18 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { FileUpload } from "@/components/admin/file-upload"
+import { MachineUrlScraper } from "@/components/admin/machine-url-scraper"
 import Image from "next/image"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Plus, X, Star, StarOff, Trash, ImageIcon, RefreshCw } from "lucide-react"
 
 // Define the form schema
 const formSchema = z.object({
@@ -33,7 +44,9 @@ const formSchema = z.object({
   slug: z.string().min(2, {
     message: "Slug must be at least 2 characters.",
   }).optional(),
-  company: z.string().optional(),
+  company: z.string().min(1, {
+    message: "Company (brand) selection is required.",
+  }),
   machine_category: z.string().optional(),
   laser_category: z.string().optional(),
   price: z.coerce.number().optional(),
@@ -96,6 +109,7 @@ export type MachineFormData = z.infer<typeof formSchema> & {
   created_at?: string;
   updated_at?: string;
   published_at?: string;
+  images?: string[]; // Array of image URLs for multiple images
 }
 
 interface MachineFormProps {
@@ -255,28 +269,189 @@ const PublicationRequirementsChecklist = ({ formValues, showRequirements, curren
   );
 };
 
+// Quick Add Machine Dialog Component
+function QuickAddMachineDialog() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Simple form for quick add
+  const quickAddForm = useForm({
+    resolver: zodResolver(
+      z.object({
+        machine_name: z.string().min(2, "Machine name must be at least 2 characters."),
+        product_url: z.string().url({ message: "Please enter a valid URL" }).optional().or(z.literal('')),
+      })
+    ),
+    defaultValues: {
+      machine_name: "",
+      product_url: "",
+    },
+  });
+
+  // Generate slug from name
+  function generateQuickSlug(name: string) {
+    return name
+      .toLowerCase()
+      .replace(/[^\w\s]/gi, "")
+      .replace(/\s+/g, "-");
+  }
+
+  // Submit handler for quick add
+  async function onQuickSubmit(values: { machine_name: string; product_url?: string }) {
+    setIsSubmitting(true);
+    setError(null);
+    
+    try {
+      // Create minimal machine data with auto-generated slug
+      const machineData = {
+        machine_name: values.machine_name,
+        slug: generateQuickSlug(values.machine_name),
+        hidden: true,
+      };
+      
+      // Create the machine
+      const result = await createMachine(machineData as any);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      if (result.data?.id) {
+        // If product URL was provided, redirect to edit page to scrape it
+        if (values.product_url) {
+          // Store URL in localStorage for immediate scraping on edit page
+          localStorage.setItem('pending_scrape_url', values.product_url);
+        }
+        
+        // Navigate to the edit page for the new machine
+        router.push(`/admin/machines/${result.data.id}`);
+      } else {
+        throw new Error("Failed to create machine. No ID returned.");
+      }
+    } catch (error: any) {
+      console.error("Error creating machine:", error);
+      setError(error?.message || "An error occurred while creating the machine");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+  
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          + Quick Add
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Quick Add Machine</DialogTitle>
+          <DialogDescription>
+            Create a new machine with minimal information.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={quickAddForm.handleSubmit(onQuickSubmit)} className="space-y-4 py-4">
+          <FormField
+            control={quickAddForm.control}
+            name="machine_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Machine Name</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter machine name" autoFocus />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={quickAddForm.control}
+            name="product_url"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Product URL (optional)</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="https://example.com/product" />
+                </FormControl>
+                <FormDescription>
+                  If provided, we'll scrape this URL after creating the machine
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          {error && (
+            <div className="bg-red-50 text-red-800 px-4 py-2 rounded border border-red-200">
+              {error}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Machine"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function MachineForm({ machine, categories, brands }: MachineFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [validationEnabled, setValidationEnabled] = useState(false)
+  const [openRequirements, setOpenRequirements] = useState(false)
+  const [currentTab, setCurrentTab] = useState("basic")
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [createdMachine, setCreatedMachine] = useState<any>(null)
   const [cloneSource, setCloneSource] = useState<string | null>(null)
   const [brandOptions, setBrandOptions] = useState<any[]>([])
-  const [currentTab, setCurrentTab] = useState("basic")
   const [showRequirements, setShowRequirements] = useState(false)
+  const [machineImages, setMachineImages] = useState<string[]>(
+    machine?.images && Array.isArray(machine.images) ? machine.images : 
+    machine?.image_url ? [machine.image_url] : []
+  )
+  const [isScraperOpen, setIsScraperOpen] = useState(false)
+  
+  // Add missing state variables
+  const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitAction, setSubmitAction] = useState<string | null>(null)
+  
+  // Track the primary image separately (usually the first one)
+  const [primaryImageIndex, setPrimaryImageIndex] = useState(0)
+  // Add state for image URL input
+  const [imageUrlInput, setImageUrlInput] = useState('')
+  
+  const isNew = !machine?.id;
+  
+  // Debug logging for images data
+  useEffect(() => {
+    console.log('Machine images received:', machine?.images);
+    console.log('Machine primary image:', machine?.image_url);
+    console.log('Initialized machineImages state:', machineImages);
+  }, [machine?.images, machine?.image_url, machineImages]);
   
   // Auto-hide success message after 3 seconds for updates
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (successMessage && machine?.id) {
+    if (confirmAction && machine?.id) {
       timer = setTimeout(() => {
-        setSuccessMessage(null);
+        setConfirmAction(null);
       }, 3000);
     }
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [successMessage, machine?.id]);
+  }, [confirmAction, machine?.id]);
 
   // Debug logging for brand data
   console.log('Brands data received:', brands);
@@ -289,68 +464,88 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
       const processedBrands = brands.map(brand => ({
         id: brand.id,
         name: brand.Name || '',
-        value: brand.Slug || '',
+        value: brand.Slug || '',  // This must match exactly the Slug in brands table
       }));
       console.log('Processed brands:', processedBrands);
       setBrandOptions(processedBrands);
     }
   }, [brands]);
   
+  // Function to generate a slug from the machine name
+  const generateSlug = (name: string) => {
+    const slug = name
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .trim();
+    
+    form.setValue("slug", slug);
+  };
+  
+  // Add navigation handlers
+  const continueEditing = () => {
+    setSubmitAction('continue');
+    form.handleSubmit(onSubmit)();
+  };
+  
+  const createAnother = () => {
+    setSubmitAction('createAnother');
+    form.handleSubmit(onSubmit)();
+  };
+  
+  const goToMachines = () => {
+    router.push("/admin/machines");
+  };
+  
+  // Add tab change handler
+  const handleTabChange = (value: string) => {
+    setCurrentTab(value);
+  };
+  
   // Initialize form with existing machine data or defaults
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: machine
-      ? {
-          ...machine,
-          price: machine.price || undefined,
-          rating: machine.rating || undefined,
-          laser_type_b: machine.laser_type_b === "" ? "none" : machine.laser_type_b ?? "none",
-          laser_power_b: machine.laser_power_b ?? "",
-          height: machine.height ?? "",
-          acceleration: machine.acceleration ?? "",
-          laser_frequency: machine.laser_frequency ?? "",
-          pulse_width: machine.pulse_width ?? "",
-          focus: machine.focus === "" ? "none" : machine.focus ?? "none",
-          controller: machine.controller ?? "",
-          software: machine.software ?? "",
-          warranty: machine.warranty ?? "",
-          laser_source_manufacturer: machine.laser_source_manufacturer ?? "",
-          excerpt_short: machine.excerpt_short ?? "",
-          description: machine.description ?? "",
-          highlights: machine.highlights ?? "",
-          drawbacks: machine.drawbacks ?? "",
-          affiliate_link: machine.affiliate_link ?? "",
-          youtube_review: machine.youtube_review ?? "",
-          product_link: machine.product_link ?? "",
-        }
-      : {
-          machine_name: "",
-          slug: "",
-          is_featured: false,
-          hidden: true,
-          enclosure: false,
-          wifi: false,
-          camera: false,
-          passthrough: false,
-          laser_type_b: "none",
-          laser_power_b: "",
-          height: "",
-          acceleration: "",
-          laser_frequency: "",
-          pulse_width: "",
-          focus: "none",
-          controller: "",
-          software: "",
-          warranty: "",
-          laser_source_manufacturer: "",
-          excerpt_short: "",
-          description: "",
-          highlights: "",
-          drawbacks: "",
-          affiliate_link: "",
-          youtube_review: "",
-          product_link: "",
-        },
+    defaultValues: {
+      machine_name: machine?.machine_name || "",
+      slug: machine?.slug || "",
+      company: machine?.company || "",
+      machine_category: machine?.machine_category || "",
+      laser_category: machine?.laser_category || "",
+      price: machine?.price || undefined,
+      rating: machine?.rating || undefined,
+      award: machine?.award || "",
+      laser_type_a: machine?.laser_type_a || "",
+      laser_power_a: machine?.laser_power_a || "",
+      laser_type_b: machine?.laser_type_b || "",
+      laser_power_b: machine?.laser_power_b || "",
+      work_area: machine?.work_area || "",
+      speed: machine?.speed || "",
+      height: machine?.height || "",
+      machine_size: machine?.machine_size || "",
+      acceleration: machine?.acceleration || "",
+      laser_frequency: machine?.laser_frequency || "",
+      pulse_width: machine?.pulse_width || "",
+      focus: machine?.focus || "",
+      enclosure: machine?.enclosure || false,
+      wifi: machine?.wifi || false,
+      camera: machine?.camera || false,
+      passthrough: machine?.passthrough || false,
+      controller: machine?.controller || "",
+      software: machine?.software || "",
+      warranty: machine?.warranty || "",
+      laser_source_manufacturer: machine?.laser_source_manufacturer || "",
+      excerpt_short: machine?.excerpt_short || "",
+      description: machine?.description || "",
+      highlights: machine?.highlights || "",
+      drawbacks: machine?.drawbacks || "",
+      is_featured: machine?.is_featured || false,
+      hidden: machine?.hidden ?? true,
+      image_url: machine?.image_url || "",
+      product_link: machine?.product_link || "",
+      affiliate_link: machine?.affiliate_link || "",
+      youtube_review: machine?.youtube_review || "",
+    },
     mode: "onSubmit",
     reValidateMode: "onSubmit"
   })
@@ -387,221 +582,234 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
     return true;
   };
 
-  // Handle form submission
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsSubmitting(true)
-    setSuccessMessage(null)
-
-    console.log("Form submission started with values:", JSON.stringify(values, null, 2))
-    console.log("Current machine ID:", machine?.id)
-
-    try {
-      if (machine && machine.id) {
-        // Update existing machine
-        console.log("Updating existing machine with ID:", machine.id)
-        const result = await updateMachine(machine.id, values as any)
-        console.log("Update response:", result)
+  // Handle updates from the MachineUrlScraper component
+  const handleScrapedUpdates = (updates: Partial<MachineFormData>) => {
+    console.log("Received scraped updates:", updates)
+    
+    // Validate company/brand if present
+    if (updates.company) {
+      // Check if it's a valid brand slug
+      const validBrand = brandOptions.find(brand => brand.value === updates.company);
+      if (!validBrand) {
+        // Try to find a matching brand by name instead
+        const matchByName = brandOptions.find(brand => 
+          brand.name.toLowerCase() === updates.company?.toLowerCase());
         
-        if (result.error) {
-          console.error("Error updating machine:", result.error)
-          throw new Error(result.error)
+        if (matchByName) {
+          // Update to use the correct slug value
+          console.log(`Correcting brand from "${updates.company}" to "${matchByName.value}"`);
+          updates.company = matchByName.value;
         } else {
-          console.log("Machine updated successfully")
-          setSuccessMessage("Machine updated successfully!")
-          // Stay on the current page instead of redirecting
-          router.refresh() // Just refresh the data on the current page
-        }
-      } else {
-        // Create new machine
-        console.log("Creating new machine")
-        const result = await createMachine(values as any)
-        console.log("Create response:", result)
-        
-        if (result.data) {
-          setCreatedMachine(result.data)
-          setSuccessMessage(result.message || "Machine created successfully!")
-          
-          // Reset form if staying on the page
-          if (!result.error) {
-            form.reset({
-              machine_name: "",
-              slug: "",
-              is_featured: false,
-              hidden: true,
-              enclosure: false,
-              wifi: false,
-              camera: false,
-              passthrough: false,
-            })
-          }
-        } else if (result.error) {
-          throw new Error(result.error);
+          // If no match found, log a warning and remove the invalid company value
+          console.warn(`Invalid brand value from scraper: ${updates.company}`);
+          setError(`Warning: Brand "${updates.company}" not found in the database. Please select a valid brand.`);
+          delete updates.company;
         }
       }
-    } catch (error: any) {
-      console.error("Error saving machine:", error?.message || String(error), error?.stack || '')
-      setSuccessMessage(null)
-    } finally {
-      setIsSubmitting(false)
     }
+    
+    // Update form fields with the scraped data
+    Object.entries(updates).forEach(([key, value]) => {
+      // Skip null/undefined values
+      if (value === null || value === undefined) return
+      
+      // Handle arrays and objects specially
+      if (key === 'images' && Array.isArray(value)) {
+        // Update the machineImages state with the new images
+        setMachineImages(value)
+        
+        // Reset the primary image index to 0 (first image)
+        setPrimaryImageIndex(0)
+        
+        // Also update the image_url field to the first image for backwards compatibility
+        if (value.length > 0) {
+          form.setValue('image_url', value[0])
+        }
+      } else {
+        // Handle regular form fields
+        form.setValue(key as any, value)
+      }
+    })
+    
+    // Show confirmation message
+    setError(null);
+    setShowConfirmation(true);
+    setConfirmAction('scraper');
+    setTimeout(() => setShowConfirmation(false), 3000);
+    
+    // Close the scraper modal after applying updates
+    setIsScraperOpen(false);
   }
 
-  // Generate slug from machine name
-  function generateSlug(name: string) {
-    const slug = name
-      .toLowerCase()
-      .replace(/[^\w\s]/gi, "")
-      .replace(/\s+/g, "-")
-
-    form.setValue("slug", slug)
-  }
-
-  // Continue editing the newly created machine
-  function continueEditing() {
-    if (createdMachine?.id) {
-      router.push(`/admin/machines/${createdMachine.id}`)
+  // Function to add a new image to the gallery
+  const addImageToGallery = (url: string) => {
+    setMachineImages(prev => [...prev, url])
+    
+    // If this is the first image, set it as primary and update image_url
+    if (machineImages.length === 0) {
+      setPrimaryImageIndex(0)
+      form.setValue('image_url', url)
     }
+    
+    // Log the updated image gallery for debugging
+    console.log('Added image to gallery:', url);
+    console.log('Updated machineImages:', [...machineImages, url]);
   }
-
-  // Create another machine
-  function createAnother() {
-    setSuccessMessage(null)
-    setCreatedMachine(null)
-    form.reset({
-      machine_name: "",
-      slug: "",
-      is_featured: false,
-      hidden: true,
+  
+  // Function to remove an image from the gallery
+  const removeImageFromGallery = (index: number) => {
+    setMachineImages(prev => {
+      const updated = [...prev]
+      updated.splice(index, 1)
+      
+      // If we removed the primary image, update the primary index
+      if (index === primaryImageIndex) {
+        // If there are other images, set the first one as primary
+        if (updated.length > 0) {
+          setPrimaryImageIndex(0)
+          form.setValue('image_url', updated[0])
+        } else {
+          // If no images left, clear image_url
+          setPrimaryImageIndex(-1)
+          form.setValue('image_url', '')
+        }
+      } 
+      // If we removed an image before the primary one, adjust the primary index
+      else if (index < primaryImageIndex) {
+        setPrimaryImageIndex(prev => prev - 1)
+      }
+      
+      return updated
     })
   }
-
-  // Go to machines list
-  function goToMachines() {
-    router.push("/admin/machines")
-    router.refresh()
+  
+  // Function to set an image as the primary one
+  const setAsPrimaryImage = (index: number) => {
+    setPrimaryImageIndex(index)
+    form.setValue('image_url', machineImages[index])
   }
 
-  // Handle tab change
-  const handleTabChange = (value: string) => {
-    console.log(`Tab changing from ${currentTab} to ${value}`)
+  // Add this code to check for pending scrape URL on component mount
+  useEffect(() => {
+    if (machine?.id) {
+      const pendingScrapeUrl = localStorage.getItem('pending_scrape_url');
+      if (pendingScrapeUrl) {
+        // Remove it from storage to prevent repeated scraping
+        localStorage.removeItem('pending_scrape_url');
+        
+        // Set the URL to the product_link field
+        form.setValue('product_link', pendingScrapeUrl);
+        
+        // Trigger scraping if a component reference is available
+        // This could be implemented with a ref to the MachineUrlScraper component
+        // For simplicity, just set the URL and let the user click the scrape button
+      }
+    }
+  }, [machine?.id]);
+
+  // Handle form submission
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setIsSubmitting(true)
+    setSubmitSuccess(false)
+    setSubmitError(null)
+    
     try {
-      setCurrentTab(value)
+      // Add images array to the data
+      const submissionData = {
+        ...values,
+        images: machineImages
+      }
+      
+      console.log('Submitting form with image data:', {
+        primaryImage: values.image_url,
+        allImages: machineImages
+      });
+      
+      if (isNew) {
+        await createMachine(submissionData as any)
+      } else {
+        // Ensure machine.id is not undefined before passing to updateMachine
+        if (!machine?.id) {
+          throw new Error("Machine ID is required for updates");
+        }
+        await updateMachine(machine.id, submissionData as any)
+      }
+      
+      setSubmitSuccess(true)
+      
+      // Route to appropriate page based on the button used
+      if (submitAction === 'continue') {
+        // Stay on the page and show success
+        setShowConfirmation(true);
+        setConfirmAction('continue');
+      } else if (submitAction === 'createAnother' && isNew) {
+        router.push("/admin/machines/new")
+      } else {
+        // Default - go to machines list
+        router.push("/admin/machines")
+      }
     } catch (error) {
-      console.error(`Error changing to tab ${value}:`, error)
+      console.error("Submission error:", error)
+      setSubmitError(error instanceof Error ? error.message : "An unknown error occurred")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        {/* Quick Clone Selection */}
-        <div className="flex flex-col md:flex-row gap-2 justify-between mb-4">
-          <div className="flex items-center gap-2">
+        <div className="flex justify-between items-center">
+          <div className="flex gap-2">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </Button>
+            
             <Button 
               type="button" 
               variant="outline" 
-              onClick={() => router.push("/admin/machines")}
               size="sm"
+              className="flex items-center gap-1"
+              onClick={() => setIsScraperOpen(true)}
             >
-              ← Back to Machines
+              <RefreshCw className="h-4 w-4" />
+              Refresh from URL
             </Button>
-            <h2 className="text-lg font-semibold">
-              {machine ? "Edit Machine" : "Add New Machine"}
-            </h2>
+            
+            {isNew && <QuickAddMachineDialog />}
           </div>
-          
-          <div className="flex items-center gap-2">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving..." : machine ? "Update Machine" : "Create Machine"}
+
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={continueEditing}>
+              Save & Continue Editing
+            </Button>
+            
+            {isNew && (
+              <Button type="button" variant="outline" onClick={createAnother}>
+                Save & Create Another
+              </Button>
+            )}
+            
+            <Button type="button" variant="ghost" onClick={goToMachines}>
+              Cancel
             </Button>
           </div>
         </div>
-
+        
         {/* Success message */}
-        {successMessage && (
-          <div className={`border px-4 py-3 rounded mb-4 ${machine?.id ? 'bg-green-50 border-green-200 text-green-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
-            <div className="flex flex-col gap-4">
-              <p className="font-medium">{successMessage}</p>
-              
-              {/* Only show action buttons for newly created machines */}
-              {!machine?.id && (
-                <div className="flex flex-wrap gap-2">
-                  <Button 
-                    type="button" 
-                    onClick={continueEditing}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Continue Editing
-                  </Button>
-                  <Button 
-                    type="button" 
-                    onClick={createAnother}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Create Another
-                  </Button>
-                  <Button 
-                    type="button" 
-                    onClick={goToMachines}
-                    size="sm"
-                  >
-                    Go to Machines
-                  </Button>
-                </div>
-              )}
-            </div>
+        {showConfirmation && (
+          <div className="bg-green-50 text-green-800 px-4 py-2 rounded border border-green-200">
+            {confirmAction === 'continue' ? 'Changes saved successfully!' : 
+             confirmAction === 'create' ? 'Machine created! Creating another...' : 
+             confirmAction === 'scraper' ? 'Machine data updated from URL!' :
+             'Machine saved successfully!'}
           </div>
         )}
-
-        {/* Quick Create Form when no success message */}
-        {!successMessage && !machine && (
-          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded mb-4">
-            <p className="mb-2 font-medium">Quick Create</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="machine_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Machine Name</FormLabel>
-                    <FormControl>
-                      <Input 
-                        {...field} 
-                        className="border-slate-300"
-                        onChange={(e) => {
-                          field.onChange(e)
-                          if (e.target.value) {
-                            generateSlug(e.target.value)
-                          }
-                        }}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Enter a machine name to quickly create a new entry
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="hidden"
-                render={({ field }) => (
-                  <FormItem className="flex items-center space-x-2 rounded-md p-3 mt-6">
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormLabel className="cursor-pointer !mt-0">Hidden (Recommended until all fields are filled)</FormLabel>
-                  </FormItem>
-                )}
-              />
-            </div>
+        
+        {/* Error message */}
+        {error && (
+          <div className="bg-red-50 text-red-800 px-4 py-2 rounded border border-red-200">
+            {error}
           </div>
         )}
 
@@ -633,9 +841,10 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                           <Input
                             {...field}
                             onChange={(e) => {
-                              field.onChange(e)
-                              if (!machine?.id && !form.getValues("slug")) {
-                                generateSlug(e.target.value)
+                              field.onChange(e);
+                              // Only regenerate slug if this is a new machine or slug is empty
+                              if (!machine?.id || !form.getValues("slug")) {
+                                generateSlug(e.target.value);
                               }
                             }}
                           />
@@ -1349,78 +1558,205 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
             <Card>
               <CardContent className="pt-6">
                 <div id="media-section" className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="image_url"
-                    render={({ field }) => (
-                      <FormItem>
-                        <PublishRequiredFormLabel>Machine Image</PublishRequiredFormLabel>
-                        <div className="space-y-4">
-                          {field.value && (
-                            <div className="border rounded-md p-4 bg-slate-50">
-                              <p className="text-sm font-medium mb-2">Current Image</p>
-                              <div className="relative h-48 w-full max-w-md border rounded-md overflow-hidden bg-white">
-                                <Image 
-                                  src={field.value} 
-                                  alt="Machine preview"
-                                  fill
-                                  className="object-contain"
-                                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
-                                  onError={(e) => {
-                                    // Fallback to placeholder if image fails to load
-                                    (e.target as HTMLImageElement).src = "/placeholder-image.svg";
-                                  }}
-                                  priority={false}
-                                />
-                              </div>
-                              <div className="mt-2 flex justify-between items-center">
-                                <p className="text-xs text-muted-foreground">
-                                  Image will be optimized for web display: resized to max 1200px width and converted to WebP format.
-                                </p>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => field.onChange("")}
-                                  className="text-xs text-destructive hover:text-destructive/90"
-                                >
-                                  Remove
-                                </Button>
-                              </div>
+                  <div>
+                    <PublishRequiredFormLabel>Machine Images</PublishRequiredFormLabel>
+                    
+                    {/* Images Summary */}
+                    <div className="flex flex-col gap-3 mb-4">
+                      <div className="flex items-center gap-3">
+                        {machineImages.length > 0 && (
+                          <div className="relative h-10 w-10 rounded-md overflow-hidden border">
+                            <Image 
+                              src={machineImages[primaryImageIndex]}
+                              alt="Primary image"
+                              fill
+                              className="object-cover"
+                              sizes="40px"
+                            />
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <div className="bg-slate-100 text-slate-800 px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                            <ImageIcon className="h-3 w-3 mr-1" />
+                            {machineImages.length} {machineImages.length === 1 ? 'image' : 'images'} available
+                          </div>
+                          {machineImages.length > 0 && (
+                            <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                              <Star className="h-3 w-3 mr-1 text-yellow-500" />
+                              Primary image set
                             </div>
                           )}
-                          <div className="grid grid-cols-1 gap-4">
+                        </div>
+                      </div>
+                      
+                      {/* Thumbnail Strip - only show when multiple images */}
+                      {machineImages.length > 1 && (
+                        <div className="flex overflow-x-auto gap-2 pb-2 pl-2 pr-2 -ml-2 -mr-2">
+                          {machineImages.map((url, idx) => (
+                            <div 
+                              key={idx}
+                              className={`relative h-12 w-12 flex-shrink-0 rounded-md overflow-hidden border cursor-pointer
+                                ${idx === primaryImageIndex ? 'ring-2 ring-green-500' : 'hover:opacity-80'}`}
+                              onClick={() => setAsPrimaryImage(idx)}
+                            >
+                              <Image 
+                                src={url}
+                                alt={`Image ${idx+1}`}
+                                fill
+                                className="object-cover"
+                                sizes="48px"
+                              />
+                              {idx === primaryImageIndex && (
+                                <div className="absolute bottom-0 inset-x-0 bg-green-500 text-white text-[8px] text-center py-[1px]">
+                                  PRIMARY
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Image Gallery */}
+                    {machineImages.length > 0 && (
+                      <Accordion type="single" collapsible defaultValue="images" className="w-full">
+                        <AccordionItem value="images" className="border rounded-md p-0 bg-slate-50 mb-4 overflow-hidden">
+                          <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                            <h3 className="text-sm font-medium">Image Gallery ({machineImages.length})</h3>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="px-4 pb-4">
+                              {/* Add sorting buttons if needed */}
+                              {machineImages.length > 1 && (
+                                <div className="text-xs text-slate-500 mb-4">
+                                  Drag to reorder (coming soon)
+                                </div>
+                              )}
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                {machineImages.map((imageUrl, index) => (
+                                  <div key={index} className="border rounded-md bg-white p-2 relative group hover:shadow-md transition-shadow">
+                                    <div className="relative h-48 w-full overflow-hidden rounded-md">
+                                      <Image 
+                                        src={imageUrl} 
+                                        alt={`Machine image ${index + 1}`}
+                                        fill
+                                        className="object-contain"
+                                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
+                                        onError={(e) => {
+                                          // Fallback to placeholder if image fails to load
+                                          (e.target as HTMLImageElement).src = "/placeholder-image.svg";
+                                        }}
+                                      />
+                                      
+                                      {index === primaryImageIndex && (
+                                        <div className="absolute top-2 left-2 bg-green-600 text-white text-xs px-2 py-1 rounded">
+                                          Primary
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    <div className="flex items-center justify-between mt-2">
+                                      <Button
+                                        variant={index === primaryImageIndex ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setAsPrimaryImage(index)}
+                                        disabled={index === primaryImageIndex}
+                                        className="text-xs w-1/2"
+                                      >
+                                        {index === primaryImageIndex ? (
+                                          <Star className="h-3 w-3 mr-1 text-yellow-300" />
+                                        ) : (
+                                          <StarOff className="h-3 w-3 mr-1" />
+                                        )}
+                                        {index === primaryImageIndex ? "Primary" : "Set Primary"}
+                                      </Button>
+                                      
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => removeImageFromGallery(index)}
+                                        className="text-xs text-red-500 hover:text-red-600 w-1/3"
+                                      >
+                                        <Trash className="h-3 w-3 mr-1" />
+                                        Remove
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              
+                              <p className="text-xs text-muted-foreground mt-4">
+                                The primary image will be displayed in lists and as the main product image. Other images will be shown in the product gallery.
+                              </p>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    )}
+                    
+                    {/* Add Image Section */}
+                    <Accordion type="single" collapsible defaultValue="add-images" className="w-full">
+                      <AccordionItem value="add-images" className="border rounded-md p-0 overflow-hidden">
+                        <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                          <h3 className="text-sm font-medium flex items-center">
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Images
+                          </h3>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="px-4 pb-4 space-y-4">
                             <div>
                               <FormLabel className="text-sm text-muted-foreground">Option 1: Upload Image</FormLabel>
                               <FileUpload 
                                 onUploadComplete={(url) => {
-                                  field.onChange(url);
-                                  form.trigger("image_url");
+                                  addImageToGallery(url);
+                                  // If we don't have a primary image yet, set this as primary
+                                  if (machineImages.length === 0) {
+                                    form.setValue("image_url", url);
+                                  }
                                 }} 
                               />
                             </div>
+                            
                             <div className="flex flex-col gap-2">
                               <FormLabel className="text-sm text-muted-foreground">Option 2: Enter Image URL</FormLabel>
-                              <FormControl>
+                              <div className="flex gap-2">
                                 <Input 
                                   placeholder="https://example.com/image.jpg" 
-                                  value={field.value || ""}
-                                  onChange={(e) => {
-                                    field.onChange(e.target.value);
-                                    form.trigger("image_url");
-                                  }}
+                                  value={imageUrlInput || ""}
+                                  onChange={(e) => setImageUrlInput(e.target.value)}
+                                  className="flex-1"
                                 />
-                              </FormControl>
+                                <Button 
+                                  variant="secondary"
+                                  disabled={!imageUrlInput}
+                                  onClick={() => {
+                                    if (imageUrlInput) {
+                                      addImageToGallery(imageUrlInput);
+                                      setImageUrlInput("");
+                                    }
+                                  }}
+                                >
+                                  Add
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <FormDescription>
-                          Upload a product image or enter an image URL. Images should be in JPG, PNG or WebP format.
-                          For best results, use images with a white background and at least 1200px width.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                    
+                    <FormDescription>
+                      Upload product images or enter image URLs. Images should be in JPG, PNG or WebP format.
+                      For best results, use images with a white background and at least 1200px width.
+                    </FormDescription>
+                    {form.formState.errors.image_url && (
+                      <p className="text-sm font-medium text-destructive mt-2">
+                        {form.formState.errors.image_url.message}
+                      </p>
                     )}
-                  />
+                  </div>
 
                   <FormField
                     control={form.control}
@@ -1471,6 +1807,17 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
             </Card>
           </TabsContent>
         </Tabs>
+        
+        {/* Scraper Modal - Rendered conditionally based on parent state */} 
+        {isScraperOpen && (
+          <MachineUrlScraper 
+            machine={machine}
+            onUpdateMachine={handleScrapedUpdates}
+            isOpen={isScraperOpen}
+            onOpenChange={setIsScraperOpen}
+          />
+        )}
+
       </form>
     </Form>
   )

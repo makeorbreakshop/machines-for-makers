@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+Anytime I reference the database or deal with content in our database be sure to double check your approach with our MCP access to Supabase to pull the correct structure and everything is working in the best way possible.
