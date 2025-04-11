@@ -442,12 +442,13 @@ export function MachineUrlScraper({
       }
     });
     
-    // Apply selected images if any
+    // Add selected images to be merged with existing ones
     if (selectedImages.length > 0) {
       updatedData.images = selectedImages;
       
-      // Also set the first selected image as the primary image
-      if (selectedImages[0]) {
+      // Only set the first selected image as primary if we don't already have images
+      // This will be handled by the parent component based on the current image state
+      if (selectedImages[0] && !machine?.image_url) {
         updatedData.image_url = selectedImages[0];
       }
     }

@@ -615,15 +615,26 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
       
       // Handle arrays and objects specially
       if (key === 'images' && Array.isArray(value)) {
-        // Update the machineImages state with the new images
-        setMachineImages(value)
+        console.log("Processing scraped images:", {
+          newImages: value,
+          existingImages: machineImages,
+          existingPrimaryImage: form.getValues('image_url')
+        });
         
-        // Reset the primary image index to 0 (first image)
-        setPrimaryImageIndex(0)
+        // Merge new images with existing ones rather than replacing them completely
+        // Create a Set to remove duplicates, then convert back to array
+        const combinedImages = [...new Set([...machineImages, ...value])];
         
-        // Also update the image_url field to the first image for backwards compatibility
-        if (value.length > 0) {
-          form.setValue('image_url', value[0])
+        console.log("Combined unique images:", combinedImages);
+        
+        // Update the machineImages state with the combined images
+        setMachineImages(combinedImages);
+        
+        // Only update primary image if we didn't have any images before
+        if (machineImages.length === 0 && value.length > 0) {
+          console.log("Setting first image as primary:", value[0]);
+          setPrimaryImageIndex(0);
+          form.setValue('image_url', value[0]);
         }
       } else {
         // Handle regular form fields
