@@ -259,7 +259,8 @@ export function MachineUrlScraper({
       'Diode': 'Diode',
       'Fiber': 'Fiber',
       'MOPA': 'MOPA',
-      'Infrared': 'Infrared'
+      'Infrared': 'Infrared',
+      'UV': 'UV'
     };
     
     if (formData.laser_type_a) {
@@ -288,12 +289,26 @@ export function MachineUrlScraper({
     
     // Handle multiple images
     if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-      // Store the array of images
-      formData.images = data.images;
+      // Filter out empty strings and invalid URLs
+      const validImages = data.images.filter(url => 
+        url && typeof url === 'string' && url.trim() !== ''
+      );
+      
+      // Remove duplicates from the scraped images using Set
+      const uniqueImages = [...new Set(validImages)];
+      
+      console.log("Processing scraped images:", {
+        originalCount: data.images.length,
+        validCount: validImages.length,
+        uniqueCount: uniqueImages.length
+      });
+      
+      // Store the array of deduplicated images
+      formData.images = uniqueImages;
       
       // Still set the primary image to image_url for backward compatibility
-      if (!formData.image_url && data.images[0]) {
-        formData.image_url = data.images[0];
+      if (!formData.image_url && uniqueImages.length > 0) {
+        formData.image_url = uniqueImages[0];
       }
     }
     
@@ -442,14 +457,23 @@ export function MachineUrlScraper({
       }
     });
     
-    // Add selected images to be merged with existing ones
+    // Only add selected images if there are any
     if (selectedImages.length > 0) {
-      updatedData.images = selectedImages;
+      console.log("Selected images to apply:", selectedImages);
       
-      // Only set the first selected image as primary if we don't already have images
-      // This will be handled by the parent component based on the current image state
-      if (selectedImages[0] && !machine?.image_url) {
-        updatedData.image_url = selectedImages[0];
+      // Remove any duplicates within the selectedImages array itself
+      const uniqueSelectedImages = [...new Set(selectedImages)];
+      
+      console.log("Unique selected images:", uniqueSelectedImages);
+      
+      // Add the deduplicated selected images
+      updatedData.images = uniqueSelectedImages;
+      
+      // Only set the primary image from scraped data if:
+      // 1. We don't already have an image_url
+      // 2. The user selected at least one image
+      if (!machine?.image_url && uniqueSelectedImages.length > 0) {
+        updatedData.image_url = uniqueSelectedImages[0];
       }
     }
     

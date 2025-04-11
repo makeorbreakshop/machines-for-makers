@@ -57,7 +57,7 @@ async function fetchCategories(): Promise<Categories> {
         "CO2", "Diode", "Fiber", "Hybrid", "YAG"
       ],
       laserTypes: [
-        "CO2", "Diode", "Fiber", "Hybrid", "YAG", "Blue Diode", "IR Diode"
+        "CO2", "Diode", "Fiber", "Hybrid", "YAG", "Blue Diode", "IR Diode", "UV"
       ],
       companies: [],
       booleanFeatures: {

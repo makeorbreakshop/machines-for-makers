@@ -55,6 +55,7 @@ export default function SidebarFilter({
     "CO2 RF": "co2-rf",
     "CO2 Glass": "co2-glass", 
     "Diode": "diode",
+    "UV": "UV"
   } as Record<string, string>), [])
 
   // Print laser type mapping for debugging
@@ -75,7 +76,7 @@ export default function SidebarFilter({
 
   const features = useMemo(() => Object.keys(featureMap), [featureMap])
   // Display names for UI - keeping order consistent
-  const laserTypes = ["Diode", "CO2 RF", "CO2 Glass", "Fiber", "Infrared", "MOPA"]
+  const laserTypes = ["Diode", "CO2 RF", "CO2 Glass", "Fiber", "Infrared", "MOPA", "UV"]
 
   // Initialize with default values or initialFilters if provided
   const [selectedLaserTypes, setSelectedLaserTypes] = useState<string[]>(initialFilters?.laserTypes || [])

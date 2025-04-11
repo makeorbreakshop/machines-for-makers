@@ -621,20 +621,28 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
           existingPrimaryImage: form.getValues('image_url')
         });
         
-        // Merge new images with existing ones rather than replacing them completely
-        // Create a Set to remove duplicates, then convert back to array
-        const combinedImages = [...new Set([...machineImages, ...value])];
+        // Create a Set to remove duplicates
+        // First get all existing images in a Set for fast lookups
+        const existingImagesSet = new Set(machineImages);
         
-        console.log("Combined unique images:", combinedImages);
+        // Filter out images that already exist in the current set
+        const newUniqueImages = value.filter(img => !existingImagesSet.has(img));
         
-        // Update the machineImages state with the combined images
-        setMachineImages(combinedImages);
+        console.log("New unique images (not already in gallery):", newUniqueImages);
+        
+        // Only add new unique images to the existing images
+        const updatedImages = [...machineImages, ...newUniqueImages];
+        
+        console.log("Updated images after filtering duplicates:", updatedImages);
+        
+        // Update the machineImages state with the deduplicated images
+        setMachineImages(updatedImages);
         
         // Only update primary image if we didn't have any images before
-        if (machineImages.length === 0 && value.length > 0) {
-          console.log("Setting first image as primary:", value[0]);
+        if (machineImages.length === 0 && newUniqueImages.length > 0) {
+          console.log("Setting first new image as primary:", newUniqueImages[0]);
           setPrimaryImageIndex(0);
-          form.setValue('image_url', value[0]);
+          form.setValue('image_url', newUniqueImages[0]);
         }
       } else {
         // Handle regular form fields
@@ -1125,6 +1133,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                                     <SelectItem value="CO2">CO2</SelectItem>
                                     <SelectItem value="Fiber">Fiber</SelectItem>
                                     <SelectItem value="Galvo">Galvo</SelectItem>
+                                    <SelectItem value="UV">UV</SelectItem>
                                     <SelectItem value="Other">Other</SelectItem>
                                   </SelectContent>
                                 </Select>
@@ -1168,6 +1177,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                                     <SelectItem value="CO2">CO2</SelectItem>
                                     <SelectItem value="Fiber">Fiber</SelectItem>
                                     <SelectItem value="Galvo">Galvo</SelectItem>
+                                    <SelectItem value="UV">UV</SelectItem>
                                     <SelectItem value="Other">Other</SelectItem>
                                   </SelectContent>
                                 </Select>
