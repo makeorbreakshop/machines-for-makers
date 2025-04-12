@@ -181,3 +181,25 @@ Price history management features include:
 - Batch cleanup of invalid price records (< $10)
 - Automatic recalculation of price extremes after data changes
 - Price confirmation before updating records 
+
+### Future Price Scraping Enhancements
+To improve price scraping reliability and efficiency, the following enhancements will be implemented:
+
+- LLM-assisted price extraction:
+  - Use AI to identify prices when traditional selectors fail
+  - Increase navigation timeout for complex sites
+  - Implement multiple fallback strategies for price detection
+
+- Website structure caching:
+  - Save successful price selector patterns to the machine table
+  - Store HTML structure patterns that worked for each product
+  - Reuse cached selectors for future price updates
+  - Fall back to LLM approach only when cached selectors fail
+  - Update the cached pattern when website structures change
+
+- Benefits of this approach:
+  - Reduced dependency on LLM for every scrape
+  - Faster price updates using pre-identified selectors
+  - Improved reliability for frequently checked products
+  - Self-improving system that adapts to website changes
+  - Lower operational costs by minimizing LLM API calls 
