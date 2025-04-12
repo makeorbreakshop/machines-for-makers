@@ -57,5 +57,11 @@
       "src": "/(.*)",
       "dest": "/$1"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/update-prices?secret=$CRON_SECRET",
+      "schedule": "0 0 * * *"
+    }
   ]
 } 

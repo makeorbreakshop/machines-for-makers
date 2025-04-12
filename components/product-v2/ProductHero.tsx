@@ -1,15 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { ShoppingCart, Image as ImageIcon, PlusCircle, Star, ArrowRight, ExternalLink, ChevronLeft, ChevronRight, X, Check, Copy } from "lucide-react"
+import { ShoppingCart, Image as ImageIcon, PlusCircle, Star, ArrowRight, ExternalLink, ChevronLeft, ChevronRight, X, Check, Copy, InfoIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { PromoCodeDisplay } from "@/types/promo-codes"
 import AddToCompareButton from "@/components/add-to-compare-button"
 import Image from "next/image"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { PriceHistoryChart } from "@/components/product/price-history-chart"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { PriceTooltip } from "@/components/product/price-tooltip"
 
 interface ProductHeroProps {
   product: any
@@ -249,7 +252,16 @@ export function ProductHero({ product, images, highlights, promoCode }: ProductH
             <div className="mb-6">
               {/* Price and promo code display */}
               <div className="flex items-center gap-3 mb-6">
-                <div className="hidden lg:block text-3xl font-bold text-slate-900">{priceRangeDisplay}</div>
+                <div className="hidden lg:block text-3xl font-bold text-slate-900">
+                  {priceRangeDisplay}
+                  {product.price && (
+                    <PriceTooltip 
+                      machineId={product.id}
+                      price={product.price}
+                      className="ml-2"
+                    />
+                  )}
+                </div>
                 {promoCode && promoCode.isActive && (
                   <div className="bg-[#E7F6EC] text-[#027A48] px-3 py-1.5 rounded-lg flex items-center gap-2 font-mono text-sm">
                     <span>{promoCode.code} ({promoCode.discountText})</span>
@@ -282,6 +294,30 @@ export function ProductHero({ product, images, highlights, promoCode }: ProductH
                   <ExternalLink className="ml-2 h-4 w-4 opacity-70" />
                 </a>
               </Button>
+
+              {/* Price history chart for mobile - show as a dialog */}
+              {product.price && (
+                <div className="mt-3 lg:hidden flex items-center justify-center">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="text-xs">
+                        <InfoIcon className="h-3 w-3 mr-1" />
+                        View Price History
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                      <div className="pt-2">
+                        <h3 className="font-semibold mb-1">Price History</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Track price changes over time</p>
+                        <PriceHistoryChart 
+                          machineId={product.id} 
+                          currentPrice={product.price}
+                        />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
 
               {/* Add to Compare button */}
               <div className="mt-3 flex justify-center">
