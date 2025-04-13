@@ -185,6 +185,77 @@ The `price_selector_data` JSON structure will contain:
 - Phase 4: 2-3 days
 - Phase 5: 1-2 days
 
+## Implementation Roadmap
+
+The following roadmap provides a structured approach to implementing the remaining features, with clear dependencies and sequencing. Each task includes its prerequisites, priority level, and estimated effort.
+
+### LLM Integration Roadmap
+
+| ID | Task | Prerequisites | Priority | Effort | Status |
+|----|------|--------------|----------|--------|--------|
+| L1 | Database schema update for price selector storage | None | HIGH | 0.5 day | TODO |
+| L2 | Claude API integration setup | None | HIGH | 1 day | TODO |
+| L3 | Implement `extractPriceWithClaude` utility | L2 | HIGH | 1 day | TODO |
+| L4 | Create selector storage/retrieval functions | L1 | HIGH | 0.5 day | TODO |
+| L5 | Update price scraper to use saved selectors | L1, L4 | HIGH | 1 day | TODO |
+| L6 | Implement fallback to Claude when selectors fail | L3, L5 | HIGH | 0.5 day | TODO |
+| L7 | Add selector pattern update mechanism | L4, L6 | MEDIUM | 0.5 day | TODO |
+| L8 | Create manual verification admin UI | L5 | MEDIUM | 1 day | TODO |
+| L9 | Implement selector visualization tools | L7, L8 | LOW | 1 day | TODO |
+| L10 | Add configuration variant handling | L6 | MEDIUM | 1 day | TODO |
+| L11 | Performance testing and optimization | All above | MEDIUM | 1 day | TODO |
+
+### Chart Implementation Roadmap
+
+| ID | Task | Prerequisites | Priority | Effort | Status |
+|----|------|--------------|----------|--------|--------|
+| C1 | Research and select chart library | None | MEDIUM | 0.5 day | TODO |
+| C2 | Implement basic price history chart | C1 | MEDIUM | 1 day | TODO |
+| C3 | Add visual indicators for price extremes | C2 | MEDIUM | 0.5 day | TODO |
+| C4 | Style chart to match site branding | C2 | MEDIUM | 0.5 day | TODO |
+| C5 | Implement hover/touch interactions | C4 | MEDIUM | 1 day | TODO |
+| C6 | Ensure responsive design for mobile | C5 | MEDIUM | 1 day | TODO |
+| C7 | Add seasonal indicators | C5 | LOW | 0.5 day | TODO |
+
+### Integration Testing Roadmap
+
+| ID | Task | Prerequisites | Priority | Effort | Status |
+|----|------|--------------|----------|--------|--------|
+| T1 | Test LLM price extraction with sample products | L6 | HIGH | 0.5 day | TODO |
+| T2 | Validate selector storage and retrieval | L5, L7 | HIGH | 0.5 day | TODO |
+| T3 | Test chart display on various screen sizes | C6 | MEDIUM | 0.5 day | TODO |
+| T4 | End-to-end testing with real products | All LLM & Chart tasks | HIGH | 1 day | TODO |
+| T5 | Performance benchmarking | T4 | MEDIUM | 0.5 day | TODO |
+
+## Next Steps
+
+Based on the roadmap above, these are the immediate next tasks to focus on:
+
+1. **Database Schema Update (L1)**
+   - Add the new columns to the machines table
+   - Create migration script for existing entries
+   - Estimated completion: 0.5 day
+
+2. **Claude API Integration (L2)**
+   - Set up API access with proper authentication
+   - Implement basic communication with Claude API
+   - Test with sample HTML snippets
+   - Estimated completion: 1 day
+
+3. **Extract Price with Claude Utility (L3)**
+   - Implement the core function to extract prices using Claude
+   - Create the specialized prompt template
+   - Add validation and error handling
+   - Estimated completion: 1 day
+
+4. **Selector Storage Functions (L4)**
+   - Implement functions to save and retrieve selector patterns
+   - Add validation for selector data
+   - Create utility to test selector validity
+   - Estimated completion: 0.5 day
+
+After completing these foundational tasks, the system will be ready for integration of the full intelligent price scraping workflow.
+
 ## Technical Notes
 
 ### Web Scraping Challenges
