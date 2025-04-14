@@ -5,13 +5,13 @@ pydantic==2.6.1
 python-dotenv==1.0.1
 
 # CrewAI and AI
-crewai==0.28.4
-langchain==0.1.6
-langchain-core==0.1.30
-anthropic==0.15.3
+crewai==0.11.2
+langchain>=0.1.6
+langchain-core>=0.1.30
+anthropic==0.49.0
 
 # Database
-supabase==1.2.1
+supabase==2.15.0
 psycopg2-binary==2.9.9
 
 # Web scraping tools

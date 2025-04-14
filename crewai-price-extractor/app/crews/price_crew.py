@@ -1,14 +1,14 @@
 from crewai import Crew, Process
 from typing import List, Dict, Any, Optional
-from ..config import CREW_VERBOSE
-from ..agents.batch_optimizer import get_batch_optimizer_agent
-from ..agents.web_scraper import get_web_scraper_agent
-from ..agents.price_extractor import get_price_extractor_agent
-from ..agents.validator import get_validator_agent
-from ..tasks.optimize_task import create_optimize_task
-from ..tasks.scrape_task import create_scrape_task
-from ..tasks.extract_task import create_extract_task
-from ..tasks.validate_task import create_validate_task
+from app.config import CREW_VERBOSE
+from app.agents.batch_optimizer import get_batch_optimizer_agent
+from app.agents.web_scraper import get_web_scraper_agent
+from app.agents.price_extractor import get_price_extractor_agent
+from app.agents.validator import get_validator_agent
+from app.tasks.optimize_task import create_optimize_task
+from app.tasks.scrape_task import create_scrape_task
+from app.tasks.extract_task import create_extract_task
+from app.tasks.validate_task import create_validate_task
 
 def get_price_crew(debug: bool = False) -> Crew:
     """

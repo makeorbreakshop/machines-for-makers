@@ -1,3 +1,6 @@
+"""
+Tools package initialization
+"""
 from .scraping_tools import WebScraperTool, PriceExtractionTool
 from .database_tools import DatabaseTool
 

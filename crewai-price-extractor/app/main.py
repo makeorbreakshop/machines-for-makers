@@ -7,7 +7,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 from supabase import create_client
-from crews.price_crew import get_price_crew
+from app.crews.price_crew import get_price_crew
 from app.services.database import get_database_client
 from app.services.price_extraction import update_machine_price, update_multiple_prices, get_batch_status
 from app.utils.auth import verify_api_key
