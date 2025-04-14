@@ -37,6 +37,16 @@ async def get_machine_data(machine_id: str) -> Dict[str, Any]:
                 "error": f"Machine with ID {machine_id} not found"
             }
         
+        # Add debugging log
+        logger.info(f"Machine data retrieved: {machine}")
+        logger.info(f"Product link: {machine.get('product_link')}")
+        logger.info(f"Affiliate link: {machine.get('Affiliate Link')}")
+        
+        # Ensure product_link exists, use Affiliate Link as fallback
+        if not machine.get('product_link') and machine.get('Affiliate Link'):
+            logger.info(f"Using Affiliate Link as fallback for product_link")
+            machine['product_link'] = machine['Affiliate Link']
+        
         return {
             "success": True,
             "data": machine
