@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdminAuth } from '@/lib/auth-utils';
 import YouTubeDbService from '@/lib/services/youtube-db-service';
+import TranscriptionService from '@/lib/services/transcription-service';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
+export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -18,32 +19,33 @@ export async function GET(
     // In Next.js 15, params is a promise that must be awaited
     const unwrappedParams = await params;
     const id = unwrappedParams.id;
+    
     const dbService = new YouTubeDbService();
+    const transcriptionService = new TranscriptionService();
     
-    // Get video details
+    // Fetch video first to get the YouTube ID
     const video = await dbService.getVideo(id);
+    if (!video) {
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+    }
     
-    // Get associated machines
-    const machines = await dbService.getMachinesForVideo(id);
+    // Force regenerate transcript
+    console.log(`Regenerating transcript for video ${id} (${video.title})...`);
     
-    // Get transcript if available
+    const result = await transcriptionService.regenerateTranscript(id);
+    
+    // Fetch the newly created transcript
     const transcript = await dbService.getTranscript(id);
     
-    console.log('API fetch result:', {
-      videoId: id,
-      hasVideo: !!video,
-      hasTranscript: !!transcript
-    });
-
     return NextResponse.json({
-      video,
-      machines,
-      transcript,
+      success: true,
+      transcript
     });
   } catch (error: any) {
-    console.error('Error fetching YouTube video:', error);
+    console.error('Error regenerating transcript:', error);
+    
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch YouTube video' },
+      { error: error.message || 'Failed to regenerate transcript' },
       { status: 500 }
     );
   }

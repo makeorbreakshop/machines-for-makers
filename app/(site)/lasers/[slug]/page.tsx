@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   // Use await to properly handle dynamic params
-  const categorySlug = await (params.slug);
+  const unwrappedParams = await params;
+  const categorySlug = unwrappedParams.slug;
   const categoryName = getCategoryName(categorySlug);
 
   return {

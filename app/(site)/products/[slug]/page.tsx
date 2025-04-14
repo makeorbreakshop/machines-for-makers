@@ -124,7 +124,8 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 export default async function ProductPage({ params }: { params: { slug: string } }) {
   try {
     // Use await to properly handle dynamic params
-    const slug = await (params.slug);
+    const unwrappedParams = await params;
+    const slug = unwrappedParams.slug;
     console.log("Fetching product with slug:", slug);
     const { data: product, error } = await dataProvider.getMachineBySlug(slug);
     

@@ -15,8 +15,9 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // In Next.js 15, params is accessed directly
-    const id = params.id;
+    // In Next.js 15, params is a promise that must be awaited
+    const unwrappedParams = await params;
+    const id = unwrappedParams.id;
     const { machineId } = await request.json();
 
     if (!machineId) {

@@ -4,7 +4,6 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 import { Sidebar } from "@/components/admin/sidebar"
-import LogoutButton from "@/components/admin/logout-button"
 import AuthProvider from "@/components/admin/auth-provider"
 import { Providers } from "@/components/admin/providers"
 
@@ -41,10 +40,7 @@ export default function AdminLayout({
           <Providers>
             <div className="flex min-h-screen">
               <Sidebar />
-              <div className="flex-1 p-8">
-                <div className="flex justify-end mb-4">
-                  <LogoutButton />
-                </div>
+              <div className="flex-1">
                 {children}
               </div>
             </div>

@@ -19,7 +19,9 @@ export async function POST(
       );
     }
 
-    const draftId = params.id;
+    // In Next.js 15, params is a promise that must be awaited
+    const unwrappedParams = await params;
+    const draftId = unwrappedParams.id;
     if (!draftId) {
       return NextResponse.json(
         { error: 'Draft ID is required' },

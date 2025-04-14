@@ -5,7 +5,11 @@ import { NextResponse } from "next/server"
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const supabase = createServerClient()
 
-  const { data, error } = await supabase.from("categories").select("*").eq("id", params.id).single()
+  // In Next.js 15, params is a promise that must be awaited
+  const unwrappedParams = await params;
+  const id = unwrappedParams.id;
+
+  const { data, error } = await supabase.from("categories").select("*").eq("id", id).single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 404 })
@@ -19,12 +23,16 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const supabase = createServerClient()
 
   try {
+    // In Next.js 15, params is a promise that must be awaited
+    const unwrappedParams = await params;
+    const id = unwrappedParams.id;
+    
     const categoryData = await request.json()
 
     // Update timestamp
     categoryData.updated_at = new Date().toISOString()
 
-    const { data, error } = await supabase.from("categories").update(categoryData).eq("id", params.id).select()
+    const { data, error } = await supabase.from("categories").update(categoryData).eq("id", id).select()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -40,7 +48,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   const supabase = createServerClient()
 
-  const { error } = await supabase.from("categories").delete().eq("id", params.id)
+  // In Next.js 15, params is a promise that must be awaited
+  const unwrappedParams = await params;
+  const id = unwrappedParams.id;
+
+  const { error } = await supabase.from("categories").delete().eq("id", id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

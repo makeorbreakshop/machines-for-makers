@@ -22,8 +22,9 @@ export async function GET(
       );
     }
 
-    // Get video ID from the context params directly
-    const videoId = context.params.id;
+    // In Next.js 15, params is a promise that must be awaited
+    const unwrappedParams = await context.params;
+    const videoId = unwrappedParams.id;
     if (!videoId) {
       return NextResponse.json(
         { error: 'Video ID is required' },

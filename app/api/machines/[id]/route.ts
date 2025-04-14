@@ -16,6 +16,10 @@ export async function GET(
     // Use the createAdminClient utility to ensure correct configuration
     const supabase = createAdminClient();
 
+    // In Next.js 15, params is a promise that must be awaited
+    const unwrappedParams = await params;
+    const id = unwrappedParams.id;
+
     const { data, error } = await supabase
       .from("machines")
       .select(`
@@ -23,7 +27,7 @@ export async function GET(
         reviews(*),
         images(*)
       `)
-      .eq("id", params.id)
+      .eq("id", id)
       .single()
 
     if (error) {
@@ -63,16 +67,20 @@ export async function PUT(
     // Use the createAdminClient utility to ensure correct configuration
     const supabase = createAdminClient();
     
+    // In Next.js 15, params is a promise that must be awaited
+    const unwrappedParams = await params;
+    const id = unwrappedParams.id;
+    
     const machineData = await request.json()
     
-    console.log("Updating machine with ID:", params.id)
+    console.log("Updating machine with ID:", id)
     console.log("Form data received:", JSON.stringify(machineData, null, 2))
 
     // Fetch the current machine data to check if Hidden status is changing
     const { data: currentMachine, error: fetchError } = await supabase
       .from("machines")
       .select("Hidden, \"Published On\"")
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
 
     if (fetchError) {
@@ -141,7 +149,7 @@ export async function PUT(
 
     console.log("Transformed data for Supabase:", JSON.stringify(dbData, null, 2))
 
-    const { data, error } = await supabase.from("machines").update(dbData).eq("id", params.id).select()
+    const { data, error } = await supabase.from("machines").update(dbData).eq("id", id).select()
 
     if (error) {
       console.error("Error updating machine:", error.message, error.details || '')
@@ -170,7 +178,11 @@ export async function DELETE(
     // Use the createAdminClient utility to ensure correct configuration
     const supabase = createAdminClient();
 
-    const { error } = await supabase.from("machines").delete().eq("id", params.id)
+    // In Next.js 15, params is a promise that must be awaited
+    const unwrappedParams = await params;
+    const id = unwrappedParams.id;
+
+    const { error } = await supabase.from("machines").delete().eq("id", id)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

@@ -16,17 +16,25 @@ const CLAUDE_PRICING = {
     input: 0.25, // $0.25 per 1M input tokens
     output: 1.25 // $1.25 per 1M output tokens
   },
-  'claude-3.5-sonnet-20240620': {
+  'claude-3-5-sonnet-20240620': {
     input: 3.0, // $3 per 1M input tokens
     output: 15.0 // $15 per 1M output tokens
   },
-  'claude-3-7-sonnet-20240620': {
-    input: 5.0, // $5 per 1M input tokens
-    output: 25.0 // $25 per 1M output tokens
+  'claude-3-5-sonnet-20241022': {
+    input: 3.0, // $3 per 1M input tokens
+    output: 15.0 // $15 per 1M output tokens
+  },
+  'claude-3-5-haiku-20241022': {
+    input: 0.80, // $0.80 per 1M input tokens
+    output: 4.0 // $4.00 per 1M output tokens
+  },
+  'claude-3-7-sonnet-20250219': {
+    input: 3.0, // $3 per 1M input tokens
+    output: 15.0 // $15 per 1M output tokens
   }
 };
 
-export type ClaudeModel = 'claude-3-opus-20240229' | 'claude-3-sonnet-20240229' | 'claude-3-haiku-20240307' | 'claude-3.5-sonnet-20240620' | 'claude-3-7-sonnet-20240620';
+export type ClaudeModel = 'claude-3-opus-20240229' | 'claude-3-sonnet-20240229' | 'claude-3-haiku-20240307' | 'claude-3-5-sonnet-20240620' | 'claude-3-5-sonnet-20241022' | 'claude-3-5-haiku-20241022' | 'claude-3-7-sonnet-20250219';
 
 export interface PriceEstimate {
   inputTokens: number;
@@ -543,6 +551,23 @@ Format the content using Markdown syntax, with appropriate headers, lists, and e
    */
   private async callClaudeAPI(prompt: string): Promise<string> {
     try {
+      // Verify the model ID is valid
+      const validModels: ClaudeModel[] = [
+        'claude-3-opus-20240229',
+        'claude-3-sonnet-20240229',
+        'claude-3-haiku-20240307',
+        'claude-3-5-sonnet-20240620',
+        'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-3-7-sonnet-20250219'
+      ];
+      
+      // Default to claude-3-5-sonnet if the current model is invalid
+      if (!validModels.includes(this.model)) {
+        console.warn(`Invalid model ID: ${this.model}. Defaulting to claude-3-5-sonnet.`);
+        this.model = 'claude-3-5-sonnet-20241022';
+      }
+      
       console.log(`Calling Claude API with model: ${this.model}, prompt length: ${prompt.length}`);
       
       const response = await fetch(`${this.baseUrl}/messages`, {
@@ -717,12 +742,8 @@ Format the content using Markdown syntax, with appropriate headers, lists, and e
   }
 
   /**
-   * Create a prompt for generating content for a specific section
-   * @param draft - Review draft data
-   * @param transcript - Video transcript
-   * @param section - Section name to generate content for
-   * @param additionalContext - Optional additional context
-   * @returns Prompt for Claude API
+   * Create a section content prompt from the review draft, transcript, and specific section
+   * @private
    */
   private createSectionContentPrompt(draft: any, transcript: string, section: string, additionalContext?: string): string {
     // Extract the structure for the specific section
@@ -760,6 +781,404 @@ Write the "${section}" section of a laser machine review. Your content should:
 
 Start with an appropriate heading for this section and format the content using Markdown syntax with appropriate lists and emphasis.
 `;
+  }
+
+  /**
+   * Send a chat-style message to Claude API
+   * @param messages - Array of messages in the chat history
+   * @returns Claude's response text
+   */
+  async sendChatMessage(messages: Array<{role: string, content: string}>): Promise<string> {
+    try {
+      // Verify the model ID is valid
+      const validModels: ClaudeModel[] = [
+        'claude-3-opus-20240229',
+        'claude-3-sonnet-20240229',
+        'claude-3-haiku-20240307',
+        'claude-3-5-sonnet-20240620',
+        'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-3-7-sonnet-20250219'
+      ];
+      
+      // Default to claude-3-5-sonnet if the current model is invalid
+      if (!validModels.includes(this.model)) {
+        console.warn(`Invalid model ID: ${this.model}. Defaulting to claude-3-5-sonnet.`);
+        this.model = 'claude-3-5-sonnet-20241022';
+      }
+      
+      console.log(`Sending chat message to Claude API with model: ${this.model}`);
+      
+      // Extract system message if present
+      const systemMessage = messages.find(msg => msg.role === 'system');
+      
+      // Filter out system message from regular messages array
+      const filteredMessages = messages.filter(msg => msg.role !== 'system');
+      
+      const requestBody: any = {
+        model: this.model,
+        max_tokens: 16000, // Increased from 4000 to 16000 for larger responses
+        messages: filteredMessages.map(msg => ({
+          role: msg.role,
+          content: [{ type: "text", text: msg.content }]
+        }))
+      };
+      
+      // Add system message as a separate parameter if it exists
+      if (systemMessage) {
+        requestBody.system = [{ type: "text", text: systemMessage.content }];
+      }
+      
+      const response = await fetch(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error(`Claude API error (${response.status}):`, errorData);
+        throw new Error(`Claude API error (${response.status}): ${errorData}`);
+      }
+
+      const data = await response.json();
+      
+      // Verify the data structure
+      if (!data || !data.content || !Array.isArray(data.content) || data.content.length === 0) {
+        console.error('Invalid response structure from Claude API:', JSON.stringify(data));
+        throw new Error('Invalid response structure from Claude API');
+      }
+      
+      // Extract the text from the first content item
+      const text = data.content[0]?.text;
+      if (!text) {
+        console.error('No text content in Claude API response:', JSON.stringify(data));
+        throw new Error('No text content in Claude API response');
+      }
+      
+      return text;
+    } catch (error: any) {
+      console.error('Error calling Claude API in chat mode:', error);
+      throw new Error(`Error calling Claude API in chat mode: ${error.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Send a chat-style message to Claude API with prompt caching for transcript
+   * This reduces costs by caching the transcript context between requests
+   * @param messages - Array of regular chat messages
+   * @param systemMessage - Base system instructions
+   * @param transcript - The transcript to be cached
+   * @returns Claude's response text and usage information
+   */
+  async sendChatMessageWithTranscriptCaching(
+    messages: Array<{role: string, content: string}>,
+    systemMessage: string,
+    transcript: string
+  ): Promise<{text: string, usage?: any}> {
+    try {
+      // Verify the model ID is valid
+      const validModels: ClaudeModel[] = [
+        'claude-3-opus-20240229',
+        'claude-3-sonnet-20240229',
+        'claude-3-haiku-20240307',
+        'claude-3-5-sonnet-20240620',
+        'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-3-7-sonnet-20250219'
+      ];
+      
+      // Default to claude-3-5-sonnet if the current model is invalid
+      if (!validModels.includes(this.model)) {
+        console.warn(`Invalid model ID: ${this.model}. Defaulting to claude-3-5-sonnet.`);
+        this.model = 'claude-3-5-sonnet-20241022';
+      }
+      
+      console.log(`Sending chat message with transcript caching to Claude API with model: ${this.model}`);
+      
+      // Check if model supports prompt caching
+      const supportedCachingModels = [
+        'claude-3-7-sonnet-20250219',
+        'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-3-5-sonnet-20240620',
+        'claude-3-haiku-20240307',
+        'claude-3-opus-20240229'
+      ];
+      
+      if (!supportedCachingModels.includes(this.model)) {
+        console.warn('Selected model does not support prompt caching, falling back to regular method');
+        const result = await this.sendChatMessage([
+          { role: 'system', content: `${systemMessage}\n\n# TRANSCRIPT\n${transcript}` },
+          ...messages
+        ]);
+        return { text: result };
+      }
+      
+      // Format the system message with cache control
+      const formattedSystem = {
+        type: "text",
+        text: systemMessage
+      };
+      
+      // Format the transcript with cache control
+      const formattedTranscript = {
+        type: "text",
+        text: `# TRANSCRIPT\n${transcript}`,
+        cache_control: { type: "ephemeral" }
+      };
+      
+      // Format the conversation messages
+      const formattedMessages = messages.map(msg => ({
+        role: msg.role,
+        content: [{ type: "text", text: msg.content }]
+      }));
+      
+      // Prepare the request body using the standard messages endpoint with cache control
+      const requestBody = {
+        model: this.model,
+        max_tokens: 16000,
+        system: [formattedSystem, formattedTranscript],
+        messages: formattedMessages
+      };
+      
+      const response = await fetch(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error(`Claude API error (${response.status}):`, errorData);
+        
+        // If prompt caching fails, fall back to the regular API
+        console.warn('Prompt caching failed, falling back to regular method');
+        const fallbackResult = await this.sendChatMessage([
+          { role: 'system', content: `${systemMessage}\n\n# TRANSCRIPT\n${transcript}` },
+          ...messages
+        ]);
+        return { text: fallbackResult };
+      }
+
+      const data = await response.json();
+      
+      // Verify the data structure
+      if (!data || !data.content || !Array.isArray(data.content) || data.content.length === 0) {
+        console.error('Invalid response structure from Claude API:', JSON.stringify(data));
+        throw new Error('Invalid response structure from Claude API');
+      }
+      
+      // Extract the text from the first content item
+      const text = data.content[0]?.text;
+      if (!text) {
+        console.error('No text content in Claude API response:', JSON.stringify(data));
+        throw new Error('No text content in Claude API response');
+      }
+      
+      // Log caching information if available
+      if (data.usage) {
+        const cacheRead = data.usage.cache_read_input_tokens || 0;
+        const cacheCreation = data.usage.cache_creation_input_tokens || 0;
+        console.log(`Prompt caching stats - Cache read: ${cacheRead} tokens, Cache creation: ${cacheCreation} tokens`);
+      }
+      
+      return { 
+        text, 
+        usage: data.usage
+      };
+    } catch (error: any) {
+      console.error('Error calling Claude API with transcript caching:', error);
+      throw new Error(`Error calling Claude API with transcript caching: ${error.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Send a chat-style message to Claude API with streaming response
+   * @param messages - Array of messages in the chat history
+   * @returns A ReadableStream of the Claude response
+   */
+  async sendChatMessageStream(messages: Array<{role: string, content: string}>): Promise<ReadableStream<Uint8Array>> {
+    try {
+      // Verify the model ID is valid
+      const validModels: ClaudeModel[] = [
+        'claude-3-opus-20240229',
+        'claude-3-sonnet-20240229',
+        'claude-3-haiku-20240307',
+        'claude-3-5-sonnet-20240620',
+        'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-3-7-sonnet-20250219'
+      ];
+      
+      // Default to claude-3-5-sonnet if the current model is invalid
+      if (!validModels.includes(this.model)) {
+        console.warn(`Invalid model ID: ${this.model}. Defaulting to claude-3-5-sonnet.`);
+        this.model = 'claude-3-5-sonnet-20241022';
+      }
+      
+      console.log(`Sending streaming chat message to Claude API with model: ${this.model}`);
+      
+      // Extract system message if present
+      const systemMessage = messages.find(msg => msg.role === 'system');
+      
+      // Filter out system message from regular messages array
+      const filteredMessages = messages.filter(msg => msg.role !== 'system');
+      
+      const requestBody: any = {
+        model: this.model,
+        max_tokens: 16000,
+        stream: true,
+        messages: filteredMessages.map(msg => ({
+          role: msg.role,
+          content: [{ type: "text", text: msg.content }]
+        }))
+      };
+      
+      // Add system message as a separate parameter if it exists
+      if (systemMessage) {
+        requestBody.system = [{ type: "text", text: systemMessage.content }];
+      }
+      
+      const response = await fetch(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error(`Claude API error (${response.status}):`, errorData);
+        throw new Error(`Claude API error (${response.status}): ${errorData}`);
+      }
+
+      // Return the stream directly
+      return response.body!;
+    } catch (error: any) {
+      console.error('Error calling Claude API in streaming mode:', error);
+      throw new Error(`Error calling Claude API in streaming mode: ${error.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Send a chat-style message to Claude API with prompt caching and streaming for transcript
+   * This reduces costs by caching the transcript context between requests
+   * @param messages - Array of regular chat messages
+   * @param systemMessage - Base system instructions
+   * @param transcript - The transcript to be cached
+   * @returns A ReadableStream of the Claude response and usage information
+   */
+  async sendChatMessageWithTranscriptCachingStream(
+    messages: Array<{role: string, content: string}>,
+    systemMessage: string,
+    transcript: string
+  ): Promise<ReadableStream<Uint8Array>> {
+    try {
+      // Verify the model ID is valid
+      const validModels: ClaudeModel[] = [
+        'claude-3-opus-20240229',
+        'claude-3-sonnet-20240229',
+        'claude-3-haiku-20240307',
+        'claude-3-5-sonnet-20240620',
+        'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-3-7-sonnet-20250219'
+      ];
+      
+      // Default to claude-3-5-sonnet if the current model is invalid
+      if (!validModels.includes(this.model)) {
+        console.warn(`Invalid model ID: ${this.model}. Defaulting to claude-3-5-sonnet.`);
+        this.model = 'claude-3-5-sonnet-20241022';
+      }
+      
+      console.log(`Sending streaming chat message with transcript caching to Claude API with model: ${this.model}`);
+      
+      // Check if model supports prompt caching
+      const supportedCachingModels = [
+        'claude-3-7-sonnet-20250219',
+        'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-3-5-sonnet-20240620',
+        'claude-3-haiku-20240307',
+        'claude-3-opus-20240229'
+      ];
+      
+      if (!supportedCachingModels.includes(this.model)) {
+        console.warn('Selected model does not support prompt caching, falling back to regular streaming method');
+        return this.sendChatMessageStream([
+          { role: 'system', content: `${systemMessage}\n\n# TRANSCRIPT\n${transcript}` },
+          ...messages
+        ]);
+      }
+      
+      // Format the system message with cache control
+      const formattedSystem = {
+        type: "text",
+        text: systemMessage
+      };
+      
+      // Format the transcript with cache control
+      const formattedTranscript = {
+        type: "text",
+        text: `# TRANSCRIPT\n${transcript}`,
+        cache_control: { type: "ephemeral" }
+      };
+      
+      // Format the conversation messages
+      const formattedMessages = messages.map(msg => ({
+        role: msg.role,
+        content: [{ type: "text", text: msg.content }]
+      }));
+      
+      // Prepare the request body using the standard messages endpoint with cache control
+      const requestBody = {
+        model: this.model,
+        max_tokens: 16000,
+        stream: true,
+        system: [formattedSystem, formattedTranscript],
+        messages: formattedMessages
+      };
+      
+      const response = await fetch(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error(`Claude API error (${response.status}):`, errorData);
+        
+        // If prompt caching fails, fall back to the regular streaming API
+        console.warn('Prompt caching failed, falling back to regular streaming method');
+        return this.sendChatMessageStream([
+          { role: 'system', content: `${systemMessage}\n\n# TRANSCRIPT\n${transcript}` },
+          ...messages
+        ]);
+      }
+
+      // Return the stream directly
+      return response.body!;
+    } catch (error: any) {
+      console.error('Error calling Claude API with transcript caching stream:', error);
+      throw new Error(`Error calling Claude API with transcript caching stream: ${error.message || 'Unknown error'}`);
+    }
   }
 }
 

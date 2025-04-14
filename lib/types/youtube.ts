@@ -42,4 +42,20 @@ export interface YouTubeChapter {
   title: string;
   start_time: number;
   end_time?: number;
+}
+
+export interface ReviewDraft {
+  id: string;
+  youtube_video_id: string;
+  machine_id: string | null;
+  title: string | null;
+  structure: any; // JSONB structure
+  content: string | null;
+  rating: number | null;
+  generation_status: 'draft' | 'structure_generated' | 'content_generated' | 'published';
+  version: number;
+  created_at: string;
+  updated_at: string;
+  // Optional expanded relations
+  youtube_videos?: YouTubeVideoDatabase;
 } 

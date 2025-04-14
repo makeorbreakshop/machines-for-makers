@@ -179,46 +179,117 @@ export class YouTubeDbService {
    * Save a transcript for a YouTube video
    */
   async saveTranscript(youtubeVideoId: string, content: string): Promise<string> {
-    const { data, error } = await this.supabase
-      .from('transcripts')
-      .insert({
-        youtube_video_id: youtubeVideoId,
-        content,
-      })
-      .select('id')
-      .single();
+    try {
+      const { data, error } = await this.supabase
+        .from('transcripts')
+        .insert({
+          youtube_video_id: youtubeVideoId,
+          content,
+        })
+        .select('id')
+        .single();
 
-    if (error) {
+      if (error) {
+        throw error;
+      }
+
+      // Update video status to transcribed
+      await this.updateVideoStatus(youtubeVideoId, 'transcribed');
+
+      return data.id;
+    } catch (error: any) {
+      // Check if this is a relation does not exist error for youtube_transcripts
+      if (error.code === '42P01' && error.message?.includes("relation") && 
+          (error.message?.includes("youtube_transcripts") || error.message?.includes("does not exist"))) {
+        console.error('Transcript table reference issue detected in saveTranscript');
+        throw new Error('Transcript table reference issue. Please contact support. ' + error.message);
+      }
+      
       console.error('Error saving transcript:', error);
       throw error;
     }
-
-    // Update video status to transcribed
-    await this.updateVideoStatus(youtubeVideoId, 'transcribed');
-
-    return data.id;
   }
 
   /**
    * Get transcript for a YouTube video
    */
-  async getTranscript(youtubeVideoId: string): Promise<string | null> {
-    const { data, error } = await this.supabase
-      .from('transcripts')
-      .select('content')
-      .eq('youtube_video_id', youtubeVideoId)
-      .single();
+  async getTranscript(youtubeVideoId: string): Promise<any> {
+    try {
+      const { data, error } = await this.supabase
+        .from('transcripts')
+        .select('*')
+        .eq('youtube_video_id', youtubeVideoId)
+        .single();
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No transcript found
-        return null;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No transcript found
+          return null;
+        }
+        throw error;
       }
+
+      return data;
+    } catch (error: any) {
+      // Handle "relation does not exist" error specifically
+      if (error.code === '42P01' && error.message?.includes("relation") && 
+          (error.message?.includes("youtube_transcripts") || error.message?.includes("does not exist"))) {
+        console.log('Transcript table reference issue detected. Using fallback query.');
+        
+        // Attempt to query using proper table name
+        try {
+          const { data, error: fallbackError } = await this.supabase
+            .from('transcripts')  // This is the correct table name
+            .select('*')
+            .eq('youtube_video_id', youtubeVideoId)
+            .single();
+            
+          if (fallbackError) {
+            if (fallbackError.code === 'PGRST116') {
+              // No transcript found
+              return null;
+            }
+            console.error('Error in fallback transcript query:', fallbackError);
+            throw fallbackError;
+          }
+          
+          return data;
+        } catch (fallbackError: any) {
+          console.error('Error in transcript fallback:', fallbackError);
+          return null; // Last resort fallback is to return null
+        }
+      }
+      
       console.error('Error fetching transcript:', error);
       throw error;
     }
+  }
 
-    return data?.content || null;
+  /**
+   * Delete transcript for a YouTube video
+   */
+  async deleteTranscript(youtubeVideoId: string): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('transcripts')
+        .delete()
+        .eq('youtube_video_id', youtubeVideoId);
+
+      if (error) {
+        throw error;
+      }
+    } catch (error: any) {
+      // Check if this is a relation does not exist error for youtube_transcripts
+      if (error.code === '42P01' && error.message?.includes("relation") && 
+          (error.message?.includes("youtube_transcripts") || error.message?.includes("does not exist"))) {
+        console.error('Transcript table reference issue detected in deleteTranscript');
+        // We can safely ignore delete failures if the table doesn't exist
+        return;
+      }
+      
+      console.error('Error deleting transcript:', error);
+      throw error;
+    }
   }
 
   /**

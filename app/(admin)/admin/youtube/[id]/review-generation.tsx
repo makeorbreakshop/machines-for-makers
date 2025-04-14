@@ -124,11 +124,8 @@ export default function ReviewGeneration({
         description: 'Review structure generated successfully',
       });
       
-      // Refresh drafts list
-      await fetchDrafts();
-      
-      // Select the newly created draft
-      setSelectedDraftId(data.id);
+      // Redirect to the new editor page
+      window.location.href = `/admin/youtube/${videoId}/review-editor`;
     } catch (error: any) {
       toast({
         title: 'Error',

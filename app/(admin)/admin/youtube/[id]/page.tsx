@@ -16,7 +16,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import Image from 'next/image';
-import { ArrowLeft, Play, Trash } from 'lucide-react';
+import { ArrowLeft, Play, Trash, RefreshCw, AlertCircle, ListTree, Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import TranscriptionStatus from './transcription-status';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function YouTubeVideoPage() {
   // Use the useParams hook to get the id parameter
@@ -107,6 +117,60 @@ export default function YouTubeVideoPage() {
     },
     onError: (error: Error) => {
       toast.error(`Transcription failed: ${error.message}`);
+    },
+  });
+
+  // Add regenerate transcript mutation
+  const regenerateTranscriptMutation = useMutation({
+    mutationFn: async () => {
+      toast.info("Regenerating transcript with timestamps. This may take a few minutes...", {
+        duration: 5000,
+      });
+      
+      const response = await fetch(`/api/admin/youtube/videos/${videoId}/regenerate-transcript`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to regenerate transcript');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast.success('Transcript regenerated successfully with timestamps!');
+      refetch(); // Refresh the data to show the updated transcript
+    },
+    onError: (error: Error) => {
+      toast.error(`Transcript regeneration failed: ${error.message}`);
+    },
+  });
+
+  // Add chapter generation mutation
+  const generateChaptersMutation = useMutation({
+    mutationFn: async () => {
+      toast.info("Analyzing transcript and generating chapters. This may take a moment...", {
+        duration: 5000,
+      });
+      
+      const response = await fetch(`/api/admin/youtube/videos/${videoId}/chapters/generate`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate chapters');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast.success(`Generated ${data.chapters.length} chapters successfully!`);
+      refetch(); // Refresh the data to show the new chapters
+    },
+    onError: (error: Error) => {
+      toast.error(`Chapter generation failed: ${error.message}`);
     },
   });
 
@@ -296,35 +360,61 @@ export default function YouTubeVideoPage() {
             <TabsContent value="transcript" className="mt-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Transcript</CardTitle>
-                  {!transcript && (
-                    <Button 
-                      onClick={() => transcribeMutation.mutate()} 
-                      disabled={transcribeMutation.isPending}
-                      className="gap-2"
-                    >
-                      {transcribeMutation.isPending ? (
-                        <>
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
-                          Transcribing...
-                        </>
-                      ) : "Transcribe Video"}
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <CardTitle>Transcript</CardTitle>
+                  </div>
+                  <div className="flex gap-2">
+                    {!transcript && (
+                      <Button 
+                        onClick={() => transcribeMutation.mutate()} 
+                        disabled={transcribeMutation.isPending || regenerateTranscriptMutation.isPending}
+                        className="gap-2"
+                      >
+                        {transcribeMutation.isPending ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+                            Transcribing...
+                          </>
+                        ) : "Transcribe Video"}
+                      </Button>
+                    )}
+                    {transcript && (
+                      <Button 
+                        onClick={() => regenerateTranscriptMutation.mutate()} 
+                        disabled={regenerateTranscriptMutation.isPending}
+                        variant="outline"
+                        className="gap-2"
+                      >
+                        {regenerateTranscriptMutation.isPending ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+                            Regenerating...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4" />
+                            Regenerate with Timestamps
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {transcript ? (
-                    <div className="whitespace-pre-line bg-slate-50 p-4 rounded-md max-h-96 overflow-y-auto">
-                      {transcript}
+                    <div>
+                      <div className="whitespace-pre-line bg-slate-50 p-4 rounded-md max-h-96 overflow-y-auto">
+                        {transcript.content}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center p-8 text-muted-foreground">
-                      {transcribeMutation.isPending ? (
+                      {transcribeMutation.isPending || regenerateTranscriptMutation.isPending ? (
                         <div className="space-y-4">
                           <div className="flex justify-center">
                             <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-blue-600"></div>
                           </div>
-                          <p>Transcribing video... This may take a few minutes.</p>
+                          <p>{transcribeMutation.isPending ? "Transcribing" : "Regenerating"} video... This may take a few minutes.</p>
                           <p className="text-sm">We're downloading the audio and sending it to OpenAI for processing.</p>
                         </div>
                       ) : (
@@ -338,33 +428,123 @@ export default function YouTubeVideoPage() {
 
             <TabsContent value="chapters" className="mt-4">
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Chapters</CardTitle>
+                  {((transcript && transcript.content) || video?.chapters?.length > 0) && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => generateChaptersMutation.mutate()}
+                      disabled={!transcript?.content || generateChaptersMutation.isPending}
+                    >
+                      {generateChaptersMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Generate From Transcript
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent>
                   {video?.chapters?.length > 0 ? (
                     <div className="space-y-2">
                       {video.chapters.map((chapter: any, index: number) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-md">
-                          <div>
-                            <span className="font-medium">{chapter.title}</span>
-                            <span className="ml-2 text-sm text-muted-foreground">
+                        <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-md border border-slate-200">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium bg-primary/10 text-primary px-2 py-1 rounded">
                               {Math.floor(chapter.start_time / 60)}:{(chapter.start_time % 60).toString().padStart(2, '0')}
                             </span>
+                            <span className="font-medium">{chapter.title}</span>
                           </div>
-                          <Button size="sm" variant="outline">
-                            <Play className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" variant="outline" className="h-8 px-2 text-xs">
+                              Edit
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              onClick={() => {
+                                const iframe = document.querySelector('iframe');
+                                if (iframe) {
+                                  const player = (iframe as any).contentWindow;
+                                  if (player && player.postMessage) {
+                                    player.postMessage(JSON.stringify({
+                                      event: 'command',
+                                      func: 'seekTo',
+                                      args: [chapter.start_time, true]
+                                    }), '*');
+                                  }
+                                }
+                              }}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Play className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
+                  ) : transcript?.content ? (
+                    <div className="space-y-4">
+                      <p className="text-muted-foreground text-sm">
+                        This video has a transcript but no chapters have been created yet. 
+                        Click "Generate From Transcript" to automatically create chapters based on the transcript.
+                      </p>
+                      <div className="flex items-center justify-center p-4 border border-dashed rounded-lg">
+                        <Button 
+                          variant="default"
+                          onClick={() => generateChaptersMutation.mutate()}
+                          disabled={generateChaptersMutation.isPending}
+                        >
+                          {generateChaptersMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <ListTree className="mr-2 h-4 w-4" />
+                              Generate Chapters
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   ) : (
-                    <div className="flex items-center justify-center h-40">
-                      <p className="text-muted-foreground">No chapters available</p>
+                    <div className="flex flex-col items-center justify-center h-40 space-y-2">
+                      <p className="text-muted-foreground">No transcript or chapters available</p>
+                      <p className="text-xs text-muted-foreground">Generate a transcript first to create chapters</p>
                     </div>
                   )}
                 </CardContent>
               </Card>
+              
+              {transcript && transcript.content && (
+                <div className="mt-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Transcript Analysis</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-xs text-muted-foreground">
+                        <p>The transcript is being analyzed to identify potential chapter breaks based on:</p>
+                        <ul className="list-disc pl-5 space-y-1 mt-2">
+                          <li>Topic changes and natural breaks in the content</li>
+                          <li>Speaker changes (if multiple speakers)</li>
+                          <li>Timestamps present in the transcript</li>
+                        </ul>
+                        <p className="mt-2">The transcript is hidden to reduce clutter but is being used in the background.</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -380,12 +560,10 @@ export default function YouTubeVideoPage() {
                   className="w-full" 
                   disabled={!transcript}
                   onClick={() => {
-                    toast.info('Review generation will be implemented in the next phase', {
-                      duration: 3000,
-                    });
+                    router.push(`/admin/youtube/${videoId}/review-editor`);
                   }}
                 >
-                  Generate Review
+                  Edit Review
                 </Button>
               </div>
               <div>

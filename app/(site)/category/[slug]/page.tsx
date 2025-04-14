@@ -18,7 +18,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function CategoryPage({ params }: { params: { slug: string } }) {
-  const categorySlug = params.slug
+  // In Next.js 15, params is a promise that must be awaited
+  const unwrappedParams = await params;
+  const categorySlug = unwrappedParams.slug;
   const categoryName = getCategoryName(categorySlug)
 
   const { data: products } = await dataProvider.getMachines({

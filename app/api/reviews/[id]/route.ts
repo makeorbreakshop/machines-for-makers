@@ -5,7 +5,11 @@ import { NextResponse } from "next/server"
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const supabase = createServerClient()
 
-  const { data, error } = await supabase.from("reviews").select("*").eq("id", params.id).single()
+  // In Next.js 15, params is a promise that must be awaited
+  const unwrappedParams = await params;
+  const id = unwrappedParams.id;
+
+  const { data, error } = await supabase.from("reviews").select("*").eq("id", id).single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 404 })
