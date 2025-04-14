@@ -19,6 +19,59 @@ logger = logging.getLogger(__name__)
 # In-memory cache for batch jobs
 _batch_jobs = {}
 
+async def get_machine_data(machine_id: str) -> Dict[str, Any]:
+    """
+    Get machine data from the database
+    
+    Args:
+        machine_id: The ID of the machine to get data for
+        
+    Returns:
+        Dictionary with success flag and machine data or error
+    """
+    try:
+        machine = await get_machine_by_id(machine_id)
+        if not machine:
+            return {
+                "success": False,
+                "error": f"Machine with ID {machine_id} not found"
+            }
+        
+        return {
+            "success": True,
+            "data": machine
+        }
+    except Exception as e:
+        logger.error(f"Error getting machine data for {machine_id}: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+async def update_machine_price_in_db(machine_id: str, price: float, currency: str = "USD", source: str = "crewai") -> bool:
+    """
+    Update the machine price in the database
+    
+    Args:
+        machine_id: The ID of the machine to update
+        price: The new price value
+        currency: The currency code (default: USD)
+        source: Source of the price information
+        
+    Returns:
+        True if update was successful, False otherwise
+    """
+    try:
+        success = await update_db_price(
+            machine_id=machine_id,
+            new_price=price,
+            currency=currency
+        )
+        return success
+    except Exception as e:
+        logger.error(f"Error updating price in database: {str(e)}")
+        return False
+
 async def update_machine_price(machine_id: str, debug_mode: bool = False) -> dict:
     """
     Update the price for a single machine using CrewAI agents
