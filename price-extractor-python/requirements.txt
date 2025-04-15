@@ -1,0 +1,23 @@
+# Core dependencies
+fastapi==0.110.0
+uvicorn==0.30.0
+pydantic==2.6.1
+python-dotenv==1.0.1
+
+# Database
+supabase==2.15.0
+psycopg2-binary==2.9.9
+
+# Web scraping tools
+requests==2.31.0
+beautifulsoup4==4.12.2
+lxml==4.9.3
+jsonpath-ng==1.5.0
+
+# AI Integration
+anthropic==0.49.0
+
+# Utilities
+python-multipart==0.0.6
+python-dateutil==2.8.2
+loguru==0.7.2 
