@@ -1,0 +1,21 @@
+# Terminal Command Execution Guidelines
+
+This Cursor Rule provides guidelines for executing terminal commands, especially for long-running tests.
+
+## When Running Terminal Commands
+
+- **Wait for completion**: Always wait for terminal commands to fully complete before suggesting new commands
+- **Avoid duplicate runs**: Never suggest running the same test multiple times in parallel
+- **Watch for interruptions**: If a command is interrupted, clearly mention this before suggesting the command again
+- **Check status before proceeding**: Confirm command completion status before moving to the next step
+- **Ask permission**: Before rerunning any test command, explicitly ask the user if they want to restart it
+- **Provide timing estimates**: When suggesting test runs, mention expected run time based on previous executions
+- **Notice background execution**: Be aware when commands pop out to background and don't assume results in foreground
+
+## For Price Extraction Tests
+
+- Always wait for price extraction tests to complete before proceeding
+- Confirm whether a test succeeded before suggesting next steps
+- Only suggest retries if explicitly requested by the user
+- Pay attention to debug output and include key findings in your response
+- When URLs time out, suggest trying alternative URLs rather than repeating the same test 
