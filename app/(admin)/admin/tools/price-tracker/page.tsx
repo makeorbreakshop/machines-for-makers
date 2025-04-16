@@ -64,6 +64,10 @@ export default function PriceTrackerAdmin() {
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [debugDialogOpen, setDebugDialogOpen] = useState(false)
   const [pythonApiReady, setPythonApiReady] = useState(false)
+  const [batchUpdateDialogOpen, setBatchUpdateDialogOpen] = useState(false)
+  const [daysThreshold, setDaysThreshold] = useState(7)
+  const [batchPreviewCount, setBatchPreviewCount] = useState<number | null>(null)
+  const [batchPreviewLoading, setBatchPreviewLoading] = useState(false)
   
   // Fetch machines
   useEffect(() => {
@@ -297,6 +301,51 @@ export default function PriceTrackerAdmin() {
   
   // Function to run update for all featured machines
   const updateAllPrices = async () => {
+    // Open the batch update dialog instead of immediately starting the update
+    setBatchUpdateDialogOpen(true)
+    // Reset preview count
+    setBatchPreviewCount(null)
+    // Start loading preview
+    previewBatchUpdate(daysThreshold)
+  }
+  
+  // Function to preview batch update (count of machines)
+  const previewBatchUpdate = async (days: number) => {
+    try {
+      setBatchPreviewLoading(true)
+      
+      if (!pythonApiReady || !window.priceTrackerAPI) {
+        toast.error("Python Price Extractor API is not connected")
+        return
+      }
+      
+      // Use a simplified endpoint to just get machine count
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'}/api/v1/batch-configure`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ days_threshold: days })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setBatchPreviewCount(data.configuration?.machine_count || 0)
+      } else {
+        setBatchPreviewCount(0)
+        toast.error("Failed to preview batch update")
+      }
+    } catch (error) {
+      console.error("Error previewing batch update:", error)
+      setBatchPreviewCount(0)
+    } finally {
+      setBatchPreviewLoading(false)
+    }
+  }
+  
+  // Function to execute the batch update after confirmation
+  const executeBatchUpdate = async () => {
     try {
       if (!pythonApiReady || !window.priceTrackerAPI) {
         toast.error("Python Price Extractor API is not connected")
@@ -306,9 +355,9 @@ export default function PriceTrackerAdmin() {
       // Use Python API for batch update
       toast.info("Starting batch update with Python API...")
       
-      const result = await window.priceTrackerAPI.updateAllPrices(7)
+      const batchResult = await window.priceTrackerAPI.updateAllPrices(daysThreshold)
       
-      if (result.success) {
+      if (batchResult.success) {
         toast.success(`Python API batch update started in the background`)
         
         // Refresh data after a short delay
@@ -319,11 +368,14 @@ export default function PriceTrackerAdmin() {
           setRefreshing(prev => !prev)
         }, 2000)
       } else {
-        toast.error(`Python API batch update failed: ${result.error}`)
+        toast.error(`Python API batch update failed: ${batchResult.error}`)
       }
     } catch (error) {
       console.error("Error updating prices:", error)
       toast.error(`Failed to update prices: ${error instanceof Error ? error.message : "Unknown error"}`)
+    } finally {
+      // Close the dialog
+      setBatchUpdateDialogOpen(false)
     }
   }
   
@@ -548,6 +600,76 @@ export default function PriceTrackerAdmin() {
               </Accordion>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Batch Update Dialog */}
+      <Dialog open={batchUpdateDialogOpen} onOpenChange={setBatchUpdateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Batch Update Configuration</DialogTitle>
+            <DialogDescription>
+              Configure and start a batch price update for machines.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="days-threshold">Update machines not updated in the last:</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="days-threshold"
+                  type="number"
+                  min="0"
+                  value={daysThreshold}
+                  onChange={(e) => {
+                    const newValue = Number(e.target.value)
+                    setDaysThreshold(newValue)
+                    previewBatchUpdate(newValue)
+                  }}
+                  className="w-20"
+                />
+                <span>days</span>
+              </div>
+              <p className="text-sm text-gray-500">
+                Set to 0 to update all machines regardless of last update time.
+              </p>
+            </div>
+            
+            <div className="pt-2">
+              <h4 className="text-sm font-semibold mb-1">Machines to update:</h4>
+              {batchPreviewLoading ? (
+                <div className="flex items-center gap-2 py-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span className="text-sm text-gray-500">Loading preview...</span>
+                </div>
+              ) : (
+                <p className="text-sm">
+                  {batchPreviewCount === null 
+                    ? "Loading..."
+                    : batchPreviewCount === 0 
+                      ? "No machines found to update."
+                      : `${batchPreviewCount} machine${batchPreviewCount === 1 ? '' : 's'} will be updated.`
+                  }
+                </p>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setBatchUpdateDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={executeBatchUpdate}
+              disabled={batchPreviewLoading || batchPreviewCount === 0}
+            >
+              Start Batch Update
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       

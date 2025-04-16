@@ -55,12 +55,13 @@ class DatabaseService:
         """
         try:
             update_data = {
-                "price": new_price,
-                "price_last_updated": datetime.utcnow().isoformat(),
+                "Price": new_price,
+                "html_timestamp": datetime.utcnow().isoformat(),
             }
             
             if html_content:
                 update_data["html_content"] = html_content
+                update_data["html_size"] = len(html_content)
             
             response = self.supabase.table(MACHINES_TABLE) \
                 .update(update_data) \
@@ -91,16 +92,36 @@ class DatabaseService:
             bool: True if entry was added successfully, False otherwise.
         """
         try:
+            # Calculate price change if there's an old price
+            price_change = None
+            percentage_change = None
+            
+            if old_price is not None and new_price is not None:
+                try:
+                    old_price_float = float(old_price)
+                    new_price_float = float(new_price)
+                    
+                    price_change = new_price_float - old_price_float
+                    
+                    if old_price_float > 0:
+                        percentage_change = (price_change / old_price_float) * 100
+                except (ValueError, TypeError):
+                    logger.warning(f"Could not calculate price change for machine {machine_id}: invalid price values")
+            
             entry = {
                 "machine_id": machine_id,
-                "old_price": old_price,
-                "new_price": new_price,
-                "timestamp": datetime.utcnow().isoformat(),
-                "success": success
+                "price": new_price,
+                "date": datetime.utcnow().isoformat(),
+                "source": "auto-scraper",
+                "currency": "USD",
+                "previous_price": old_price,
+                "price_change": price_change,
+                "percentage_change": percentage_change
             }
             
-            if error_message:
-                entry["error_message"] = error_message
+            # Calculate if this is an all-time high or low
+            # This would require additional queries to determine
+            # For simplicity, we're not implementing that now
             
             response = self.supabase.table(PRICE_HISTORY_TABLE) \
                 .insert(entry) \
@@ -126,28 +147,111 @@ class DatabaseService:
             list: List of machines needing price updates.
         """
         try:
-            # This is a simplified query. In a real implementation, you might need
-            # a more complex query to calculate the days since last update
+            # Get all machines with product_link
             response = self.supabase.table(MACHINES_TABLE) \
                 .select("*") \
+                .not_.is_("product_link", "null") \
                 .execute()
             
-            # Filter machines based on price_last_updated
+            # Filter machines based on html_timestamp or last update
             machines = []
-            now = datetime.utcnow()
+            # Make sure we use an aware datetime object for consistency
+            now = datetime.utcnow().replace(tzinfo=None)  # Make naive for comparison
             
             for machine in response.data:
-                if "price_last_updated" not in machine or machine["price_last_updated"] is None:
+                # Skip machines without a product link
+                if not machine.get("product_link"):
+                    continue
+                    
+                # Check if html_timestamp exists and is older than threshold
+                if "html_timestamp" not in machine or machine["html_timestamp"] is None:
                     machines.append(machine)
                     continue
                 
-                last_updated = datetime.fromisoformat(machine["price_last_updated"].replace("Z", "+00:00"))
-                days_since_update = (now - last_updated).days
-                
-                if days_since_update >= days_threshold:
+                try:
+                    # Parse the timestamp and ensure it's a naive datetime for comparison
+                    timestamp_str = machine["html_timestamp"]
+                    
+                    # Handle different timestamp formats
+                    if "Z" in timestamp_str:
+                        # Remove the Z and any timezone info to make it naive
+                        timestamp_str = timestamp_str.replace("Z", "")
+                        if "+" in timestamp_str:
+                            timestamp_str = timestamp_str.split("+")[0]
+                        elif "-" in timestamp_str and "T" in timestamp_str:
+                            # Make sure we're not splitting on the date separator
+                            date_part, time_part = timestamp_str.split("T")
+                            if "-" in time_part:
+                                timestamp_str = f"{date_part}T{time_part.split('-')[0]}"
+                    
+                    # Convert to datetime object
+                    last_updated = datetime.fromisoformat(timestamp_str)
+                    
+                    # Make sure it's naive by removing timezone info if present
+                    if last_updated.tzinfo is not None:
+                        last_updated = last_updated.replace(tzinfo=None)
+                    
+                    days_since_update = (now - last_updated).days
+                    
+                    if days_since_update >= days_threshold:
+                        machines.append(machine)
+                except (ValueError, AttributeError) as e:
+                    # If there's an issue parsing the timestamp, log the error and include the machine
+                    logger.warning(f"Error parsing timestamp for machine {machine.get('id')}: {e}, timestamp: {machine.get('html_timestamp')}")
                     machines.append(machine)
             
             return machines
         except Exception as e:
             logger.error(f"Error getting machines needing update: {str(e)}")
+            return []
+    
+    def get_price_history_for_machine(self, machine_id):
+        """
+        Get the price history for a specific machine.
+        
+        Args:
+            machine_id (str): The ID of the machine to retrieve history for.
+            
+        Returns:
+            list: List of price history entries sorted by date (newest first).
+        """
+        try:
+            # Query the price history table for this machine
+            response = self.supabase.table(PRICE_HISTORY_TABLE) \
+                .select("*") \
+                .eq("machine_id", machine_id) \
+                .order("date", desc=True) \
+                .execute()
+            
+            if response.data and len(response.data) > 0:
+                # Process the data to calculate price changes
+                history_entries = response.data
+                
+                # Add price change information if there are multiple entries
+                if len(history_entries) > 1:
+                    for i in range(len(history_entries) - 1):
+                        current_price = float(history_entries[i]["price"])
+                        previous_price = float(history_entries[i + 1]["price"])
+                        
+                        history_entries[i]["previous_price"] = previous_price
+                        history_entries[i]["price_change"] = current_price - previous_price
+                        history_entries[i]["percentage_change"] = (
+                            ((current_price - previous_price) / previous_price) * 100 
+                            if previous_price > 0 else 0
+                        )
+                
+                # For the oldest entry, we don't have a previous price to compare with
+                if history_entries and len(history_entries) > 0:
+                    oldest_entry = history_entries[-1]
+                    oldest_entry["previous_price"] = None
+                    oldest_entry["price_change"] = 0
+                    oldest_entry["percentage_change"] = 0
+                
+                logger.info(f"Retrieved {len(history_entries)} price history entries for machine {machine_id}")
+                return history_entries
+            
+            logger.info(f"No price history found for machine {machine_id}")
+            return []
+        except Exception as e:
+            logger.error(f"Error getting price history for machine {machine_id}: {str(e)}")
             return [] 
