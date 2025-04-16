@@ -12,8 +12,12 @@ class PriceExtractor:
     
     def __init__(self):
         """Initialize the price extractor with the Claude client."""
-        self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        logger.info("Price extractor initialized")
+        # Ensure the required Anthropic version header is set
+        self.client = anthropic.Anthropic(
+            api_key=ANTHROPIC_API_KEY,
+            default_headers={"anthropic-version": "2023-06-01"} # Recommended version
+        )
+        logger.info("Price extractor initialized with Anthropic version header")
     
     def extract_price(self, soup, html_content, url):
         """
@@ -59,9 +63,15 @@ class PriceExtractor:
         try:
             # Look for JSON-LD data
             json_ld_scripts = soup.find_all('script', type='application/ld+json')
-            for script in json_ld_scripts:
+            logger.debug(f"Found {len(json_ld_scripts)} JSON-LD scripts")
+            
+            for script_idx, script in enumerate(json_ld_scripts):
                 try:
                     data = json.loads(script.string)
+                    logger.debug(f"Processing JSON-LD script {script_idx}")
+                    
+                    # Remove special case handling for ACMER and implement more general validation
+                    
                     # Handle both single and array formats
                     if isinstance(data, list):
                         items = data
@@ -72,24 +82,96 @@ class PriceExtractor:
                     
                     # Look for price in the JSON-LD data
                     for item in items:
+                        # Enhanced debug logging
+                        if 'offers' in item:
+                            logger.debug(f"Found offers in script {script_idx}: {json.dumps(item['offers'])[:200]}")
+                            
+                            # Extract URL for logging purposes only
+                            product_url = None
+                            if 'url' in item:
+                                product_url = item['url']
+                                logger.debug(f"Found product URL: {product_url}")
+                        
                         # Check for direct price properties
                         price_fields = ['price', 'offers.price', 'offers.lowPrice']
                         for field in price_fields:
                             value = self._get_nested_value(item, field)
                             if value:
-                                price = self._parse_price(value)
-                                if price is not None:
-                                    logger.info(f"Extracted price {price} using JSON-LD")
-                                    return price, "JSON-LD"
+                                logger.debug(f"Found price field '{field}' with value: {repr(value)}")
+                                
+                                # For JSON-LD price detection, do extra validation if it's a number
+                                if isinstance(value, (int, float)):
+                                    # Log the precise type and value
+                                    logger.debug(f"JSON-LD price is numeric type {type(value)}: {value}")
+                                    
+                                    # Check if the price might be off by a factor of 10
+                                    # Common error: "1199.0" stored as "119.0" or "119.9" stored as "11.99"
+                                    price_as_str = str(value)
+                                    if '.' in price_as_str:
+                                        # Get the length before decimal point
+                                        int_part_length = len(price_as_str.split('.')[0])
+                                        decimal_part = price_as_str.split('.')[1]
+                                        
+                                        # If very short integer part with suspiciously round decimal
+                                        # (less than 3 digits and ending in 0 or 9), log but still use the value
+                                        if int_part_length < 3 and (decimal_part.endswith('0') or decimal_part.endswith('9')):
+                                            logger.warning(f"Possibly truncated price value {value} from field '{field}'. If this looks wrong, please check the JSON-LD data.")
+                                    
+                                    # Use the value directly for numeric types
+                                    price = float(value)
+                                    if price is not None:
+                                        # Verify price is in a reasonable range
+                                        if 10 <= price <= 100000:  # Price should be between $10 and $100,000
+                                            logger.info(f"Extracted numeric price {price} using JSON-LD")
+                                            return price, "JSON-LD"
+                                        else:
+                                            logger.warning(f"Price {price} from JSON-LD is outside reasonable range, ignoring")
+                                else:
+                                    # For string values, use the parser
+                                    price = self._parse_price(value)
+                                    if price is not None:
+                                        # Verify price is in a reasonable range
+                                        if 10 <= price <= 100000:  # Price should be between $10 and $100,000
+                                            logger.info(f"Extracted parsed price {price} using JSON-LD")
+                                            return price, "JSON-LD"
+                                        else:
+                                            logger.warning(f"Price {price} from JSON-LD is outside reasonable range, ignoring")
                         
                         # Check offers array if present
                         if 'offers' in item and isinstance(item['offers'], list):
-                            for offer in item['offers']:
+                            for offer_idx, offer in enumerate(item['offers']):
                                 if 'price' in offer:
-                                    price = self._parse_price(offer['price'])
+                                    value = offer['price']
+                                    logger.debug(f"Found price in offer {offer_idx}: {repr(value)}")
+                                    
+                                    # Same validation as above
+                                    if isinstance(value, (int, float)):
+                                        logger.debug(f"JSON-LD offer price is numeric type {type(value)}: {value}")
+                                        
+                                        # Check if the price might be off by a factor of 10
+                                        price_as_str = str(value)
+                                        if '.' in price_as_str:
+                                            # Get the length before decimal point
+                                            int_part_length = len(price_as_str.split('.')[0])
+                                            decimal_part = price_as_str.split('.')[1]
+                                            
+                                            # If very short integer part with suspiciously round decimal
+                                            if int_part_length < 3 and (decimal_part.endswith('0') or decimal_part.endswith('9')):
+                                                logger.warning(f"Possibly truncated price value {value} from offer. If this looks wrong, please check the JSON-LD data.")
+                                        
+                                        # Use the value directly
+                                        price = float(value)
+                                    else:
+                                        # Parse string values
+                                        price = self._parse_price(value)
+                                        
                                     if price is not None:
-                                        logger.info(f"Extracted price {price} using JSON-LD offers array")
-                                        return price, "JSON-LD offers"
+                                        # Verify price is in a reasonable range
+                                        if 10 <= price <= 100000:  # Price should be between $10 and $100,000
+                                            logger.info(f"Extracted price {price} using JSON-LD offers array")
+                                            return price, "JSON-LD offers"
+                                        else:
+                                            logger.warning(f"Price {price} from JSON-LD offer is outside reasonable range, ignoring")
                 
                 except (json.JSONDecodeError, AttributeError) as e:
                     logger.debug(f"Error parsing JSON-LD: {str(e)}")
@@ -105,10 +187,15 @@ class PriceExtractor:
                     if not price_value:
                         price_value = price_prop.text
                     
+                    logger.debug(f"Found microdata price: {repr(price_value)}")
                     price = self._parse_price(price_value)
                     if price is not None:
-                        logger.info(f"Extracted price {price} using microdata")
-                        return price, "Microdata"
+                        # Verify price is in a reasonable range
+                        if 10 <= price <= 100000:  # Price should be between $10 and $100,000
+                            logger.info(f"Extracted price {price} using microdata")
+                            return price, "Microdata"
+                        else:
+                            logger.warning(f"Price {price} from microdata is outside reasonable range, ignoring")
         
         except Exception as e:
             logger.error(f"Error extracting from structured data: {str(e)}")
@@ -210,13 +297,51 @@ Please extract ONLY the product's current price.
             if result.lower() == "no price found":
                 logger.warning(f"Claude couldn't find a price for {url}")
                 return None, None
-            
-            # Validate and clean the price
+                
+            # Log the raw result for debugging
+            logger.debug(f"Claude returned raw price: '{result}'")
+                
+            # Try direct conversion first with explicit handling for US format (1,299.00)
+            try:
+                # If it looks like US format with commas as thousands separators
+                if ',' in result and '.' in result:
+                    simple_price = result.replace(',', '')
+                    logger.debug(f"Direct US format: converted '{result}' to '{simple_price}'")
+                    price_float = float(simple_price)
+                    logger.info(f"Extracted price {price_float} using Claude AI (direct US format)")
+                    return price_float, "Claude AI (direct US format)"
+                # Handle US format without decimal part (1,299)
+                elif ',' in result and '.' not in result and len(result) > 3:
+                    simple_price = result.replace(',', '')
+                    logger.debug(f"Direct US format (no decimal): converted '{result}' to '{simple_price}'")
+                    price_float = float(simple_price)
+                    logger.info(f"Extracted price {price_float} using Claude AI (direct US format, no decimal)")
+                    return price_float, "Claude AI (direct US format, no decimal)"
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Direct US format conversion failed: {str(e)}")
+                
+            # Try with our generic parser as a fallback
             price = self._parse_price(result)
             if price is not None:
-                logger.info(f"Extracted price {price} using Claude AI")
-                return price, "Claude AI"
-            
+                logger.info(f"Extracted price {price} using Claude AI (parsed)")
+                return price, "Claude AI (parsed)"
+                
+            # Last resort: really aggressive cleaning
+            try:
+                # Strip absolutely everything except digits and one decimal point
+                digits_only = re.sub(r'[^\d.]', '', result)
+                # Ensure only one decimal point
+                first_dot = digits_only.find('.')
+                if first_dot >= 0:
+                    digits_only = digits_only[:first_dot+1] + digits_only[first_dot+1:].replace('.', '')
+                
+                if digits_only:
+                    price_float = float(digits_only)
+                    logger.info(f"Extracted price {price_float} using Claude AI (aggressive cleanup)")
+                    return price_float, "Claude AI (aggressive cleanup)"
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Aggressive cleanup conversion failed: {str(e)}")
+                
             logger.warning(f"Claude returned an invalid price: {result}")
             return None, None
         
@@ -226,7 +351,7 @@ Please extract ONLY the product's current price.
     
     def _parse_price(self, price_text):
         """
-        Parse and normalize a price from text.
+        Parse and normalize a price from text. More robust handling of separators.
         
         Args:
             price_text (str): Text containing the price.
@@ -236,46 +361,74 @@ Please extract ONLY the product's current price.
         """
         if not price_text:
             return None
-        
+
+        # Log the raw input using repr() to see hidden characters
+        logger.debug(f"_parse_price received raw input: {repr(price_text)}")
+
         try:
-            # Convert to string if not already
             price_str = str(price_text).strip()
             
-            # Remove all non-numeric characters except period and comma
-            # Keep only the first match of a number pattern
-            matches = re.search(r'(\d[\d,.]*\d|\d)', price_str)
-            if not matches:
+            # Remove currency symbols (like $, €, £) and whitespace variations
+            price_str = re.sub(r'[$€£]', '', price_str) # Remove currency first
+            price_str = re.sub(r'\s+', '', price_str) # Remove all whitespace types
+
+            # Attempt to find the numeric part using a more specific regex
+            # This tries to capture patterns like 1,234.56 or 1.234,56 or 1234.56 or 1234
+            match = re.search(r'\d{1,3}(?:[,.]\d{3})*(?:[.,]\d+)?|\d+(?:[.,]\d+)?', price_str) 
+            if not match:
+                logger.debug(f"No numeric pattern found in cleaned '{price_str}' from original '{repr(price_text)}'")
                 return None
             
-            price_clean = matches.group(0)
+            price_clean = match.group(0)
             
-            # Normalize price format (handle different decimal/thousands separators)
-            if ',' in price_clean and '.' in price_clean:
-                # Format like 1,234.56
-                if price_clean.rindex(',') < price_clean.rindex('.'):
-                    price_clean = price_clean.replace(',', '')
-                # Format like 1.234,56
-                else:
+            # Determine decimal separator based on the last occurrence of '.' or ','
+            last_dot = price_clean.rfind('.')
+            last_comma = price_clean.rfind(',')
+            
+            # If both separators exist, assume the last one is the decimal separator
+            if last_dot > -1 and last_comma > -1:
+                if last_comma > last_dot:
+                    # Comma is decimal separator (e.g., 1.234,56)
                     price_clean = price_clean.replace('.', '').replace(',', '.')
-            elif ',' in price_clean and '.' not in price_clean:
-                # If only commas, check if it's likely a decimal separator
-                if len(price_clean.split(',')[-1]) <= 2:
-                    price_clean = price_clean.replace(',', '.')
                 else:
+                    # Dot is decimal separator (e.g., 1,234.56)
                     price_clean = price_clean.replace(',', '')
+            # If only comma exists, assume it's a decimal separator only if it's followed by 1-2 digits
+            # Otherwise, assume it's a thousands separator
+            elif last_comma > -1:
+                 if len(price_clean) - last_comma - 1 <= 2:
+                     price_clean = price_clean.replace(',', '.')
+                 else:
+                    price_clean = price_clean.replace(',', '') # Treat as thousands separator
+            # If only dot exists, it's the decimal separator (remove potential thousands commas if any snuck through regex)
+            elif last_dot > -1:
+                 price_clean = price_clean.replace(',', '')
             
-            # Convert to Decimal for accurate parsing
-            price = float(Decimal(price_clean))
-            
-            # Validate price range (avoid unreasonable values)
-            if price <= 0 or price > 1000000:
-                logger.warning(f"Parsed price {price} is outside reasonable range")
+            # --- AGGRESSIVE FINAL CLEANING --- 
+            # Remove anything that is not a digit or a period right before conversion
+            price_clean_final = re.sub(r'[^\d.]', '', price_clean)
+            logger.debug(f"Attempting to convert final cleaned price string: '{price_clean_final}' (from intermediate '{price_clean}')")
+
+            # Convert to Decimal for precision, then to float
+            try:
+                # Force comma removal right before Decimal conversion as a failsafe
+                price_decimal = Decimal(price_clean_final.replace(',','')) 
+                # Limit to 2 decimal places - Use ROUND_HALF_UP for standard rounding
+                price_quantized = price_decimal.quantize(Decimal('0.01'), rounding='ROUND_HALF_UP')
+                price_float = float(price_quantized)
+
+                # Basic validation: check if price is non-negative
+                if price_float < 0:
+                    logger.warning(f"Parsed negative price {price_float} from {price_text}. Ignoring.")
+                    return None
+
+                logger.debug(f"Parsed price {price_float} from '{price_text}' (cleaned: '{price_clean_final}')")
+                return price_float
+            except InvalidOperation:
+                logger.warning(f"Could not convert final cleaned price '{price_clean_final}' to Decimal from original '{price_text}'")
                 return None
-            
-            return price
-        
-        except (ValueError, InvalidOperation, TypeError) as e:
-            logger.debug(f"Error parsing price from '{price_text}': {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error parsing price '{price_text}': {str(e)}")
             return None
     
     def _get_nested_value(self, obj, path):
