@@ -91,6 +91,37 @@ async def batch_update_prices(request: BatchUpdateRequest, background_tasks: Bac
         logger.exception(f"Error starting batch update: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error starting batch update: {str(e)}")
 
+@router.get("/batch-results/{batch_id}", response_model=dict)
+async def get_batch_results(batch_id: str):
+    """
+    Get the results of a batch update operation.
+    
+    This endpoint is optimized to efficiently fetch batch results without triggering any CPU-intensive operations.
+    """
+    logger.info(f"Fetching batch results for batch_id: {batch_id}")
+    
+    try:
+        # Get batch results from the database directly without processing
+        batch_data = await price_service.get_batch_results(batch_id)
+        
+        if not batch_data:
+            logger.warning(f"No batch results found for batch_id: {batch_id}")
+            return {
+                "success": False,
+                "error": f"No batch results found for batch_id: {batch_id}"
+            }
+        
+        return {
+            "success": True,
+            "batch_data": batch_data
+        }
+    except Exception as e:
+        logger.exception(f"Error fetching batch results for batch_id {batch_id}: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Error fetching batch results: {str(e)}"
+        }
+
 async def _process_batch_update(days_threshold: int):
     """Process a batch update in the background."""
     try:

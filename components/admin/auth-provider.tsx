@@ -29,8 +29,8 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     // Check for admin cookie
     checkAuthentication();
     
-    // Listen for cookie changes
-    const interval = setInterval(checkAuthentication, 1000);
+    // Listen for cookie changes - changed from 1000ms to 30000ms (30 seconds) to reduce CPU usage
+    const interval = setInterval(checkAuthentication, 30000);
     return () => clearInterval(interval);
   }, [pathname]);
   

@@ -254,4 +254,112 @@ class DatabaseService:
             return []
         except Exception as e:
             logger.error(f"Error getting price history for machine {machine_id}: {str(e)}")
-            return [] 
+            return []
+            
+    def get_batch_results(self, batch_id):
+        """
+        Efficiently retrieve batch results without triggering heavy processing.
+        
+        Args:
+            batch_id (str): The ID of the batch to retrieve results for.
+            
+        Returns:
+            dict: Dictionary of batch entries.
+        """
+        try:
+            # Query the batch_results table using an index for efficient lookup
+            response = self.supabase.table('batch_results') \
+                .select("*") \
+                .eq("batch_id", batch_id) \
+                .execute()
+                
+            if not response.data or len(response.data) == 0:
+                logger.warning(f"No batch results found for batch_id: {batch_id}")
+                return {}
+                
+            # Convert list to a dictionary keyed by machine_id for efficient frontend lookup
+            results_dict = {}
+            for entry in response.data:
+                machine_id = entry.get("machine_id")
+                if machine_id:
+                    results_dict[machine_id] = entry
+                    
+            logger.info(f"Retrieved {len(results_dict)} batch result entries for batch_id: {batch_id}")
+            return results_dict
+        except Exception as e:
+            logger.error(f"Error retrieving batch results for batch_id {batch_id}: {str(e)}")
+            return {}
+            
+    def get_batch_stats(self, batch_id):
+        """
+        Get aggregated statistics for a batch operation.
+        
+        Args:
+            batch_id (str): The ID of the batch to retrieve stats for.
+            
+        Returns:
+            dict: Statistics about the batch operation.
+        """
+        try:
+            # Get batch metadata from the batches table
+            metadata_response = self.supabase.table('batches') \
+                .select("*") \
+                .eq("id", batch_id) \
+                .execute()
+                
+            # Get count statistics using efficient COUNT queries rather than fetching all data
+            counts_response = self.supabase.rpc(
+                'get_batch_stats', 
+                {'batch_id_param': batch_id}
+            ).execute()
+            
+            # Extract metadata
+            metadata = {}
+            if metadata_response.data and len(metadata_response.data) > 0:
+                metadata = metadata_response.data[0]
+                
+            # Extract counts
+            counts = {}
+            if counts_response.data:
+                counts = counts_response.data[0] if len(counts_response.data) > 0 else {}
+                
+            # Combine data
+            start_time = metadata.get("start_time")
+            end_time = metadata.get("end_time")
+            
+            # Calculate completion percentage
+            total_machines = counts.get("total_machines", 0)
+            completed_machines = counts.get("completed_machines", 0)
+            progress_percentage = 0
+            
+            if total_machines > 0:
+                progress_percentage = (completed_machines / total_machines) * 100
+                
+            # Return combined stats
+            stats = {
+                "batch_id": batch_id,
+                "start_time": start_time,
+                "end_time": end_time,
+                "total_machines": total_machines,
+                "completed_machines": completed_machines,
+                "successful_machines": counts.get("successful_machines", 0),
+                "failed_machines": counts.get("failed_machines", 0),
+                "updated_prices": counts.get("updated_prices", 0),
+                "unchanged_prices": counts.get("unchanged_prices", 0),
+                "progress_percentage": round(progress_percentage, 1)
+            }
+            
+            return stats
+        except Exception as e:
+            logger.error(f"Error retrieving batch stats for batch_id {batch_id}: {str(e)}")
+            # Return minimal stats to avoid frontend errors
+            return {
+                "batch_id": batch_id,
+                "total_machines": 0,
+                "completed_machines": 0,
+                "successful_machines": 0,
+                "failed_machines": 0,
+                "updated_prices": 0,
+                "unchanged_prices": 0,
+                "progress_percentage": 0
+            } 

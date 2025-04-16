@@ -178,4 +178,40 @@ class PriceService:
             "success": True,
             "message": "Batch update completed",
             "results": results
-        } 
+        }
+        
+    async def get_batch_results(self, batch_id):
+        """
+        Efficiently retrieve batch results without triggering any processing.
+        
+        Args:
+            batch_id (str): The batch ID to retrieve results for.
+            
+        Returns:
+            dict: The batch results data.
+        """
+        logger.info(f"Retrieving batch results for batch_id: {batch_id}")
+        
+        try:
+            # Get batch data from the database
+            batch_data = self.db_service.get_batch_results(batch_id)
+            
+            if not batch_data:
+                logger.warning(f"No batch data found for batch_id: {batch_id}")
+                return None
+            
+            # Get additional stats without triggering processing
+            stats = self.db_service.get_batch_stats(batch_id)
+            
+            # Combine data and return
+            result = {
+                "batch_id": batch_id,
+                "entries": batch_data,
+                "stats": stats,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            return result
+        except Exception as e:
+            logger.exception(f"Error retrieving batch results for batch_id {batch_id}: {str(e)}")
+            return None 

@@ -161,6 +161,35 @@ All errors are logged to `logs/price_extractor.log` and also returned in the API
 
 Logs are stored in the `logs` directory with automatic rotation when files reach 10MB.
 
+## Database Optimization
+
+To minimize CPU usage and improve query performance, we recommend adding indexes to your database. The provided `create_indexes.sql` file contains SQL commands to create the necessary indexes:
+
+```sql
+-- Run these commands in the Supabase SQL Editor
+CREATE INDEX IF NOT EXISTS idx_batch_results_batch_id ON batch_results (batch_id);
+CREATE INDEX IF NOT EXISTS idx_machines_html_timestamp ON machines (html_timestamp);
+CREATE INDEX IF NOT EXISTS idx_machines_product_link ON machines (product_link) WHERE product_link IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_price_history_machine_id ON price_history (machine_id);
+CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history (date);
+CREATE INDEX IF NOT EXISTS idx_batches_id ON batches (id);
+```
+
+After creating the indexes, run `ANALYZE` on each table to update the query planner statistics:
+
+```sql
+ANALYZE batch_results;
+ANALYZE machines;
+ANALYZE price_history;
+ANALYZE batches;
+```
+
+### Performance Considerations
+
+- The batch results page does not auto-refresh to prevent excessive CPU usage. Users must manually refresh to see updates.
+- Long-running queries should be optimized or moved to background tasks when possible.
+- Consider adding additional indexes if you notice slow performance on specific queries.
+
 ## License
 
 [MIT License](LICENSE) 
