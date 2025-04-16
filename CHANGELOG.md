@@ -29,8 +29,26 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
   - Bulk price update functionality
   - Progress tracking for batch operations
   - Detailed success/failure reporting
+  - Configurable machine limits (10, 25, 50, 100, or All machines)
+  - Preview count of affected machines before update
+  - Added Batch Jobs tab to view and manage batch operations
+  - Links to detailed batch results pages
+- Added `/api/v1/batch-configure` endpoint for previewing batch operations
+- Added `/api/v1/batches` endpoint for listing batch jobs
 
 ### Fixed
+- Fixed database schema mismatch in batch_results table
+  - Removed invalid reference to 'created_at' column
+  - Updated code to use proper 'start_time' and 'end_time' fields
+  - Resolved "Could not find the 'created_at' column" error
+- Fixed incorrect use of await with Supabase client in batch operations
+  - Removed invalid await usage causing "can't be used in 'await' expression" errors
+  - Improved error handling and logging for batch operations
+  - Fixed batch jobs not appearing in the admin interface
+- Fixed unsupported group() method in batch results stats
+  - Replaced group() with separate count queries for successful and failed operations
+  - Added manual calculation for price change statistics
+  - Fixed "object has no attribute 'group'" error when viewing batch results
 - Fixed excessive CPU usage issue caused by continuous polling on batch results page
   - Removed auto-refresh functionality to prevent repeated API calls
   - Added manual refresh button with user guidance
@@ -39,6 +57,41 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
 - Removed 7-day threshold requirement for batch updates
   - All machines will now be processed by default, regardless of when they were last updated
   - Fixed "can't subtract offset-naive and offset-aware datetimes" error
+  - Fixed days_threshold=0 to properly return all machines
+- Fixed price history recording issues:
+  - Resolved database schema mismatch in price history table
+  - Fixed column name discrepancies between code and actual database schema (last_updated → html_timestamp)
+  - Enhanced error handling and logging for database operations
+  - Improved URL field discovery for product links
+- Fixed async/await implementation issues in Python API
+  - Made all database methods properly async
+  - Added missing await statements for database calls
+- Fixed batch update race condition causing empty batch updates
+  - Modified batch_configure endpoint to return machine IDs
+  - Updated batch_update to use provided machine IDs
+  - Ensured consistent machine selection between preview and execution
+- Fixed Supabase PostgREST filter syntax
+  - Replaced unsupported filter combinations with separate queries
+  - Improved machine selection logic for updates
+- Fixed datetime module reference errors
+  - Corrected improper import and usage patterns
+  - Updated all references to use proper datetime.now() format
+- Fixed error checking for Supabase responses
+  - Removed checks for non-existent .error attribute
+  - Updated response handling to match current Supabase Python client
+- Fixed database schema mismatch in batches table
+  - Removed references to non-existent completed_at column
+  - Updated batch creation to match database schema
+- Fixed price extraction issues with truncated JSON-LD data
+  - Added validation for numeric price values extracted from structured data
+  - Implemented detection of suspiciously small prices that might be truncated
+  - Enhanced logging for price validation to help diagnose extraction issues
+  - Added reasonable price range validation (between $10 and $100,000)
+- Improved machine ID lookup robustness in database service
+  - Added case-insensitive matching for machine IDs
+  - Implemented whitespace removal for IDs with unexpected spaces
+  - Enhanced error reporting for machine lookup failures
+  - Added stepped fallback approach to try multiple formats of the same ID
 
 ## [1.0.0] - 2025-04-16
 
