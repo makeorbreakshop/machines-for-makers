@@ -5,12 +5,42 @@ All notable changes to the Machines for Makers project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Version Numbering Convention
+
+This project follows Semantic Versioning (SemVer):
+- **MAJOR.MINOR.PATCH** (e.g., 1.2.3)
+- **MAJOR**: Incremented for incompatible API changes
+- **MINOR**: Incremented for new functionality in a backwards-compatible manner
+- **PATCH**: Incremented for backwards-compatible bug fixes
+
+The "Unreleased" section tracks changes not yet assigned to a version number. When ready 
+for release, the "Unreleased" heading will be replaced with the appropriate version number
+based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes only, etc.).
+
 ## [Unreleased]
 
 ### Added
 - Enhanced admin dashboard notifications and error handling
+- Price history backfill script implementation
+  - Successfully populated historical price data for 149 machines
+  - Automatic detection and skipping of machines without price data
+  - 30-day backdating for initial price records
+- Advanced batch operations in admin interface
+  - Bulk price update functionality
+  - Progress tracking for batch operations
+  - Detailed success/failure reporting
 
-## [1.5.0] - 2025-04-16
+### Fixed
+- Fixed excessive CPU usage issue caused by continuous polling on batch results page
+  - Removed auto-refresh functionality to prevent repeated API calls
+  - Added manual refresh button with user guidance
+  - Improved UI to indicate refresh behavior
+- Batch update datetime comparison error in database service
+- Removed 7-day threshold requirement for batch updates
+  - All machines will now be processed by default, regardless of when they were last updated
+  - Fixed "can't subtract offset-naive and offset-aware datetimes" error
+
+## [1.0.0] - 2025-04-16
 
 ### Added
 - Python-based Price Extractor integration with Next.js admin interface
@@ -31,52 +61,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Historical price comparison in Recent Updates tab now correctly shows previous prices
 - Price extraction reliability improvements
 
-## [1.4.0] - 2025-03-28
-
-### Added
-- Admin dashboard with comprehensive toolset
-- Machine management system
-- Category organization tools
-- Review management interface
-
-### Improved
-- User experience with more responsive design
-- Mobile navigation
-
-## [1.3.0] - 2025-03-15
-
-### Added
-- Price comparison feature for machines
-- Enhanced filter system
-- User favorites system
-
-### Fixed
-- Mobile responsive design issues
-- Search functionality improvements
-
-## [1.2.0] - 2025-02-10
-
-### Added
-- Machine reviews system
-- Ratings and scoring algorithm
-- Comment moderation tools
-
-### Changed
-- Database schema optimization for better performance
-- Image lazy loading for faster page loads
-
-## [1.1.0] - 2025-01-20
-
-### Added
-- User accounts and profiles
-- Machine bookmarking functionality
-- Email notification system
-
-### Fixed
-- SEO improvements
-- Accessibility enhancements
-
-## [1.0.0] - 2025-01-01
 
 ### Added
 - Initial public release

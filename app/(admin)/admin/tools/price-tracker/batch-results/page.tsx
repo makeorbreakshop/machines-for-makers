@@ -42,7 +42,7 @@ import {
 
 export default function BatchResultsPage() {
   const searchParams = useSearchParams()
-  const batchId = searchParams.get("batch_id")
+  const batchId = searchParams?.get("batch_id")
   const [batchData, setBatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -96,10 +96,6 @@ export default function BatchResultsPage() {
     
     // Initial fetch
     fetchBatchResults()
-    
-    // Set up auto-refresh
-    const interval = setInterval(fetchBatchResults, 5000)
-    setRefreshInterval(interval)
     
     // Cleanup
     return () => {
@@ -342,6 +338,11 @@ export default function BatchResultsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="flex items-center p-3 mb-4 text-sm border rounded-md bg-blue-50 border-blue-200 text-blue-800">
+            <Info className="h-4 w-4 mr-2 flex-shrink-0" />
+            <p>Auto-refresh has been disabled to prevent high CPU usage. Use the Refresh button to get updated results.</p>
+          </div>
+          
           <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mb-4">
             <div className="space-y-1">
               <p className="text-sm font-medium">Total Machines</p>
@@ -382,7 +383,7 @@ export default function BatchResultsPage() {
               <Checkbox 
                 id="show-successful" 
                 checked={showSuccessful}
-                onCheckedChange={setShowSuccessful}
+                onCheckedChange={(checked) => setShowSuccessful(checked === true)}
               />
               <Label htmlFor="show-successful">Show all successful</Label>
             </div>
@@ -390,7 +391,7 @@ export default function BatchResultsPage() {
               <Checkbox 
                 id="show-failed" 
                 checked={showFailed}
-                onCheckedChange={setShowFailed}
+                onCheckedChange={(checked) => setShowFailed(checked === true)}
               />
               <Label htmlFor="show-failed">Show failed</Label>
             </div>
@@ -398,7 +399,7 @@ export default function BatchResultsPage() {
               <Checkbox 
                 id="show-unchanged" 
                 checked={showUnchanged}
-                onCheckedChange={setShowUnchanged}
+                onCheckedChange={(checked) => setShowUnchanged(checked === true)}
               />
               <Label htmlFor="show-unchanged">Show unchanged</Label>
             </div>
@@ -406,7 +407,7 @@ export default function BatchResultsPage() {
               <Checkbox 
                 id="show-updated" 
                 checked={showUpdated}
-                onCheckedChange={setShowUpdated}
+                onCheckedChange={(checked) => setShowUpdated(checked === true)}
               />
               <Label htmlFor="show-updated">Show updated</Label>
             </div>
