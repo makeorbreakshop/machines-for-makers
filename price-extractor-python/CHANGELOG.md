@@ -8,11 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial project directory structure
-- Basic module setup
-- CHANGELOG and PRD documents
+- Admin interface integration with Next.js application
+- Client-side JavaScript integration for price update and batch processing
+- Enhanced debug information for tracking price extraction process
+- Connection testing endpoint with automatic connectivity verification
+- Performance metrics for API response times
 
-## [0.1.0] - 2023-08-21
+## [0.1.0] - 2025-04-15
 ### Added
 - Initial project setup
 - Configuration module with environment variables loading

@@ -10,8 +10,9 @@ A Python tool for extracting product prices from e-commerce websites and updatin
   - Common CSS selectors
   - Claude AI fallback for complex pages
 - **Database Integration**: Update machine prices and maintain price history
-- **Admin Interface**: Simple API integration with admin "update price" button
+- **Admin Interface**: Seamless integration with Next.js admin dashboard
 - **Robust Error Handling**: Comprehensive logging and error management
+- **Performance Metrics**: Track API response times and extraction efficiency
 
 ## Requirements
 
@@ -107,9 +108,46 @@ Response:
 }
 ```
 
+#### Health Check
+
+```
+GET /health
+```
+
+Response:
+```json
+{
+  "status": "healthy"
+}
+```
+
 ## Admin Interface Integration
 
-The "update price" button in the admin interface should make a POST request to the `/api/v1/update-price` endpoint with the machine ID in the request body.
+### JavaScript Integration
+
+The admin interface uses a JavaScript client to communicate with the Python API:
+
+1. Include the `price-tracker-api.js` file in your Next.js application
+2. The script automatically tries to connect to the API on load
+3. Use the exported functions to update prices:
+
+```javascript
+// Update a single machine
+const result = await window.priceTrackerAPI.updateMachinePrice("machine-id");
+
+// Batch update machines
+const batchResult = await window.priceTrackerAPI.updateAllPrices(7); // 7 days threshold
+```
+
+### Debug Information
+
+The integration provides detailed debug information:
+
+- Extraction method used
+- Old and new prices
+- Price change percentage
+- Response times
+- Error details when extraction fails
 
 ## Error Handling
 

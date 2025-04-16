@@ -35,6 +35,17 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import Script from "next/script"
+
+// Add type definitions for the window object with priceTrackerAPI
+declare global {
+  interface Window {
+    priceTrackerAPI?: {
+      updateMachinePrice: (machineId: string) => Promise<any>;
+      updateAllPrices: (daysThreshold?: number) => Promise<any>;
+    };
+  }
+}
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -52,6 +63,7 @@ export default function PriceTrackerAdmin() {
   const [filterFeatured, setFilterFeatured] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [debugDialogOpen, setDebugDialogOpen] = useState(false)
+  const [pythonApiReady, setPythonApiReady] = useState(false)
   
   // Fetch machines
   useEffect(() => {
@@ -92,17 +104,18 @@ export default function PriceTrackerAdmin() {
   useEffect(() => {
     const fetchRecentlyUpdated = async () => {
       try {
-        const { data, error } = await supabase
+        // Get the most recent price history entries
+        const { data: recentEntries, error } = await supabase
           .from("price_history")
-          .select("machine_id, price, date, is_all_time_low, is_all_time_high")
+          .select("id, machine_id, price, date, is_all_time_low, is_all_time_high")
           .order("date", { ascending: false })
           .limit(10)
         
         if (error) throw error
         
-        if (data) {
-          // Fetch machine names for the IDs
-          const machineIds = [...new Set(data.map(item => item.machine_id))]
+        if (recentEntries && recentEntries.length > 0) {
+          // Get machine names and current prices
+          const machineIds = [...new Set(recentEntries.map(item => item.machine_id))]
           const { data: machineData, error: machineError } = await supabase
             .from("machines")
             .select("id, \"Machine Name\", \"Company\", Price")
@@ -110,18 +123,54 @@ export default function PriceTrackerAdmin() {
           
           if (machineError) throw machineError
           
-          // Combine data
-          const combined = data.map(priceRecord => {
-            const machine = machineData?.find(m => m.id === priceRecord.machine_id)
+          // For each recent entry, find the previous entry
+          const combinedData = await Promise.all(recentEntries.map(async (entry) => {
+            // Get previous price history entry for this machine
+            const { data: prevEntries, error: prevError } = await supabase
+              .from("price_history")
+              .select("price")
+              .eq("machine_id", entry.machine_id)
+              .lt("date", entry.date)  // Entries before the current one
+              .order("date", { ascending: false })
+              .limit(1)
+              
+            const previousPrice = prevEntries && prevEntries.length > 0 
+              ? prevEntries[0].price 
+              : entry.price // If no previous entry, use current price
+              
+            const machine = machineData?.find(m => m.id === entry.machine_id)
+            
+            // Calculate price change
+            const priceChange = prevEntries && prevEntries.length > 0 
+              ? entry.price - previousPrice
+              : 0
+            
+            // Format price change for display
+            const priceChangeClass = priceChange > 0 
+              ? 'text-red-500' 
+              : priceChange < 0 
+                ? 'text-green-500' 
+                : ''
+            
             return {
-              ...priceRecord,
+              id: entry.id,
+              machine_id: entry.machine_id,
+              recordedPrice: previousPrice, // Previous price
+              price: entry.price,           // Price at time of update
+              currentPrice: machine ? machine.Price : null, // Current price from machines table
+              date: entry.date,
+              is_all_time_low: entry.is_all_time_low,
+              is_all_time_high: entry.is_all_time_high,
               machineName: machine ? machine["Machine Name"] : "Unknown",
               company: machine ? machine["Company"] : "Unknown",
-              currentPrice: machine ? machine["Price"] : null
+              priceChange,
+              priceChangeClass
             }
-          })
+          }))
           
-          setRecentlyUpdated(combined)
+          setRecentlyUpdated(combinedData)
+        } else {
+          setRecentlyUpdated([])
         }
       } catch (error) {
         console.error("Error fetching recent updates:", error)
@@ -156,51 +205,92 @@ export default function PriceTrackerAdmin() {
     try {
       setDebugInfo(null)
       
-      const response = await fetch(`/api/cron/update-prices/manual?machineId=${machine.id}${debug ? '&debug=true' : ''}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      if (!pythonApiReady || !window.priceTrackerAPI) {
+        toast.error("Python Price Extractor API is not connected")
+        return
+      }
       
-      const result = await response.json()
+      // Show loading state
+      toast.info(`Updating price for ${machine["Machine Name"]} with Python API...`)
       
-      if (!response.ok) {
-        // If we have debug info, show it in the debug dialog
-        if (result.debug) {
+      const result = await window.priceTrackerAPI.updateMachinePrice(machine.id)
+      
+      if (result.success) {
+        // Set debug info for either success or debug mode
+        if (debug || result.method) {
           setDebugInfo({
             machine: machine["Machine Name"],
-            error: result.error,
-            details: result.debug
+            success: true,
+            price: result.new_price,
+            details: {
+              method: result.method,
+              oldPrice: result.old_price,
+              newPrice: result.new_price,
+              priceChange: result.price_change,
+              percentageChange: result.percentage_change,
+              message: result.message
+            }
           })
-          setDebugDialogOpen(true)
-          throw new Error(result.error || "Failed to update price")
-        } else {
-          throw new Error(result.error || "Failed to update price")
+          
+          if (debug) {
+            setDebugDialogOpen(true)
+          }
         }
-      }
-      
-      // If debugging was requested, show the debug info
-      if (debug && result.debug) {
+        
+        // Show appropriate success message
+        if (result.old_price === result.new_price) {
+          toast.info(`Price unchanged for ${machine["Machine Name"]}: ${formatPrice(result.new_price)}`)
+        } else {
+          toast.success(`Price updated for ${machine["Machine Name"]}: ${formatPrice(result.old_price)} → ${formatPrice(result.new_price)}`)
+        }
+        
+        // Refresh machine data to show new price
+        const { data, error } = await supabase
+          .from("machines")
+          .select("id, \"Machine Name\", \"Company\", Price, \"Is A Featured Resource?\", product_link, \"Affiliate Link\"")
+          .eq("id", machine.id)
+          .single()
+          
+        if (!error && data) {
+          // Update the machine in the list
+          setMachines(prev => prev.map(m => m.id === data.id ? data : m))
+          
+          // Update selected machine if it's the current one
+          if (selectedMachine?.id === machine.id) {
+            setSelectedMachine(data)
+            selectMachine(data)
+          }
+        }
+        
+        setRefreshing(prev => !prev)
+      } else {
+        // Handle error from Python API
         setDebugInfo({
           machine: machine["Machine Name"],
-          success: true,
-          price: result.price,
-          details: result.debug
+          error: result.error || "Unknown error",
+          details: {
+            error: result.error,
+            url: machine.product_link
+          }
         })
+        
         setDebugDialogOpen(true)
+        toast.error(`Failed to update price: ${result.error}`)
       }
-      
-      toast.success(`Price updated for ${machine["Machine Name"]}`)
-      
-      // Refresh data
-      if (selectedMachine?.id === machine.id) {
-        selectMachine(machine)
-      }
-      
-      setRefreshing(prev => !prev)
     } catch (error) {
       console.error("Error updating price:", error)
+      
+      // Set debug info for the error
+      setDebugInfo({
+        machine: machine["Machine Name"],
+        error: error instanceof Error ? error.message : "Unknown error",
+        details: {
+          error: error instanceof Error ? error.stack : "No stack trace available",
+          url: machine.product_link
+        }
+      })
+      
+      setDebugDialogOpen(true)
       toast.error(`Failed to update price: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
@@ -208,28 +298,29 @@ export default function PriceTrackerAdmin() {
   // Function to run update for all featured machines
   const updateAllPrices = async () => {
     try {
-      const response = await fetch(`/api/cron/update-prices?secret=admin-panel`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-      
-      const result = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to update prices")
+      if (!pythonApiReady || !window.priceTrackerAPI) {
+        toast.error("Python Price Extractor API is not connected")
+        return
       }
       
-      toast.success(`Price update job started. Updated ${result.results?.updated || 0} machines.`)
+      // Use Python API for batch update
+      toast.info("Starting batch update with Python API...")
       
-      // Refresh data after a short delay to allow updates to complete
-      setTimeout(() => {
-        if (selectedMachine) {
-          selectMachine(selectedMachine)
-        }
-        setRefreshing(prev => !prev)
-      }, 2000)
+      const result = await window.priceTrackerAPI.updateAllPrices(7)
+      
+      if (result.success) {
+        toast.success(`Python API batch update started in the background`)
+        
+        // Refresh data after a short delay
+        setTimeout(() => {
+          if (selectedMachine) {
+            selectMachine(selectedMachine)
+          }
+          setRefreshing(prev => !prev)
+        }, 2000)
+      } else {
+        toast.error(`Python API batch update failed: ${result.error}`)
+      }
     } catch (error) {
       console.error("Error updating prices:", error)
       toast.error(`Failed to update prices: ${error instanceof Error ? error.message : "Unknown error"}`)
@@ -320,120 +411,114 @@ export default function PriceTrackerAdmin() {
     }).format(price)
   }
   
+  // Handle API script loaded
+  const handleScriptLoad = () => {
+    setPythonApiReady(true)
+    console.log("Python Price Extractor API script loaded")
+    toast.success("Python Price Extractor API connected")
+  }
+  
+  // Handle API script error
+  const handleScriptError = () => {
+    console.error("Failed to load Python Price Extractor API script")
+    toast.error("Failed to connect to Python Price Extractor API")
+  }
+  
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
+      <Script 
+        src="/admin/tools/price-tracker/price-tracker-api.js"
+        onLoad={handleScriptLoad}
+        onError={handleScriptError}
+      />
+      
       <Dialog open={debugDialogOpen} onOpenChange={setDebugDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Bug className="h-5 w-5" />
-              {debugInfo?.success 
-                ? `Price Scraping Results: ${debugInfo?.machine}` 
-                : `Price Scraping Failed: ${debugInfo?.machine}`}
+            <DialogTitle>
+              {debugInfo?.success ? (
+                <span className="flex items-center">
+                  <Check className="w-5 h-5 mr-2 text-green-500" />
+                  Price Extraction Debug: {debugInfo?.machine}
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
+                  Price Extraction Failed: {debugInfo?.machine}
+                </span>
+              )}
             </DialogTitle>
             <DialogDescription>
-              {debugInfo?.success 
-                ? `Successfully scraped price: ${formatPrice(debugInfo?.price)}` 
-                : `Error: ${debugInfo?.error}`}
+              {debugInfo?.success ? (
+                `Successfully extracted price: ${formatPrice(debugInfo?.price)}`
+              ) : (
+                `Error: ${debugInfo?.error}`
+              )}
             </DialogDescription>
           </DialogHeader>
           
           {debugInfo && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h3 className="text-sm font-medium mb-1">Final URL</h3>
-                  <p className="text-sm bg-muted p-2 rounded break-all">
-                    {debugInfo.details?.finalUrl || "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium mb-1">Page Title</h3>
-                  <p className="text-sm bg-muted p-2 rounded">
-                    {debugInfo.details?.pageTitle || "N/A"}
-                  </p>
-                </div>
-              </div>
-              
-              {debugInfo.details?.priceText && (
-                <div>
-                  <h3 className="text-sm font-medium mb-1">Found Price Text</h3>
-                  <p className="text-sm bg-muted p-2 rounded">
-                    {debugInfo.details.priceText}
-                    {debugInfo.details.parsedPrice && ` → ${formatPrice(debugInfo.details.parsedPrice)}`}
-                  </p>
-                </div>
-              )}
-              
               <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="steps">
-                  <AccordionTrigger>Process Steps</AccordionTrigger>
-                  <AccordionContent>
-                    <div className="bg-muted rounded-md p-2 max-h-60 overflow-y-auto">
-                      <ol className="text-sm space-y-1 pl-5 list-decimal">
-                        {debugInfo.details?.steps?.map((step: string, i: number) => (
-                          <li key={i} className={step.includes('Error') ? 'text-red-500' : ''}>
-                            {step}
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-                
-                <AccordionItem value="selectors">
-                  <AccordionTrigger>Selector Results</AccordionTrigger>
-                  <AccordionContent>
-                    <div className="bg-muted rounded-md p-2 max-h-60 overflow-y-auto text-sm">
-                      {debugInfo.details?.selectors?.length > 0 ? (
-                        <div className="space-y-2">
-                          {debugInfo.details.selectors.map((sel: any, i: number) => (
-                            <div key={i} className="border-b pb-2 last:border-b-0">
-                              <p><strong>Selector:</strong> {sel.selector}</p>
-                              <p><strong>Matches:</strong> {sel.count}</p>
-                              {sel.foundText.length > 0 && (
-                                <div>
-                                  <p><strong>Text:</strong></p>
-                                  <ul className="list-disc pl-5">
-                                    {sel.foundText.map((text: string, j: number) => (
-                                      <li key={j} className="truncate">{text || "(empty)"}</li>
-                                    ))}
-                                  </ul>
-                                </div>
+                {debugInfo.success && debugInfo.details && (
+                  <AccordionItem value="price-info">
+                    <AccordionTrigger>Price Information</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="font-medium">Method Used:</div>
+                        <div>{debugInfo.details.method || "Unknown"}</div>
+                        
+                        <div className="font-medium">Old Price:</div>
+                        <div>{formatPrice(debugInfo.details.oldPrice)}</div>
+                        
+                        <div className="font-medium">New Price:</div>
+                        <div>{formatPrice(debugInfo.details.newPrice)}</div>
+                        
+                        {debugInfo.details.priceChange !== null && (
+                          <>
+                            <div className="font-medium">Price Change:</div>
+                            <div className={debugInfo.details.priceChange > 0 ? 'text-red-500' : debugInfo.details.priceChange < 0 ? 'text-green-500' : ''}>
+                              {debugInfo.details.priceChange > 0 ? '+' : ''}{formatPrice(debugInfo.details.priceChange)}
+                              {debugInfo.details.percentageChange !== null && (
+                                <span className="ml-1">
+                                  ({debugInfo.details.percentageChange > 0 ? '+' : ''}{debugInfo.details.percentageChange.toFixed(2)}%)
+                                </span>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p>No selectors matched</p>
-                      )}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-                
-                {debugInfo.details?.jsonldSamples && (
-                  <AccordionItem value="jsonld">
-                    <AccordionTrigger>JSON-LD Data</AccordionTrigger>
-                    <AccordionContent>
-                      <div className="bg-muted rounded-md p-2 max-h-60 overflow-y-auto">
-                        {debugInfo.details.jsonldSamples.map((sample: string, i: number) => (
-                          <pre key={i} className="text-xs whitespace-pre-wrap">{sample}</pre>
-                        ))}
+                          </>
+                        )}
+                        
+                        {debugInfo.details.message && (
+                          <>
+                            <div className="font-medium">Message:</div>
+                            <div>{debugInfo.details.message}</div>
+                          </>
+                        )}
+                        
+                        {debugInfo.details.responseTimeMs && (
+                          <>
+                            <div className="font-medium">Response Time:</div>
+                            <div>{debugInfo.details.responseTimeMs}ms</div>
+                          </>
+                        )}
                       </div>
                     </AccordionContent>
                   </AccordionItem>
                 )}
-                
-                {debugInfo.details?.screenshot && (
-                  <AccordionItem value="screenshot">
-                    <AccordionTrigger>Page Screenshot</AccordionTrigger>
+
+                {debugInfo.details?.url && (
+                  <AccordionItem value="url">
+                    <AccordionTrigger>URL</AccordionTrigger>
                     <AccordionContent>
-                      <div className="border rounded-md overflow-hidden">
-                        <img 
-                          src={debugInfo.details.screenshot} 
-                          alt="Page screenshot" 
-                          className="w-full h-auto max-h-[500px] object-contain"
-                        />
+                      <div className="bg-muted rounded-md p-2 overflow-x-auto">
+                        <a 
+                          href={debugInfo.details.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline break-all"
+                        >
+                          {debugInfo.details.url}
+                        </a>
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -444,10 +529,18 @@ export default function PriceTrackerAdmin() {
                     <AccordionTrigger>Error Details</AccordionTrigger>
                     <AccordionContent>
                       <div className="bg-red-50 text-red-900 rounded-md p-2 overflow-auto">
-                        <p className="font-medium">{debugInfo.details.error.message}</p>
-                        {debugInfo.details.error.stack && (
-                          <pre className="text-xs mt-2 whitespace-pre-wrap">{debugInfo.details.error.stack}</pre>
-                        )}
+                        <p className="font-medium">{debugInfo.details.error}</p>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+                
+                {debugInfo.details?.debug && (
+                  <AccordionItem value="api">
+                    <AccordionTrigger>Python API Details</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="bg-muted rounded-md p-2 overflow-x-auto">
+                        <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(debugInfo.details.debug, null, 2)}</pre>
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -676,8 +769,8 @@ export default function PriceTrackerAdmin() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Machine</TableHead>
-                      <TableHead>Recorded Price</TableHead>
-                      <TableHead>Current Price</TableHead>
+                      <TableHead>Previous Price</TableHead>
+                      <TableHead>New Price</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -699,8 +792,16 @@ export default function PriceTrackerAdmin() {
                               <span className="text-sm text-gray-500">{record.company}</span>
                             </div>
                           </TableCell>
-                          <TableCell>{formatPrice(record.price)}</TableCell>
-                          <TableCell>{formatPrice(record.currentPrice)}</TableCell>
+                          <TableCell>{formatPrice(record.recordedPrice)}</TableCell>
+                          <TableCell>
+                            {formatPrice(record.price)}
+                            {record.priceChange !== 0 && (
+                              <span className={`ml-2 text-sm ${record.priceChangeClass}`}>
+                                ({record.priceChange > 0 ? '+' : ''}
+                                {formatPrice(record.priceChange)})
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell>{formatDate(record.date)}</TableCell>
                           <TableCell>
                             {record.is_all_time_low && (
