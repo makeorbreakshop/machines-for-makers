@@ -113,37 +113,52 @@ const FeatureButton = React.memo(({ feature, icon }: { feature: string, icon: Re
 })
 FeatureButton.displayName = 'FeatureButton';
 
-// ViewToggle component - extracted from main component
-const ViewToggle = React.memo(function ViewToggle() {
-  const [view, setView] = useState("grid")
-  const [sortOption, setSortOption] = useState("price-asc")
+// ViewToggle component - modified to use props instead of custom events
+const ViewToggle = React.memo(function ViewToggle({ 
+  onViewChange, 
+  onSortChange, 
+  currentView, 
+  currentSort 
+}: { 
+  onViewChange: (view: 'grid' | 'table') => void, 
+  onSortChange: (sort: string) => void, 
+  currentView: 'grid' | 'table', 
+  currentSort: string 
+}) {
+  // Local state now synced with props
+  const [view, setView] = useState<'grid' | 'table'>(currentView)
+  const [sortOption, setSortOption] = useState(currentSort)
 
   // This function will be called when the component mounts
   useEffect(() => {
     // Get the view from localStorage or default to grid
     const savedView = localStorage.getItem("view") || "grid"
-    setView(savedView)
+    setView(savedView as 'grid' | 'table')
     
     // Get the sort option from localStorage or default to price-asc
     const savedSort = localStorage.getItem("sortOption") || "price-asc"
     setSortOption(savedSort)
-  }, [])
+    
+    // Notify parent components of the initial values
+    onViewChange(savedView as 'grid' | 'table')
+    onSortChange(savedSort)
+  }, [onViewChange, onSortChange])
 
   // Update view and save to localStorage
-  const updateView = useCallback((newView: string) => {
+  const updateView = useCallback((newView: 'grid' | 'table') => {
     setView(newView)
     localStorage.setItem("view", newView)
-    // Trigger a custom event that ViewSelector can listen for
-    window.dispatchEvent(new CustomEvent("viewchange", { detail: { view: newView } }))
-  }, [])
+    // Call the callback function directly instead of using a custom event
+    onViewChange(newView)
+  }, [onViewChange])
 
   // Update sort option and save to localStorage
   const updateSort = useCallback((newSort: string) => {
     setSortOption(newSort)
     localStorage.setItem("sortOption", newSort)
-    // Trigger a custom event that CompareClientPage can listen for
-    window.dispatchEvent(new CustomEvent("sortchange", { detail: { sort: newSort } }))
-  }, [])
+    // Call the callback function directly instead of using a custom event
+    onSortChange(newSort)
+  }, [onSortChange])
 
   // Get the sort option label for display
   const getSortLabel = useCallback((option: string) => {
@@ -520,6 +535,36 @@ export default function CompareClientPage({
     }
   }, [products, filters]);
 
+  // Define a sort function for use in the memoized values
+  const sortProducts = useCallback((productsToSort: Machine[]) => {
+    return [...productsToSort].sort((a, b) => {
+      switch (sortOption) {
+        case "price-asc":
+          const priceA = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0));
+          const priceB = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0));
+          return priceA - priceB;
+        case "price-desc":
+          const priceA2 = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0));
+          const priceB2 = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0));
+          return priceB2 - priceA2;
+        case "power-desc":
+          const powerA = parseFloat(String(a["Laser Power A"] || 0));
+          const powerB = parseFloat(String(b["Laser Power A"] || 0));
+          return powerB - powerA;
+        case "speed-desc":
+          const speedA = parseFloat(String(a.Speed || 0));
+          const speedB = parseFloat(String(b.Speed || 0));
+          return speedB - speedA;
+        case "name-asc":
+          const nameA = a["Machine Name"] || "";
+          const nameB = b["Machine Name"] || "";
+          return nameA.localeCompare(nameB);
+        default:
+          return 0;
+      }
+    });
+  }, [sortOption]);
+  
   // Replace existing fetchProducts with this one that just triggers a refetch
   const fetchProducts = () => {
     // React Query handles the actual fetching
@@ -586,67 +631,17 @@ export default function CompareClientPage({
     [] // Empty dependency array ensures this is only created once
   );
   
-  // Memoize the sortProducts function to avoid recreation on each render
-  const sortProducts = useCallback((products: Machine[]) => {
-    // Create a defensive copy of the products array
-    const sorted = [...products]
-    
-    let result;
-    switch (sortOption) {
-      case "price-asc":
-        result = sorted.sort((a, b) => {
-          const priceA = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0))
-          const priceB = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0))
-          return priceA - priceB
-        });
-        break;
-      case "price-desc":
-        result = sorted.sort((a, b) => {
-          const priceA = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0))
-          const priceB = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0))
-          return priceB - priceA
-        });
-        break;
-      case "power-desc":
-        result = sorted.sort((a, b) => {
-          const powerA = parseFloat(String(a["Laser Power A"] || 0))
-          const powerB = parseFloat(String(b["Laser Power A"] || 0))
-          return powerB - powerA
-        });
-        break;
-      case "speed-desc":
-        result = sorted.sort((a, b) => {
-          const speedA = parseFloat(String(a.Speed || 0))
-          const speedB = parseFloat(String(b.Speed || 0))
-          return speedB - speedA
-        });
-        break;
-      case "name-asc":
-        result = sorted.sort((a, b) => {
-          const nameA = a["Machine Name"] || ""
-          const nameB = b["Machine Name"] || ""
-          return nameA.localeCompare(nameB)
-        });
-        break;
-      default:
-        result = sorted;
-        break;
-    }
-    
-    // Force a new array reference to ensure React detects the change
-    return [...result];
-  }, [sortOption]);
-  
   // Memoize filtered results to avoid recalculation
   const displayProducts = useMemo(() => {
     if (isLoading) return [];
-    return filteredProducts;
-  }, [filteredProducts, isLoading]);
+    // Apply sorting here directly
+    return sortProducts(filteredProducts);
+  }, [filteredProducts, isLoading, sortProducts]);
 
   // Create a final sorted array that's guaranteed to be sorted just before rendering
   const finalSortedProducts = React.useMemo(() => {
-    return sortProducts(displayProducts);
-  }, [displayProducts, sortOption, sortProducts]);
+    return displayProducts;
+  }, [displayProducts]);
   
   // Initial load of products
   useEffect(() => {
@@ -746,6 +741,22 @@ export default function CompareClientPage({
     }
   };
 
+  // Handle view change from ViewToggle
+  const handleViewChange = useCallback((newView: string) => {
+    if (newView === 'grid' || newView === 'table') {
+      setView(newView as 'grid' | 'table');
+    }
+  }, []);
+
+  // Handle sort change from ViewToggle 
+  const handleSortChange = useCallback((newSort: string) => {
+    setSortOption(newSort);
+    // We need to use the current value of sortOption when updating
+    // Don't apply sortProducts immediately since it depends on sortOption
+    // which hasn't been updated yet
+    // Instead, we'll rely on the useEffect that watches sortOption
+  }, []);
+
   return (
     <>
       <div className="container mx-auto px-4 py-8 max-w-screen-2xl">
@@ -762,7 +773,12 @@ export default function CompareClientPage({
                   filteredCount={filteredProducts.length}
                 />
               </div>
-              <ViewToggle />
+              <ViewToggle
+                onViewChange={handleViewChange}
+                onSortChange={handleSortChange}
+                currentView={view}
+                currentSort={sortOption}
+              />
               {DEBUG_MODE && (
                 <TooltipProvider>
                   <Tooltip>

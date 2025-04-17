@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import { createServerClient } from "@/lib/supabase/server"
 import CompareClientPage from "./CompareClientPage"
-import type { Database } from "@/lib/database-types"
+import type { Database, Machine } from "@/lib/database-types"
 import { Metadata } from "next"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -27,7 +27,14 @@ export default async function ComparePage() {
   const [categoriesResponse, brandsResponse, productsResponse] = await Promise.all([
     supabase.from("categories").select("*").order("name"),
     supabase.from("brands").select("*").order("name"),
-    supabase.from("machines").select("*", { count: "exact" }).limit(150)
+    supabase.from("machines").select(`
+      id, "Machine Name", "Internal link", "Company", "Laser Type A", 
+      "Laser Power A", "Laser Type B", "LaserPower B", "Laser Category", 
+      "Price", "Image", "Work Area", "Speed", "Rating", "Award", "Hidden",
+      "Focus", "Enclosure", "Wifi", "Camera", "Passthrough", "Controller",
+      "Acceleration", "Laser Frequency", "Pulse Width", "Machine Size",
+      "Software", "Warranty", "Published On"
+    `).limit(150)
   ])
 
   return (
@@ -43,7 +50,7 @@ export default async function ComparePage() {
         <CompareClientPage
           categories={categoriesResponse.data || []}
           brands={brandsResponse.data || []}
-          initialProducts={productsResponse.data || []}
+          initialProducts={(productsResponse.data || []) as Machine[]}
         />
       </Suspense>
     </div>
