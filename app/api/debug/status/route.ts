@@ -24,10 +24,11 @@ export async function GET() {
     const startTime = performance.now();
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     
-    // Test simple database query
-    const { data, error, status } = await supabase
+    // Test simple database query - only fetch count instead of actual machine data
+    // This avoids the large HTML content issue
+    const { count, error, status } = await supabase
       .from('machines')
-      .select('count(*)', { count: 'exact' });
+      .select('id', { count: 'exact', head: true });
       
     const queryTime = performance.now() - startTime;
     responseHeaders['X-Query-Time'] = queryTime.toString();
@@ -86,6 +87,7 @@ export async function GET() {
     return NextResponse.json(
       { 
         dbStatus: 'ok',
+        machineCount: count,
         queryTime: queryTime,
         connectionPoolStats
       },

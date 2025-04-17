@@ -42,6 +42,11 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
   - Added server timing headers for better performance monitoring
   - Added pagination implementation to prevent large result sets
   - Simplified API query structure and filter conditions
+- Variant-aware price extraction in Python extractor
+  - Support for products with different power/wattage options
+  - Automatic matching of machine specs to correct product variant
+  - Specialized handling for ComMarker and similar e-commerce sites
+  - Improved extraction accuracy for machines with multiple variants
 
 ### Improved
 - Database query performance by 50-80% through targeted indexes
@@ -54,6 +59,12 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
   - Simplified process for removing discontinued machines
 
 ### Fixed
+- Fixed significant performance issues on Compare page
+  - Optimized database queries to exclude large HTML content (reduced payload from ~5MB to ~50KB per machine)
+  - Fixed event handling in ViewToggle component by replacing custom events with prop-based callbacks
+  - Resolved infinite loop in sorting logic by properly separating sorting from state updates
+  - Fixed debug status endpoint to avoid query size limitations
+  - Improved overall page load time and responsiveness
 - Implemented redirects to handle incorrect URL patterns
   - Added specific redirects from `/lasers/:slug` to `/products/:slug` for product pages
   - Preserved access to legitimate category pages (desktop-diode-laser, desktop-galvo, etc.)
