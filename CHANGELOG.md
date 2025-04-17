@@ -48,6 +48,10 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
 - API response times with optimized query structure
 - Client-side data management with React Query
 - Response payload optimization with field selection
+- Enhanced database referential integrity
+  - Added CASCADE delete behavior to price_history foreign key constraint
+  - Machine deletions now automatically remove associated price history records
+  - Simplified process for removing discontinued machines
 
 ### Fixed
 - Implemented redirects to handle incorrect URL patterns
