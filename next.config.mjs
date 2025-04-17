@@ -74,6 +74,48 @@ const nextConfig = {
         destination: 'https://www.machinesformakers.com/:path*',
         permanent: true,
       },
+      // First define explicit routes for valid laser category pages that should NOT be redirected
+      {
+        source: '/lasers/desktop-diode-laser',
+        destination: '/lasers/desktop-diode-laser',
+        permanent: false,
+      },
+      {
+        source: '/lasers/desktop-galvo',
+        destination: '/lasers/desktop-galvo',
+        permanent: false,
+      },
+      {
+        source: '/lasers/pro-gantry',
+        destination: '/lasers/pro-gantry',
+        permanent: false,
+      },
+      {
+        source: '/lasers/desktop-gantry',
+        destination: '/lasers/desktop-gantry',
+        permanent: false,
+      },
+      {
+        source: '/lasers/open-diode',
+        destination: '/lasers/open-diode',
+        permanent: false,
+      },
+      {
+        source: '/lasers/desktop-fiber-laser',
+        destination: '/lasers/desktop-fiber-laser',
+        permanent: false,
+      },
+      {
+        source: '/lasers/high-end-fiber',
+        destination: '/lasers/high-end-fiber',
+        permanent: false,
+      },
+      // Then redirect all other /lasers/ URLs to /products/
+      {
+        source: '/lasers/:slug',
+        destination: '/products/:slug',
+        permanent: true,
+      }
     ]
   },
   experimental: {

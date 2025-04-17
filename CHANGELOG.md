@@ -50,6 +50,10 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
 - Response payload optimization with field selection
 
 ### Fixed
+- Implemented redirects to handle incorrect URL patterns
+  - Added specific redirects from `/lasers/:slug` to `/products/:slug` for product pages
+  - Preserved access to legitimate category pages (desktop-diode-laser, desktop-galvo, etc.)
+  - Fixed "No products found for category" errors appearing in logs
 - Fixed database schema mismatch in batch_results table
   - Removed invalid reference to 'created_at' column
   - Updated code to use proper 'start_time' and 'end_time' fields
