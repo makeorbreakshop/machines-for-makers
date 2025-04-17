@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import dynamic from 'next/dynamic'
 import ProductsGrid from "@/components/products-grid"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Grid, Table, Zap, Box, Layers, Maximize2, Minimize2, Briefcase, Smartphone, X, Camera, Wifi, ArrowUpDown, Filter } from "lucide-react"
+import { Grid, Table, Zap, Box, Layers, Maximize2, Minimize2, Briefcase, Smartphone, X, Camera, Wifi, ArrowUpDown, Filter, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import FilterButton from "@/components/filter-button"
 import SidebarFilter from "@/components/sidebar-filter"
@@ -24,6 +24,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { debounce } from 'lodash'
 import UnifiedFilter from "@/components/unified-filter"
+import { debug, checkForRateLimiting, checkSupabaseStatus } from "./debug-utils"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useQuery } from '@tanstack/react-query'
+
+// Simple debug utility that only logs in development
+const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
 // Dynamically import heavy components with increased loading delay to prevent hydration issues
 const ComparisonTable = dynamic(() => import('@/components/comparison-table'), {
@@ -61,21 +68,14 @@ declare global {
 // Helper function for laser type matching - extracted to ensure consistent matching logic
 function matchesLaserType(product: Machine, laserType: string): boolean {
   // Normalize by converting to lowercase, trimming spaces, and standardizing format
-  // - Replace spaces with dashes to match database format
-  // - Convert everything to lowercase for case-insensitive comparison
   const normalizedType = laserType.toLowerCase().trim().replace(/ /g, '-');
   
   // Get the product's laser types and normalize them the same way
   let productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
   let productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
   
-  console.log(`DEBUG MATCHING: Checking if machine "${product["Machine Name"]}" matches laser type "${normalizedType}"`);
-  console.log(`DEBUG MATCHING: Machine has Laser Type A = "${productLaserTypeA}", Laser Type B = "${productLaserTypeB}"`);
-  
   // Direct matching on Laser Type fields (case-insensitive with normalized format)
-  const isMatch = productLaserTypeA === normalizedType || productLaserTypeB === normalizedType;
-  console.log(`DEBUG MATCHING: Match result: ${isMatch}`);
-  return isMatch;
+  return productLaserTypeA === normalizedType || productLaserTypeB === normalizedType;
 }
 
 // Helper function to get category icon - moved outside component to prevent recreation
@@ -264,9 +264,9 @@ const FeaturesList = React.memo(function FeaturesList() {
   )
 })
 
-// Unified filtering function - a single source of truth for ALL filtering
+// Unified filtering function with optimized performance
 function applyAllFilters(products: Machine[], filters: Filters): Machine[] {
-  // Skip filtering if no filters are explicitly set (all at default values)
+  // Skip filtering if no filters are explicitly set
   const isUsingDefaultFilters = 
     filters.laserTypes.length === 0 && 
     filters.features.length === 0 && 
@@ -285,8 +285,6 @@ function applyAllFilters(products: Machine[], filters: Filters): Machine[] {
   // Apply all filters sequentially to maintain clean and predictable behavior
   let filteredProducts = [...products];
   
-  console.log(`FILTER DEBUG: Starting with ${filteredProducts.length} products total`);
-  
   // 1. Apply Top Pick filter first
   if (filters.isTopPick) {
     filteredProducts = filteredProducts.filter(product => product.Award);
@@ -294,37 +292,9 @@ function applyAllFilters(products: Machine[], filters: Filters): Machine[] {
   
   // 2. Apply laser type filter - this is always the thorough matching version
   if (filters.laserTypes.length > 0) {
-    console.log(`FILTER DEBUG: Applying laser type filters: ${filters.laserTypes.join(', ')}`);
-    
-    // Store products before filtering for debugging
-    const beforeLaserFilter = [...filteredProducts];
-    
-    filteredProducts = filteredProducts.filter(product => {
-      const matches = filters.laserTypes.some(laserType => matchesLaserType(product, laserType));
-      
-      if (!matches) {
-        console.log(`FILTER DEBUG: Product "${product["Machine Name"]}" was EXCLUDED by laser type filter`);
-        console.log(`FILTER DEBUG: It has Laser Type A = "${product["Laser Type A"] || "N/A"}", Laser Type B = "${product["Laser Type B"] || "N/A"}"`);
-      } else {
-        console.log(`FILTER DEBUG: Product "${product["Machine Name"]}" was INCLUDED by laser type filter`);
-      }
-      
-      return matches;
-    });
-    
-    // Calculate which products were filtered out
-    const filteredOut = beforeLaserFilter.filter(p1 => !filteredProducts.some(p2 => p2.id === p1.id));
-    
-    console.log(`FILTER DEBUG: Laser type filter removed ${filteredOut.length} products`);
-    if (filteredOut.length > 0 && filteredOut.length <= 10) {
-      console.log(`FILTER DEBUG: Filtered out products:`);
-      filteredOut.forEach(p => {
-        console.log(`  - ${p["Machine Name"]} (Laser Type A: "${p["Laser Type A"] || "N/A"}", Laser Type B: "${p["Laser Type B"] || "N/A"}")`);
-      });
-    }
-    
-    // Add debug logging for laser type filtering
-    console.log(`UNIFIED FILTER: Applied laser type filters [${filters.laserTypes.join(', ')}] - ${filteredProducts.length} machines remain`);
+    filteredProducts = filteredProducts.filter(product => 
+      filters.laserTypes.some(laserType => matchesLaserType(product, laserType))
+    );
   }
   
   // 3. Apply price range filter
@@ -333,8 +303,6 @@ function applyAllFilters(products: Machine[], filters: Filters): Machine[] {
       const price = parseFloat(String(product.Price || 0));
       return !isNaN(price) && price >= filters.priceRange[0] && price <= filters.priceRange[1];
     });
-    
-    console.log(`UNIFIED FILTER: Applied price range ${filters.priceRange[0]}-${filters.priceRange[1]} - ${filteredProducts.length} machines remain`);
   }
   
   // 4. Apply power range filter
@@ -352,8 +320,6 @@ function applyAllFilters(products: Machine[], filters: Filters): Machine[] {
       
       return !isNaN(power) && power >= filters.powerRange[0] && power <= filters.powerRange[1];
     });
-    
-    console.log(`UNIFIED FILTER: Applied power range ${filters.powerRange[0]}-${filters.powerRange[1]} - ${filteredProducts.length} machines remain`);
   }
   
   // 5. Apply speed range filter
@@ -371,8 +337,6 @@ function applyAllFilters(products: Machine[], filters: Filters): Machine[] {
       
       return !isNaN(speed) && speed >= filters.speedRange[0] && speed <= filters.speedRange[1];
     });
-    
-    console.log(`UNIFIED FILTER: Applied speed range ${filters.speedRange[0]}-${filters.speedRange[1]} - ${filteredProducts.length} machines remain`);
   }
   
   // 6. Apply features filter last
@@ -395,31 +359,54 @@ function applyAllFilters(products: Machine[], filters: Filters): Machine[] {
         }
       });
     });
-    
-    console.log(`UNIFIED FILTER: Applied feature filters [${filters.features.join(', ')}] - ${filteredProducts.length} machines remain`);
-  }
-  
-  // Log detailed info about the machines that were filtered out
-  if (filteredProducts.length === 0 && filters.laserTypes.length > 0) {
-    console.log("FILTER WARNING: All machines were filtered out. Let's check why:");
-    
-    // Check each filter step individually to find what's causing the issue
-    const afterLaserTypeFilter = products.filter(product => 
-      filters.laserTypes.some(laserType => matchesLaserType(product, laserType))
-    );
-    
-    console.log(`- After laser type filter: ${afterLaserTypeFilter.length} machines`);
-    
-    if (afterLaserTypeFilter.length > 0 && afterLaserTypeFilter.length <= 5) {
-      console.log("Machines that matched laser type criteria:");
-      afterLaserTypeFilter.forEach(p => {
-        console.log(`  * ${p["Machine Name"]} (Price: ${p.Price}, Power: ${p["Laser Power A"]}, Speed: ${p.Speed})`);
-      });
-    }
   }
   
   return filteredProducts;
 }
+
+// Rate Limit Warning component 
+interface RateLimitWarningProps {
+  details: string[];
+  onRefresh: () => void;
+  isLoading: boolean;
+}
+
+const RateLimitWarning = ({ details, onRefresh, isLoading }: RateLimitWarningProps) => {
+  if (details.length === 0) return null;
+  
+  return (
+    <Alert variant="destructive" className="mb-4">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle>Performance Issue Detected</AlertTitle>
+      <AlertDescription>
+        <div className="space-y-2">
+          <p>The database may be experiencing high load or rate limiting:</p>
+          <ul className="list-disc pl-5 text-sm">
+            {details.map((detail, i) => (
+              <li key={i}>{detail}</li>
+            ))}
+          </ul>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onRefresh}
+            disabled={isLoading}
+            className="mt-2"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Refreshing...
+              </>
+            ) : (
+              'Refresh Data'
+            )}
+          </Button>
+        </div>
+      </AlertDescription>
+    </Alert>
+  );
+};
 
 export default function CompareClientPage({
   initialProducts,
@@ -438,25 +425,111 @@ export default function CompareClientPage({
     "CO2 RF": "CO2-RF",
     "CO2 Glass": "CO2-Glass",
     "Diode": "Diode",
+    "UV": "UV"
   }), []);
   
+  const [view, setView] = useState<'grid' | 'table'>('grid')
+  const [sortOption, setSortOption] = useState('price-asc')
   const [products, setProducts] = useState<Machine[]>(initialProducts)
   const [filteredProducts, setFilteredProducts] = useState<Machine[]>(initialProducts)
-  const [selectedProducts, setSelectedProducts] = useState<Machine[]>([])
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
-  const [sortOption, setSortOption] = useState<string>("price-asc")
+  const [loading, setLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [quickFilter, setQuickFilter] = useState('')
   const [filters, setFilters] = useState<Filters>({
     laserTypes: [],
     priceRange: [0, 15000],
     powerRange: [0, 150],
     speedRange: [0, 2000],
     features: [],
-    isTopPick: false,
+    isTopPick: false
   })
-  const [isLoading, setLoading] = useState(false)
+  const [selectedProducts, setSelectedProducts] = useState<Machine[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  // Add a filter update counter to track filter update operations
   const [filterUpdateCounter, setFilterUpdateCounter] = useState<number>(0);
+  const [rateLimitInfo, setRateLimitInfo] = useState<{
+    isRateLimited: boolean;
+    isThrottled: boolean;
+    details: string[];
+    lastChecked: Date;
+  }>({
+    isRateLimited: false,
+    isThrottled: false,
+    details: [],
+    lastChecked: new Date()
+  })
+
+  // React Query implementation
+  const { data: machinesData, isLoading, error } = useQuery({
+    queryKey: ['machines', filters],
+    queryFn: async () => {
+      const response = await fetch(`/api/machines?limit=1000`, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      // Check for rate limiting
+      const rateLimitCheck = checkForRateLimiting(response);
+      
+      // Update rate limit state if issues are detected
+      if (rateLimitCheck.isRateLimited || rateLimitCheck.isThrottled || rateLimitCheck.details.length > 0) {
+        setRateLimitInfo({
+          isRateLimited: rateLimitCheck.isRateLimited,
+          isThrottled: rateLimitCheck.isThrottled,
+          details: rateLimitCheck.details,
+          lastChecked: new Date()
+        });
+        
+        // If rate limited, try to get Supabase status
+        if (rateLimitCheck.isRateLimited) {
+          checkSupabaseStatus().then(statusCheck => {
+            if (statusCheck.details.length > 0) {
+              setRateLimitInfo(prev => ({
+                ...prev,
+                details: [...prev.details, ...statusCheck.details]
+              }));
+            }
+          });
+        }
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API error: ${response.status} ${errorText}`);
+      }
+      
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    gcTime: 10 * 60 * 1000,   // Keep cache for 10 minutes
+    initialData: { data: initialProducts, count: initialProducts.length }
+  });
+  
+  // Update products when query data changes
+  useEffect(() => {
+    if (machinesData?.data) {
+      setProducts(machinesData.data);
+    }
+  }, [machinesData]);
+  
+  // Update filtered products when products or filters change
+  useEffect(() => {
+    if (products.length > 0) {
+      const filtered = applyAllFilters(products, filters);
+      setFilteredProducts(filtered);
+    }
+  }, [products, filters]);
+
+  // Replace existing fetchProducts with this one that just triggers a refetch
+  const fetchProducts = () => {
+    // React Query handles the actual fetching
+    return;
+  };
+  
+  // Keep the loading state in sync with React Query
+  useEffect(() => {
+    setLoading(isLoading);
+  }, [isLoading]);
 
   // State for mobile filters
   const [activeFilters, setActiveFilters] = useState<{
@@ -477,13 +550,6 @@ export default function CompareClientPage({
     isTopPick: filters.isTopPick,
   });
 
-  // DEBUGGING: Print all laser type mappings at component load
-  useEffect(() => {
-    console.log("================= LASER TYPE MAPPINGS =================");
-    console.log("FILTER DEBUGGING: Laser type UI to DB mapping:", laserTypeMap);
-    console.log("===========================================================");
-  }, [laserTypeMap]);
-
   // Filter products based on selected filters - now just a wrapper for applyAllFilters for backward compatibility
   const filterProducts = useCallback((product: Machine, filters: Filters) => {
     // Use the unified filter to ensure consistency
@@ -491,162 +557,18 @@ export default function CompareClientPage({
     return filtered.length > 0;
   }, []);
 
-  // Update filtered products when filters change
-  useEffect(() => {
-    // Add a debug line to track effect runs
-    console.log(`Filter effect running - counter: ${filterUpdateCounter}`);
-    
-    // Ensure we start the filtering process with loading state
-    setLoading(true);
-    
-    // Skip filtering if no filters are explicitly set
-    const isUsingDefaultFilters = 
-      filters.laserTypes.length === 0 && 
-      filters.features.length === 0 && 
-      filters.priceRange[0] === 0 && 
-      filters.priceRange[1] === 15000 &&
-      filters.powerRange[0] === 0 && 
-      filters.powerRange[1] === 150 &&
-      filters.speedRange[0] === 0 && 
-      filters.speedRange[1] === 2000 &&
-      !filters.isTopPick;
-    
-    if (isUsingDefaultFilters && products.length > 0) {
-      console.log(`DEFAULT FILTERS: Showing all ${products.length} products`);
-      setFilteredProducts(products);
-      setLoading(false); // Make sure to reset loading state
-      return;
-    }
-    
-    // DEBUG: Log which filters are active
-    console.log("Active filters:", {
-      laserTypes: filters.laserTypes,
-      features: filters.features,
-      priceRange: filters.priceRange,
-      powerRange: filters.powerRange,
-      speedRange: filters.speedRange,
-      isTopPick: filters.isTopPick
-    });
-    
-    // USE THE UNIFIED FILTER APPROACH FOR ALL FILTER SCENARIOS
-    console.log(`FILTER: Applying all filters with unified system`);
-    const filtered = applyAllFilters(products, filters);
-    
-    // Log the results
-    console.log(`FILTER RESULT: Found ${filtered.length} machines matching all criteria`);
-    
-    // DEBUG: Sample of matches
-    if (filtered.length > 0) {
-      console.log("Sample matches:");
-      filtered.slice(0, 3).forEach(product => {
-        console.log(`  - ${product["Machine Name"]} (${product["Laser Type A"]}, ${product["Laser Category"]})`);
-      });
-    }
-    
-    // Store for debugging if this is a laser type filter
-    if (filters.laserTypes.length > 0) {
-      const machineIds = filtered.map(m => m.id || m["Machine Name"]);
-      window.__DEBUG_FIBER_MACHINES = machineIds;
-      window.__DEBUG_LAST_FILTER_COUNT = filtered.length;
-    }
-    
-    // Update the filtered products
-    setFilteredProducts(filtered);
-    
-    // Always reset loading state at the end
-    setLoading(false);
-  }, [products, filters, filterUpdateCounter]);
-
-  // Handle filter change from filter components
-  const handleFilterChange = useCallback((newFilters: Filters) => {
-    setLoading(true); // Show loading state
-    
-    // Use setTimeout to defer filtering to next tick, allowing UI to update
-    setTimeout(() => {
-      console.log(`Filter change received:`, newFilters);
-      
-      // No need for special handling anymore - the unified filter will handle everything
-      // Just update the filter state and let the effect do its work
-      setFilterUpdateCounter(prev => prev + 1);
-      setFilters(newFilters);
-      
-      // Make sure to reset loading state
-      setLoading(false);
-    }, 50); // Short delay for UI update
-  }, []);
-
-  // Listen for view changes
-  useEffect(() => {
-    // Get the initial view from localStorage
-    const savedView = localStorage.getItem("view") || "grid"
-    setViewMode(savedView as 'grid' | 'table')
-
-    // Get the initial sort option from localStorage
-    const savedSort = localStorage.getItem("sortOption") || "price-asc"
-    setSortOption(savedSort)
-
-    // Listen for view change events
-    const handleViewChange = (e: CustomEvent) => {
-      setViewMode(e.detail.view as 'grid' | 'table')
-    }
-
-    // Listen for sort change events
-    const handleSortChange = (e: CustomEvent) => {
-      setSortOption(e.detail.sort)
-    }
-
-    window.addEventListener("viewchange", handleViewChange as EventListener)
-    window.addEventListener("sortchange", handleSortChange as EventListener)
-
-    return () => {
-      window.removeEventListener("viewchange", handleViewChange as EventListener)
-      window.removeEventListener("sortchange", handleSortChange as EventListener)
-    }
-  }, [])
-
   // Handle search results
   const handleSearch = React.useCallback((results: Machine[]) => {
     if (results.length === 0) {
       // If search returns no results, just show filtered products based on current filters
       const filteredByFilters = applyAllFilters(products, filters);
-      console.log(`Search found no results, showing ${filteredByFilters.length} filtered products`);
       setFilteredProducts(filteredByFilters);
     } else {
       // First apply filters to the search results
       const filteredSearchResults = applyAllFilters(results, filters);
-      
-      console.log(`Search found ${results.length} products, ${filteredSearchResults.length} match current filters`);
       setFilteredProducts(filteredSearchResults);
     }
   }, [products, filters]);
-
-  // Fetch products with filters
-  const fetchProducts = async () => {
-    try {
-      // Set limit to get all products
-      const response = await fetch(`/api/machines?limit=1000`)
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`API error status: ${response.status}, response: ${errorText}`)
-        throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`)
-      }
-
-      const data = await response.json()
-      const newProducts = data.data || []
-      console.log(`Fetched ${newProducts.length} machines from API`)
-      setProducts(newProducts)
-      
-      // Apply filters to the fetched products using our unified approach
-      const filtered = applyAllFilters(newProducts, filters);
-      console.log(`Initial filtering of fetched products: ${filtered.length}/${newProducts.length} passed filters`)
-      setFilteredProducts(filtered)
-    } catch (error) {
-      console.error("Error fetching products:", error)
-      setProducts([])
-      setFilteredProducts([])
-    }
-  }
 
   // Debounced fetchProducts to reduce excessive API calls
   const debouncedFetchProducts = useMemo(() => 
@@ -656,7 +578,7 @@ export default function CompareClientPage({
         // Your existing fetchProducts logic
         // ...
       } catch (error) {
-        console.error("Error fetching products:", error);
+        debug.error("Error fetching products:", error);
       } finally {
         setLoading(false);
       }
@@ -666,15 +588,12 @@ export default function CompareClientPage({
   
   // Memoize the sortProducts function to avoid recreation on each render
   const sortProducts = useCallback((products: Machine[]) => {
-    console.log(`Applying sort: ${sortOption} to ${products.length} products`);
-    
     // Create a defensive copy of the products array
     const sorted = [...products]
     
     let result;
     switch (sortOption) {
       case "price-asc":
-        console.log("Sorting by price: low to high");
         result = sorted.sort((a, b) => {
           const priceA = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0))
           const priceB = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0))
@@ -682,7 +601,6 @@ export default function CompareClientPage({
         });
         break;
       case "price-desc":
-        console.log("Sorting by price: high to low");
         result = sorted.sort((a, b) => {
           const priceA = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0))
           const priceB = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0))
@@ -690,7 +608,6 @@ export default function CompareClientPage({
         });
         break;
       case "power-desc":
-        console.log("Sorting by power: high to low");
         result = sorted.sort((a, b) => {
           const powerA = parseFloat(String(a["Laser Power A"] || 0))
           const powerB = parseFloat(String(b["Laser Power A"] || 0))
@@ -698,7 +615,6 @@ export default function CompareClientPage({
         });
         break;
       case "speed-desc":
-        console.log("Sorting by speed: high to low");
         result = sorted.sort((a, b) => {
           const speedA = parseFloat(String(a.Speed || 0))
           const speedB = parseFloat(String(b.Speed || 0))
@@ -706,7 +622,6 @@ export default function CompareClientPage({
         });
         break;
       case "name-asc":
-        console.log("Sorting by name: A to Z");
         result = sorted.sort((a, b) => {
           const nameA = a["Machine Name"] || ""
           const nameB = b["Machine Name"] || ""
@@ -714,67 +629,13 @@ export default function CompareClientPage({
         });
         break;
       default:
-        console.log("Using default sorting");
         result = sorted;
         break;
-    }
-    
-    // Log the first few items after sorting for debugging
-    if (result.length > 0) {
-      console.log("First 3 items after sorting:");
-      result.slice(0, 3).forEach((item, index) => {
-        console.log(`  ${index + 1}. ${item["Machine Name"]} - Price: ${item.Price}, Power: ${item["Laser Power A"]}, Speed: ${item.Speed}`);
-      });
-
-      // Log the last few items as well for comparison
-      console.log("Last 3 items after sorting:");
-      result.slice(-3).forEach((item, index) => {
-        console.log(`  ${result.length - 2 + index}. ${item["Machine Name"]} - Price: ${item.Price}, Power: ${item["Laser Power A"]}, Speed: ${item.Speed}`);
-      });
     }
     
     // Force a new array reference to ensure React detects the change
     return [...result];
   }, [sortOption]);
-  
-  // Use useEffect with proper dependencies to handle view and sort changes
-  useEffect(() => {
-    const handleViewChange = (e: any) => {
-      setViewMode(e.detail.view);
-    };
-    
-    const handleSortChange = (e: any) => {
-      setSortOption(e.detail.sort);
-      const sortedProducts = sortProducts([...filteredProducts]);
-      setFilteredProducts(sortedProducts);
-    };
-    
-    window.addEventListener('viewchange', handleViewChange);
-    window.addEventListener('sortchange', handleSortChange);
-    
-    return () => {
-      window.removeEventListener('viewchange', handleViewChange);
-      window.removeEventListener('sortchange', handleSortChange);
-    };
-  }, [filteredProducts, sortProducts]); // Proper dependencies
-  
-  // Memoize complex calculations
-  const machineStats = useMemo(() => {
-    // Calculate min/max values once based on products
-    const machineStats = {
-      priceMin: 0,
-      priceMax: 0,
-      powerMin: 0,
-      powerMax: 0,
-      speedMin: 0,
-      speedMax: 0,
-    };
-    
-    // Your existing stats calculation logic
-    // ...
-    
-    return machineStats;
-  }, [initialProducts]); // Only recalculate when initialProducts changes
   
   // Memoize filtered results to avoid recalculation
   const displayProducts = useMemo(() => {
@@ -782,52 +643,11 @@ export default function CompareClientPage({
     return filteredProducts;
   }, [filteredProducts, isLoading]);
 
-  // Render the products with proper sorting
   // Create a final sorted array that's guaranteed to be sorted just before rendering
   const finalSortedProducts = React.useMemo(() => {
-    console.log(`FINAL RENDER: Using sortOption ${sortOption} for ${displayProducts.length} products`);
-    // Apply sorting one more time just before rendering to be extra sure
     return sortProducts(displayProducts);
-  }, [displayProducts, sortOption]);
+  }, [displayProducts, sortOption, sortProducts]);
   
-  // Add an effect to debug sort option changes
-  React.useEffect(() => {
-    console.log(`Sort option changed to: ${sortOption}`);
-  }, [sortOption]);
-
-  // React effect for monitoring filter changes and debugging
-  React.useEffect(() => {
-    // Only add basic logging for debugging
-    if (filters.laserTypes.length > 0) {
-      console.log(`MONITOR: Current filter state:`, {
-        laserTypes: filters.laserTypes,
-        hasOtherFilters: filters.features.length > 0 || 
-                      filters.priceRange[0] > 0 || 
-                      filters.priceRange[1] < 15000 ||
-                      filters.powerRange[0] > 0 || 
-                      filters.powerRange[1] < 150 ||
-                      filters.speedRange[0] > 0 || 
-                      filters.speedRange[1] < 2000 ||
-                      filters.isTopPick
-      });
-      
-      // Debug check to verify filter counts are as expected
-      if (filteredProducts.length < (window.__DEBUG_LAST_FILTER_COUNT || 0) && window.__DEBUG_LAST_FILTER_COUNT) {
-        console.log(`FILTER MONITOR: Current filtered count (${filteredProducts.length}) is less than last laser-only filter count (${window.__DEBUG_LAST_FILTER_COUNT})`);
-        
-        // Verify that our unified filtering gives the same results
-        const verificationFiltered = applyAllFilters(products, filters);
-        if (verificationFiltered.length !== filteredProducts.length) {
-          console.warn(`FILTER INCONSISTENCY: Unified filter gives ${verificationFiltered.length} results, but current filtered products has ${filteredProducts.length}`);
-          
-          // This should never happen with our unified approach, but just in case
-          // Apply the unified filter to ensure consistency
-          setFilteredProducts(verificationFiltered);
-        }
-      }
-    }
-  }, [filters, filteredProducts, products]);
-
   // Initial load of products
   useEffect(() => {
     fetchProducts()
@@ -842,17 +662,8 @@ export default function CompareClientPage({
     (filters.speedRange[0] > 0 || filters.speedRange[1] < 2000 ? 1 : 0) +
     (filters.features.length || 0)
 
-  // Handle category filter change
-  const handleCategoryChange = useCallback((categoryId: string | null) => {
-    setCategoryFilter(categoryId);
-    // Apply additional filtering logic for categories if needed
-    console.log(`Category filter changed to: ${categoryId}`);
-  }, []);
-
   // Handler for applying filters
   function handleApplyFilters(filters: any) {
-    console.log("Applying filters:", filters);
-    
     // Update the active filters state for the mobile filter button
     setActiveFilters(filters);
     
@@ -909,6 +720,32 @@ export default function CompareClientPage({
     setLoading(false);
   }, [products]);
 
+  // Add a function to manually check Supabase status
+  const checkStatus = async () => {
+    setLoading(true);
+    
+    try {
+      const status = await checkSupabaseStatus();
+      
+      setRateLimitInfo({
+        isRateLimited: status.details.some(d => d.includes('CRITICAL') || d.includes('Rate limit')),
+        isThrottled: status.details.some(d => d.includes('WARNING') || d.includes('SLOW')),
+        details: status.details,
+        lastChecked: new Date()
+      });
+    } catch (error) {
+      console.error('Error checking status:', error);
+      
+      setRateLimitInfo(prev => ({
+        ...prev,
+        details: [...prev.details, `Error checking status: ${String(error)}`],
+        lastChecked: new Date()
+      }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <div className="container mx-auto px-4 py-8 max-w-screen-2xl">
@@ -926,8 +763,37 @@ export default function CompareClientPage({
                 />
               </div>
               <ViewToggle />
+              {DEBUG_MODE && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={checkStatus}
+                        disabled={isLoading}
+                      >
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="sr-only">Check Status</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Check Database Status</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
+          
+          {/* Show rate limit warning if detected */}
+          {rateLimitInfo.details.length > 0 && (
+            <RateLimitWarning 
+              details={rateLimitInfo.details} 
+              onRefresh={fetchProducts}
+              isLoading={isLoading}
+            />
+          )}
 
           <div className="flex flex-col-reverse lg:flex-row gap-6">
             {/* Sidebar filter - hidden on mobile */}
@@ -989,7 +855,7 @@ export default function CompareClientPage({
                   </div>
                 ) : (
                   <>
-                    {viewMode === "grid" ? (
+                    {view === "grid" ? (
                       <ProductsGrid
                         products={finalSortedProducts}
                         totalProducts={finalSortedProducts.length}
@@ -1008,7 +874,6 @@ export default function CompareClientPage({
           </div>
         </div>
       </div>
-      <ComparisonBar />
     </>
   )
 }

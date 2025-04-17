@@ -6,12 +6,45 @@ import { createAdminClient } from "@/lib/supabase/admin"
 // Specify nodejs runtime to ensure environment variables are properly accessible
 export const runtime = 'nodejs';
 
+// Debug utility for API monitoring
+const DEBUG_MODE = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
+const debug = {
+  log: (...args: any[]) => {
+    if (DEBUG_MODE) console.log('[API DEBUG]', ...args);
+  },
+  error: (...args: any[]) => {
+    console.error('[API ERROR]', ...args); // Always log errors
+  },
+  perf: (label: string, startTime: number) => {
+    if (DEBUG_MODE) {
+      const duration = performance.now() - startTime;
+      console.log(`[API PERF] ${label}: ${duration.toFixed(2)}ms`);
+      return duration;
+    }
+    return 0;
+  }
+};
+
 export async function GET(request: NextRequest) {
+  const requestStart = performance.now();
+  debug.log(`Processing request from ${request.headers.get('x-forwarded-for') || 'unknown IP'}`);
+  
+  // Performance tracking for various operations
+  const timings: Record<string, number> = {};
+  
+  // Add rate limit monitoring headers to response
+  const responseHeaders: Record<string, string> = {
+    'X-API-Request-Time': new Date().toISOString(),
+    'X-API-Request-ID': Math.random().toString(36).substring(2, 15),
+    // Add caching headers
+    'Cache-Control': 'max-age=300, s-maxage=600, stale-while-revalidate=86400'
+  };
+  
   const searchParams = request.nextUrl.searchParams
 
   // Get query parameters
   const category = searchParams.get("category")
-  const limit = Number.parseInt(searchParams.get("limit") || "1000")
+  const limit = Number.parseInt(searchParams.get("limit") || "50") // Default to 50 instead of 1000
   const page = Number.parseInt(searchParams.get("page") || "1")
   const sort = searchParams.get("sort") || "Created On-desc"
   const search = searchParams.get("search")
@@ -22,11 +55,18 @@ export async function GET(request: NextRequest) {
   const minSpeed = Number.parseFloat(searchParams.get("minSpeed") || "0")
   const maxSpeed = Number.parseFloat(searchParams.get("maxSpeed") || "2000")
   const minRating = Number.parseFloat(searchParams.get("minRating") || "0")
+  // Get specific fields to return if requested
+  const fields = searchParams.get("fields") || "*";
 
   // Get array parameters
   const laserTypes = searchParams.getAll("laserType")
   const brands = searchParams.getAll("brand")
   const features = searchParams.getAll("feature")
+
+  debug.log('Request parameters:', {
+    limit, page, category, laserTypes, brands, features,
+    minPrice, maxPrice, minPower, maxPower, minSpeed, maxSpeed 
+  });
 
   // Create Supabase client with anonymous key for reading public data
   // Using anon key instead of service role key to fix production API key error
@@ -37,16 +77,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Supabase credentials not configured" }, { status: 500 })
   }
 
+  const supabaseInit = performance.now();
   const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
+  timings.supabaseInit = performance.now() - supabaseInit;
 
   try {
     // Build query
+    const queryBuildStart = performance.now();
     let query = supabase
       .from("machines")
-      .select("*", { count: "exact" })
-      .or('Hidden.is.null,Hidden.eq.false,Hidden.eq.False,Hidden.ilike.%false%,Hidden.eq.No,Hidden.ilike.%no%,Hidden.neq.true,Hidden.neq.True,Hidden.not.ilike.%true%') // Only show non-hidden machines
+      .select(fields, { count: "exact" })
+      // Simplified hidden filter
+      .filter('Hidden', 'not.eq', 'true')
 
-    console.log("API: Getting all visible machines with query:", query)
+    debug.log("API: Getting all visible machines with query:", query)
 
     // Apply filters
     if (category && category !== "all") {
@@ -73,17 +117,12 @@ export async function GET(request: NextRequest) {
       query = query.lte("Price", maxPrice.toString())
     }
 
-    // Apply power range filter - handle text values
-    try {
-      if (minPower > 0 || maxPower < 150) {
-        // Extract numeric value from text field for comparison
-        query = query.or(
-          `Laser Power A.gte.${minPower},Laser Power A.ilike.${minPower}%,Laser Power A.ilike.%${minPower}W%`
-        )
-      }
-    } catch (powerError) {
-      console.error("Error applying power filters:", powerError)
-      // Continue with the query without these filters
+    // Apply power range filter - simplified
+    if (minPower > 0) {
+      query = query.gte("Laser Power A", minPower.toString())
+    }
+    if (maxPower < 150) {
+      query = query.lte("Laser Power A", maxPower.toString())
     }
 
     // Apply rating filter
@@ -91,27 +130,33 @@ export async function GET(request: NextRequest) {
       query = query.gte("Rating", minRating)
     }
 
-    // Apply features filters - these are stored as "Yes" or "No" values in their respective columns
+    // Apply features filters - simplified approach
     if (features.length > 0) {
+      const featureConditions: string[] = [];
+      
       features.forEach(feature => {
         switch (feature) {
           case 'Camera':
-            query = query.or('Camera.eq.Yes,Camera.ilike.%yes%,Camera.eq.true')
-            break
+            featureConditions.push('Camera.eq.Yes');
+            break;
           case 'Wifi':
-            query = query.or('Wifi.eq.Yes,Wifi.ilike.%yes%,Wifi.eq.true')
-            break
+            featureConditions.push('Wifi.eq.Yes');
+            break;
           case 'Enclosure':
-            query = query.or('Enclosure.eq.Yes,Enclosure.ilike.%yes%,Enclosure.eq.true')
-            break
+            featureConditions.push('Enclosure.eq.Yes');
+            break;
           case 'Focus':
-            query = query.or('Focus.eq.Auto,Focus.ilike.%auto%')
-            break
+            featureConditions.push('Focus.eq.Auto');
+            break;
           case 'Passthrough':
-            query = query.or('Passthrough.eq.Yes,Passthrough.ilike.%yes%,Passthrough.eq.true')
-            break
+            featureConditions.push('Passthrough.eq.Yes');
+            break;
         }
-      })
+      });
+      
+      if (featureConditions.length > 0) {
+        query = query.or(featureConditions.join(','));
+      }
     }
 
     // Apply sorting
@@ -133,56 +178,79 @@ export async function GET(request: NextRequest) {
       console.error("Error applying sort:", sortError)
     }
 
-    // Apply pagination - only if explicitly requested
-    if (searchParams.has("page")) {
-      const offset = (page - 1) * limit
-      query = query.range(offset, offset + limit - 1)
-    } else {
-      // No pagination - get all results up to limit
-      query = query.limit(limit)
+    // Apply pagination - proper implementation
+    const offset = (page - 1) * limit;
+    query = query.range(offset, offset + limit - 1);
+    
+    timings.queryBuild = performance.now() - queryBuildStart;
+    debug.log("API: Executing Supabase query with limit:", limit);
+    
+    // Execute query with timing
+    const queryExecutionStart = performance.now();
+    const { data, error, count, status } = await query;
+    timings.queryExecution = performance.now() - queryExecutionStart;
+    
+    // Add query performance to response headers
+    responseHeaders['X-Query-Time'] = timings.queryExecution.toString();
+    responseHeaders['X-Supabase-Status'] = status.toString();
+    responseHeaders['Server-Timing'] = Object.entries(timings)
+      .map(([name, time]) => `${name};dur=${time.toFixed(2)}`)
+      .join(',');
+    
+    // Check for potential rate limiting or throttling
+    if (timings.queryExecution > 5000) {
+      debug.error('POTENTIAL THROTTLING: Query took more than 5 seconds to execute');
+      responseHeaders['X-Throttling-Warning'] = 'true';
     }
-
-    console.log("API: Executing Supabase query with limit:", limit)
-    const { data, error, count } = await query
 
     if (error) {
-      console.error("Supabase error details:", error.message, error.details, error.hint)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      debug.error("Supabase error details:", error.message, error.details, error.hint, "Status:", status);
+      
+      // Check if error indicates rate limiting
+      if (error.message.includes('rate limit') || error.message.includes('timeout') || status === 429) {
+        debug.error('RATE LIMIT DETECTED in Supabase response');
+        responseHeaders['X-Rate-Limited'] = 'true';
+        return NextResponse.json(
+          { error: error.message, isRateLimited: true }, 
+          { status: 429, headers: responseHeaders }
+        );
+      }
+      
+      return NextResponse.json(
+        { error: error.message }, 
+        { status: 500, headers: responseHeaders }
+      );
     }
 
-    console.log(`API: Retrieved ${data?.length || 0} machines out of ${count || 0} total`)
+    debug.log(`API: Retrieved ${data?.length || 0} machines out of ${count || 0} total`);
+    responseHeaders['X-Result-Count'] = (data?.length || 0).toString();
+    responseHeaders['X-Total-Count'] = (count || 0).toString();
+    responseHeaders['X-Page'] = page.toString();
+    responseHeaders['X-Limit'] = limit.toString();
 
-    // Post-processing for speed filter - more lenient parsing
-    let filteredData = data || []
-    if (data && (minSpeed > 0 || maxSpeed < 2000)) {
-      filteredData = data.filter(machine => {
-        if (!machine.Speed) return false
-        
-        // Extract numeric values from the Speed field
-        const speedStr = machine.Speed.toString()
-        const speedMatch = speedStr.match(/(\d+)/);
-        if (speedMatch) {
-          const speed = parseInt(speedMatch[1]);
-          return speed >= minSpeed && speed <= maxSpeed;
-        }
-        
-        // Try parsing the entire string as a number
-        const speed = parseFloat(speedStr)
-        if (!isNaN(speed)) {
-          return speed >= minSpeed && speed <= maxSpeed;
-        }
-        
-        return false;
-      })
-    }
-
-    return NextResponse.json({ 
-      data: filteredData, 
-      count: minSpeed > 0 || maxSpeed < 2000 ? filteredData.length : count 
-    })
-  } catch (error: any) {
-    console.error("Error fetching machines:", error?.message, error?.details || error)
-    return NextResponse.json({ error: "Failed to fetch machines", details: error?.message || String(error) }, { status: 500 })
+    // Calculate total request time
+    const totalTime = performance.now() - requestStart;
+    responseHeaders['X-Total-Processing-Time'] = totalTime.toString();
+    
+    return NextResponse.json(
+      { 
+        data: data || [], 
+        count, 
+        page,
+        totalPages: count ? Math.ceil(count / limit) : 0,
+        performance: { totalTime, ...timings } 
+      },
+      { 
+        headers: responseHeaders
+      }
+    );
+    
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    return NextResponse.json(
+      { error: "An unexpected error occurred" }, 
+      { status: 500, headers: responseHeaders }
+    );
   }
 }
 

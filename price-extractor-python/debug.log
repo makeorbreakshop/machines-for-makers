@@ -1,0 +1,135 @@
+2025-04-16 16:06:56.075 | INFO     | __main__:check_page:13 - Fetching https://acmerlaser.com/products/acmer-p3-ir-diode-laser-engraver
+2025-04-16 16:06:56.915 | INFO     | __main__:check_page:21 - Found 16 sale price elements
+2025-04-16 16:06:56.915 | INFO     | __main__:check_page:23 - Sale price element 0: -40%
+2025-04-16 16:06:56.915 | INFO     | __main__:check_page:23 - Sale price element 1: -30%
+2025-04-16 16:06:56.915 | INFO     | __main__:check_page:23 - Sale price element 2: -30%
+2025-04-16 16:06:56.915 | INFO     | __main__:check_page:23 - Sale price element 3: -25%
+2025-04-16 16:06:56.915 | INFO     | __main__:check_page:23 - Sale price element 4: -37%
+2025-04-16 16:06:56.915 | INFO     | __main__:check_page:23 - Sale price element 5: -53%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 6: -47%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 7: -36%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 8: -42%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 9: -60%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 10: -17%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 11: -15%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 12: -10%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 13: -25%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 14: -31%
+2025-04-16 16:06:56.916 | INFO     | __main__:check_page:23 - Sale price element 15: -36%
+2025-04-16 16:06:56.919 | INFO     | __main__:check_page:27 - Found 4 JSON-LD scripts
+2025-04-16 16:06:56.919 | INFO     | __main__:check_page:31 - Analyzing script 0
+2025-04-16 16:06:56.919 | DEBUG    | __main__:check_page:35 - JSON-LD data:
+{
+  "@context": "http://schema.org/",
+  "@type": "Product",
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.85",
+    "reviewCount": "53"
+  },
+  "name": "ACMER P3 IR\uff06Diode Enclosed Dual Laser Engraver",
+  "url": "https://acmerlaser.com/products/acmer-p3-ir-diode-laser-engraver",
+  "image": [
+    "https:files/2in1.webp"
+  ],
+  "description": "\nOne laser module for engraving almost all materials\nDesktop laser machine for home and small workshop\nSpacious working area let you finish a group of crafts with one setting\nUp to 800mm/s engraving speed to boost your business in holiday season\nCOREXY structure industrial guide rails end with result in precise under high speed\nCompatible with M4 rotary module (release the limitation for engraving the objects with round and spherical shape)\nCompatible ACMER APP, Lightburn, Laser GRBL\n\n",
+  "sku": "GY-000018",
+  "brand": {
+    "@type": "Brand",
+    "name": "ACMER"
+  },
+  "offers": {
+    "@type": "Offer",
+    "availability": "http://schema.org/InStock",
+    "price": 1199.0,
+    "priceCurrency": "USD",
+    "priceValidUntil": "2025-04-16",
+    "url": "https://acmerlaser.com/products/acmer-p3-ir-diode-laser-engraver?variant=45414726795490"
+  }
+}
+2025-04-16 16:06:56.919 | INFO     | __main__:check_page:40 - Found offers section
+2025-04-16 16:06:56.919 | INFO     | __main__:check_page:44 - Found price in offers: 1199.0
+2025-04-16 16:06:56.919 | INFO     | __main__:check_page:31 - Analyzing script 1
+2025-04-16 16:06:56.919 | DEBUG    | __main__:check_page:35 - JSON-LD data:
+{
+  "@context": "http://schema.org",
+  "@type": "Organization",
+  "name": "ACMER",
+  "logo": "https://acmerlaser.com/cdn/shop/files/acmer_logo.png?v=1735803680&width=500",
+  "sameAs": [
+    "https://facebook.com/acmerlaser",
+    "https://www.instagram.com/acmer_official/",
+    "https://www.youtube.com/@acmerlaser",
+    "https://tiktok.com/@acmerofficial",
+    ""
+  ],
+  "url": "https://acmerlaser.com"
+}
+2025-04-16 16:06:56.919 | INFO     | __main__:check_page:31 - Analyzing script 2
+2025-04-16 16:06:56.919 | DEBUG    | __main__:check_page:35 - JSON-LD data:
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": "https://acmerlaser.com"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Laser Cutter",
+      "item": "https://acmerlaser.com/collections/laser-cutter"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "ACMER P3 IR\uff06Diode Enclosed Dual Laser Engraver",
+      "item": "https://acmerlaser.com/products/acmer-p3-ir-diode-laser-engraver"
+    }
+  ]
+}
+2025-04-16 16:06:56.919 | INFO     | __main__:check_page:31 - Analyzing script 3
+2025-04-16 16:06:56.919 | DEBUG    | __main__:check_page:35 - JSON-LD data:
+{
+  "@context": "https://schema.org",
+  "@id": "https://acmerlaser.com/products/acmer-p3-ir-diode-laser-engraver#product",
+  "@type": "Product",
+  "brand": {
+    "@type": "Brand",
+    "name": "ACMER"
+  },
+  "sku": "GY-000018",
+  "mpn": "764923624193",
+  "description": "<ul>\n<li style=\"color: rgb(0, 0, 0);\"><span style=\"color: rgb(0, 0, 0);\">One laser module for engraving almost all materials</span></li>\n<li>Desktop laser machine for home and small workshop</li>\n<li>Spacious working area let you finish a group of crafts with one setting</li>\n<li>Up to 800mm/s engraving speed to boost your business in holiday season</li>\n<li>COREXY structure industrial guide rails end with result in precise under high speed</li>\n<li>Compatible with M4 rotary module (release the limitation for engraving the objects with round and spherical shape)</li>\n<li>Compatible ACMER APP, Lightburn, Laser GRBL<!---->\n</li>\n</ul>",
+  "url": "https://acmerlaser.com/products/acmer-p3-ir-diode-laser-engraver",
+  "name": "ACMER P3 IR\uff06Diode Enclosed Dual Laser Engraver",
+  "image": "https:files/2in1.webp",
+  "itemCondition": "http://schema.org/NewCondition",
+  "offers": [
+    {
+      "@type": "Offer",
+      "price": "1199.0",
+      "priceCurrency": "USD",
+      "priceValidUntil": "2024-05-17 21:27:43 -0600",
+      "itemCondition": "http://schema.org/NewCondition",
+      "url": "https://acmerlaser.com/products/acmer-p3-ir-diode-laser-engraver?variant=45414726795490",
+      "image": "https:files/2in1.webp",
+      "sku": "GY-000018",
+      "mpn": "GY-000018",
+      "availability": "https://schema.org/InStock",
+      "gtin12": "764923624193"
+    }
+  ],
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": 4.85,
+    "ratingCount": 53
+  }
+}
+2025-04-16 16:06:56.919 | INFO     | __main__:check_page:40 - Found offers section
+2025-04-16 16:06:56.919 | INFO     | __main__:check_page:49 - Found price in offer 0: 1199.0
+2025-04-16 16:06:57.001 | INFO     | __main__:check_page:70 - Found 1 elements with selector '[data-price]'
+2025-04-16 16:06:57.001 | INFO     | __main__:check_page:72 -   Element 0 text: 

@@ -63,10 +63,12 @@ async function updateMachinePrice(machineId) {
 /**
  * Update prices for all machines
  * @param {number} daysThreshold - Minimum days since last update
+ * @param {number|null} limit - Maximum number of machines to update, or null for all
+ * @param {Array|null} machineIds - Optional array of specific machine IDs to update
  * @returns {Promise<object>} - The result of the batch update operation
  */
-async function updateAllPrices(daysThreshold = 7) {
-  console.log(`[Python API] Starting batch update with threshold ${daysThreshold} days`);
+async function updateAllPrices(daysThreshold = 7, limit = null, machineIds = null) {
+  console.log(`[Python API] Starting batch update with threshold ${daysThreshold} days${limit ? ` and limit ${limit} machines` : ''}${machineIds ? ` for ${machineIds.length} specific machines` : ''}`);
   
   try {
     const startTime = performance.now();
@@ -76,7 +78,11 @@ async function updateAllPrices(daysThreshold = 7) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ days_threshold: daysThreshold })
+      body: JSON.stringify({ 
+        days_threshold: daysThreshold,
+        limit: limit,
+        machine_ids: machineIds
+      })
     });
     
     const endTime = performance.now();
@@ -90,7 +96,9 @@ async function updateAllPrices(daysThreshold = 7) {
       responseTimeMs: responseTime,
       timestamp: new Date().toISOString(),
       responseStatus: response.status,
-      daysThreshold: daysThreshold
+      daysThreshold: daysThreshold,
+      limit: limit,
+      machineIdCount: machineIds ? machineIds.length : null
     };
     
     console.log(`[Python API] Batch update result:`, result);
@@ -105,7 +113,9 @@ async function updateAllPrices(daysThreshold = 7) {
         timestamp: new Date().toISOString(),
         errorName: error.name,
         errorStack: error.stack,
-        daysThreshold: daysThreshold
+        daysThreshold: daysThreshold,
+        limit: limit,
+        machineIdCount: machineIds ? machineIds.length : null
       }
     };
   }

@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from loguru import logger
 import time
 from urllib.parse import urlparse
+import asyncio
 
 from config import REQUEST_TIMEOUT, USER_AGENT
 
@@ -21,7 +22,7 @@ class WebScraper:
             'Cache-Control': 'max-age=0',
         })
     
-    def get_page_content(self, url):
+    async def get_page_content(self, url):
         """
         Fetch the HTML content of a web page.
         
@@ -29,21 +30,28 @@ class WebScraper:
             url (str): The URL to scrape.
             
         Returns:
-            tuple: (BeautifulSoup object, raw HTML content) or (None, None) if failed.
+            tuple: (raw HTML content, BeautifulSoup object) or (None, None) if failed.
         """
         try:
             logger.info(f"Fetching content from {url}")
             start_time = time.time()
             
-            response = self.session.get(url, timeout=REQUEST_TIMEOUT)
+            # Run the HTTP request in a thread pool to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None, 
+                lambda: self.session.get(url, timeout=REQUEST_TIMEOUT)
+            )
             response.raise_for_status()  # Raise exception for 4XX/5XX responses
             
             duration = time.time() - start_time
             logger.info(f"Fetched {url} in {duration:.2f} seconds")
             
             # Create BeautifulSoup object
-            soup = BeautifulSoup(response.text, 'lxml')
-            return soup, response.text
+            html_content = response.text
+            soup = BeautifulSoup(html_content, 'lxml')
+            return html_content, soup
+            
         except requests.exceptions.Timeout:
             logger.error(f"Timeout error when fetching {url}")
             return None, None

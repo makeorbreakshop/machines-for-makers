@@ -8,6 +8,20 @@ import { Check, ChevronDown, ChevronUp, Wifi, Camera, Box, X } from "lucide-reac
 import { Badge } from "@/components/ui/badge"
 import type { Category, Brand } from "@/lib/database-types"
 
+// Simple debug utility that only logs in development
+const DEBUG_MODE = process.env.NODE_ENV === 'development';
+const debug = {
+  log: (...args: any[]) => {
+    if (DEBUG_MODE) console.log(...args);
+  },
+  warn: (...args: any[]) => {
+    if (DEBUG_MODE) console.warn(...args);
+  },
+  error: (...args: any[]) => {
+    console.error(...args); // Always log errors
+  }
+};
+
 interface SidebarFilterProps {
   categories: Category[]
   brands: Brand[]
@@ -58,13 +72,6 @@ export default function SidebarFilter({
     "UV": "UV"
   } as Record<string, string>), [])
 
-  // Print laser type mapping for debugging
-  useEffect(() => {
-    console.log("============ SIDEBAR FILTER DEBUGGING ============");
-    console.log("Laser Type Mapping (UI Name -> DB Value):", laserTypeMap);
-    console.log("==================================================");
-  }, [laserTypeMap]);
-
   // Create a reverse mapping for display names
   const reverseLaserTypeMap = useMemo(() => 
     Object.entries(laserTypeMap).reduce<Record<string, string>>(
@@ -100,7 +107,6 @@ export default function SidebarFilter({
       laserTypes: selectedLaserTypes.map(type => {
         // Make sure we're using the right database value for each laser type
         const dbValue = laserTypeMap[type] || type.toLowerCase();
-        console.log(`Mapping UI laser type "${type}" to database value "${dbValue}"`);
         return dbValue;
       }),
       priceRange,
@@ -121,10 +127,6 @@ export default function SidebarFilter({
   ])
 
   const applyFilters = useCallback((filters: any) => {
-    // Add a clear console log for laser type filters
-    if (filters.laserTypes && filters.laserTypes.length > 0) {
-      console.log(`APPLYING LASER TYPE FILTERS FROM SIDEBAR: ${filters.laserTypes.join(', ')}`);
-    }
     onApplyFilters(filters)
   }, [onApplyFilters])
 
@@ -183,74 +185,7 @@ export default function SidebarFilter({
     applyFilters
   ])
 
-  const handlePriceChange = useCallback((value: [number, number]) => {
-    setPriceRange(value)
-
-    // Clear any existing timer
-    if (priceDebounceTimer.current) {
-      clearTimeout(priceDebounceTimer.current)
-    }
-
-    // Set a new timer to apply filters after a delay
-    priceDebounceTimer.current = setTimeout(() => {
-      const currentFilters = getCurrentFilters();
-      const updatedFilters = {
-        ...currentFilters,
-        priceRange: value
-      };
-      applyFilters(updatedFilters);
-    }, 500) // 500ms debounce
-  }, [getCurrentFilters, applyFilters])
-
-  const handlePowerChange = useCallback((value: [number, number]) => {
-    setPowerRange(value)
-
-    // Clear any existing timer
-    if (powerDebounceTimer.current) {
-      clearTimeout(powerDebounceTimer.current)
-    }
-
-    // Set a new timer to apply filters after a delay
-    powerDebounceTimer.current = setTimeout(() => {
-      const currentFilters = getCurrentFilters();
-      const updatedFilters = {
-        ...currentFilters,
-        powerRange: value
-      };
-      applyFilters(updatedFilters);
-    }, 500) // 500ms debounce
-  }, [getCurrentFilters, applyFilters])
-
-  const handleSpeedChange = useCallback((value: [number, number]) => {
-    setSpeedRange(value)
-
-    // Clear any existing timer
-    if (speedDebounceTimer.current) {
-      clearTimeout(speedDebounceTimer.current)
-    }
-
-    // Set a new timer to apply filters after a delay
-    speedDebounceTimer.current = setTimeout(() => {
-      const currentFilters = getCurrentFilters();
-      const updatedFilters = {
-        ...currentFilters,
-        speedRange: value
-      };
-      applyFilters(updatedFilters);
-    }, 500) // 500ms debounce
-  }, [getCurrentFilters, applyFilters])
-
-  // Expanded sections tracking - initially expand all sections
-  const [expandedSections, setExpandedSections] = useState({
-    topPick: true,
-    laserType: true,
-    price: true,
-    power: true,
-    speed: true,
-    features: true,
-  })
-
-  // Update state when initialFilters changes
+  // Update initial filters when they change
   useEffect(() => {
     if (initialFilters) {
       // Map database laser types back to UI display names
@@ -263,9 +198,6 @@ export default function SidebarFilter({
           );
           return entry ? entry[0] : dbType;
         });
-      
-      console.log('initialFilters.laserTypes:', initialFilters.laserTypes);
-      console.log('Mapped back to UI names:', mappedLaserTypes);
       
       setSelectedLaserTypes(mappedLaserTypes);
       setPriceRange(initialFilters.priceRange || [0, 15000])
@@ -280,6 +212,16 @@ export default function SidebarFilter({
       setIsTopPick(initialFilters.isTopPick || false)
     }
   }, [initialFilters, reverseFeatureMap, laserTypeMap])
+
+  // Expanded sections tracking - initially expand all sections
+  const [expandedSections, setExpandedSections] = useState({
+    topPick: true,
+    laserType: true,
+    price: true,
+    power: true,
+    speed: true,
+    features: true,
+  })
 
   const toggleSection = useCallback((section: keyof typeof expandedSections) => {
     setExpandedSections({
@@ -345,10 +287,6 @@ export default function SidebarFilter({
                   id={`laser-${type}`}
                   checked={selectedLaserTypes.includes(type)}
                   onChange={() => {
-                    // Simple debugging for key events
-                    console.log(`Toggling ${type} filter`);
-                    console.log(`Database mapping: "${type}" -> "${laserTypeMap[type] || type.toLowerCase()}"`);
-                    
                     // Toggle the selected type
                     const newTypes = selectedLaserTypes.includes(type)
                       ? selectedLaserTypes.filter(t => t !== type) // Remove if selected
@@ -362,8 +300,6 @@ export default function SidebarFilter({
                       const dbValue = laserTypeMap[t] || t.toLowerCase();
                       return dbValue;
                     });
-                    console.log(`Selected laser types: ${newTypes.join(', ')}`);
-                    console.log(`Mapped to DB values: ${dbLaserTypes.join(', ')}`);
                     
                     // Create updated filters with the new laser types
                     const updatedFilters = {
@@ -401,7 +337,15 @@ export default function SidebarFilter({
             max={15000}
             step={100}
             value={priceRange}
-            onValueChange={handlePriceChange}
+            onValueChange={(value) => {
+              setPriceRange(value)
+              const currentFilters = getCurrentFilters();
+              const updatedFilters = {
+                ...currentFilters,
+                priceRange: value
+              };
+              applyFilters(updatedFilters);
+            }}
           />
         )}
       </div>
@@ -422,7 +366,15 @@ export default function SidebarFilter({
             max={150}
             step={1}
             value={powerRange}
-            onValueChange={handlePowerChange}
+            onValueChange={(value) => {
+              setPowerRange(value)
+              const currentFilters = getCurrentFilters();
+              const updatedFilters = {
+                ...currentFilters,
+                powerRange: value
+              };
+              applyFilters(updatedFilters);
+            }}
           />
         )}
       </div>
@@ -443,7 +395,15 @@ export default function SidebarFilter({
             max={2000}
             step={10}
             value={speedRange}
-            onValueChange={handleSpeedChange}
+            onValueChange={(value) => {
+              setSpeedRange(value)
+              const currentFilters = getCurrentFilters();
+              const updatedFilters = {
+                ...currentFilters,
+                speedRange: value
+              };
+              applyFilters(updatedFilters);
+            }}
           />
         )}
       </div>

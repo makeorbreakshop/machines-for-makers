@@ -19,9 +19,9 @@ import {
   TableRow 
 } from "@/components/ui/table"
 import { PriceHistoryChart } from "@/components/product/price-history-chart"
-import { format } from "date-fns"
+import { format, formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
-import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle } from "lucide-react"
+import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -36,13 +36,20 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import Script from "next/script"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 // Add type definitions for the window object with priceTrackerAPI
 declare global {
   interface Window {
     priceTrackerAPI?: {
       updateMachinePrice: (machineId: string) => Promise<any>;
-      updateAllPrices: (daysThreshold?: number) => Promise<any>;
+      updateAllPrices: (daysThreshold?: number, machineLimit?: number | null) => Promise<any>;
     };
   }
 }
@@ -68,6 +75,10 @@ export default function PriceTrackerAdmin() {
   const [daysThreshold, setDaysThreshold] = useState(7)
   const [batchPreviewCount, setBatchPreviewCount] = useState<number | null>(null)
   const [batchPreviewLoading, setBatchPreviewLoading] = useState(false)
+  const [machineLimit, setMachineLimit] = useState<number | null>(10)
+  const [previewMachineIds, setPreviewMachineIds] = useState<string[]>([])
+  const [batches, setBatches] = useState<any[]>([])
+  const [loadingBatches, setLoadingBatches] = useState(false)
   
   // Fetch machines
   useEffect(() => {
@@ -183,6 +194,13 @@ export default function PriceTrackerAdmin() {
     
     fetchRecentlyUpdated()
   }, [refreshing])
+  
+  // Initial setup
+  useEffect(() => {
+    if (pythonApiReady) {
+      previewBatchUpdate(daysThreshold, machineLimit)
+    }
+  }, [pythonApiReady, daysThreshold, machineLimit])
   
   // Handle machine selection
   const selectMachine = async (machine: any) => {
@@ -306,11 +324,11 @@ export default function PriceTrackerAdmin() {
     // Reset preview count
     setBatchPreviewCount(null)
     // Start loading preview
-    previewBatchUpdate(daysThreshold)
+    previewBatchUpdate(daysThreshold, machineLimit)
   }
   
   // Function to preview batch update (count of machines)
-  const previewBatchUpdate = async (days: number) => {
+  const previewBatchUpdate = async (days: number, limit: number | null = null) => {
     try {
       setBatchPreviewLoading(true)
       
@@ -325,20 +343,27 @@ export default function PriceTrackerAdmin() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ days_threshold: days })
+        body: JSON.stringify({ 
+          days_threshold: days,
+          limit: limit 
+        })
       })
       
       const data = await response.json()
       
       if (data.success) {
         setBatchPreviewCount(data.configuration?.machine_count || 0)
+        // Store the machine IDs for use in executeBatchUpdate
+        setPreviewMachineIds(data.configuration?.machine_ids || [])
       } else {
         setBatchPreviewCount(0)
+        setPreviewMachineIds([])
         toast.error("Failed to preview batch update")
       }
     } catch (error) {
       console.error("Error previewing batch update:", error)
       setBatchPreviewCount(0)
+      setPreviewMachineIds([])
     } finally {
       setBatchPreviewLoading(false)
     }
@@ -352,28 +377,78 @@ export default function PriceTrackerAdmin() {
         return
       }
       
-      // Use Python API for batch update
+      // Use Python API for batch update with the machine IDs from preview
       toast.info("Starting batch update with Python API...")
       
-      const batchResult = await window.priceTrackerAPI.updateAllPrices(daysThreshold)
+      // Create custom request directly to the API
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'}/api/v1/batch-update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          days_threshold: daysThreshold,
+          limit: machineLimit,
+          machine_ids: previewMachineIds // Pass the machine IDs from preview
+        })
+      })
+      
+      const batchResult = await response.json()
       
       if (batchResult.success) {
         toast.success(`Python API batch update started in the background`)
         
-        // Refresh data after a short delay
+        // Close the dialog
+        setBatchUpdateDialogOpen(false)
+        
+        // Explicitly fetch batch jobs with a longer delay to ensure the batch is created
+        const fetchBatchJobs = async () => {
+          try {
+            setLoadingBatches(true)
+            const apiUrl = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'
+            const response = await fetch(`${apiUrl}/api/v1/batches`)
+            
+            if (!response.ok) {
+              throw new Error(`Failed to fetch batch jobs: ${response.statusText}`)
+            }
+            
+            const data = await response.json()
+            
+            if (!data.success) {
+              throw new Error(data.error || 'Failed to fetch batch jobs')
+            }
+            
+            setBatches(data.batches || [])
+            
+            // If batches are loaded but empty, try one more time after a delay
+            if (data.batches.length === 0) {
+              setTimeout(fetchBatchJobs, 3000)
+            }
+          } catch (error) {
+            console.error("Error fetching batch jobs:", error)
+            toast.error("Failed to load batch jobs")
+          } finally {
+            setLoadingBatches(false)
+          }
+        }
+        
+        // Wait a bit longer before fetching batch jobs to ensure the batch is created
         setTimeout(() => {
+          fetchBatchJobs()
+          // Also refresh other data
           if (selectedMachine) {
             selectMachine(selectedMachine)
           }
           setRefreshing(prev => !prev)
-        }, 2000)
+        }, 3000)
       } else {
         toast.error(`Python API batch update failed: ${batchResult.error}`)
+        // Close the dialog
+        setBatchUpdateDialogOpen(false)
       }
     } catch (error) {
       console.error("Error updating prices:", error)
       toast.error(`Failed to update prices: ${error instanceof Error ? error.message : "Unknown error"}`)
-    } finally {
       // Close the dialog
       setBatchUpdateDialogOpen(false)
     }
@@ -474,6 +549,73 @@ export default function PriceTrackerAdmin() {
   const handleScriptError = () => {
     console.error("Failed to load Python Price Extractor API script")
     toast.error("Failed to connect to Python Price Extractor API")
+  }
+  
+  // Fetch batch jobs
+  useEffect(() => {
+    const fetchBatchJobs = async () => {
+      try {
+        setLoadingBatches(true)
+        const apiUrl = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'
+        
+        console.log("Fetching batch jobs from:", `${apiUrl}/api/v1/batches`)
+        
+        const response = await fetch(`${apiUrl}/api/v1/batches`)
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch batch jobs: ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        console.log("Batch jobs response:", data)
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to fetch batch jobs')
+        }
+        
+        setBatches(data.batches || [])
+        
+        // If no batches were found, log this info
+        if (!data.batches || data.batches.length === 0) {
+          console.log("No batch jobs found in response")
+        }
+      } catch (error) {
+        console.error("Error fetching batch jobs:", error)
+        toast.error(`Failed to load batch jobs: ${error instanceof Error ? error.message : "Unknown error"}`)
+      } finally {
+        setLoadingBatches(false)
+      }
+    }
+    
+    // Fetch batch jobs when the component mounts and when refreshing state changes
+    if (pythonApiReady) {
+      fetchBatchJobs()
+    }
+  }, [pythonApiReady, refreshing])
+  
+  // Get batch status badge
+  const getBatchStatusBadge = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return <Badge className="bg-green-100 text-green-800 border-green-300">Completed</Badge>
+      case 'in_progress':
+      case 'started':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">In Progress</Badge>
+      case 'failed':
+        return <Badge className="bg-red-100 text-red-800 border-red-300">Failed</Badge>
+      default:
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-300">{status}</Badge>
+    }
+  }
+  
+  // Format relative time
+  const formatRelativeTime = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      return formatDistanceToNow(date, { addSuffix: true })
+    } catch (error) {
+      return 'Invalid date'
+    }
   }
   
   return (
@@ -625,7 +767,7 @@ export default function PriceTrackerAdmin() {
                   onChange={(e) => {
                     const newValue = Number(e.target.value)
                     setDaysThreshold(newValue)
-                    previewBatchUpdate(newValue)
+                    previewBatchUpdate(newValue, machineLimit)
                   }}
                   className="w-20"
                 />
@@ -633,6 +775,33 @@ export default function PriceTrackerAdmin() {
               </div>
               <p className="text-sm text-gray-500">
                 Set to 0 to update all machines regardless of last update time.
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="machine-limit">Limit number of machines:</Label>
+              <Select 
+                value={machineLimit === null ? "all" : machineLimit.toString()} 
+                defaultValue="10"
+                onValueChange={(value) => {
+                  const limit = value === "all" ? null : parseInt(value)
+                  setMachineLimit(limit)
+                  previewBatchUpdate(daysThreshold, limit)
+                }}
+              >
+                <SelectTrigger id="machine-limit" className="w-full">
+                  <SelectValue placeholder="Select limit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 machines</SelectItem>
+                  <SelectItem value="25">25 machines</SelectItem>
+                  <SelectItem value="50">50 machines</SelectItem>
+                  <SelectItem value="100">100 machines</SelectItem>
+                  <SelectItem value="all">All machines</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-gray-500">
+                Limit the number of machines to update at once.
               </p>
             </div>
             
@@ -689,6 +858,7 @@ export default function PriceTrackerAdmin() {
         <TabsList>
           <TabsTrigger value="machines">Machines</TabsTrigger>
           <TabsTrigger value="recent">Recent Updates</TabsTrigger>
+          <TabsTrigger value="batch-jobs">Batch Jobs</TabsTrigger>
           <TabsTrigger value="preview">Chart Preview</TabsTrigger>
         </TabsList>
         
@@ -974,6 +1144,96 @@ export default function PriceTrackerAdmin() {
                 Clean Invalid Records
               </Button>
             </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="batch-jobs">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Batch Price Update Jobs</CardTitle>
+                  <CardDescription>View and manage batch price update operations</CardDescription>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setRefreshing(prev => !prev)}
+                  disabled={loadingBatches}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loadingBatches ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingBatches ? (
+                <div className="flex justify-center p-4">
+                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : batches.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <p>No batch jobs found</p>
+                  <p className="text-sm mt-2">Start a new batch update using the "Update All Prices" button</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Batch ID</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Machines</TableHead>
+                      <TableHead>Start Time</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {batches.map((batch) => {
+                      // Calculate duration if available
+                      const duration = batch.start_time && batch.end_time 
+                        ? new Date(batch.end_time).getTime() - new Date(batch.start_time).getTime() 
+                        : null;
+                      
+                      return (
+                        <TableRow key={batch.id}>
+                          <TableCell className="font-mono text-xs">{batch.id}</TableCell>
+                          <TableCell>{getBatchStatusBadge(batch.status)}</TableCell>
+                          <TableCell>{batch.total_machines || 'N/A'}</TableCell>
+                          <TableCell>
+                            {batch.start_time 
+                              ? <span title={new Date(batch.start_time).toLocaleString()}>
+                                  {formatRelativeTime(batch.start_time)}
+                                </span>
+                              : 'N/A'
+                            }
+                          </TableCell>
+                          <TableCell>
+                            {duration 
+                              ? `${Math.floor(duration / 1000)} seconds`
+                              : batch.status.toLowerCase() === 'completed' 
+                                ? 'Unknown' 
+                                : 'In progress'
+                            }
+                          </TableCell>
+                          <TableCell>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              asChild
+                            >
+                              <a href={`/admin/tools/price-tracker/batch-results?batch_id=${batch.id}`} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
           </Card>
         </TabsContent>
         

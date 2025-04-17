@@ -15,66 +15,140 @@ class PriceService:
         self.price_extractor = PriceExtractor()
         logger.info("Price service initialized")
     
-    async def update_machine_price(self, machine_id):
+    async def update_machine_price(self, machine_id, url=None):
         """
-        Update the price for a specific machine.
+        Update the price for a specific machine by scraping its URL.
         
         Args:
             machine_id (str): The ID of the machine to update.
+            url (str, optional): URL to override the one in the database.
             
         Returns:
-            dict: Result of the price update operation.
+            dict: Update result with new price, old price, and status.
         """
         logger.info(f"Processing price update for machine {machine_id}")
         
-        # Get machine data from the database
-        machine = self.db_service.get_machine_by_id(machine_id)
-        if not machine:
-            error_msg = f"Machine with ID {machine_id} not found"
-            logger.error(error_msg)
-            return {"success": False, "error": error_msg}
-        
-        # Check if URL is present
-        url = machine.get("url")
-        if not url or not self.web_scraper.is_valid_url(url):
-            error_msg = f"Invalid or missing URL for machine {machine_id}: {url}"
-            logger.error(error_msg)
-            return {"success": False, "error": error_msg}
-        
-        # Scrape the page
-        soup, html_content = self.web_scraper.get_page_content(url)
-        if not soup or not html_content:
-            error_msg = f"Failed to scrape page for machine {machine_id} at URL: {url}"
-            logger.error(error_msg)
-            return {"success": False, "error": error_msg}
-        
-        # Extract price
-        new_price, method = self.price_extractor.extract_price(soup, html_content, url)
-        if new_price is None:
-            error_msg = f"Failed to extract price for machine {machine_id} at URL: {url}"
-            logger.error(error_msg)
+        try:
+            # Get machine data from database
+            machine = await self.db_service.get_machine_by_id(machine_id)
+            if not machine:
+                logger.error(f"Machine {machine_id} not found in database")
+                return {"success": False, "error": f"Machine not found in database: {machine_id}", "machine_id": machine_id}
             
-            # Record the failed attempt in price history
-            old_price = machine.get("price")
-            self.db_service.add_price_history(
+            # Use provided URL or get from database
+            product_url = url or machine.get("product_link")
+            
+            if not product_url:
+                logger.error(f"No product URL available for machine {machine_id}")
+                return {"success": False, "error": "No product URL available", "machine_id": machine_id}
+            
+            # Get current price from database
+            current_price = machine.get("Price")
+            
+            # Scrape the product page
+            html_content, soup = await self.web_scraper.get_page_content(product_url)
+            if not html_content or not soup:
+                logger.error(f"Failed to fetch content from {product_url}")
+                return {"success": False, "error": "Failed to fetch product page", "machine_id": machine_id, "url": product_url}
+            
+            # Extract price
+            new_price, method = self.price_extractor.extract_price(soup, html_content, product_url)
+            
+            # Validate the extracted price - must be a reasonable value
+            if new_price is not None:
+                # Verify price is in a reasonable range (between $10 and $100,000)
+                if not (10 <= new_price <= 100000):
+                    logger.warning(f"Extracted price ${new_price} for machine {machine_id} is outside reasonable range")
+                    # Try the next best extraction method - common selectors if JSON-LD was used
+                    if method == "JSON-LD" or method == "JSON-LD offers":
+                        logger.info(f"Falling back to common selectors for machine {machine_id}")
+                        new_price, alt_method = self.price_extractor._extract_from_common_selectors(soup)
+                        if new_price is not None:
+                            if 10 <= new_price <= 100000:
+                                logger.info(f"Found better price ${new_price} using {alt_method}")
+                                method = alt_method
+                            else:
+                                logger.warning(f"Fallback price ${new_price} is also outside reasonable range")
+                                new_price = None
+                    # Try Claude if common selectors also failed
+                    if new_price is None:
+                        logger.info(f"Falling back to Claude AI for machine {machine_id}")
+                        new_price, claude_method = self.price_extractor._extract_using_claude(html_content, product_url)
+                        if new_price is not None:
+                            if 10 <= new_price <= 100000:
+                                logger.info(f"Found better price ${new_price} using {claude_method}")
+                                method = claude_method
+                            else:
+                                logger.warning(f"Claude price ${new_price} is also outside reasonable range")
+                                new_price = None
+            
+            if new_price is None:
+                logger.error(f"Failed to extract price for machine {machine_id} from {product_url}")
+                await self.db_service.add_price_history(
+                    machine_id=machine_id,
+                    old_price=current_price,
+                    new_price=None,
+                    success=False,
+                    error_message="Failed to extract price"
+                )
+                return {
+                    "success": False,
+                    "error": "Failed to extract price",
+                    "machine_id": machine_id,
+                    "url": product_url
+                }
+            
+            # Get the old price (proper case for Supabase column)
+            old_price = machine.get("Price")
+            logger.debug(f"Old price: {old_price}, New price: {new_price}")
+            
+            # Skip update if the price hasn't changed
+            if old_price == new_price:
+                logger.info(f"Price unchanged for machine {machine_id}: {new_price}")
+                
+                # Record in price history anyway
+                await self.db_service.add_price_history(
+                    machine_id=machine_id,
+                    old_price=old_price,
+                    new_price=new_price,
+                    success=True,
+                    error_message=None
+                )
+                
+                price_change = new_price - old_price if old_price is not None else None
+                percentage_change = ((new_price - old_price) / old_price) * 100 if old_price is not None and old_price > 0 else None
+                
+                return {
+                    "success": True,
+                    "message": "Price unchanged",
+                    "old_price": old_price,
+                    "new_price": new_price,
+                    "method": method,
+                    "price_change": price_change,
+                    "percentage_change": percentage_change,
+                    "machine_id": machine_id,
+                    "url": product_url
+                }
+            
+            # Update the price in the database
+            update_success = await self.db_service.update_machine_price(
                 machine_id=machine_id,
-                old_price=old_price,
-                new_price=old_price,  # Same as old since we couldn't find a new one
-                success=False,
-                error_message=error_msg
+                new_price=new_price,
+                html_content=html_content
             )
             
-            return {"success": False, "error": error_msg}
-        
-        # Get the old price
-        old_price = machine.get("price")
-        
-        # Skip update if the price hasn't changed
-        if old_price == new_price:
-            logger.info(f"Price unchanged for machine {machine_id}: {new_price}")
+            if not update_success:
+                error_msg = f"Failed to update price in database for machine {machine_id}"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "machine_id": machine_id,
+                    "url": product_url
+                }
             
-            # Record in price history anyway
-            self.db_service.add_price_history(
+            # Add to price history
+            history_added = await self.db_service.add_price_history(
                 machine_id=machine_id,
                 old_price=old_price,
                 new_price=new_price,
@@ -82,71 +156,82 @@ class PriceService:
                 error_message=None
             )
             
+            if not history_added:
+                logger.warning(f"Failed to add price history entry for machine {machine_id}")
+            
+            logger.info(f"Successfully updated price for machine {machine_id} from {old_price} to {new_price} using {method}")
+            
+            price_change = new_price - old_price if old_price is not None else None
+            percentage_change = ((new_price - old_price) / old_price) * 100 if old_price is not None and old_price > 0 else None
+            
             return {
-                "success": True, 
-                "message": "Price unchanged", 
+                "success": True,
+                "message": "Price updated successfully",
                 "old_price": old_price,
                 "new_price": new_price,
-                "method": method
+                "method": method,
+                "price_change": price_change,
+                "percentage_change": percentage_change,
+                "machine_id": machine_id,
+                "url": product_url
             }
-        
-        # Update the price in the database
-        update_success = self.db_service.update_machine_price(
-            machine_id=machine_id,
-            new_price=new_price,
-            html_content=html_content
-        )
-        
-        if not update_success:
-            error_msg = f"Failed to update price in database for machine {machine_id}"
-            logger.error(error_msg)
-            return {"success": False, "error": error_msg}
-        
-        # Add to price history
-        history_added = self.db_service.add_price_history(
-            machine_id=machine_id,
-            old_price=old_price,
-            new_price=new_price,
-            success=True,
-            error_message=None
-        )
-        
-        if not history_added:
-            logger.warning(f"Failed to add price history entry for machine {machine_id}")
-        
-        logger.info(f"Successfully updated price for machine {machine_id} from {old_price} to {new_price} using {method}")
-        
-        return {
-            "success": True,
-            "message": "Price updated successfully",
-            "old_price": old_price,
-            "new_price": new_price,
-            "method": method,
-            "price_change": new_price - old_price if old_price is not None else None,
-            "percentage_change": ((new_price - old_price) / old_price) * 100 if old_price is not None and old_price > 0 else None
-        }
+        except Exception as e:
+            logger.exception(f"Error processing price update for machine {machine_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": "An error occurred while processing the price update",
+                "machine_id": machine_id,
+                "url": product_url
+            }
     
-    async def batch_update_machines(self, days_threshold=7):
+    async def batch_update_machines(self, days_threshold=7, max_workers=5, limit=None, machine_ids=None):
         """
         Update prices for all machines that need an update.
         
         Args:
             days_threshold (int): Minimum days since last update to consider for updating.
+                                 If 0, updates all machines regardless of last update time.
+            max_workers (int): Maximum number of concurrent update processes.
+            limit (int, optional): Limit the number of machines to update.
+            machine_ids (List[str], optional): Specific machine IDs to update. If provided,
+                                              days_threshold is ignored.
             
         Returns:
             dict: Summary of batch update operation.
         """
-        logger.info(f"Starting batch update for machines with threshold of {days_threshold} days")
+        logger.info(f"Starting batch update with days_threshold={days_threshold}, limit={limit}, machine_ids={(len(machine_ids) if machine_ids else 'None')}")
         
-        # Get machines needing update
-        machines = self.db_service.get_machines_needing_update(days_threshold)
+        # Get machines needing update - use machine_ids if provided
+        if machine_ids:
+            logger.info(f"Using {len(machine_ids)} provided machine IDs for batch update")
+            machines = await self.db_service.get_machines_needing_update(machine_ids=machine_ids)
+        else:
+            # Otherwise use the days_threshold
+            machines = await self.db_service.get_machines_needing_update(days_threshold=days_threshold, limit=limit)
         
         if not machines:
             logger.info("No machines need price updates at this time")
             return {"success": True, "message": "No machines need price updates", "count": 0}
         
-        # Update each machine
+        # Log how many machines we're actually updating
+        logger.info(f"Starting batch update for {len(machines)} machines")
+        
+        # Create a batch record
+        batch_id = await self.db_service.create_batch(
+            count=len(machines),
+            days_threshold=days_threshold,
+            machine_ids=machine_ids,
+            limit=limit,
+            max_workers=max_workers
+        )
+        
+        if not batch_id:
+            logger.error("Failed to create batch record")
+            return {"success": False, "error": "Failed to create batch record"}
+        
+        # Update each machine and track in batch_results
         results = {
+            "batch_id": batch_id,
             "total": len(machines),
             "successful": 0,
             "failed": 0,
@@ -158,6 +243,9 @@ class PriceService:
         for machine in machines:
             machine_id = machine.get("id")
             result = await self.update_machine_price(machine_id)
+            
+            # Track the result in batch_results table
+            await self.db_service.add_batch_result(batch_id, machine_id, result)
             
             if result["success"]:
                 results["successful"] += 1
@@ -172,11 +260,15 @@ class PriceService:
                     "error": result.get("error", "Unknown error")
                 })
         
+        # Mark batch as completed
+        await self.db_service.complete_batch(batch_id)
+        
         logger.info(f"Batch update completed. Results: {results['successful']} successful, {results['failed']} failed")
         
         return {
             "success": True,
             "message": "Batch update completed",
+            "batch_id": batch_id,
             "results": results
         }
         
@@ -194,14 +286,14 @@ class PriceService:
         
         try:
             # Get batch data from the database
-            batch_data = self.db_service.get_batch_results(batch_id)
+            batch_data = await self.db_service.get_batch_results(batch_id)
             
             if not batch_data:
                 logger.warning(f"No batch data found for batch_id: {batch_id}")
                 return None
             
             # Get additional stats without triggering processing
-            stats = self.db_service.get_batch_stats(batch_id)
+            stats = await self.db_service.get_batch_stats(batch_id)
             
             # Combine data and return
             result = {
