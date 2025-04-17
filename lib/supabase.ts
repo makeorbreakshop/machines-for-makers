@@ -20,6 +20,7 @@ export async function getMachines({
   priceRange = null,
   search = null,
   sort = "newest",
+  includeHtml = false
 }: {
   limit?: number
   offset?: number
@@ -28,6 +29,7 @@ export async function getMachines({
   priceRange?: [number, number] | null
   search?: string | null
   sort?: "newest" | "price-asc" | "price-desc" | "rating-desc"
+  includeHtml?: boolean
 }) {
   return cache(async () => {
     // Return empty data if Supabase is not initialized
@@ -40,10 +42,65 @@ export async function getMachines({
         console.log("Executing getMachines with params:", { limit, offset, category, company, priceRange, search, sort });
       }
       
+      // Explicitly list all fields we want to fetch - excluding HTML content
+      const selectFields = includeHtml
+        ? "*"
+        : `
+          id, 
+          "Machine Name", 
+          "Internal link", 
+          "Company", 
+          "Image", 
+          "Laser Type A", 
+          "Laser Power A", 
+          "Laser Type B", 
+          "LaserPower B", 
+          "Laser Category", 
+          "Machine Category", 
+          "Affiliate Link", 
+          "Price", 
+          "Price Category", 
+          "Work Area", 
+          "Height", 
+          "Machine Size", 
+          "Speed", 
+          "Speed Category", 
+          "Acceleration", 
+          "Software", 
+          "Focus", 
+          "Enclosure", 
+          "Wifi", 
+          "Camera", 
+          "Passthrough", 
+          "Controller", 
+          "Warranty", 
+          "Rating", 
+          "Award", 
+          "Excerpt (Short)", 
+          "Excerpt (Long)", 
+          "Description", 
+          "Review", 
+          "Brandon's Take", 
+          "Highlights", 
+          "Drawbacks", 
+          "YouTube Review", 
+          "Is A Featured Resource?", 
+          "Favorited", 
+          "Hidden", 
+          product_link, 
+          "Laser Frequency", 
+          "Pulse Width", 
+          "Best for:", 
+          "Laser Source Manufacturer", 
+          "Created On", 
+          "Updated On", 
+          "Published On"
+        `;
+      
       // Query without using relationships to avoid foreign key errors
       let query = supabase
         .from("machines")
-        .select("*", { count: "exact" })
+        .select(selectFields, { count: "exact" })
         .eq("Hidden", false);
 
       // Apply filters
@@ -107,7 +164,7 @@ export async function getMachines({
   })()
 }
 
-export async function getMachineBySlug(slug: string) {
+export async function getMachineBySlug(slug: string, includeHtml: boolean = false) {
   return cache(async () => {
     // Return empty data if Supabase is not initialized
     if (!supabase) {
@@ -118,11 +175,67 @@ export async function getMachineBySlug(slug: string) {
       if (process.env.NODE_ENV !== 'production') {
         console.log(`Looking for product with slug: ${slug}`);
       }
+      
+      // Explicitly list all fields we want to fetch - excluding HTML content
+      const selectFields = includeHtml
+        ? "*"
+        : `
+          id, 
+          "Machine Name", 
+          "Internal link", 
+          "Company", 
+          "Image", 
+          "Laser Type A", 
+          "Laser Power A", 
+          "Laser Type B", 
+          "LaserPower B", 
+          "Laser Category", 
+          "Machine Category", 
+          "Affiliate Link", 
+          "Price", 
+          "Price Category", 
+          "Work Area", 
+          "Height", 
+          "Machine Size", 
+          "Speed", 
+          "Speed Category", 
+          "Acceleration", 
+          "Software", 
+          "Focus", 
+          "Enclosure", 
+          "Wifi", 
+          "Camera", 
+          "Passthrough", 
+          "Controller", 
+          "Warranty", 
+          "Rating", 
+          "Award", 
+          "Excerpt (Short)", 
+          "Excerpt (Long)", 
+          "Description", 
+          "Review", 
+          "Brandon's Take", 
+          "Highlights", 
+          "Drawbacks", 
+          "YouTube Review", 
+          "Is A Featured Resource?", 
+          "Favorited", 
+          "Hidden", 
+          product_link, 
+          "Laser Frequency", 
+          "Pulse Width", 
+          "Best for:", 
+          "Laser Source Manufacturer", 
+          "Created On", 
+          "Updated On", 
+          "Published On"
+        `;
+      
       // Simply fetch the machine data without trying to use relationships
       // This avoids the "Could not find a relationship" errors
       const { data: rawData, error } = await supabase
         .from("machines")
-        .select("*")
+        .select(selectFields)
         .ilike("Internal link", slug) // Use case-insensitive matching
         .eq("Hidden", false)
         .single()
@@ -352,30 +465,66 @@ export async function getBrands() {
 
 // Get related products
 export async function getRelatedProducts(currentProduct: Machine, limit = 6) {
+  // Return empty data if Supabase is not initialized
   if (!supabase) {
     return { data: [], error: null }
   }
 
   try {
+    // Define our machine data type to help with TypeScript
+    interface RawMachineData {
+      id: string;
+      "Laser Category": string;
+      "Price": string | number;
+      "Laser Power A": string | number;
+      "Laser Type A": string;
+      "Company": string;
+      [key: string]: any; // Allow other string keys
+    }
+
     // First, get the raw machine data to ensure we have the correct field format
-    const { data: rawProductData, error: productError } = await supabase
+    // Exclude HTML content fields to reduce payload size
+    const { data, error: productError } = await supabase
       .from("machines")
-      .select("*")
+      .select(`
+        id, 
+        "Laser Category", 
+        "Price", 
+        "Laser Power A", 
+        "Laser Type A", 
+        "Company", 
+        "Rating"
+      `)
       .eq("id", currentProduct.id)
       .single();
     
-    if (productError) {
+    if (productError || !data) {
       console.error("Error fetching original product data:", productError);
       return { data: [], error: productError };
     }
-    
+
+    // Type cast should now work correctly
+    const rawProductData = data as RawMachineData;
     const laserCategory = rawProductData["Laser Category"];
     console.log(`Finding related products for machine: ${currentProduct.id}, category: ${laserCategory}`);
     
-    // Get products in the same category
+    // Get products in the same category, excluding HTML content fields
     const { data: rawData, error } = await supabase
       .from("machines")
-      .select("*")
+      .select(`
+        id, 
+        "Machine Name", 
+        "Internal link", 
+        "Company", 
+        "Image", 
+        "Laser Type A", 
+        "Laser Power A", 
+        "Laser Category", 
+        "Price", 
+        "Award", 
+        "Rating",
+        product_link
+      `)
       .eq("Hidden", false)
       .neq("id", currentProduct.id)
       .eq("Laser Category", laserCategory)
@@ -420,7 +569,7 @@ export async function getRelatedProducts(currentProduct: Machine, limit = 6) {
       if (rawProductData["Company"] === product.company) {
         score += 10;
       }
-      
+
       // Award bonus - products with awards get a significant boost
       if (product.award) {
         score += 30;  // Give a significant boost to awarded products

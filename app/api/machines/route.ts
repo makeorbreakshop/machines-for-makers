@@ -56,7 +56,67 @@ export async function GET(request: NextRequest) {
   const maxSpeed = Number.parseFloat(searchParams.get("maxSpeed") || "2000")
   const minRating = Number.parseFloat(searchParams.get("minRating") || "0")
   // Get specific fields to return if requested
-  const fields = searchParams.get("fields") || "*";
+  const includeHtml = searchParams.get("includeHtml") === "true"
+  
+  // Define fields to select - by default exclude HTML content and related fields unless explicitly requested
+  let fields = searchParams.get("fields") || "default";
+  
+  // If fields is explicitly set to "*", honor that request regardless of includeHtml
+  // Otherwise, use the appropriate default set of fields
+  if (fields === "default") {
+    fields = includeHtml 
+      ? "*" 
+      : `
+        id, 
+        "Machine Name", 
+        "Internal link", 
+        "Company", 
+        "Image", 
+        "Laser Type A", 
+        "Laser Power A", 
+        "Laser Type B", 
+        "LaserPower B", 
+        "Laser Category", 
+        "Machine Category", 
+        "Affiliate Link", 
+        "Price", 
+        "Price Category", 
+        "Work Area", 
+        "Height", 
+        "Machine Size", 
+        "Speed", 
+        "Speed Category", 
+        "Acceleration", 
+        "Software", 
+        "Focus", 
+        "Enclosure", 
+        "Wifi", 
+        "Camera", 
+        "Passthrough", 
+        "Controller", 
+        "Warranty", 
+        "Rating", 
+        "Award", 
+        "Excerpt (Short)", 
+        "Excerpt (Long)", 
+        "Description", 
+        "Review", 
+        "Highlights", 
+        "Drawbacks", 
+        "YouTube Review", 
+        "Is A Featured Resource?", 
+        "Favorited", 
+        "Hidden", 
+        product_link, 
+        "Laser Frequency", 
+        "Pulse Width", 
+        "Best for:", 
+        "Laser Source Manufacturer", 
+        "Created On", 
+        "Updated On", 
+        "Published On"
+      `;
+  }
 
   // Get array parameters
   const laserTypes = searchParams.getAll("laserType")

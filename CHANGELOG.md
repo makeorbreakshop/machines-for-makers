@@ -61,6 +61,8 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
 ### Fixed
 - Fixed significant performance issues on Compare page
   - Optimized database queries to exclude large HTML content (reduced payload from ~5MB to ~50KB per machine)
+  - Replaced negation syntax with explicit field selection in Supabase queries
+  - Fixed column name references to match actual database schema
   - Fixed event handling in ViewToggle component by replacing custom events with prop-based callbacks
   - Resolved infinite loop in sorting logic by properly separating sorting from state updates
   - Fixed debug status endpoint to avoid query size limitations
