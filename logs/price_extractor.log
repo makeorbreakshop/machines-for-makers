@@ -1,0 +1,16 @@
+2025-04-18 13:39:44 | INFO     | services.js_parser:__init__:60 - JS Parser initialized
+2025-04-18 13:39:44 | INFO     | services.js_parser:extract:74 - Starting JS extraction for https://example.com/product
+2025-04-18 13:39:44 | INFO     | services.js_parser:__init__:60 - JS Parser initialized
+2025-04-18 13:39:44 | INFO     | services.js_parser:__init__:60 - JS Parser initialized
+2025-04-18 13:39:44 | INFO     | services.js_parser:extract:74 - Starting JS extraction for https://example.com/product
+2025-04-18 13:39:44 | INFO     | services.js_parser:__init__:60 - JS Parser initialized
+2025-04-18 13:39:44 | INFO     | services.js_parser:__init__:60 - JS Parser initialized
+2025-04-18 13:40:07 | INFO     | services.js_parser:__init__:60 - JS Parser initialized
+2025-04-18 13:40:07 | INFO     | services.js_parser:extract:74 - Starting JS extraction for https://example.com/product
+2025-04-18 14:28:42 | WARNING  | config:validate_config:97 - OpenAI API key not found - Full HTML tier with GPT-4o will not be available
+2025-04-18 14:28:42 | INFO     | scrapers.web_scraper:get_page_content:195 - Fetching content from https://commarker.com/product/b4-100w-jpt-mopa/ (Attempt 1/5)
+2025-04-18 14:28:42 | SUCCESS  | scrapers.web_scraper:get_page_content:199 - Successfully fetched content from https://commarker.com/product/b4-100w-jpt-mopa/
+2025-04-18 14:28:45 | WARNING  | scrapers.web_scraper:__del__:287 - WebScraper deleted, client session might need explicit cleanup
+2025-04-18 14:32:33 | WARNING  | config:validate_config:97 - OpenAI API key not found - Full HTML tier with GPT-4o will not be available
+2025-04-18 14:32:33 | INFO     | utils.price_validator:__init__:53 - Price validator initialized with default validation rules
+2025-04-18 14:32:33 | INFO     | services.database_service:__init__:36 - Database service initialized successfully

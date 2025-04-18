@@ -1,0 +1,64 @@
+2025-04-17 13:22:53.186 | INFO     | __main__:main:91 - Testing price extraction for URL: https://commarker.com/product/commarker-b6
+2025-04-17 13:22:53.186 | INFO     | __main__:main:93 - Product category: laser_cutter
+2025-04-17 13:22:53.203 | INFO     | utils.price_validator:__init__:53 - Price validator initialized with default validation rules
+2025-04-17 13:22:53.203 | INFO     | scrapers.price_extractor:__init__:67 - Price extractor initialized with Anthropic version header and price validator
+2025-04-17 13:22:53.203 | INFO     | utils.price_validator:__init__:53 - Price validator initialized with default validation rules
+2025-04-17 13:22:53.204 | INFO     | __main__:main:117 - Fetching content from https://commarker.com/product/commarker-b6...
+2025-04-17 13:22:53.204 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://commarker.com/product/commarker-b6
+2025-04-17 13:22:54.665 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://commarker.com/product/commarker-b6 in 1.46 seconds
+2025-04-17 13:22:54.710 | INFO     | __main__:main:124 - Successfully fetched content (926250 bytes)
+2025-04-17 13:22:54.710 | INFO     | __main__:main:132 - Testing structured data extraction...
+2025-04-17 13:22:54.713 | ERROR    | scrapers.price_extractor:_extract_from_structured_data:364 - Error extracting from structured data: cannot access local variable 'new_path' where it is not associated with a value
+2025-04-17 13:22:54.713 | INFO     | __main__:main:142 - Structured data extraction: No price found
+2025-04-17 13:22:54.713 | INFO     | __main__:main:145 - Testing CSS selector extraction...
+2025-04-17 13:22:54.723 | DEBUG    | scrapers.price_extractor:_parse_price:696 - _parse_price received raw input: '\n$29 $29 Save:$0 '
+2025-04-17 13:22:54.724 | DEBUG    | scrapers.price_extractor:_parse_price:740 - Attempting to convert final cleaned price string: '292' (from intermediate '292')
+2025-04-17 13:22:54.724 | DEBUG    | scrapers.price_extractor:_parse_price:755 - Parsed price 292.0 from '
+$29 $29 Save:$0 ' (cleaned: '292')
+2025-04-17 13:22:54.724 | INFO     | scrapers.price_extractor:_extract_from_common_selectors:411 - Extracted price 292.0 using selector '.price'
+2025-04-17 13:22:54.741 | INFO     | __main__:main:153 - CSS selector extraction: $292.0 (CSS Selector '.price')
+2025-04-17 13:22:54.741 | INFO     | __main__:main:158 - Testing regex pattern extraction...
+2025-04-17 13:22:54.786 | DEBUG    | scrapers.price_extractor:_parse_price:696 - _parse_price received raw input: '0.00'
+2025-04-17 13:22:54.786 | DEBUG    | scrapers.price_extractor:_parse_price:740 - Attempting to convert final cleaned price string: '0.00' (from intermediate '0.00')
+2025-04-17 13:22:54.787 | DEBUG    | scrapers.price_extractor:_parse_price:755 - Parsed price 0.0 from '0.00' (cleaned: '0.00')
+2025-04-17 13:22:54.788 | INFO     | scrapers.price_extractor:_extract_from_regex_patterns:446 - Extracted price 0.0 using regex pattern: (\d{1,3}(?:,\d{3})*(?:\.\d{2}))
+2025-04-17 13:22:54.788 | INFO     | __main__:main:166 - Regex pattern extraction: $0.0 (Regex Pattern)
+2025-04-17 13:22:54.788 | INFO     | __main__:main:171 - Testing Add to Cart proximity extraction...
+2025-04-17 13:22:54.973 | INFO     | __main__:main:181 - Add to Cart proximity extraction: No price found
+2025-04-17 13:22:54.973 | INFO     | __main__:main:184 - Testing Claude AI extraction...
+2025-04-17 13:22:54.973 | INFO     | scrapers.price_extractor:_extract_using_claude:576 - Calling Claude API to extract price from https://commarker.com/product/commarker-b6
+2025-04-17 13:22:56.165 | DEBUG    | scrapers.price_extractor:_extract_using_claude:596 - Claude returned raw price: '599.00'
+2025-04-17 13:22:56.165 | DEBUG    | scrapers.price_extractor:_parse_price:696 - _parse_price received raw input: '599.00'
+2025-04-17 13:22:56.165 | DEBUG    | scrapers.price_extractor:_parse_price:740 - Attempting to convert final cleaned price string: '599.00' (from intermediate '599.00')
+2025-04-17 13:22:56.166 | DEBUG    | scrapers.price_extractor:_parse_price:755 - Parsed price 599.0 from '599.00' (cleaned: '599.00')
+2025-04-17 13:22:56.166 | INFO     | scrapers.price_extractor:_extract_using_claude:622 - Extracted price 599.0 using Claude AI (parsed)
+2025-04-17 13:22:56.175 | INFO     | __main__:main:192 - Claude AI extraction: $599.0 (Claude AI (parsed))
+2025-04-17 13:22:56.175 | INFO     | __main__:main:197 - Testing full two-stage extraction...
+2025-04-17 13:22:56.179 | ERROR    | scrapers.price_extractor:_extract_from_structured_data:364 - Error extracting from structured data: cannot access local variable 'new_path' where it is not associated with a value
+2025-04-17 13:22:56.191 | DEBUG    | scrapers.price_extractor:_parse_price:696 - _parse_price received raw input: '\n$29 $29 Save:$0 '
+2025-04-17 13:22:56.191 | DEBUG    | scrapers.price_extractor:_parse_price:740 - Attempting to convert final cleaned price string: '292' (from intermediate '292')
+2025-04-17 13:22:56.191 | DEBUG    | scrapers.price_extractor:_parse_price:755 - Parsed price 292.0 from '
+$29 $29 Save:$0 ' (cleaned: '292')
+2025-04-17 13:22:56.191 | INFO     | scrapers.price_extractor:_extract_from_common_selectors:411 - Extracted price 292.0 using selector '.price'
+2025-04-17 13:22:56.253 | DEBUG    | scrapers.price_extractor:_parse_price:696 - _parse_price received raw input: '0.00'
+2025-04-17 13:22:56.253 | DEBUG    | scrapers.price_extractor:_parse_price:740 - Attempting to convert final cleaned price string: '0.00' (from intermediate '0.00')
+2025-04-17 13:22:56.253 | DEBUG    | scrapers.price_extractor:_parse_price:755 - Parsed price 0.0 from '0.00' (cleaned: '0.00')
+2025-04-17 13:22:56.253 | INFO     | scrapers.price_extractor:_extract_from_regex_patterns:446 - Extracted price 0.0 using regex pattern: (\d{1,3}(?:,\d{3})*(?:\.\d{2}))
+2025-04-17 13:22:56.438 | INFO     | scrapers.price_extractor:extract_price:230 - Best extraction result has low confidence: 292.0 (confidence: 0.3)
+2025-04-17 13:22:56.438 | INFO     | scrapers.price_extractor:_extract_using_claude:576 - Calling Claude API to extract price from https://commarker.com/product/commarker-b6
+2025-04-17 13:22:57.219 | DEBUG    | scrapers.price_extractor:_extract_using_claude:596 - Claude returned raw price: '499.00'
+2025-04-17 13:22:57.219 | DEBUG    | scrapers.price_extractor:_parse_price:696 - _parse_price received raw input: '499.00'
+2025-04-17 13:22:57.219 | DEBUG    | scrapers.price_extractor:_parse_price:740 - Attempting to convert final cleaned price string: '499.00' (from intermediate '499.00')
+2025-04-17 13:22:57.219 | DEBUG    | scrapers.price_extractor:_parse_price:755 - Parsed price 499.0 from '499.00' (cleaned: '499.00')
+2025-04-17 13:22:57.219 | INFO     | scrapers.price_extractor:_extract_using_claude:622 - Extracted price 499.0 using Claude AI (parsed)
+2025-04-17 13:22:57.219 | INFO     | scrapers.price_extractor:extract_price:261 - Using Claude price: $499.0
+2025-04-17 13:22:57.219 | INFO     | __main__:main:210 - Two-stage extraction result: $499.0 (Claude AI (parsed))
+2025-04-17 13:22:57.222 | INFO     | __main__:save_debug_info:80 - Debug information saved to debug/20250417132257
+2025-04-17 13:22:57.222 | INFO     | __main__:main:218 - 
+Extraction Summary:
+2025-04-17 13:22:57.222 | INFO     | __main__:main:233 - structured_data: No price found
+2025-04-17 13:22:57.222 | INFO     | __main__:main:231 - css_selectors: $292.0 - CSS Selector '.price' (Confidence: 0.30, Valid: False)
+2025-04-17 13:22:57.222 | INFO     | __main__:main:231 - regex_patterns: $0.0 - Regex Pattern (Confidence: 0.00, Valid: False)
+2025-04-17 13:22:57.222 | INFO     | __main__:main:233 - add_to_cart: No price found
+2025-04-17 13:22:57.222 | INFO     | __main__:main:231 - claude_ai: $599.0 - Claude AI (parsed) (Confidence: 1.00, Valid: True)
+2025-04-17 13:22:57.223 | INFO     | __main__:main:231 - two_stage: $499.0 - Claude AI (parsed)

@@ -21,7 +21,7 @@ import {
 import { PriceHistoryChart } from "@/components/product/price-history-chart"
 import { format, formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
-import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink } from "lucide-react"
+import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink, AlertTriangle } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import Link from "next/link"
 
 // Add type definitions for the window object with priceTrackerAPI
 declare global {
@@ -50,6 +51,8 @@ declare global {
     priceTrackerAPI?: {
       updateMachinePrice: (machineId: string) => Promise<any>;
       updateAllPrices: (daysThreshold?: number, machineLimit?: number | null) => Promise<any>;
+      confirmPrice: (machineId: string, newPrice: number) => Promise<any>;
+      debugMachinePrice: (machineId: string) => Promise<any>;
     };
   }
 }
@@ -233,58 +236,36 @@ export default function PriceTrackerAdmin() {
       }
       
       // Show loading state
-      toast.info(`Updating price for ${machine["Machine Name"]} with Python API...`)
+      toast.info(`Extracting price for ${machine["Machine Name"]} with Python API...`)
       
       const result = await window.priceTrackerAPI.updateMachinePrice(machine.id)
       
       if (result.success) {
-        // Set debug info for either success or debug mode
-        if (debug || result.method) {
-          setDebugInfo({
-            machine: machine["Machine Name"],
-            success: true,
-            price: result.new_price,
-            details: {
-              method: result.method,
-              oldPrice: result.old_price,
-              newPrice: result.new_price,
-              priceChange: result.price_change,
-              percentageChange: result.percentage_change,
-              message: result.message
-            }
-          })
-          
-          if (debug) {
-            setDebugDialogOpen(true)
+        // Always set debug info for either success or debug mode
+        setDebugInfo({
+          machine: machine["Machine Name"],
+          success: true,
+          price: result.new_price,
+          details: {
+            method: result.method,
+            oldPrice: result.old_price,
+            newPrice: result.new_price,
+            priceChange: result.price_change,
+            percentageChange: result.percentage_change,
+            message: result.message,
+            debug: result.debug
           }
-        }
+        })
         
-        // Show appropriate success message
+        // Always open the debug dialog to show the confirmation option
+        setDebugDialogOpen(true)
+        
+        // Show toast message about the extracted price
         if (result.old_price === result.new_price) {
           toast.info(`Price unchanged for ${machine["Machine Name"]}: ${formatPrice(result.new_price)}`)
         } else {
-          toast.success(`Price updated for ${machine["Machine Name"]}: ${formatPrice(result.old_price)} → ${formatPrice(result.new_price)}`)
+          toast.info(`Price extracted for ${machine["Machine Name"]}: ${formatPrice(result.old_price)} → ${formatPrice(result.new_price)}`)
         }
-        
-        // Refresh machine data to show new price
-        const { data, error } = await supabase
-          .from("machines")
-          .select("id, \"Machine Name\", \"Company\", Price, \"Is A Featured Resource?\", product_link, \"Affiliate Link\"")
-          .eq("id", machine.id)
-          .single()
-          
-        if (!error && data) {
-          // Update the machine in the list
-          setMachines(prev => prev.map(m => m.id === data.id ? data : m))
-          
-          // Update selected machine if it's the current one
-          if (selectedMachine?.id === machine.id) {
-            setSelectedMachine(data)
-            selectMachine(data)
-          }
-        }
-        
-        setRefreshing(prev => !prev)
       } else {
         // Handle error from Python API
         setDebugInfo({
@@ -292,15 +273,16 @@ export default function PriceTrackerAdmin() {
           error: result.error || "Unknown error",
           details: {
             error: result.error,
-            url: machine.product_link
+            url: machine.product_link,
+            debug: result.debug
           }
         })
         
         setDebugDialogOpen(true)
-        toast.error(`Failed to update price: ${result.error}`)
+        toast.error(`Failed to extract price: ${result.error}`)
       }
     } catch (error) {
-      console.error("Error updating price:", error)
+      console.error("Error extracting price:", error)
       
       // Set debug info for the error
       setDebugInfo({
@@ -313,7 +295,7 @@ export default function PriceTrackerAdmin() {
       })
       
       setDebugDialogOpen(true)
-      toast.error(`Failed to update price: ${error instanceof Error ? error.message : "Unknown error"}`)
+      toast.error(`Failed to extract price: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
   
@@ -618,8 +600,114 @@ export default function PriceTrackerAdmin() {
     }
   }
   
+  // Add this new function to handle debug button clicks
+  const handleDebug = async (machine: any) => {
+    if (!pythonApiReady || !window.priceTrackerAPI || !window.priceTrackerAPI.debugMachinePrice) {
+      toast.error("Python Price Extractor API is not connected or debug mode not available")
+      return
+    }
+    
+    setDebugInfo(null)
+    setDebugDialogOpen(false)
+    
+    try {
+      // Show loading toast
+      toast.info(`Debugging price extraction for ${machine["Machine Name"]}...`)
+      
+      // Call the debug API endpoint
+      const result = await window.priceTrackerAPI.debugMachinePrice(machine.id)
+      
+      // Process the result and show in dialog
+      if (result.success) {
+        const details = {
+          method: result.extraction_method || "Unknown method",
+          oldPrice: machine.Price,
+          newPrice: result.new_price,
+          priceChange: result.price_change,
+          percentageChange: result.percentage_change,
+          url: result.product_url,
+          message: result.message,
+          debug: result.debug
+        }
+        
+        setDebugInfo({
+          success: true,
+          machine: machine["Machine Name"],
+          price: result.new_price,
+          details: details,
+          debug: result.debug
+        })
+      } else {
+        setDebugInfo({
+          success: false,
+          machine: machine["Machine Name"],
+          error: result.error,
+          details: {
+            url: machine.product_link,
+            error: result.error,
+            debug: result.debug
+          },
+          debug: result.debug
+        })
+      }
+      
+      // Open the debug dialog
+      setDebugDialogOpen(true)
+    } catch (error: any) {
+      console.error("Error debugging price:", error)
+      toast.error("Failed to debug price extraction")
+      
+      setDebugInfo({
+        success: false,
+        machine: machine["Machine Name"],
+        error: error.message || "Unknown error",
+        details: {
+          url: machine.product_link,
+          error: error.message
+        }
+      })
+      
+      setDebugDialogOpen(true)
+    }
+  }
+  
   return (
-    <div className="space-y-6 p-6">
+    <div className="container mx-auto py-10 space-y-8">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Price Tracker</h1>
+          <p className="text-muted-foreground">
+            Monitor and update prices for laser machines
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline" 
+            asChild
+            className="flex items-center gap-2"
+          >
+            <Link href="/admin/tools/price-tracker/review">
+              <AlertTriangle className="h-4 w-4" /> Review Queue
+            </Link>
+          </Button>
+          <Button 
+            variant="outline" 
+            asChild
+            className="flex items-center gap-2"
+          >
+            <Link href="/admin/tools/price-tracker/batch-results">
+              <LineChart className="h-4 w-4" /> Batch Results
+            </Link>
+          </Button>
+          <Button
+            onClick={() => setBatchUpdateDialogOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Rocket className="h-4 w-4" /> Batch Update
+          </Button>
+        </div>
+      </div>
+      
       <Script 
         src="/admin/tools/price-tracker/price-tracker-api.js"
         onLoad={handleScriptLoad}
@@ -682,19 +770,8 @@ export default function PriceTrackerAdmin() {
                           </>
                         )}
                         
-                        {debugInfo.details.message && (
-                          <>
-                            <div className="font-medium">Message:</div>
-                            <div>{debugInfo.details.message}</div>
-                          </>
-                        )}
-                        
-                        {debugInfo.details.responseTimeMs && (
-                          <>
-                            <div className="font-medium">Response Time:</div>
-                            <div>{debugInfo.details.responseTimeMs}ms</div>
-                          </>
-                        )}
+                        <div className="font-medium">Message:</div>
+                        <div>{debugInfo.details.message || "N/A"}</div>
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -740,6 +817,87 @@ export default function PriceTrackerAdmin() {
                   </AccordionItem>
                 )}
               </Accordion>
+              
+              {/* Price Approval Section */}
+              {debugInfo.success && debugInfo.details && debugInfo.details.newPrice && !debugInfo.details.confirmed && (
+                <div className="mt-6 space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <h3 className="text-lg font-medium mb-2">Confirm Price Update</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Do you want to update the price from {formatPrice(debugInfo.details.oldPrice)} to {formatPrice(debugInfo.details.newPrice)}?
+                    </p>
+                    
+                    <div className="flex items-center justify-end space-x-3">
+                      <Button
+                        variant="outline"
+                        onClick={() => setDebugDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={async () => {
+                          try {
+                            // Only proceed if the API is ready
+                            if (!pythonApiReady || !window.priceTrackerAPI) {
+                              toast.error("Python Price Extractor API is not connected");
+                              return;
+                            }
+                            
+                            // Get the machine ID and new price from debugInfo
+                            const machineId = debugInfo.details.debug?.machineId;
+                            const newPrice = debugInfo.details.newPrice;
+                            
+                            if (!machineId || newPrice === null || newPrice === undefined) {
+                              toast.error("Missing machine ID or price information");
+                              return;
+                            }
+                            
+                            // Call the API to confirm the price
+                            toast.info(`Confirming price update to ${formatPrice(newPrice)}...`);
+                            
+                            const result = await window.priceTrackerAPI.confirmPrice(machineId, newPrice);
+                            
+                            if (result.success) {
+                              toast.success(`Price updated to ${formatPrice(newPrice)}`);
+                              
+                              // Update debugInfo to show confirmation
+                              setDebugInfo({
+                                ...debugInfo,
+                                details: {
+                                  ...debugInfo.details,
+                                  confirmed: true,
+                                  message: "Price updated successfully"
+                                }
+                              });
+                              
+                              // Refresh machine data
+                              setRefreshing(prev => !prev);
+                            } else {
+                              toast.error(`Failed to confirm price: ${result.error}`);
+                            }
+                          } catch (error) {
+                            console.error("Error confirming price:", error);
+                            toast.error(`Error confirming price: ${error instanceof Error ? error.message : "Unknown error"}`);
+                          }
+                        }}
+                      >
+                        <Check className="w-4 h-4 mr-2" />
+                        Approve & Save
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Show confirmation message if price was already confirmed */}
+              {debugInfo.success && debugInfo.details && debugInfo.details.confirmed && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700">
+                  <div className="flex items-center">
+                    <Check className="w-5 h-5 mr-2" />
+                    <span>Price has been successfully updated in the database.</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -936,12 +1094,13 @@ export default function PriceTrackerAdmin() {
                                 <LineChart className="w-4 h-4 mr-1" /> 
                                 History
                               </Button>
-                              <Button 
+                              <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => updatePrice(machine, true)}
+                                onClick={() => handleDebug(machine)}
+                                className="mr-1"
                               >
-                                <Bug className="w-4 h-4 mr-1" /> 
+                                <Bug className="w-4 h-4 mr-1" />
                                 Debug
                               </Button>
                               <Button 

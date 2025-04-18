@@ -12,6 +12,7 @@ show_help() {
     echo "  start              Start the API server"
     echo "  update [id]        Update price for a specific machine"
     echo "  batch [days]       Batch update machines (default: 7 days)"
+    echo "  batch-dry [days]   Batch update in dry-run mode (extract but don't save)"
     echo "  test-claude [url]  Test Claude price extraction on a URL"
     echo "  help               Show this help message"
     echo ""
@@ -19,6 +20,7 @@ show_help() {
     echo "  ./run.sh start"
     echo "  ./run.sh update machine-123"
     echo "  ./run.sh batch 14"
+    echo "  ./run.sh batch-dry 7"
     echo "  ./run.sh test-claude https://example.com/product"
 }
 
@@ -49,6 +51,12 @@ case "$1" in
         days=${2:-7}  # Default to 7 days if not provided
         echo "Batch updating machines not updated in the last $days days..."
         python batch_update.py "$days"
+        ;;
+    batch-dry)
+        days=${2:-7}  # Default to 7 days if not provided
+        echo "DRY RUN: Batch updating machines not updated in the last $days days..."
+        echo "(Prices will be extracted but NOT saved to the database)"
+        python batch_update.py "$days" --dry-run
         ;;
     test-claude)
         if [ -z "$2" ]; then

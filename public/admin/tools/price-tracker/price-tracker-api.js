@@ -61,6 +61,65 @@ async function updateMachinePrice(machineId) {
 }
 
 /**
+ * Confirm and save an extracted price after user approval
+ * @param {string} machineId - The ID of the machine to update
+ * @param {number} newPrice - The confirmed price to save
+ * @returns {Promise<object>} - The result of the price confirmation operation
+ */
+async function confirmPrice(machineId, newPrice) {
+  console.log(`[Python API] Confirming price ${newPrice} for machine ${machineId}`);
+  
+  try {
+    const startTime = performance.now();
+    
+    const response = await fetch(`${API_BASE_URL}/api/v1/update-price`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        machine_id: machineId,
+        confirm: true,
+        new_price: newPrice
+      })
+    });
+    
+    const endTime = performance.now();
+    const responseTime = (endTime - startTime).toFixed(2);
+    
+    const result = await response.json();
+    
+    // Add response time and API details to the result
+    result.debug = {
+      ...result.debug,
+      apiUrl: `${API_BASE_URL}/api/v1/update-price`,
+      responseTimeMs: responseTime,
+      timestamp: new Date().toISOString(),
+      responseStatus: response.status,
+      machineId: machineId,
+      confirmedPrice: newPrice
+    };
+    
+    console.log(`[Python API] Price confirmation result for ${machineId}:`, result);
+    return result;
+  } catch (error) {
+    console.error(`[Python API] Error confirming price for ${machineId}:`, error);
+    return {
+      success: false,
+      error: error.message || "Failed to connect to Python API",
+      debug: {
+        apiUrl: `${API_BASE_URL}/api/v1/update-price`,
+        timestamp: new Date().toISOString(),
+        errorName: error.name,
+        errorStack: error.stack,
+        machineId: machineId,
+        confirmedPrice: newPrice
+      }
+    };
+  }
+}
+
+/**
  * Update prices for all machines
  * @param {number} daysThreshold - Minimum days since last update
  * @param {number|null} limit - Maximum number of machines to update, or null for all
@@ -122,26 +181,31 @@ async function updateAllPrices(daysThreshold = 7, limit = null, machineIds = nul
 }
 
 /**
- * Test the connection to the Python API
- * @returns {Promise<boolean>} - Whether the connection was successful
+ * Test connection to the price extractor API
+ * @returns {Promise<object>} - The result of the test
  */
 async function testConnection() {
+  console.log("[Python API] Testing connection");
+  
   try {
-    const response = await fetch(`${API_BASE_URL}/health`, {
-      method: 'GET'
-    });
+    const response = await fetch(`${API_BASE_URL}/health`);
+    const result = await response.json();
     
-    if (response.ok) {
-      const result = await response.json();
-      console.log(`[Python API] Connection test successful:`, result);
-      return true;
-    }
+    console.log("[Python API] Connection test result:", result);
     
-    console.error(`[Python API] Connection test failed with status ${response.status}`);
-    return false;
+    return {
+      success: true,
+      status: "connected",
+      details: result
+    };
   } catch (error) {
-    console.error(`[Python API] Connection test error:`, error);
-    return false;
+    console.error("[Python API] Connection test failed:", error);
+    
+    return {
+      success: false,
+      status: "disconnected",
+      error: error.message || "Failed to connect to Python API"
+    };
   }
 }
 
@@ -155,9 +219,69 @@ testConnection()
     }
   });
 
+/**
+ * Debug price extraction without saving to the database
+ * @param {string} machineId - The ID of the machine to debug
+ * @returns {Promise<object>} - The detailed debug information
+ */
+async function debugMachinePrice(machineId) {
+  console.log(`[Python API] Debugging price extraction for machine ${machineId}`);
+  
+  try {
+    const startTime = performance.now();
+    
+    const response = await fetch(`${API_BASE_URL}/api/v1/debug-extraction`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ machine_id: machineId })
+    });
+    
+    const endTime = performance.now();
+    const responseTime = (endTime - startTime).toFixed(2);
+    
+    const result = await response.json();
+    
+    // Add response time and API details to the result
+    if (!result.debug) {
+      result.debug = {};
+    }
+    
+    result.debug = {
+      ...result.debug,
+      apiUrl: `${API_BASE_URL}/api/v1/debug-extraction`,
+      responseTimeMs: responseTime,
+      timestamp: new Date().toISOString(),
+      responseStatus: response.status,
+      machineId: machineId,
+      isDebugMode: true
+    };
+    
+    console.log(`[Python API] Debug extraction result for ${machineId}:`, result);
+    return result;
+  } catch (error) {
+    console.error(`[Python API] Error debugging extraction for ${machineId}:`, error);
+    return {
+      success: false,
+      error: error.message || "Failed to connect to Python API",
+      debug: {
+        apiUrl: `${API_BASE_URL}/api/v1/debug-extraction`,
+        timestamp: new Date().toISOString(),
+        errorName: error.name,
+        errorStack: error.stack,
+        machineId: machineId,
+        isDebugMode: true
+      }
+    };
+  }
+}
+
 // Export functions for external use
 window.priceTrackerAPI = {
   updateMachinePrice,
+  confirmPrice,
   updateAllPrices,
-  testConnection
+  testConnection,
+  debugMachinePrice
 }; 

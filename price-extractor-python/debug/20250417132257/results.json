@@ -1,0 +1,50 @@
+{
+  "structured_data": {
+    "price": null,
+    "method": null,
+    "validation": null
+  },
+  "css_selectors": {
+    "price": 292.0,
+    "method": "CSS Selector '.price'",
+    "validation": {
+      "is_valid": false,
+      "confidence": 0.3,
+      "issues": [
+        "Price $292.0 is below minimum expected ($300) for laser_cutter"
+      ],
+      "needs_verification": false
+    }
+  },
+  "regex_patterns": {
+    "price": 0.0,
+    "method": "Regex Pattern",
+    "validation": {
+      "is_valid": false,
+      "confidence": 0,
+      "issues": [
+        "Price is None or negative"
+      ],
+      "needs_verification": false
+    }
+  },
+  "add_to_cart": {
+    "price": null,
+    "method": null,
+    "validation": null
+  },
+  "claude_ai": {
+    "price": 599.0,
+    "method": "Claude AI (parsed)",
+    "validation": {
+      "is_valid": true,
+      "confidence": 1.0,
+      "issues": [],
+      "needs_verification": false
+    }
+  },
+  "two_stage": {
+    "price": 499.0,
+    "method": "Claude AI (parsed)"
+  }
+}

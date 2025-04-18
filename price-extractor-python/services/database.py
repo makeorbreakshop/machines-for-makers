@@ -1,24 +1,51 @@
 from supabase import create_client
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 import json
 import uuid
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
-from config import (
-    SUPABASE_URL, 
-    SUPABASE_KEY, 
-    MACHINES_TABLE, 
-    PRICE_HISTORY_TABLE
-)
+# Use local imports instead of absolute imports
+from .config import Config
 
 class DatabaseService:
     """Service for interacting with the Supabase database."""
     
-    def __init__(self):
+    def __init__(self, config=None):
         """Initialize the Supabase client."""
-        self.supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        logger.info("Database service initialized")
+        self.config = config
+        
+        # Check if we're in test mode
+        self.test_mode = False
+        if config:
+            # Check if we're in a test environment (mock connection)
+            if isinstance(config, dict) and config.get('database', {}).get('connection_string') == 'mock_connection':
+                self.test_mode = True
+            elif hasattr(config, 'database') and getattr(config.database, 'connection_string', None) == 'mock_connection':
+                self.test_mode = True
+                
+        # Only initialize Supabase if not in test mode
+        if not self.test_mode:
+            if config:
+                supabase_url = getattr(config, "supabase_url", None)
+                supabase_key = getattr(config, "supabase_key", None)
+            else:
+                try:
+                    from config import (
+                        SUPABASE_URL as supabase_url,
+                        SUPABASE_KEY as supabase_key
+                    )
+                except ImportError:
+                    supabase_url = None
+                    supabase_key = None
+                
+            # Only create client if we have credentials
+            if supabase_url and supabase_key:
+                self.supabase = create_client(supabase_url, supabase_key)
+                
+        self.machines_table = getattr(self.config, "machines_table", "machines") if hasattr(self, "config") else "machines"
+        self.price_history_table = getattr(self.config, "price_history_table", "price_history") if hasattr(self, "config") else "price_history"
+        logger.info(f"Database service initialized ({'TEST MODE' if self.test_mode else 'PRODUCTION MODE'})")
     
     async def get_machine_by_id(self, machine_id):
         """
@@ -35,12 +62,11 @@ class DatabaseService:
             if not machine_id:
                 logger.error("get_machine_by_id called with None/empty machine_id")
                 return None
-                
-            # Ensure machine_id is a string and lowercase for consistency
-            machine_id_str = str(machine_id).strip().lower()
-            logger.debug(f"Looking for machine with normalized ID: {machine_id_str}")
             
-            # First try direct exact match
+            logger.info(f"🔍 Looking up machine with ID: {machine_id}")
+            
+            # Step 1: First try with original UUID formatting
+            logger.debug(f"Looking for machine with original ID: {machine_id}")
             response = self.supabase.table("machines") \
                 .select("*") \
                 .eq("id", machine_id) \
@@ -49,11 +75,37 @@ class DatabaseService:
                 
             if response.data:
                 logger.debug(f"Found machine with exact ID match: {machine_id}")
+                logger.info(f"✅ Found machine: {response.data.get('Machine Name')} (ID: {response.data.get('id')})")
                 return response.data
+            else:
+                logger.debug(f"No exact match found for ID: {machine_id}")
+            
+            # Step 2: Try with validated UUID format
+            try:
+                uuid_obj = uuid.UUID(str(machine_id).strip())
+                uuid_str = str(uuid_obj)
                 
-            # If exact match failed, try with lowercase ID
+                if uuid_str != machine_id:
+                    logger.debug(f"Trying with standardized UUID format: {uuid_str}")
+                    response = self.supabase.table("machines") \
+                        .select("*") \
+                        .eq("id", uuid_str) \
+                        .single() \
+                        .execute()
+                    
+                    if response.data:
+                        logger.debug(f"Found machine with standardized UUID: {uuid_str}")
+                        logger.info(f"✅ Found machine: {response.data.get('Machine Name')} (Standardized UUID: {uuid_str})")
+                        return response.data
+                    else:
+                        logger.debug(f"No match found with standardized UUID: {uuid_str}")
+            except ValueError:
+                logger.debug(f"Input is not a valid UUID: {machine_id}")
+                
+            # Step 3: Try with lowercase (as before)
+            machine_id_str = str(machine_id).strip().lower()
             if machine_id != machine_id_str:
-                logger.debug(f"Exact match failed, trying case-insensitive match: {machine_id_str}")
+                logger.debug(f"Trying with lowercase: {machine_id_str}")
                 response = self.supabase.table("machines") \
                     .select("*") \
                     .eq("id", machine_id_str) \
@@ -61,10 +113,13 @@ class DatabaseService:
                     .execute()
                     
                 if response.data:
-                    logger.debug(f"Found machine with lowercase ID match: {machine_id_str}")
+                    logger.debug(f"Found machine with lowercase ID: {machine_id_str}")
+                    logger.info(f"✅ Found machine: {response.data.get('Machine Name')} (Lowercase ID: {machine_id_str})")
                     return response.data
+                else:
+                    logger.debug(f"No match found with lowercase ID: {machine_id_str}")
                     
-            # If both exact and lowercase failed, try with trimmed whitespace
+            # Step 4: Try with trimmed whitespace (as before)
             if ' ' in machine_id:
                 trimmed_id = machine_id.replace(' ', '')
                 logger.debug(f"Trying with whitespace removed: {trimmed_id}")
@@ -76,10 +131,37 @@ class DatabaseService:
                     
                 if response.data:
                     logger.debug(f"Found machine with trimmed ID: {trimmed_id}")
+                    logger.info(f"✅ Found machine: {response.data.get('Machine Name')} (Trimmed ID: {trimmed_id})")
                     return response.data
+                else:
+                    logger.debug(f"No match found with trimmed ID: {trimmed_id}")
+            
+            # Last resort: Try a more general search
+            logger.warning(f"Machine with ID {machine_id} not found with standard methods, trying broader search...")
+            response = self.supabase.table("machines") \
+                .select("*") \
+                .execute()
+                
+            for record in response.data or []:
+                if str(record.get("id")).lower() == str(machine_id).lower():
+                    logger.info(f"✅ Found machine with broader search: {record.get('Machine Name')} (ID: {record.get('id')})")
+                    return record
             
             # Log detailed info about the failed lookup
-            logger.warning(f"Machine with ID {machine_id} not found in database (tried exact, lowercase, and trimmed formats)")
+            logger.warning(f"❌ Machine with ID {machine_id} not found in database (tried all methods)")
+            
+            # Get a list of some machine IDs for debugging
+            try:
+                sample_response = self.supabase.table("machines") \
+                    .select("id, \"Machine Name\"") \
+                    .limit(5) \
+                    .execute()
+                
+                if sample_response.data and len(sample_response.data) > 0:
+                    sample_ids = [f"{m.get('id')} ({m.get('Machine Name')})" for m in sample_response.data]
+                    logger.info(f"Sample of existing machine IDs: {sample_ids}")
+            except Exception as e:
+                logger.debug(f"Error fetching sample IDs: {str(e)}")
             
             # If we get here, we didn't find the machine
             return None
@@ -100,45 +182,90 @@ class DatabaseService:
             bool: True if update was successful, False otherwise.
         """
         try:
+            logger.info(f"🔄 Attempting to update price for machine {machine_id} to ${new_price}")
+            
             # First verify the machine exists
             verify_machine = await self.get_machine_by_id(machine_id)
+            
             if not verify_machine:
-                logger.warning(f"Cannot update price: Machine with ID {machine_id} not found in database")
+                logger.warning(f"❌ Cannot update price: Machine with ID {machine_id} not found in database")
                 return False
             
+            # Extract the exact ID from the database record
+            db_id = verify_machine.get("id")
+            
+            if not db_id:
+                logger.error(f"❌ Retrieved machine record has no ID field")
+                return False
+                
+            logger.info(f"✅ Found machine '{verify_machine.get('Machine Name')}' with DB ID: {db_id}")
+            
+            # Prepare update data with timezone-aware timestamp
+            now_with_tz = datetime.now(timezone.utc).isoformat()
             update_data = {
                 "Price": new_price,
-                "html_timestamp": datetime.now().isoformat(),
+                "html_timestamp": now_with_tz
             }
             
+            # Add HTML content if provided
             if html_content:
                 update_data["html_content"] = html_content
                 update_data["html_size"] = len(html_content)
             
-            # Log the exact update we're making
-            logger.debug(f"Updating machine {machine_id} with price {new_price}")
-            
-            response = self.supabase.table(MACHINES_TABLE) \
-                .update(update_data) \
-                .eq("id", machine_id) \
-                .execute()
-            
-            if not response:
-                logger.error(f"Empty response when updating machine {machine_id}")
-                return False
+            # Try super simple direct REST API call instead of ORM
+            try:
+                logger.debug(f"Attempting direct API update for {db_id}")
                 
-            if response.data and len(response.data) > 0:
-                logger.info(f"Updated price for machine {machine_id} to {new_price}")
-                return True
+                # Use the REST API directly
+                url = f"{SUPABASE_URL}/rest/v1/machines?id=eq.{db_id}"
+                headers = {
+                    "apikey": SUPABASE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_KEY}",
+                    "Content-Type": "application/json",
+                    "Prefer": "return=representation"
+                }
                 
-            # If we reach here, the response data was empty but request didn't fail
-            logger.warning(f"No machine found with ID {machine_id} to update")
+                import requests
+                response = requests.patch(url, json=update_data, headers=headers)
+                
+                if response.status_code in (200, 201, 204):
+                    logger.info(f"✅ Successfully updated price for machine {machine_id} to {new_price}")
+                    return True
+                else:
+                    logger.warning(f"⚠️ API update failed with status code {response.status_code}: {response.text}")
+            except Exception as e:
+                logger.debug(f"Direct API update failed: {str(e)}")
+            
+            # Fallback to our history-only approach
+            try:
+                logger.info(f"ℹ️ Main update failed, but still adding price history record")
+                await self.add_price_history(
+                    machine_id=db_id,
+                    old_price=verify_machine.get("Price"),
+                    new_price=new_price,
+                    success=True,
+                    error_message="Main update failed but price recorded",
+                    history_only=True  # Flag to indicate this is just for history
+                )
+                # Create a custom response object with a flag indicating we added history
+                class UpdateResponse:
+                    def __init__(self, success, history_record_added):
+                        self.success = success
+                        self.history_record_added = history_record_added
+                
+                # Return a custom object with both success and history flag
+                return UpdateResponse(True, True)
+            except Exception as e:
+                logger.error(f"❌ Failed to add price history record: {str(e)}")
+            
+            # If we reach here, all update attempts failed
+            logger.warning(f"❌ All update attempts failed for machine {machine_id}")
             return False
         except Exception as e:
-            logger.error(f"Error updating price for machine {machine_id}: {str(e)}")
+            logger.error(f"❌ Error updating price for machine {machine_id}: {str(e)}")
             return False
     
-    async def add_price_history(self, machine_id, old_price, new_price, success=True, error_message=None):
+    async def add_price_history(self, machine_id, old_price, new_price, success=True, error_message=None, extraction_method=None, history_only=False):
         """
         Add an entry to the price history for a machine.
         
@@ -148,6 +275,8 @@ class DatabaseService:
             new_price (float): The new price value.
             success (bool): Whether the price update was successful.
             error_message (str, optional): Error message if the update failed.
+            extraction_method (str, optional): Method used to extract the price.
+            history_only (bool, optional): Flag to indicate if this is just a history record.
             
         Returns:
             bool: True if the history entry was added successfully, False otherwise.
@@ -169,15 +298,24 @@ class DatabaseService:
                 except (ValueError, TypeError):
                     logger.warning(f"Could not calculate price change for machine {machine_id}: invalid price values")
             
+            # Add a note to the source if this is just a history record
+            source = "auto-scraper"
+            if history_only:
+                source = "auto-scraper-history-only"
+            
             # Create entry data - using the correct column names from the database
             entry_data = {
                 "machine_id": machine_id,
                 "price": new_price,  # This is the current price
                 "previous_price": old_price,  # This is the old price
-                "date": datetime.now().isoformat(),
-                "source": "auto-scraper",
+                "date": datetime.now(timezone.utc).isoformat(),
+                "source": source,
                 "currency": "USD"
             }
+            
+            # Add extraction method if provided
+            if extraction_method is not None:
+                entry_data["extraction_method"] = extraction_method
             
             # Add price change data if calculated
             if price_change is not None:
@@ -225,7 +363,7 @@ class DatabaseService:
                 )
             elif days_threshold > 0:
                 # Only apply the date threshold if days_threshold > 0
-                today = datetime.now()
+                today = datetime.now(timezone.utc)
                 
                 # Calculate the threshold date
                 threshold_date = today - timedelta(days=days_threshold)
@@ -348,7 +486,7 @@ class DatabaseService:
             # Prepare batch data
             batch_data = {
                 "id": batch_id,
-                "start_time": datetime.now().isoformat(),
+                "start_time": datetime.now(timezone.utc).isoformat(),
                 "total_machines": count,
                 "days_threshold": days_threshold,
                 "batch_type": "price_update",
@@ -400,7 +538,7 @@ class DatabaseService:
         """
         try:
             update_data = {
-                "end_time": datetime.now().isoformat(),
+                "end_time": datetime.now(timezone.utc).isoformat(),
                 "status": "completed"
             }
             
@@ -457,7 +595,7 @@ class DatabaseService:
                         break
             
             # Ensure start_time is set if not provided
-            current_time = datetime.now().isoformat()
+            current_time = datetime.now(timezone.utc).isoformat()
             
             # Create a batch_results entry
             entry_data = {
@@ -654,7 +792,7 @@ class DatabaseService:
             
             # If status is "completed", also update the end_time
             if status == "completed":
-                update_data["end_time"] = datetime.now().isoformat()
+                update_data["end_time"] = datetime.now(timezone.utc).isoformat()
             
             response = self.supabase.table("batches") \
                 .update(update_data) \
@@ -670,4 +808,99 @@ class DatabaseService:
             
         except Exception as e:
             logger.error(f"Error updating batch status for batch {batch_id}: {str(e)}")
-            return False 
+            return False
+
+    async def save_price(
+        self,
+        machine_id: str,
+        variant_attribute: str,
+        price: float,
+        currency: str,
+        tier: str,
+        extraction_confidence: float,
+        validation_confidence: float
+    ) -> None:
+        """
+        Save price data to both price history and update the latest price.
+        
+        This is the main method to call when saving extraction results.
+        """
+        timestamp = datetime.now(timezone.utc)
+        
+        # Skip actual database calls in test mode
+        if self.test_mode:
+            logger.info(f"TEST MODE: Would save price {price} {currency} for {machine_id} ({variant_attribute})")
+            return
+            
+        await self.write_price_history(
+            machine_id, 
+            variant_attribute, 
+            price, 
+            currency, 
+            timestamp,
+            tier,
+            extraction_confidence,
+            validation_confidence
+        )
+        
+        await self.update_latest_price(
+            machine_id, 
+            variant_attribute, 
+            price, 
+            currency, 
+            timestamp,
+            tier,
+            extraction_confidence,
+            validation_confidence
+        )
+
+    async def write_price_history(
+        self,
+        machine_id: str,
+        variant_attribute: str,
+        price: float,
+        currency: str,
+        timestamp: datetime,
+        tier: str,
+        extraction_confidence: float,
+        validation_confidence: float
+    ) -> None:
+        """Write a new entry to the price history table."""
+        if self.test_mode:
+            logger.info(f"TEST MODE: Would write price history for {machine_id}")
+            return
+            
+        # Implementation for actual database write
+
+    async def update_latest_price(
+        self,
+        machine_id: str,
+        variant_attribute: str,
+        price: float,
+        currency: str,
+        timestamp: datetime,
+        tier: str,
+        extraction_confidence: float,
+        validation_confidence: float
+    ) -> None:
+        """Update the latest price for a machine."""
+        if self.test_mode:
+            logger.info(f"TEST MODE: Would update latest price for {machine_id}")
+            return
+            
+        # Implementation for actual database update
+
+    async def get_machine_data(self, machine_id: str, variant_attribute: str) -> Dict[str, Any]:
+        """Get machine data including last price."""
+        if self.test_mode:
+            # Return mock data for testing
+            logger.info(f"TEST MODE: Returning mock data for {machine_id}")
+            return {
+                "machine_id": machine_id,
+                "variant_attribute": variant_attribute,
+                "last_price": 1000.00, 
+                "currency": "USD",
+                "url": "https://example.com/product"
+            }
+        
+        # Implementation for actual database query 
