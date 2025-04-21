@@ -125,6 +125,13 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
   - Added timezone awareness to all timestamps to ensure consistent date handling
   - Fixed date discrepancies in price history records and machine timestamps
 
+### Removed
+- Removed coordinate-based extractor functionality from admin interface
+  - Coordinate extractor page and related components have been deprecated
+  - Functionality replaced by more reliable extraction methods in the pipeline
+  - Simplified admin UI by removing experimental features
+  - Reduced potential for errors caused by missing component dependencies
+
 ## [1.0.0] - 2025-04-16
 
 ### Added

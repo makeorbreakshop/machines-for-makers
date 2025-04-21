@@ -30,6 +30,7 @@ As of the latest update, we have:
   - JS Interaction Check (Playwright)
   - Full HTML Check (GPT-4o)
   - Price Validator
+- ❌ Removed coordinate-based extractor functionality (deprecated in favor of more reliable methods)
 
 ### Known Issues and Troubleshooting
 
@@ -89,6 +90,8 @@ Five distinct extraction tiers, ordered by cost/complexity:
    - Uses OpenAI's GPT-4o model for the most complex pages
    - Processes the complete HTML with preprocessing to reduce tokens
    - Highest cost, used only as a last resort
+
+> **Note:** The previous coordinate-based extractor approach has been deprecated as of May 2025. This experimental feature has been removed in favor of the more reliable extraction methods listed above.
 
 ### Confidence Thresholds
 

@@ -232,7 +232,39 @@ The system follows a multi-stage pipeline architecture:
   - ✅ Show live preview of extraction results
   - ✅ Display detailed parsing logs
 
-#### 3.4.5 Cost Tracking Dashboard
+#### 3.4.5 Visual Sequence Builder for JS Interaction
+
+- Backend: Create JS sequence recording and playback service
+  - Implement "Record Mode" API endpoint for browser interaction
+  - Create sequence optimization service to generate robust selectors
+  - Add automated discovery service for common e-commerce patterns
+  - Implement visual feedback for sequence testing
+  - Develop intelligent selector generation to prevent brittle configurations
+
+- Frontend: Build visual sequence builder UI
+  - Create "Record Sequence" button that launches guided mode
+  - Implement browser extension/script for click recording
+  - Add element selection helper with visual highlighting
+  - Display human-readable sequence preview panel
+  - Create drag-and-drop interface for reordering steps
+  - Add simple controls for timing adjustments
+  - Implement one-click testing with visual feedback
+  - Provide ML-based suggestions for common interaction patterns
+
+- Integration: Simplify end user workflow
+  - Remove all JSON editing requirements
+  - Create guided step-by-step interface
+  - Allow direct demonstration of required clicks
+  - Automatically capture and optimize selectors
+  - Provide immediate visual feedback on sequence effectiveness
+  - Support automatic sequence generation for common site patterns
+  - Create smart recovery features for failed steps
+
+> **UPDATE (2025-05)**: The coordinate extractor functionality has been removed from the current implementation. This was initially designed to help with coordinate-based extraction but has been deprecated in favor of more reliable methods.
+
+This approach dramatically reduces technical knowledge requirements while increasing configuration accuracy and speed. Users can simply demonstrate the required site interactions rather than writing code.
+
+#### 3.4.6 Cost Tracking Dashboard
 - ✅ Backend: Create cost tracking API endpoints
   - ✅ Implement GET /api/v1/usage/summary endpoint
   - ✅ Add date range filtering
