@@ -44,3 +44,36 @@ browser-tools-mcp/
 /downloads/
 /screenshots/
 screenshot.png
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+price-extractor-python/venv/
+*/venv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Logs and debug
+*/logs/
+*/debug/
+price-extractor-python/logs/
+price-extractor-python/debug/
+*.log
+debug.log
+price_extractor.log
+
+# Binary files and images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.exe
+*.bin
