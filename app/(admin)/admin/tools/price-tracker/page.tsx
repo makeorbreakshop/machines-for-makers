@@ -21,13 +21,14 @@ import {
 import { PriceHistoryChart } from "@/components/product/price-history-chart"
 import { format, formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
-import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink, AlertTriangle } from "lucide-react"
+import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink, AlertTriangle, Settings, Plus } from "lucide-react"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import {
   Accordion,
@@ -44,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import Link from "next/link"
+import { SequenceBuilder } from "./components/SequenceBuilder"
 
 // Add type definitions for the window object with priceTrackerAPI
 declare global {
@@ -82,6 +84,19 @@ export default function PriceTrackerAdmin() {
   const [previewMachineIds, setPreviewMachineIds] = useState<string[]>([])
   const [batches, setBatches] = useState<any[]>([])
   const [loadingBatches, setLoadingBatches] = useState(false)
+  
+  // Configuration state
+  const [configDialogOpen, setConfigDialogOpen] = useState(false)
+  const [machineConfig, setMachineConfig] = useState<any>(null)
+  const [configLoading, setConfigLoading] = useState(false)
+  const [variants, setVariants] = useState<any[]>([])
+  const [newVariant, setNewVariant] = useState({ attribute: "", requires_js: false })
+  const [isAddingVariant, setIsAddingVariant] = useState(false)
+  const [jsConfig, setJsConfig] = useState<any>(null)
+  const [isEditingJs, setIsEditingJs] = useState(false)
+  
+  // API URL for configuration endpoints
+  const API_BASE_URL = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'
   
   // Fetch machines
   useEffect(() => {
@@ -238,7 +253,8 @@ export default function PriceTrackerAdmin() {
       // Show loading state
       toast.info(`Extracting price for ${machine["Machine Name"]} with Python API...`)
       
-      const result = await window.priceTrackerAPI.updateMachinePrice(machine.id)
+      // Use debugMachinePrice instead of updateMachinePrice
+      const result = await window.priceTrackerAPI.debugMachinePrice(machine.id)
       
       if (result.success) {
         // Always set debug info for either success or debug mode
@@ -247,8 +263,8 @@ export default function PriceTrackerAdmin() {
           success: true,
           price: result.new_price,
           details: {
-            method: result.method,
-            oldPrice: result.old_price,
+            method: result.extraction_method || result.method,  // Adjust for different property name in debug response
+            oldPrice: result.current_db_price || result.old_price,
             newPrice: result.new_price,
             priceChange: result.price_change,
             percentageChange: result.percentage_change,
@@ -671,13 +687,328 @@ export default function PriceTrackerAdmin() {
     }
   }
   
+  // Open configuration dialog
+  const openConfigDialog = async (machine: any) => {
+    if (!machine) return
+    
+    setSelectedMachine(machine)
+    setConfigLoading(true)
+    setMachineConfig(null) // Reset previous config
+    setVariants([])        // Reset previous variants
+    
+    try {
+      // Fetch both the specific config (e.g., DEFAULT) and the list of all variants
+      const [configResponse, variantsResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/v1/machines/${machine.id}/config`), // Fetches default config
+        fetch(`${API_BASE_URL}/api/v1/machines/${machine.id}/variants`) // Fetches ALL variants
+      ])
+      
+      if (!configResponse.ok) {
+        throw new Error(`Failed to fetch machine config: ${configResponse.statusText}`)
+      }
+      if (!variantsResponse.ok) {
+        throw new Error(`Failed to fetch machine variants: ${variantsResponse.statusText}`)
+      }
+      
+      const configData = await configResponse.json()
+      const variantsData = await variantsResponse.json()
+      
+      if (!configData.success) {
+        throw new Error(configData.error || 'Failed to fetch machine configuration')
+      }
+      if (!variantsData.success) {
+        throw new Error(variantsData.error || 'Failed to fetch machine variants')
+      }
+      
+      // Set the default config first
+      setMachineConfig(configData.config || {})
+      
+      // Set the list of all variants for the dropdown/display
+      setVariants(variantsData.variants || [])
+      
+      // TODO: Add logic to set JS config if it's part of the config endpoint
+      // setJsConfig(configData.js_config || null)
+      
+      setConfigDialogOpen(true)
+    } catch (error) {
+      console.error("Error opening machine config dialog:", error)
+      toast.error("Failed to load machine configuration and variants")
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+  
+  // Handle testing configuration
+  const handleTestConfig = async () => {
+    if (!selectedMachine) return;
+    
+    try {
+      toast.info(`Testing configuration for ${selectedMachine["Machine Name"]}...`);
+      
+      // If JS interaction is enabled, test that specifically
+      if (machineConfig?.requires_js_interaction && jsConfig) {
+        toast.info("Testing JavaScript interaction sequence...");
+        
+        // Check if the sequence contains an extract step
+        const hasExtractStep = jsConfig.some((step: any) => 
+          (step.action === 'extract' || step.type === 'extract')
+        );
+        
+        // Use our browser/extract endpoint for local testing if extract step is present
+        if (hasExtractStep) {
+          // Format the sequence to ensure it uses 'type' instead of 'action'
+          const formattedSequence = jsConfig.map((step: any) => ({
+            type: step.action || step.type,
+            selector: step.selector,
+            time: step.time,
+            ...(step.position && { position: step.position })
+          }));
+          
+          const response = await fetch('/api/browser/extract', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              url: selectedMachine.product_link,
+              actions: formattedSequence
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Failed to test sequence: ${response.statusText}`);
+          }
+          
+          const data = await response.json();
+          
+          // Check the extraction results
+          const extractResult = data.results.find((r: any) => 
+            r.action.type === 'extract' || r.action.action === 'extract'
+          );
+          
+          if (extractResult?.extraction?.found) {
+            toast.success(`Local test successful! Extracted price: ${extractResult.extraction.prices.map((p: any) => p.parsed).join(', ')}`);
+          } else if (data.priceInfo?.found) {
+            toast.info(`No direct price found, but detected prices: ${data.priceInfo.commonSelectors.prices.join(', ')}`);
+          } else {
+            toast.error('Local test failed to extract price. Check your selectors and sequence.');
+          }
+          
+          return;
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/api/v1/machines/test-js-interaction`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            url: selectedMachine.product_link,
+            jsClickSequence: jsConfig,
+            variantAttribute: 'DEFAULT' // Add support for variants later
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to test JS interaction: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+          toast.error(`JavaScript test failed: ${data.error || 'Unknown error'}`);
+          return;
+        }
+        
+        toast.success(`JavaScript test successful! Extracted price: ${formatPrice(data.price)}`);
+        return;
+      }
+      
+      // Otherwise, test the general configuration
+      const response = await fetch(`${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/extract-price`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          test_mode: true
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to test configuration: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        toast.error(`Test failed: ${data.error || 'Unknown error'}`);
+        return;
+      }
+      
+      toast.success(`Test successful! Extracted price: ${formatPrice(data.price)}`);
+    } catch (error) {
+      console.error("Error testing configuration:", error);
+      toast.error(`Failed to test configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+  
+  // Handle configuration save
+  const handleSaveConfig = async () => {
+    if (!selectedMachine) return;
+    
+    try {
+      // Check if we have a jsConfig sequence with types but the backend expects actions
+      let formattedJsConfig = jsConfig;
+      if (jsConfig && Array.isArray(jsConfig)) {
+        // Check if we need to convert type to action (for compatibility)
+        const needsConversion = jsConfig.some((step: any) => 'type' in step && !('action' in step));
+        if (needsConversion) {
+          formattedJsConfig = jsConfig.map((step: any) => {
+            if ('type' in step) {
+              return {
+                action: step.type,
+                selector: step.selector,
+                time: step.time
+              };
+            }
+            return step;
+          });
+        }
+      }
+      
+      // Create the config object with the proper structure expected by the backend
+      const configPayload = {
+        config: {
+          css_price_selector: machineConfig?.css_price_selector || null,
+          requires_js_interaction: machineConfig?.requires_js_interaction || false,
+          min_extraction_confidence: machineConfig?.min_extraction_confidence || 0.85,
+          min_validation_confidence: machineConfig?.min_validation_confidence || 0.90,
+          sanity_check_threshold: machineConfig?.sanity_check_threshold || 0.25,
+          api_endpoint_template: machineConfig?.api_endpoint_template || null,
+          js_click_sequence: machineConfig?.requires_js_interaction && formattedJsConfig && formattedJsConfig.length > 0 ? formattedJsConfig : null
+        }
+      };
+      
+      console.log("Saving configuration:", JSON.stringify(configPayload, null, 2));
+      
+      const response = await fetch(`${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(configPayload)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to save configuration: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to save configuration');
+      }
+      
+      toast.success("Configuration saved successfully");
+      setConfigDialogOpen(false);
+      
+      // Refresh data
+      setRefreshing(prev => !prev); // Trigger refresh of machines
+    } catch (error) {
+      console.error("Error saving configuration:", error);
+      toast.error(`Failed to save configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+  
+  // Handle adding new variant
+  const handleAddVariant = async () => {
+    if (!selectedMachine || !newVariant.attribute) return
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/variants`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newVariant)
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to add variant: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to add variant')
+      }
+      
+      setVariants([...variants, data.variant])
+      setNewVariant({ attribute: "", requires_js: false })
+      setIsAddingVariant(false)
+      toast.success("Variant added successfully")
+    } catch (error) {
+      console.error("Error adding variant:", error)
+      toast.error("Failed to add variant")
+    }
+  }
+  
+  // Handle deleting variant
+  const handleDeleteVariant = async (variantId: string) => {
+    if (!selectedMachine) return
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/variants/${variantId}`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete variant: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to delete variant')
+      }
+      
+      setVariants(variants.filter(v => v.variant_attribute !== variantId))
+      toast.success("Variant deleted successfully")
+    } catch (error) {
+      console.error("Error deleting variant:", error)
+      toast.error("Failed to delete variant")
+    }
+  }
+  
+  // Inside the PriceTrackerAdmin component, add this useEffect for the message listener
+  useEffect(() => {
+    // Listen for messages from the recording window
+    const handleRecordingMessage = (event: MessageEvent) => {
+      try {
+        if (typeof event.data !== 'object' || !event.data.type) return;
+        
+        if (event.data.type === 'SEQUENCE_RECORDED' && event.data.sequence) {
+          // Update the jsConfig with the recorded sequence
+          setJsConfig(event.data.sequence);
+          toast.success('Sequence imported from recording window');
+        }
+      } catch (error) {
+        console.error('Error processing message from recording window:', error);
+      }
+    };
+    
+    window.addEventListener('message', handleRecordingMessage);
+    return () => window.removeEventListener('message', handleRecordingMessage);
+  }, []);
+  
   return (
     <div className="container mx-auto py-10 space-y-8">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Price Tracker</h1>
           <p className="text-muted-foreground">
-            Monitor and update prices for laser machines
+            Manage and track prices for machines
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -702,6 +1033,7 @@ export default function PriceTrackerAdmin() {
           <Button
             onClick={() => setBatchUpdateDialogOpen(true)}
             className="flex items-center gap-2"
+            disabled={!pythonApiReady}
           >
             <Rocket className="h-4 w-4" /> Batch Update
           </Button>
@@ -1110,6 +1442,16 @@ export default function PriceTrackerAdmin() {
                                 <RefreshCw className="w-4 h-4 mr-1" /> 
                                 Update
                               </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openConfigDialog(machine);
+                                }}
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1428,6 +1770,336 @@ export default function PriceTrackerAdmin() {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* Configuration Dialog */}
+      <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedMachine ? `Configure ${selectedMachine["Machine Name"]}` : 'Machine Configuration'}
+            </DialogTitle>
+            <DialogDescription>
+              Configure extraction settings, variants, and JavaScript interaction
+            </DialogDescription>
+          </DialogHeader>
+          
+          {configLoading ? (
+            <div className="flex justify-center items-center h-32">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <Tabs defaultValue="basic">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="basic">Basic Settings</TabsTrigger>
+                  <TabsTrigger value="variants">Variants</TabsTrigger>
+                  <TabsTrigger value="js">JavaScript Interaction</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="basic" className="space-y-4">
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="min_extraction_confidence" className="text-right">
+                        Min Extraction Confidence
+                      </Label>
+                      <Input
+                        id="min_extraction_confidence"
+                        type="number"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={machineConfig?.min_extraction_confidence || 0.85}
+                        onChange={(e) => setMachineConfig({
+                          ...machineConfig,
+                          min_extraction_confidence: parseFloat(e.target.value)
+                        })}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="min_validation_confidence" className="text-right">
+                        Min Validation Confidence
+                      </Label>
+                      <Input
+                        id="min_validation_confidence"
+                        type="number"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={machineConfig?.min_validation_confidence || 0.9}
+                        onChange={(e) => setMachineConfig({
+                          ...machineConfig,
+                          min_validation_confidence: parseFloat(e.target.value)
+                        })}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="sanity_check_threshold" className="text-right">
+                        Price Change Threshold (%)
+                      </Label>
+                      <Input
+                        id="sanity_check_threshold"
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={machineConfig?.sanity_check_threshold || 25}
+                        onChange={(e) => setMachineConfig({
+                          ...machineConfig,
+                          sanity_check_threshold: parseFloat(e.target.value)
+                        })}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="css_price_selector" className="text-right">
+                        CSS Price Selector
+                      </Label>
+                      <Input
+                        id="css_price_selector"
+                        value={machineConfig?.css_price_selector || ""}
+                        onChange={(e) => setMachineConfig({
+                          ...machineConfig,
+                          css_price_selector: e.target.value
+                        })}
+                        className="col-span-3"
+                        placeholder=".price, .product-price, [data-price]"
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="variants" className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">Variant Configuration</h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIsAddingVariant(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Variant
+                    </Button>
+                  </div>
+                  
+                  {/* Display Variant List */}
+                  {variants && variants.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Attribute</TableHead>
+                          <TableHead>Price</TableHead>
+                          <TableHead>Last Checked</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {variants.map((variant) => (
+                          <TableRow key={variant.variant_attribute}>
+                            <TableCell>
+                              {variant.variant_attribute === 'DEFAULT' ? (
+                                <Badge variant="secondary">DEFAULT</Badge>
+                              ) : (
+                                variant.variant_attribute
+                              )}
+                            </TableCell>
+                            <TableCell>{formatPrice(variant.machines_latest_price)}</TableCell>
+                            <TableCell>{formatRelativeTime(variant.last_checked)}</TableCell>
+                            <TableCell>
+                              {variant.variant_attribute !== 'DEFAULT' && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleDeleteVariant(variant.variant_attribute)} // Use attribute for deletion
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {/* Add Edit button here if needed */}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground">
+                      No variants found for this machine.
+                    </div>
+                  )}
+                  
+                  {isAddingVariant && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Add New Variant</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-4">
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="variant_attribute" className="text-right">
+                              Variant Name
+                            </Label>
+                            <Input
+                              id="variant_attribute"
+                              value={newVariant.attribute}
+                              onChange={(e) => setNewVariant({
+                                ...newVariant,
+                                attribute: e.target.value
+                              })}
+                              className="col-span-3"
+                              placeholder="e.g., 60W, Size M"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="requires_js" className="text-right">
+                              Requires JavaScript
+                            </Label>
+                            <div className="col-span-3 flex items-center space-x-2">
+                              <Switch 
+                                id="requires_js"
+                                checked={newVariant.requires_js}
+                                onCheckedChange={(checked) => setNewVariant({
+                                  ...newVariant,
+                                  requires_js: checked
+                                })}
+                              />
+                              <Label htmlFor="requires_js">JavaScript interaction required</Label>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                      <CardFooter className="flex justify-between">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setIsAddingVariant(false);
+                            setNewVariant({ attribute: "", requires_js: false });
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button onClick={handleAddVariant}>Add Variant</Button>
+                      </CardFooter>
+                    </Card>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="js" className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">JavaScript Interaction Configuration</h3>
+                    {selectedMachine?.Company === "aeon" && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          const aeonMiraExample = [
+                            {
+                              "action": "click",
+                              "selector": ".model-option:has-text(\"Mira Pro S\")"
+                            },
+                            {
+                              "time": 1000,
+                              "action": "wait"
+                            },
+                            {
+                              "action": "click",
+                              "selector": ".size-option:has-text(\"MIRA9 S\")"
+                            },
+                            {
+                              "time": 1000,
+                              "action": "wait"
+                            },
+                            {
+                              "action": "click",
+                              "selector": ".power-option:has-text(\"60W\")"
+                            },
+                            {
+                              "time": 1000,
+                              "action": "wait"
+                            },
+                            {
+                              "action": "extract",
+                              "selector": ".total-price .price-value"
+                            }
+                          ];
+                          setJsConfig(aeonMiraExample);
+                          setMachineConfig({
+                            ...machineConfig,
+                            requires_js_interaction: true,
+                            css_price_selector: ".total-price .price-value"
+                          });
+                          toast.success("Loaded Aeon Mira configuration template");
+                        }}
+                      >
+                        Load Aeon Mira Template
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="requires_js_interaction" className="text-right">
+                        Requires JavaScript
+                      </Label>
+                      <div className="col-span-3 flex items-center space-x-2">
+                        <Switch 
+                          id="requires_js_interaction"
+                          checked={machineConfig?.requires_js_interaction || false}
+                          onCheckedChange={(checked) => setMachineConfig({
+                            ...machineConfig,
+                            requires_js_interaction: checked
+                          })}
+                        />
+                        <Label htmlFor="requires_js_interaction">JavaScript interaction required</Label>
+                      </div>
+                    </div>
+                    
+                    {machineConfig?.requires_js_interaction && (
+                      <>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label className="text-right">
+                            Interaction Sequence
+                          </Label>
+                          <div className="col-span-3">
+                            <SequenceBuilder 
+                              initialSequence={jsConfig || []}
+                              onChange={(sequence) => setJsConfig(sequence)}
+                              onTest={handleTestConfig}
+                              productUrl={selectedMachine?.product_link || ''}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+              
+              <DialogFooter className="flex space-x-2 justify-between">
+                <div>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleTestConfig}
+                  >
+                    Test Configuration
+                  </Button>
+                </div>
+                <div className="flex space-x-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setConfigDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveConfig}>
+                    Save Configuration
+                  </Button>
+                </div>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

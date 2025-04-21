@@ -1,0 +1,2 @@
+import asyncio; from services.database_service import DatabaseService; async def check_variants(): db = DatabaseService(); result = await db.execute_query('SELECT * FROM variant_extraction_config WHERE machine_id = \'fa68aaa3-8c8f-44ff-b67f-5ec2f7822499\''); print('Variant config records:', result); variant_results = await db.execute_query('SELECT * FROM variants WHERE machine_id = \'fa68aaa3-8c8f-44ff-b67f-5ec2f7822499\''); print('
+Variant records:', variant_results); asyncio.run(check_variants())

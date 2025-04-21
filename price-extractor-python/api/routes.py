@@ -36,6 +36,10 @@ class ReviewActionRequest(BaseModel):
 
 class ConfigUpdateRequest(BaseModel):
     """Request model for updating configuration."""
+    config: Optional[Dict[str, Any]] = None
+    
+class ConfigData(BaseModel):
+    """Model for configuration data fields."""
     css_price_selector: Optional[str] = None
     requires_js_interaction: Optional[bool] = None
     js_click_sequence: Optional[List[Dict[str, Any]]] = None
@@ -1174,6 +1178,35 @@ async def update_machine_config(machine_id: str, request: ConfigUpdateRequest, v
                 "success": False,
                 "error": f"Could not extract domain from URL for machine {machine_id}"
             }
+        
+        # Get config data from the request
+        config_data = {}
+        if request.config:
+            logger.info(f"Using nested config field for {machine_id}")
+            
+            # Extract fields from the nested config object
+            if "css_price_selector" in request.config:
+                config_data["css_price_selector"] = request.config.get("css_price_selector")
+                
+            if "requires_js_interaction" in request.config:
+                config_data["requires_js_interaction"] = request.config.get("requires_js_interaction")
+                
+            if "js_click_sequence" in request.config:
+                config_data["js_click_sequence"] = request.config.get("js_click_sequence")
+                
+            if "min_extraction_confidence" in request.config:
+                config_data["min_extraction_confidence"] = request.config.get("min_extraction_confidence")
+                
+            if "min_validation_confidence" in request.config:
+                config_data["min_validation_confidence"] = request.config.get("min_validation_confidence")
+                
+            if "sanity_check_threshold" in request.config:
+                config_data["sanity_check_threshold"] = request.config.get("sanity_check_threshold")
+                
+            if "api_endpoint_template" in request.config:
+                config_data["api_endpoint_template"] = request.config.get("api_endpoint_template")
+        
+        logger.info(f"Config data to save: {config_data}")
             
         # Get current config
         existing_config = await price_service.db_service.get_variant_config(
@@ -1182,31 +1215,6 @@ async def update_machine_config(machine_id: str, request: ConfigUpdateRequest, v
             domain
         )
         
-        # Prepare update data
-        config_data = {}
-        
-        # Only include fields that are not None
-        if request.css_price_selector is not None:
-            config_data["css_price_selector"] = request.css_price_selector
-            
-        if request.requires_js_interaction is not None:
-            config_data["requires_js_interaction"] = request.requires_js_interaction
-            
-        if request.js_click_sequence is not None:
-            config_data["js_click_sequence"] = request.js_click_sequence
-            
-        if request.min_extraction_confidence is not None:
-            config_data["min_extraction_confidence"] = request.min_extraction_confidence
-            
-        if request.min_validation_confidence is not None:
-            config_data["min_validation_confidence"] = request.min_validation_confidence
-            
-        if request.sanity_check_threshold is not None:
-            config_data["sanity_check_threshold"] = request.sanity_check_threshold
-            
-        if request.api_endpoint_template is not None:
-            config_data["api_endpoint_template"] = request.api_endpoint_template
-            
         # Update or create the config
         if existing_config:
             # Update existing config

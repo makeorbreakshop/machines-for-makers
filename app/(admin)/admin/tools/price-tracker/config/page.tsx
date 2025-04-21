@@ -71,22 +71,37 @@ export default function ConfigurationPage() {
       try {
         setLoading(true)
         
-        const response = await fetch(`${API_BASE_URL}/api/v1/machines`)
+        // Add a timeout to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        
+        const response = await fetch(`${API_BASE_URL}/api/v1/machines?limit=50`, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch machines: ${response.statusText}`)
         }
         
         const data = await response.json()
+        console.log("API Response:", data); // Log the full response
         
         if (!data.success) {
           throw new Error(data.error || 'Failed to fetch machines')
         }
         
-        setMachines(data.machines || [])
+        if (Array.isArray(data.machines)) {
+          console.log(`Found ${data.machines.length} machines`);
+          setMachines(data.machines)
+        } else {
+          console.error("Invalid machines data format:", data.machines);
+          setMachines([])
+        }
       } catch (error) {
         console.error("Error fetching machines:", error)
-        toast.error("Failed to load machines")
+        toast.error("Failed to load machines. Please try refreshing the page.")
       } finally {
         setLoading(false)
       }
@@ -299,8 +314,8 @@ export default function ConfigurationPage() {
                       }`}
                       onClick={() => handleSelectMachine(machine)}
                     >
-                      <div className="font-medium">{machine.name}</div>
-                      <div className="text-sm text-muted-foreground">{machine.company}</div>
+                      <div className="font-medium">{machine["Machine Name"]}</div>
+                      <div className="text-sm text-muted-foreground">{machine.Company}</div>
                     </button>
                   ))}
                 </div>

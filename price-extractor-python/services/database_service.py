@@ -2,7 +2,7 @@ import os
 from loguru import logger
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 from typing import Dict, List, Optional, Any, Union
 from decimal import Decimal
@@ -201,6 +201,9 @@ class DatabaseService:
             
             if update_response.data or latest_response.data:
                 logger.info(f"Updated price for {machine_id}/{variant_attribute} to {new_price} using {tier}")
+                # Add explicit logging for machines_latest table update
+                if latest_response.data:
+                    logger.info(f"Updated machines_latest table for {machine_id}/{variant_attribute} to {new_price} (tier: {tier}, currency: {currency}, confidence: {confidence})")
                 return True
             else:
                 logger.warning(f"No updates made for {machine_id}/{variant_attribute}")
@@ -707,6 +710,9 @@ class DatabaseService:
                 manual_review_flag
             )
             
+            # Add detailed logging for machines_latest table update
+            logger.info(f"Updated machines_latest table for {machine_id}/{variant_attribute} to {price} (tier: {extraction_method}, confidence: {confidence}, review_flag: {manual_review_flag})")
+            
             return True
             
         except Exception as e:
@@ -1002,8 +1008,11 @@ class DatabaseService:
             List of machines with their variant information
         """
         try:
-            # Build query for machines table
-            query = self.supabase.table(MACHINES_TABLE).select("id, \"Machine Name\", Company, \"Equipment Type\", Price, product_link, html_timestamp")
+            # Build query for machines table - EXCLUDE html_content to improve performance
+            query = self.supabase.table(MACHINES_TABLE).select(
+                "id, \"Machine Name\", Company, \"Machine Category\", \"Laser Category\", Price, product_link, html_timestamp",
+                count="exact"
+            )
             
             # Apply filters
             if days_threshold is not None:
@@ -1018,7 +1027,7 @@ class DatabaseService:
                 query = query.eq("Company", company)
                 
             if category:
-                query = query.eq("Equipment Type", category)
+                query = query.eq("Machine Category", category)
                 
             # Execute query with pagination
             response = query.range(skip, skip + limit - 1).execute()
@@ -1031,25 +1040,35 @@ class DatabaseService:
             
             # Apply days_threshold filter if specified
             if days_threshold is not None:
-                from datetime import datetime, timezone, timedelta
                 cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_threshold)
                 machines = [m for m in machines if not m.get("html_timestamp") or datetime.fromisoformat(m.get("html_timestamp").replace("Z", "+00:00")) < cutoff_date]
             
-            # Fetch variant information for each machine
+            # Fetch variant information for each machine - use bulk operation for better performance
+            machine_ids = [machine.get("id") for machine in machines]
+            
+            if not machine_ids:
+                return []
+                
+            # Get all variants in a single query
+            variants_response = self.supabase.table(MACHINES_LATEST_TABLE) \
+                .select("*") \
+                .in_("machine_id", machine_ids) \
+                .execute()
+                
+            # Group variants by machine_id for easier assignment
+            variants_by_machine = {}
+            if variants_response.data:
+                for variant in variants_response.data:
+                    machine_id = variant.get("machine_id")
+                    if machine_id not in variants_by_machine:
+                        variants_by_machine[machine_id] = []
+                    variants_by_machine[machine_id].append(variant)
+            
+            # Add variants to each machine
             machines_with_variants = []
             for machine in machines:
                 machine_id = machine.get("id")
-                
-                # Get variants for this machine
-                variants_response = self.supabase.table(MACHINES_LATEST_TABLE) \
-                    .select("*") \
-                    .eq("machine_id", machine_id) \
-                    .execute()
-                    
-                variants = variants_response.data if variants_response.data else []
-                
-                # Add variants to machine data
-                machine["variants"] = variants
+                machine["variants"] = variants_by_machine.get(machine_id, [])
                 machines_with_variants.append(machine)
                 
             return machines_with_variants
@@ -1077,8 +1096,8 @@ class DatabaseService:
             Total count of machines matching criteria
         """
         try:
-            # Build query for machines table
-            query = self.supabase.table(MACHINES_TABLE).select("id", "count")
+            # Build proper COUNT query for machines table
+            query = self.supabase.table(MACHINES_TABLE).select("*", count="exact")
             
             # Apply filters
             if search:
@@ -1088,25 +1107,22 @@ class DatabaseService:
                 query = query.eq("Company", company)
                 
             if category:
-                query = query.eq("Equipment Type", category)
+                query = query.eq("Machine Category", category)
                 
             # Execute count query
             response = query.execute()
             
-            if response.count is not None:
-                count = response.count
+            # Get the count from the response
+            count = response.count if response.count is not None else 0
                 
-                # If days_threshold is specified, we can't accurately count with Supabase's limitations
-                # We'll return an approximate count
-                if days_threshold is not None:
-                    # This is a very rough approximation
-                    # In a real implementation, you'd need a more accurate approach
-                    count = int(count * 0.7)  # Assuming ~70% of machines need updates
+            # If days_threshold is specified, we can't accurately count with Supabase's limitations
+            # We'll return an approximate count
+            if days_threshold is not None and count > 0:
+                # This is a very rough approximation
+                # In a real implementation, you'd need a more accurate approach
+                count = int(count * 0.7)  # Assuming ~70% of machines need updates
                     
-                return count
-                
-            # Fallback if count is not available
-            return len(response.data) if response.data else 0
+            return count
         except Exception as e:
             logger.error(f"Error counting machines: {str(e)}")
             return 0
@@ -1211,8 +1227,6 @@ class DatabaseService:
             Summary of usage including total cost, requests, and breakdowns
         """
         try:
-            from datetime import datetime, timezone, timedelta
-            
             # Calculate cutoff date
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
             
@@ -1288,8 +1302,6 @@ class DatabaseService:
             List of usage statistics by model
         """
         try:
-            from datetime import datetime, timezone, timedelta
-            
             # Calculate cutoff date
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
             
@@ -1354,8 +1366,6 @@ class DatabaseService:
             List of usage statistics by extraction tier
         """
         try:
-            from datetime import datetime, timezone, timedelta
-            
             # Calculate cutoff date
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
             
@@ -1430,8 +1440,6 @@ class DatabaseService:
             List of usage statistics grouped by date
         """
         try:
-            from datetime import datetime, timezone, timedelta
-            
             # Calculate cutoff date
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
             
@@ -1651,11 +1659,21 @@ class DatabaseService:
             True if successful, False otherwise
         """
         try:
+            # Improved logging to see what we're trying to update
+            logger.info(f"Attempting to update config for {machine_id}/{variant_attribute}/{domain} with data: {config_data}")
+            
             # Check if config exists
             existing = await self.get_variant_config(machine_id, variant_attribute, domain)
+            
             if not existing:
-                logger.warning(f"No configuration exists for {machine_id}/{variant_attribute}/{domain}")
-                return False
+                logger.warning(f"No configuration exists for {machine_id}/{variant_attribute}/{domain}. Creating new config.")
+                # Instead of returning False, let's create a new configuration
+                return await self.create_variant_config({
+                    "machine_id": machine_id,
+                    "variant_attribute": variant_attribute,
+                    "domain": domain,
+                    **config_data
+                })
                 
             # Update the configuration
             response = self.supabase.table(VARIANT_CONFIG_TABLE) \
@@ -1665,14 +1683,14 @@ class DatabaseService:
                 .eq("domain", domain) \
                 .execute()
                 
-            if response.data:
+            if response and hasattr(response, 'data') and response.data:
                 logger.info(f"Updated configuration for {machine_id}/{variant_attribute}/{domain}")
                 return True
             else:
-                logger.error(f"Failed to update configuration for {machine_id}/{variant_attribute}/{domain}")
+                logger.error(f"Failed to update configuration for {machine_id}/{variant_attribute}/{domain}, response: {response}")
                 return False
         except Exception as e:
-            logger.error(f"Error updating configuration for {machine_id}/{variant_attribute}/{domain}: {str(e)}")
+            logger.error(f"Error updating configuration for {machine_id}/{variant_attribute}/{domain}: {str(e)}", exc_info=True)
             return False
     
     async def create_variant_config(self, config_data: Dict[str, Any]) -> bool:
@@ -1731,4 +1749,48 @@ class DatabaseService:
             return True
         except Exception as e:
             logger.error(f"Error deleting configurations for {machine_id}/{variant_attribute}: {str(e)}")
-            return False 
+            return False
+    
+    async def get_machines_needing_update(self, days_threshold: int = 7, machine_ids: List[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Get machines that need price updates based on last update time.
+        
+        Args:
+            days_threshold (int): Days since last update to qualify for an update
+            machine_ids (List[str], optional): Specific machine IDs to consider for update
+            limit (Optional[int], optional): Maximum number of machines to return
+            
+        Returns:
+            List[Dict[str, Any]]: List of machines needing updates
+        """
+        try:
+            logger.info(f"Getting machines needing update with days_threshold={days_threshold}")
+            
+            # Start building the query with machines table
+            query = self.supabase.table(MACHINES_TABLE).select("*")
+            
+            # Filter by specific machine IDs if provided
+            if machine_ids and len(machine_ids) > 0:
+                query = query.in_("id", machine_ids)
+                logger.info(f"Filtering by {len(machine_ids)} specific machine IDs")
+            else:
+                # Only consider machines with a product link
+                query = query.not_.is_("product_link", "null")
+            
+            # Apply limit if specified
+            if limit is not None:
+                query = query.limit(limit)
+                logger.info(f"Limiting to {limit} machines")
+                
+            # Execute the query
+            response = query.execute()
+            
+            if not response.data:
+                logger.info("No machines found needing updates")
+                return []
+                
+            logger.info(f"Found {len(response.data)} machines needing updates")
+            return response.data
+        except Exception as e:
+            logger.error(f"Error getting machines needing update: {str(e)}")
+            return [] 

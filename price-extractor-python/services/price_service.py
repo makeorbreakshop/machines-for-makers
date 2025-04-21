@@ -4,7 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 
-from services.database import DatabaseService
+from services.database_service import DatabaseService
 from scrapers.web_scraper import WebScraper
 from scrapers.price_extractor import PriceExtractor
 from utils.price_validator import PriceValidator
@@ -51,7 +51,7 @@ class PriceService:
             current_price = machine.get("Price")
             
             # Get product category information for validation
-            product_category = machine.get("Equipment Type") or machine.get("Machine Type") or None
+            product_category = machine.get("Machine Category") or machine.get("Laser Category") or None
             
             # Scrape the product page
             html_content, soup = await self.web_scraper.get_page_content(product_url)
@@ -237,7 +237,7 @@ class PriceService:
             product_url = url or machine.get("product_link")
             machine_name = machine.get("Machine Name", "Unknown")
             current_price = machine.get("Price")
-            product_category = machine.get("Equipment Type") or machine.get("Machine Type") or None
+            product_category = machine.get("Machine Category") or machine.get("Laser Category") or None
             
             debug_info.update({
                 "machine_name": machine_name,
@@ -378,7 +378,7 @@ class PriceService:
                     old_price=current_price,
                     new_price=new_price,
                     success=True,
-                    extraction_method=method
+                    tier=method
                 )
             
             debug_info["steps"].append({"step": "completed", "timestamp": datetime.now(timezone.utc).isoformat()})
