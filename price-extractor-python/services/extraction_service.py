@@ -2,11 +2,14 @@
 Main extraction service that orchestrates the entire price extraction pipeline.
 """
 from loguru import logger
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple, List, Union
 from decimal import Decimal
 import asyncio
 from urllib.parse import urlparse
 import time
+import re
+import decimal
+from bs4 import BeautifulSoup
 
 from services.database_service import DatabaseService
 from services.static_parser import StaticParser
@@ -25,7 +28,9 @@ from config import (
     TIER_FULL_HTML,
     DEFAULT_EXTRACTION_CONFIDENCE,
     DEFAULT_VALIDATION_CONFIDENCE,
-    DEFAULT_SANITY_THRESHOLD
+    DEFAULT_SANITY_THRESHOLD,
+    MIN_ALLOWED_PRICE,
+    MAX_ALLOWED_PRICE
 )
 
 class ExtractionService:
@@ -57,10 +62,14 @@ class ExtractionService:
         
         # Initialize parsers with config
         self.static_parser = StaticParser(parser_config)
-        self.slice_parser = SliceParser()
-        self.js_parser = JSParser()
-        self.full_html_parser = FullHtmlParser()
+        self.slice_parser = SliceParser(parser_config)
+        self.js_parser = JSParser(parser_config)
+        self.full_html_parser = FullHtmlParser(parser_config)
         self.price_validator = PriceValidator(parser_config)
+        
+        # Price validation limits
+        self.MIN_ALLOWED_PRICE = MIN_ALLOWED_PRICE
+        self.MAX_ALLOWED_PRICE = MAX_ALLOWED_PRICE
         
         # Extraction attempts for the current machine
         self.extraction_attempts = []
@@ -68,71 +77,110 @@ class ExtractionService:
         logger.info("Extraction service initialized with all parsers")
     
     async def extract_price(self, machine_id: str, variant_attribute: str = "DEFAULT", 
-                     url: str = None, dry_run: bool = False) -> Dict[str, Any]:
+                     url: str = None, dry_run: bool = False, save_to_db: bool = True,
+                     flags_for_review: bool = True, sanity_check_threshold: float = 25.0,
+                     batch_id: str = None) -> Dict[str, Any]:
         """
-        Extract price using the multi-tier pipeline.
+        Extract price for a machine using the best available extraction method.
         
         Args:
-            machine_id: ID of the machine
-            variant_attribute: Variant attribute identifier
-            url: Optional URL override
-            dry_run: Whether to run in dry-run mode (no database updates)
+            machine_id (str): Machine ID
+            variant_attribute (str): Variant attribute (default "DEFAULT")
+            url (str, optional): URL to scrape (overrides machine URL)
+            dry_run (bool): If True, don't save to database
+            save_to_db (bool): If True, save results to database (ignored if dry_run is True)
+            flags_for_review (bool): If True, flag items for review based on validation rules
+            sanity_check_threshold (float): Percentage threshold for flagging significant price changes
+            batch_id (str, optional): Batch ID for price history
             
         Returns:
-            Dict with extraction results and details
+            Dict containing extraction results
         """
-        start_time = time.time()
         logger.info(f"Starting price extraction for {machine_id}/{variant_attribute}")
-        
-        # Reset extraction attempts
+        start_time = time.time()
         self.extraction_attempts = []
+        discovered_endpoint = None
+        
+        http_status = None
+        html_size = 0
         
         try:
-            # Get machine data
+            # Get machine data from database
             machine = await self.db_service.get_machine_by_id(machine_id)
+            
             if not machine:
-                error_msg = f"Machine {machine_id} not found in database"
-                logger.error(error_msg)
+                logger.error(f"Machine {machine_id} not found in database")
                 return {
                     "success": False,
-                    "error": error_msg,
+                    "error": f"Machine {machine_id} not found in database",
                     "machine_id": machine_id,
-                    "variant_attribute": variant_attribute
+                    "variant_attribute": variant_attribute,
+                    "duration_seconds": time.time() - start_time
                 }
             
-            # Use provided URL or get from database
+            # Get variant config if available
+            variant_config = await self.db_service.get_variant_config(machine_id, variant_attribute)
+            if variant_config:
+                logger.debug(f"Found variant config for {machine_id}/{variant_attribute}: {variant_config}")
+            
+            # Get the product URL from machine data or from argument
             product_url = url or machine.get("product_link")
             if not product_url:
-                error_msg = "No product URL available"
-                logger.error(f"{error_msg} for machine {machine_id}")
+                logger.error(f"No URL available for machine {machine_id}")
+                return {
+                    "success": False,
+                    "error": "No URL available for this machine",
+                    "machine_id": machine_id,
+                    "variant_attribute": variant_attribute,
+                    "duration_seconds": time.time() - start_time
+                }
+            
+            # Get previous price for comparison
+            previous_price = None
+            price_record = await self.db_service.get_machine_latest_price(machine_id, variant_attribute)
+            if price_record:
+                previous_price = Decimal(str(price_record.get("machines_latest_price", 0)))
+            
+            # Determine validation threshold based on variant config or default
+            validation_confidence_threshold = 0.85
+            if variant_config and "min_validation_confidence" in variant_config:
+                validation_confidence_threshold = variant_config["min_validation_confidence"]
+                
+            # Get HTML content for the product page
+            html_content, http_status = await self.web_scraper.get_page_content(product_url)
+            if html_content:
+                html_size = len(html_content)
+                # Parse the HTML content into soup
+                soup = self.web_scraper.parse_html(html_content)
+            
+            if not html_content:
+                error_msg = f"Failed to fetch HTML content for {product_url}"
+                logger.error(error_msg)
+                
+                # Record failure in price history
+                if not dry_run:
+                    await self.db_service.add_price_history(
+                        machine_id=machine_id,
+                        new_price=None,
+                        old_price=previous_price,
+                        variant_attribute=variant_attribute,
+                        tier="WEB_SCRAPER_FAILED",
+                        success=False,
+                        error_message=error_msg,
+                        url=product_url,
+                        batch_id=batch_id
+                    )
+                
                 return {
                     "success": False,
                     "error": error_msg,
                     "machine_id": machine_id,
-                    "variant_attribute": variant_attribute
+                    "variant_attribute": variant_attribute,
+                    "url": product_url,
+                    "http_status": http_status,
+                    "html_size": html_size,
+                    "duration_seconds": time.time() - start_time
                 }
-            
-            # Extract domain for configuration lookup
-            domain = self._extract_domain(product_url)
-            
-            # Get variant configuration
-            variant_config = await self.db_service.get_variant_config(
-                machine_id=machine_id,
-                variant_attribute=variant_attribute,
-                domain=domain
-            )
-            
-            # Get the current price from machines_latest or machines table
-            previous_price = None
-            
-            # First try to get from machines_latest
-            latest_response = await self._get_latest_price(machine_id, variant_attribute)
-            if latest_response:
-                previous_price = latest_response.get("machines_latest_price")
-            
-            # Fall back to machines table if no variant-specific price
-            if previous_price is None and variant_attribute == "DEFAULT":
-                previous_price = machine.get("Price")
             
             # Get product category for validation
             product_category = machine.get("Machine Category") or machine.get("Laser Category")
@@ -144,12 +192,6 @@ class ExtractionService:
                 else DEFAULT_EXTRACTION_CONFIDENCE
             )
             
-            validation_confidence_threshold = (
-                variant_config.get("min_validation_confidence")
-                if variant_config and variant_config.get("min_validation_confidence") is not None
-                else DEFAULT_VALIDATION_CONFIDENCE
-            )
-            
             sanity_check_threshold = (
                 variant_config.get("sanity_check_threshold")
                 if variant_config and variant_config.get("sanity_check_threshold") is not None
@@ -159,25 +201,16 @@ class ExtractionService:
             # Determine if the site requires JavaScript
             requires_js = variant_config.get("requires_js_interaction", False) if variant_config else False
             
-            # Fetch the product page
-            html_content, soup = await self.web_scraper.get_page_content(product_url)
-            if not html_content or not soup:
-                error_msg = "Failed to fetch product page"
-                logger.error(f"{error_msg} for {product_url}")
-                return {
-                    "success": False,
-                    "error": error_msg,
-                    "machine_id": machine_id,
-                    "variant_attribute": variant_attribute,
-                    "url": product_url
-                }
-            
             # Start the extraction pipeline
             extracted_price = None
             extraction_method = None
-            extraction_confidence = 0.0
+            extraction_confidence = None
             validation_confidence = 0.0
             llm_usage_data = []
+            
+            if not soup:
+                logger.warning(f"Failed to parse HTML for {product_url}")
+                soup = BeautifulSoup(html_content, 'html.parser')  # Fallback parsing if web_scraper.parse_html failed
             
             # Skip to JS tier if site is known to require JavaScript
             if not requires_js:
@@ -203,7 +236,8 @@ class ExtractionService:
                     extracted_price, extraction_method, extraction_confidence, usage_info = await self._extract_slice_fast(
                         html_content,
                         product_url,
-                        previous_price
+                        previous_price,
+                        variant_attribute
                     )
                     
                     # Log the attempt and usage
@@ -215,7 +249,7 @@ class ExtractionService:
                         "confidence": extraction_confidence
                     })
                     
-                    if usage_info and usage_info.get("estimated_cost") > 0:
+                    if usage_info and usage_info.get("estimated_cost") is not None and usage_info.get("estimated_cost") > 0:
                         llm_usage_data.append(usage_info)
                     
                     # Continue to next tier if not successful or low confidence
@@ -224,7 +258,8 @@ class ExtractionService:
                         extracted_price, extraction_method, extraction_confidence, usage_info = await self._extract_slice_balanced(
                             html_content,
                             product_url, 
-                            previous_price
+                            previous_price,
+                            variant_attribute
                         )
                         
                         # Log the attempt and usage
@@ -236,21 +271,19 @@ class ExtractionService:
                             "confidence": extraction_confidence
                         })
                         
-                        if usage_info and usage_info.get("estimated_cost") > 0:
+                        if usage_info and usage_info.get("estimated_cost") is not None and usage_info.get("estimated_cost") > 0:
                             llm_usage_data.append(usage_info)
             
             # 4. Try JS_INTERACTION tier if:
             # - Site is known to require JavaScript, OR
             # - Previous attempts failed or had low confidence
             if requires_js or not extracted_price or extraction_confidence < extraction_confidence_threshold:
-                js_endpoint_template = variant_config.get("api_endpoint_template") if variant_config else None
                 js_click_sequence = variant_config.get("js_click_sequence") if variant_config else None
                 
                 extracted_price, extraction_method, extraction_confidence, discovered_endpoint = await self._extract_js(
-                    product_url,
-                    variant_attribute,
-                    js_endpoint_template,
-                    js_click_sequence
+                    url=product_url,
+                    variant_attribute=variant_attribute,
+                    js_click_sequence=js_click_sequence
                 )
                 
                 # Save discovered endpoint if found
@@ -259,7 +292,7 @@ class ExtractionService:
                         await self.db_service.save_api_endpoint(
                             machine_id=machine_id,
                             variant_attribute=variant_attribute,
-                            domain=domain,
+                            domain=self._extract_domain(product_url),
                             api_endpoint_template=discovered_endpoint
                         )
                     logger.info(f"Discovered API endpoint for {machine_id}/{variant_attribute}: {discovered_endpoint}")
@@ -291,7 +324,7 @@ class ExtractionService:
                     "confidence": extraction_confidence
                 })
                 
-                if usage_info and usage_info.get("estimated_cost") > 0:
+                if usage_info and usage_info.get("estimated_cost") is not None and usage_info.get("estimated_cost") > 0:
                     llm_usage_data.append(usage_info)
             
             # If no price was found with any method
@@ -311,7 +344,8 @@ class ExtractionService:
                         validation_confidence=0.0,
                         success=False,
                         error_message=error_msg,
-                        url=product_url
+                        url=product_url,
+                        batch_id=batch_id
                     )
                 
                 return {
@@ -320,9 +354,58 @@ class ExtractionService:
                     "machine_id": machine_id,
                     "variant_attribute": variant_attribute,
                     "url": product_url,
+                    "http_status": http_status,
+                    "html_size": html_size,
                     "extraction_attempts": self.extraction_attempts,
                     "duration_seconds": time.time() - start_time
                 }
+            
+            # After extracting the price but before validation, normalize and perform sanity checks
+            if extracted_price:
+                # Try to normalize the price format
+                normalized_price = self._normalize_price(extracted_price)
+                
+                if normalized_price is None:
+                    error_msg = f"Price normalization failed: {extracted_price} (too large or invalid format)"
+                    logger.warning(error_msg)
+                    
+                    if not dry_run:
+                        await self.db_service.add_price_history(
+                            machine_id=machine_id,
+                            new_price=None,
+                            old_price=previous_price,
+                            variant_attribute=variant_attribute,
+                            tier=extraction_method,
+                            extracted_confidence=extraction_confidence,
+                            validation_confidence=0.0,
+                            success=False,
+                            error_message=error_msg,
+                            url=product_url,
+                            batch_id=batch_id
+                        )
+                    
+                    return {
+                        "success": False,
+                        "error": error_msg,
+                        "machine_id": machine_id,
+                        "variant_attribute": variant_attribute,
+                        "url": product_url,
+                        "http_status": http_status,
+                        "html_size": html_size,
+                        "extracted_price": float(extracted_price),
+                        "normalized_price": None,
+                        "extraction_method": extraction_method,
+                        "extraction_attempts": self.extraction_attempts,
+                        "duration_seconds": time.time() - start_time,
+                        "dry_run": dry_run
+                    }
+                
+                # Replace the original extracted price with the normalized one
+                original_price = extracted_price
+                extracted_price = normalized_price
+                
+                # Log the normalized price
+                logger.info(f"Normalized price: {extracted_price} (original: {original_price})")
             
             # Validate the extracted price
             validation_result = await self._perform_validation(
@@ -333,7 +416,8 @@ class ExtractionService:
                 validation_confidence_threshold,
                 product_category,
                 machine.get("Machine Name"),
-                sanity_check_threshold
+                sanity_check_threshold,
+                flags_for_review
             )
             
             # Log validation results
@@ -344,8 +428,8 @@ class ExtractionService:
                 error_msg = f"Price validation failed: {validation_result['validation_reason']}"
                 logger.warning(f"{error_msg} for {machine_id}/{variant_attribute}")
                 
-                # Add failed validation to price history if not dry run
-                if not dry_run:
+                # Add failed validation to price history if not dry run and save_to_db is true
+                if not dry_run and save_to_db:
                     await self.db_service.add_price_history(
                         machine_id=machine_id,
                         new_price=extracted_price,
@@ -356,7 +440,8 @@ class ExtractionService:
                         validation_confidence=validation_result["validation_confidence"],
                         success=False,
                         error_message=error_msg,
-                        url=product_url
+                        url=product_url,
+                        batch_id=batch_id
                     )
                 
                 return {
@@ -365,7 +450,11 @@ class ExtractionService:
                     "machine_id": machine_id,
                     "variant_attribute": variant_attribute,
                     "url": product_url,
+                    "http_status": http_status,
+                    "html_size": html_size,
                     "extracted_price": float(extracted_price),
+                    "old_price": float(previous_price) if previous_price else None,
+                    "new_price": float(extracted_price),
                     "previous_price": float(previous_price) if previous_price else None,
                     "extraction_method": extraction_method,
                     "extraction_confidence": extraction_confidence,
@@ -375,22 +464,23 @@ class ExtractionService:
                     "dry_run": dry_run
                 }
             
-            # If not in dry-run mode, update the database
-            if not dry_run:
-                # Use the new combined save method
-                save_success = await self.db_service.save_price_extraction_results(
+            # Save the price to database if not dry run and save_to_db is true
+            if not dry_run and save_to_db:
+                saved = await self.db_service.save_price_extraction_results(
                     machine_id=machine_id,
                     variant_attribute=variant_attribute,
                     price=extracted_price,
                     extraction_method=extraction_method,
                     extraction_confidence=extraction_confidence,
                     validation_confidence=validation_result["validation_confidence"],
-                    currency="USD",  # TODO: Support other currencies
+                    currency="USD",
                     manual_review_flag=validation_result["needs_manual_review"],
-                    llm_usage_data=llm_usage_data
+                    llm_usage_data=llm_usage_data,
+                    batch_id=batch_id,
+                    url=product_url
                 )
                 
-                if save_success:
+                if saved:
                     logger.info(f"Successfully saved price {extracted_price} for {machine_id}/{variant_attribute}")
                     
                     # If API endpoint was discovered, save it
@@ -398,7 +488,7 @@ class ExtractionService:
                         await self.db_service.update_api_endpoint(
                             machine_id=machine_id,
                             variant_attribute=variant_attribute,
-                            domain=domain,
+                            domain=self._extract_domain(product_url),
                             api_endpoint_template=discovered_endpoint
                         )
                 else:
@@ -409,8 +499,12 @@ class ExtractionService:
                     await self.db_service.set_manual_review_flag(
                         machine_id=machine_id,
                         variant_attribute=variant_attribute,
-                        flag=True
+                        flag_value=True,
+                        flag_reason=validation_result["validation_reason"]
                     )
+            elif validation_result["needs_manual_review"]:
+                # Even in dry run, log that this would need a review
+                logger.info(f"Dry run: Price for {machine_id}/{variant_attribute} would be flagged for review: {validation_result['validation_reason']}")
             
             # Calculate price change metrics
             price_change = None
@@ -426,6 +520,8 @@ class ExtractionService:
                 "machine_id": machine_id,
                 "variant_attribute": variant_attribute,
                 "url": product_url,
+                "http_status": http_status,
+                "html_size": html_size,
                 "new_price": float(extracted_price),
                 "old_price": float(previous_price) if previous_price else None,
                 "price_change": price_change,
@@ -450,6 +546,9 @@ class ExtractionService:
                 "error": f"Price extraction pipeline error: {str(e)}",
                 "machine_id": machine_id,
                 "variant_attribute": variant_attribute,
+                "url": product_url if 'product_url' in locals() else None,
+                "http_status": http_status,
+                "html_size": html_size,
                 "extraction_attempts": self.extraction_attempts,
                 "duration_seconds": time.time() - start_time
             }
@@ -480,12 +579,12 @@ class ExtractionService:
             logger.error(f"Error in STATIC tier extraction: {str(e)}")
             return None, "STATIC_ERROR", 0.0
     
-    async def _extract_slice_fast(self, html_content: str, url: str, previous_price: Optional[Decimal] = None) -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
+    async def _extract_slice_fast(self, html_content: str, url: str, previous_price: Optional[Decimal] = None, variant_attribute: str = "DEFAULT") -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
         """Extract price using Claude Haiku for fast extraction."""
         logger.info(f"Attempting SLICE_FAST tier extraction for {url}")
         
         try:
-            price, method, confidence, usage_info = self.slice_parser.extract_fast(html_content, url, previous_price)
+            price, method, confidence, usage_info = self.slice_parser.extract_fast(html_content, url, previous_price, variant_attribute)
             
             if price:
                 logger.info(f"SLICE_FAST tier extracted price: {price} using {method} with confidence {confidence}")
@@ -497,12 +596,12 @@ class ExtractionService:
             logger.error(f"Error in SLICE_FAST tier extraction: {str(e)}")
             return None, "SLICE_FAST_ERROR", 0.0, {}
     
-    async def _extract_slice_balanced(self, html_content: str, url: str, previous_price: Optional[Decimal] = None) -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
+    async def _extract_slice_balanced(self, html_content: str, url: str, previous_price: Optional[Decimal] = None, variant_attribute: str = "DEFAULT") -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
         """Extract price using Claude Sonnet for more thorough extraction."""
         logger.info(f"Attempting SLICE_BALANCED tier extraction for {url}")
         
         try:
-            price, method, confidence, usage_info = self.slice_parser.extract_balanced(html_content, url, previous_price)
+            price, method, confidence, usage_info = self.slice_parser.extract_balanced(html_content, url, previous_price, variant_attribute)
             
             if price:
                 logger.info(f"SLICE_BALANCED tier extracted price: {price} using {method} with confidence {confidence}")
@@ -515,18 +614,25 @@ class ExtractionService:
             return None, "SLICE_BALANCED_ERROR", 0.0, {}
     
     async def _extract_js(self, url: str, variant_attribute: str = "DEFAULT", 
-                   api_endpoint_template: Optional[str] = None,
                    js_click_sequence: Optional[List[Dict[str, Any]]] = None) -> Tuple[Optional[Decimal], str, float, Optional[str]]:
         """Extract price using JavaScript interactions."""
         logger.info(f"Attempting JS_INTERACTION tier extraction for {url}")
         
         try:
-            price, method, confidence, discovered_endpoint = await self.js_parser.extract(
+            # Get HTML content for the URL
+            html_content = await self.web_scraper.get_page_content(url)
+            
+            # Call with correct parameters
+            price, method, confidence, details = await self.js_parser.extract(
                 url=url,
-                variant_attribute=variant_attribute,
-                api_endpoint_template=api_endpoint_template,
-                js_click_sequence=js_click_sequence
+                html_content=html_content,
+                variant_attribute=variant_attribute
             )
+            
+            # Extract discovered_endpoint from details if available
+            discovered_endpoint = None
+            if isinstance(details, dict) and "api_endpoint" in details:
+                discovered_endpoint = details.get("api_endpoint")
             
             if price:
                 logger.info(f"JS_INTERACTION tier extracted price: {price} using {method} with confidence {confidence}")
@@ -543,7 +649,7 @@ class ExtractionService:
         logger.info(f"Attempting FULL_HTML tier extraction for {url}")
         
         try:
-            price, method, confidence, usage_info = self.full_html_parser.extract(html_content, url, previous_price)
+            price, method, confidence, usage_info = await self.full_html_parser.extract(html_content, url, previous_price)
             
             if price:
                 logger.info(f"FULL_HTML tier extracted price: {price} using {method} with confidence {confidence}")
@@ -598,7 +704,8 @@ class ExtractionService:
         validation_confidence_threshold: float,
         product_category: Optional[str] = None,
         machine_name: Optional[str] = None,
-        sanity_check_threshold: Optional[float] = None
+        sanity_check_threshold: Optional[float] = None,
+        flags_for_review: bool = True
     ) -> Dict[str, Any]:
         """
         Perform final validation on an extracted price.
@@ -612,6 +719,7 @@ class ExtractionService:
             product_category: Category of the product
             machine_name: Name of the machine
             sanity_check_threshold: Threshold for price change percentage
+            flags_for_review: If True, flag items for review based on validation rules
             
         Returns:
             Dictionary with validation results
@@ -649,6 +757,42 @@ class ExtractionService:
         needs_manual_review = validation_result.get("requires_review", False)
         validation_reason = validation_result.get("failure_reason")
         
+        # Additional validation for extreme price values
+        # This provides a second safety check for unrealistic values that slipped through
+        price_float = float(extracted_price)
+        if price_float > self.MAX_ALLOWED_PRICE or price_float < self.MIN_ALLOWED_PRICE:
+            logger.warning(f"Price {price_float} outside of allowed range: [{self.MIN_ALLOWED_PRICE}, {self.MAX_ALLOWED_PRICE}]")
+            is_valid = False
+            validation_confidence = 0.0
+            needs_manual_review = True
+            validation_reason = f"Price outside reasonable range: {price_float}"
+            
+        # Additional validation for extreme price changes
+        if previous_price is not None and previous_price > 0 and price_float > 0:
+            percent_change = abs(price_float - float(previous_price)) / float(previous_price)
+            
+            # Only apply flagging rules if flags_for_review is True
+            if flags_for_review:
+                # Apply additional confidence penalty for large price changes
+                if percent_change > 0.8:  # 80% change
+                    validation_confidence = max(0.0, validation_confidence - 0.5)
+                    needs_manual_review = True
+                    
+                    if not validation_reason:
+                        validation_reason = f"Extreme price change: {percent_change:.1%}"
+                elif percent_change > 0.5:  # 50% change
+                    validation_confidence = max(0.0, validation_confidence - 0.3)
+                    needs_manual_review = True
+                    
+                    if not validation_reason:
+                        validation_reason = f"Large price change: {percent_change:.1%}"
+                elif percent_change > sanity_check_threshold/100.0:  # Use parameter for threshold (default: 25%)
+                    validation_confidence = max(0.0, validation_confidence - 0.1)
+                    needs_manual_review = True
+                    
+                    if not validation_reason:
+                        validation_reason = f"Significant price change: {percent_change:.1%}"
+            
         # Log validation results
         logger.info(f"Price validation results: valid={is_valid}, confidence={validation_confidence}, needs_review={needs_manual_review}")
         if validation_reason:
@@ -674,4 +818,94 @@ class ExtractionService:
             "validation_passed": validation_passed
         }
         
-        return result 
+        return result
+    
+    def _normalize_price(self, price_value: Any) -> Optional[Decimal]:
+        """
+        Normalize price values to handle common formatting issues.
+        
+        Args:
+            price_value: The price value to normalize (string, float, Decimal, etc.)
+            
+        Returns:
+            Normalized Decimal price or None if normalization fails
+        """
+        try:
+            # Handle different input types
+            if isinstance(price_value, Decimal):
+                price_str = str(price_value)
+            else:
+                price_str = str(price_value)
+            
+            # Handle OMTech's special format where price is repeated like "$2,59999$2,599.99"
+            if price_str.count('$') > 1:
+                # Split by $ and take the last part which usually has correct format
+                parts = price_str.split('$')
+                price_str = parts[-1]
+            
+            # Clean the string - remove currency symbols, commas, spaces, etc.
+            price_str = re.sub(r'[^\d.]', '', price_str)
+            
+            # Handle multiple decimal points (keep only first one)
+            parts = price_str.split('.')
+            if len(parts) > 2:
+                price_str = parts[0] + '.' + ''.join(parts[1:])
+            
+            # Check for obviously incorrect formatting like "2199992199.99"
+            # This is likely a concatenation error where the price appears twice
+            if len(price_str) > 8 and len(price_str.replace('.', '')) > 8:
+                # Look for patterns like price repeating
+                digits = price_str.replace('.', '')
+                half_len = len(digits) // 2
+                
+                if half_len > 3 and digits[:half_len] == digits[half_len:half_len*2]:
+                    # Found repeating pattern, use just the first half
+                    logger.warning(f"Detected repeating price pattern in {price_str}, using first half")
+                    price_str = digits[:half_len]
+                    # Re-add decimal point if needed
+                    if '.' in price_str:
+                        decimal_pos = price_str.find('.')
+                        price_str = price_str[:decimal_pos] + '.' + price_str[decimal_pos+1:]
+            
+            # Convert to Decimal
+            price_decimal = Decimal(price_str)
+            
+            # Sanity check for unreasonably large values
+            if price_decimal > self.MAX_ALLOWED_PRICE:
+                logger.warning(f"Price too high: {price_decimal} > {self.MAX_ALLOWED_PRICE}")
+                
+                # Try to fix common decimal point errors
+                # E.g., 25.495 should be 25495 for certain European formats
+                if '.' in price_str and len(price_str.split('.')[-1]) > 2:
+                    corrected_str = price_str.replace('.', '')
+                    corrected_price = Decimal(corrected_str)
+                    
+                    # Check if corrected price is reasonable
+                    if self.MIN_ALLOWED_PRICE <= corrected_price <= self.MAX_ALLOWED_PRICE:
+                        logger.info(f"Corrected price from {price_decimal} to {corrected_price}")
+                        return corrected_price
+                
+                return None
+                
+            # Sanity check for unreasonably small values
+            if price_decimal < self.MIN_ALLOWED_PRICE:
+                logger.warning(f"Price too low: {price_decimal} < {self.MIN_ALLOWED_PRICE}")
+                
+                # Try to fix common decimal point errors
+                # E.g., 1.839 might actually be 1839
+                if '.' in price_str and len(price_str) < 6:
+                    corrected_str = price_str.replace('.', '')
+                    corrected_price = Decimal(corrected_str)
+                    
+                    # Check if corrected price is reasonable
+                    if self.MIN_ALLOWED_PRICE <= corrected_price <= self.MAX_ALLOWED_PRICE:
+                        logger.info(f"Corrected price from {price_decimal} to {corrected_price}")
+                        return corrected_price
+                
+                return None
+            
+            return price_decimal
+            
+        except (ValueError, decimal.InvalidOperation, TypeError) as e:
+            logger.error(f"Price normalization error: {str(e)} for value: {price_value}")
+            return None 

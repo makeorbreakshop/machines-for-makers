@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 import uuid
 from typing import Dict, List, Optional, Any, Union
 from decimal import Decimal
+import json
 
 # Load environment variables
 load_dotenv()
@@ -218,38 +219,43 @@ class DatabaseService:
                           extracted_confidence: Optional[float] = None, validation_confidence: Optional[float] = None,
                           success: bool = True, error_message: Optional[str] = None,
                           source: str = "price_extractor", currency: str = "USD", 
-                          url: Optional[str] = None) -> bool:
+                          url: Optional[str] = None, batch_id: Optional[str] = None) -> bool:
         """
-        Add a new entry to the price history table.
+        Add a price history record.
         
         Args:
-            machine_id (str): The ID of the machine
-            new_price (Decimal): The new price value
-            old_price (Decimal, optional): The previous price value
-            variant_attribute (str): Variant attribute identifier
-            tier (str): The extraction tier used
-            extracted_confidence (float, optional): Confidence score for extraction
-            validation_confidence (float, optional): Confidence score for validation
-            success (bool): Whether the extraction was successful
-            error_message (str, optional): Error message if extraction failed
-            source (str): Source of the price update
-            currency (str): Currency of the price
-            url (str, optional): The URL the price was scraped from
+            machine_id: ID of the machine
+            new_price: New price value
+            old_price: Previous price value (optional)
+            variant_attribute: Variant attribute (default "DEFAULT")
+            tier: Extraction tier used
+            extracted_confidence: Confidence score for extraction
+            validation_confidence: Confidence score for validation
+            success: Whether the extraction was successful
+            error_message: Error message if extraction failed
+            source: Source of the price update
+            currency: Currency of the price
+            url: URL where the price was scraped from
+            batch_id: ID of the batch that created this history entry (optional)
             
         Returns:
-            bool: True if history entry was added, False otherwise
+            bool: True if successful, False otherwise
         """
         try:
-            # Calculate price change metrics
+            # Calculate price change if old_price is available
             price_change = None
             percentage_change = None
             is_all_time_low = False
             is_all_time_high = False
             
+            # Convert old_price from float to Decimal if needed
+            if old_price is not None and not isinstance(old_price, Decimal):
+                old_price = Decimal(str(old_price))
+            
             if old_price is not None and new_price is not None:
-                price_change = float(new_price) - float(old_price)
-                if float(old_price) > 0:
-                    percentage_change = (price_change / float(old_price)) * 100
+                price_change = new_price - old_price
+                if old_price > 0:
+                    percentage_change = (price_change / old_price) * 100
             
             # Check for all-time low/high (could be optimized with a separate query)
             if new_price is not None:
@@ -266,6 +272,16 @@ class DatabaseService:
                         is_all_time_low = float(new_price) <= min(prices)
                         is_all_time_high = float(new_price) >= max(prices)
             
+            # If url is not provided but we're saving a price change, try to fetch it from the machines table
+            if url is None and machine_id is not None:
+                try:
+                    machine_data = await self.get_machine_by_id(machine_id)
+                    if machine_data and "product_link" in machine_data:
+                        url = machine_data.get("product_link")
+                        logger.info(f"Retrieved URL {url} from machine data for {machine_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to retrieve URL for machine {machine_id}: {str(e)}")
+            
             # Create history entry
             history_data = {
                 "id": str(uuid.uuid4()),
@@ -279,14 +295,18 @@ class DatabaseService:
                 "scraped_from_url": url,
                 "is_all_time_low": is_all_time_low,
                 "is_all_time_high": is_all_time_high,
-                "price_change": price_change,
-                "percentage_change": percentage_change,
-                "extraction_method": tier,
+                "price_change": float(price_change) if price_change is not None else None,
+                "percentage_change": float(percentage_change) if percentage_change is not None else None,
+                "extraction_method": tier if success else None,
                 "tier": tier,
                 "extracted_confidence": extracted_confidence,
                 "validation_confidence": validation_confidence,
                 "failure_reason": error_message if not success else None
             }
+            
+            # Add batch_id if provided
+            if batch_id:
+                history_data["batch_id"] = batch_id
             
             history_response = self.supabase.table(PRICE_HISTORY_TABLE) \
                 .insert(history_data) \
@@ -294,13 +314,17 @@ class DatabaseService:
             
             if history_response.data:
                 logger.info(f"Added price history entry for {machine_id}/{variant_attribute}")
+                
+                # No need to call _update_all_time_flags since we've already set the flags
+                # based on our query above
+                
                 return True
             else:
                 logger.warning(f"No price history entry created for {machine_id}/{variant_attribute}")
                 return False
                 
         except Exception as e:
-            logger.error(f"Error adding price history for {machine_id}/{variant_attribute}: {str(e)}")
+            logger.error(f"Error adding price history for {machine_id}: {str(e)}")
             return False
     
     async def log_llm_usage(self, machine_id: str, model: str, tier: str, prompt_tokens: int,
@@ -351,7 +375,7 @@ class DatabaseService:
             return False
     
     async def set_manual_review_flag(self, machine_id: str, variant_attribute: str = "DEFAULT", 
-                              flag_value: bool = True) -> bool:
+                              flag_value: bool = True, flag_reason: str = None) -> bool:
         """
         Set the manual review flag for a machine variant.
         
@@ -359,13 +383,24 @@ class DatabaseService:
             machine_id (str): The ID of the machine
             variant_attribute (str): Variant attribute identifier
             flag_value (bool): Value to set the flag to
+            flag_reason (str): Reason for flagging the machine for review
             
         Returns:
             bool: True if flag was set, False otherwise
         """
         try:
+            update_data = {"manual_review_flag": flag_value}
+            
+            # Add flag reason if provided and flag is being set
+            if flag_value and flag_reason:
+                update_data["flag_reason"] = flag_reason
+            
+            # Clear flag reason if flag is being removed
+            if not flag_value:
+                update_data["flag_reason"] = None
+            
             response = self.supabase.table(MACHINES_LATEST_TABLE) \
-                .update({"manual_review_flag": flag_value}) \
+                .update(update_data) \
                 .eq("machine_id", machine_id) \
                 .eq("variant_attribute", variant_attribute) \
                 .execute()
@@ -473,19 +508,17 @@ class DatabaseService:
             machine_ids = [machine.get("id") for machine in response.data]
             
             # Query machines_latest table to filter by days threshold
-            latest_query = self.supabase.rpc(
-                'get_machines_needing_updates',
-                {
-                    'days_threshold': days_threshold,
-                    'js_interaction_filter': with_js_interaction
-                }
-            )
-            
-            # Alternative direct query approach if stored procedure not available
-            # latest_query = self.supabase.table(MACHINES_LATEST_TABLE) \
-            #     .select("machine_id, variant_attribute, last_checked") \
-            #     .in_("machine_id", machine_ids) \
-            #     .lt("last_checked", (datetime.now(timezone.utc) - timedelta(days=days_threshold)).isoformat())
+            # Use direct query approach instead of stored procedure
+            if days_threshold > 0:
+                latest_query = self.supabase.table(MACHINES_LATEST_TABLE) \
+                    .select("machine_id, variant_attribute, last_checked") \
+                    .in_("machine_id", machine_ids) \
+                    .lt("last_checked", (datetime.now(timezone.utc) - timedelta(days=days_threshold)).isoformat())
+            else:
+                # If days_threshold is 0, don't filter by date
+                latest_query = self.supabase.table(MACHINES_LATEST_TABLE) \
+                    .select("machine_id, variant_attribute, last_checked") \
+                    .in_("machine_id", machine_ids)
             
             if with_js_interaction:
                 # Get the domains that require JS interaction
@@ -533,7 +566,9 @@ class DatabaseService:
         validation_confidence: float = 0.0,
         currency: str = "USD",
         manual_review_flag: bool = False,
-        llm_usage_data: List[Dict[str, Any]] = None
+        llm_usage_data: List[Dict[str, Any]] = None,
+        batch_id: Optional[str] = None,
+        url: Optional[str] = None
     ) -> bool:
         """
         Save price extraction results to both price_history and machines_latest tables.
@@ -548,47 +583,64 @@ class DatabaseService:
             currency: Currency of the price
             manual_review_flag: Whether the price needs manual review
             llm_usage_data: List of LLM usage data for tracking
+            batch_id: ID of the batch that created this entry (optional)
+            url: URL where the price was scraped from
             
         Returns:
             True if save was successful, False otherwise
         """
         try:
-            # Start a transaction for atomicity
-            async with self.supabase.connection() as connection:
-                async with connection.transaction():
-                    # 1. Insert into price_history
-                    price_history_id = await self._insert_price_history(
-                        connection,
-                        machine_id, 
-                        variant_attribute,
-                        price, 
-                        extraction_method, 
-                        extraction_confidence,
-                        validation_confidence,
-                        currency
+            # Update the machines_latest table directly
+            now = datetime.now(timezone.utc)
+            
+            # Update machines_latest table
+            latest_data = {
+                "machine_id": machine_id,
+                "variant_attribute": variant_attribute,
+                "machines_latest_price": float(price),
+                "currency": currency,
+                "last_checked": now.isoformat(),
+                "tier": extraction_method,
+                "confidence": extraction_confidence,
+                "manual_review_flag": manual_review_flag
+            }
+            
+            latest_response = self.supabase.table(MACHINES_LATEST_TABLE) \
+                .upsert(latest_data) \
+                .execute()
+            
+            # Add to price history
+            previous_price = await self.get_previous_price(machine_id, variant_attribute)
+            
+            await self.add_price_history(
+                machine_id=machine_id,
+                variant_attribute=variant_attribute,
+                new_price=price,
+                old_price=previous_price,
+                tier=extraction_method,
+                extracted_confidence=extraction_confidence,
+                validation_confidence=validation_confidence,
+                success=True,
+                error_message=None,
+                source="price_extractor_v2",
+                currency=currency,
+                batch_id=batch_id,
+                url=url
+            )
+            
+            # Log LLM usage if provided
+            if llm_usage_data:
+                for usage in llm_usage_data:
+                    await self.log_llm_usage(
+                        machine_id=machine_id,
+                        variant_attribute=variant_attribute,
+                        model=usage.get("model", ""),
+                        tier=usage.get("tier", ""),
+                        prompt_tokens=usage.get("prompt_tokens", 0),
+                        completion_tokens=usage.get("completion_tokens", 0),
+                        estimated_cost=usage.get("estimated_cost", 0.0),
+                        success=usage.get("success", False)
                     )
-                    
-                    # 2. Update machines_latest
-                    await self._update_machines_latest(
-                        connection,
-                        machine_id, 
-                        variant_attribute,
-                        price, 
-                        extraction_method, 
-                        extraction_confidence,
-                        manual_review_flag,
-                        currency
-                    )
-                    
-                    # 3. Save LLM usage data if provided
-                    if llm_usage_data:
-                        for usage in llm_usage_data:
-                            await self._insert_llm_usage(
-                                connection,
-                                machine_id,
-                                variant_attribute,
-                                usage
-                            )
             
             logger.info(f"Successfully saved price {price} for {machine_id}/{variant_attribute} using {extraction_method}")
             return True
@@ -597,306 +649,186 @@ class DatabaseService:
             logger.error(f"Error saving price extraction results: {str(e)}")
             return False
     
-    async def _insert_price_history(
-        self, 
-        connection,
-        machine_id: str, 
-        variant_attribute: str,
-        price: Decimal, 
-        extraction_method: str, 
-        extraction_confidence: float,
-        validation_confidence: float,
-        currency: str
-    ) -> Optional[str]:
+    async def get_batch_results(self, batch_id: str) -> Optional[Dict[str, Any]]:
         """
-        Insert a new record into price_history table.
+        Get batch results data from the database.
         
         Args:
-            connection: Active database connection
-            machine_id: ID of the machine
-            variant_attribute: Variant attribute identifier
-            price: Extracted price
-            extraction_method: Method used for extraction
-            extraction_confidence: Confidence score from extraction
-            validation_confidence: Confidence score from validation
-            currency: Currency of the price
+            batch_id (str): ID of the batch
             
         Returns:
-            ID of the inserted record or None on failure
+            Dict containing batch results or None if not found
         """
         try:
-            # Prepare the query
-            query = f"""
-            INSERT INTO {PRICE_HISTORY_TABLE} 
-            (machine_id, variant_attribute, price, date, currency, tier, extracted_confidence, validation_confidence)
-            VALUES
-            ($1, $2, $3, NOW(), $4, $5, $6, $7)
-            RETURNING id
-            """
-            
-            # Execute the query with parameters
-            result = await connection.fetchrow(
-                query, 
-                machine_id, 
-                variant_attribute, 
-                price, 
-                currency, 
-                extraction_method, 
-                extraction_confidence,
-                validation_confidence
-            )
-            
-            if result:
-                return result['id']
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error inserting into price_history: {str(e)}")
-            raise
-    
-    async def _update_machines_latest(
-        self, 
-        connection,
-        machine_id: str, 
-        variant_attribute: str,
-        price: Decimal, 
-        extraction_method: str, 
-        confidence: float,
-        manual_review_flag: bool,
-        currency: str
-    ) -> bool:
-        """
-        Update or insert a record in the machines_latest table.
-        
-        Args:
-            connection: Active database connection
-            machine_id: ID of the machine
-            variant_attribute: Variant attribute identifier
-            price: Extracted price
-            extraction_method: Method used for extraction
-            confidence: Confidence score
-            manual_review_flag: Whether the price needs manual review
-            currency: Currency of the price
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Prepare the query
-            query = f"""
-            INSERT INTO {MACHINES_LATEST_TABLE} 
-            (machine_id, variant_attribute, machines_latest_price, currency, last_checked, tier, confidence, manual_review_flag)
-            VALUES
-            ($1, $2, $3, $4, NOW(), $5, $6, $7)
-            ON CONFLICT (machine_id, variant_attribute) DO UPDATE
-            SET 
-                machines_latest_price = EXCLUDED.machines_latest_price,
-                currency = EXCLUDED.currency,
-                last_checked = EXCLUDED.last_checked,
-                tier = EXCLUDED.tier,
-                confidence = EXCLUDED.confidence,
-                manual_review_flag = EXCLUDED.manual_review_flag
-            """
-            
-            # Execute the query with parameters
-            await connection.execute(
-                query, 
-                machine_id, 
-                variant_attribute, 
-                price, 
-                currency, 
-                extraction_method, 
-                confidence,
-                manual_review_flag
-            )
-            
-            # Add detailed logging for machines_latest table update
-            logger.info(f"Updated machines_latest table for {machine_id}/{variant_attribute} to {price} (tier: {extraction_method}, confidence: {confidence}, review_flag: {manual_review_flag})")
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error updating machines_latest: {str(e)}")
-            raise
-    
-    async def _insert_llm_usage(
-        self, 
-        connection,
-        machine_id: str, 
-        variant_attribute: str,
-        usage_data: Dict[str, Any]
-    ) -> Optional[str]:
-        """
-        Insert a record into the llm_usage_tracking table.
-        
-        Args:
-            connection: Active database connection
-            machine_id: ID of the machine
-            variant_attribute: Variant attribute identifier
-            usage_data: LLM usage data to record
-            
-        Returns:
-            ID of the inserted record or None on failure
-        """
-        try:
-            # Extract values from usage data
-            model = usage_data.get("model", "")
-            tier = usage_data.get("tier", "")
-            prompt_tokens = usage_data.get("prompt_tokens", 0)
-            completion_tokens = usage_data.get("completion_tokens", 0)
-            estimated_cost = usage_data.get("estimated_cost", 0.0)
-            success = usage_data.get("success", False)
-            
-            # Prepare the query
-            query = f"""
-            INSERT INTO {LLM_USAGE_TABLE} 
-            (machine_id, variant_attribute, model, tier, prompt_tokens, completion_tokens, estimated_cost, success)
-            VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id
-            """
-            
-            # Execute the query with parameters
-            result = await connection.fetchrow(
-                query, 
-                machine_id, 
-                variant_attribute,
-                model, 
-                tier, 
-                prompt_tokens, 
-                completion_tokens,
-                estimated_cost,
-                success
-            )
-            
-            if result:
-                return result['id']
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error inserting into llm_usage_tracking: {str(e)}")
-            raise
-    
-    async def update_api_endpoint(
-        self,
-        machine_id: str,
-        variant_attribute: str,
-        domain: str,
-        api_endpoint_template: str
-    ) -> bool:
-        """
-        Update the API endpoint for a variant.
-        
-        Args:
-            machine_id: ID of the machine
-            variant_attribute: Variant attribute identifier
-            domain: Domain of the e-commerce site
-            api_endpoint_template: Template for the API endpoint
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Prepare the query
-            query = f"""
-            INSERT INTO {VARIANT_CONFIG_TABLE} 
-            (machine_id, variant_attribute, domain, api_endpoint_template, api_endpoint_discovered_at)
-            VALUES
-            ($1, $2, $3, $4, NOW())
-            ON CONFLICT (machine_id, variant_attribute, domain) DO UPDATE
-            SET 
-                api_endpoint_template = EXCLUDED.api_endpoint_template,
-                api_endpoint_discovered_at = EXCLUDED.api_endpoint_discovered_at
-            """
-            
-            # Execute the query with parameters
-            await self.supabase.execute(query, machine_id, variant_attribute, domain, api_endpoint_template)
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error updating API endpoint: {str(e)}")
-            return False
-    
-    async def get_flagged_machines(self, limit: int = 100, skip: int = 0) -> List[Dict[str, Any]]:
-        """
-        Get machines flagged for manual review.
-        
-        Args:
-            limit (int): Maximum number of machines to return
-            skip (int): Number of machines to skip (for pagination)
-            
-        Returns:
-            List of machines flagged for manual review with details.
-        """
-        try:
-            # Query machines_latest table for machines with manual_review_flag=true
-            response = self.supabase.table(MACHINES_LATEST_TABLE) \
+            # Get price history entries related to this batch
+            response = self.supabase.table(PRICE_HISTORY_TABLE) \
                 .select("*") \
-                .eq("manual_review_flag", True) \
-                .range(skip, skip + limit - 1) \
+                .eq("batch_id", batch_id) \
                 .execute()
                 
             if not response.data:
-                logger.info("No machines flagged for manual review found")
-                return []
-                
-            flagged_machines = response.data
-            logger.info(f"Found {len(flagged_machines)} machines flagged for manual review")
+                logger.info(f"No batch results found for batch_id: {batch_id}")
+                return None
             
-            # Enrich with machine details and previous prices
-            enriched_machines = []
-            for machine in flagged_machines:
-                machine_id = machine.get("machine_id")
-                variant = machine.get("variant_attribute", "DEFAULT")
+            # Check if we need to look in old 'batches' table instead of price_extraction_batches
+            batch_response = self.supabase.table("batches") \
+                .select("*") \
+                .eq("id", batch_id) \
+                .execute()
+            
+            if batch_response.data and len(batch_response.data) > 0:
+                logger.info(f"Found batch record in 'batches' table for {batch_id}")
+                batch_info = batch_response.data[0]
                 
-                # Get machine details
-                machine_details = await self.get_machine_by_id(machine_id)
-                if machine_details:
-                    # Get previous price from price history
-                    previous_price = await self.get_previous_price(machine_id, variant)
-                    
-                    # Add machine details and previous price
-                    machine["machine_name"] = machine_details.get("Machine Name")
-                    machine["company"] = machine_details.get("Company")
-                    machine["product_link"] = machine_details.get("product_link")
-                    machine["previous_price"] = previous_price
-                    
-                    # Calculate flag reason
-                    machine["flag_reason"] = self._determine_flag_reason(
-                        machine.get("machines_latest_price"), 
-                        previous_price, 
-                        machine.get("confidence")
-                    )
-                    
-                    enriched_machines.append(machine)
-                
-            return enriched_machines
+                # If the batch exists, enhance the results with the batch info
+                return {
+                    "batch_info": batch_info,
+                    "price_histories": response.data,
+                    "count": len(response.data)
+                }
+            
+            return response.data
         except Exception as e:
-            logger.error(f"Error fetching flagged machines: {str(e)}")
-            return []
+            logger.error(f"Error fetching batch results for {batch_id}: {str(e)}")
+            return None
+    
+    async def get_batch_stats(self, batch_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get statistics for a batch job.
+        
+        Args:
+            batch_id (str): ID of the batch
             
-    async def get_flagged_machines_count(self) -> int:
-        """Get the total count of machines flagged for manual review."""
+        Returns:
+            Dict containing batch statistics or None if not found
+        """
         try:
-            # Count machines with manual_review_flag=true
-            response = self.supabase.table(MACHINES_LATEST_TABLE) \
-                .select("machine_id", "count") \
-                .eq("manual_review_flag", True) \
+            # Use the batches table since price_extraction_batches doesn't exist
+            batch_response = self.supabase.table("batches") \
+                .select("*") \
+                .eq("id", batch_id) \
                 .execute()
                 
-            if response.count is not None:
-                return response.count
-            
-            # Fallback if count is not available
-            if response.data:
-                return len(response.data)
+            if not batch_response.data or len(batch_response.data) == 0:
+                logger.warning(f"No batch record found for batch_id: {batch_id}")
+                return None
                 
-            return 0
+            batch_data = batch_response.data[0]
+            
+            # First check if we have data in batch_results table
+            results_response = self.supabase.table("batch_results") \
+                .select("*") \
+                .eq("batch_id", batch_id) \
+                .execute()
+            
+            # If we have batch_results, use that data
+            if results_response.data and len(results_response.data) > 0:
+                logger.info(f"Found {len(results_response.data)} entries in batch_results table for {batch_id}")
+                entries = results_response.data
+                
+                # Calculate statistics
+                total_entries = len(entries)
+                successful = sum(1 for entry in entries if entry.get("success") is True)
+                failed = total_entries - successful
+                
+                # Calculate price changes
+                price_increases = 0
+                price_decreases = 0
+                unchanged = 0
+                
+                for entry in entries:
+                    old_price = entry.get("old_price")
+                    new_price = entry.get("new_price")
+                    
+                    if old_price is None or new_price is None:
+                        continue
+                    
+                    if new_price > old_price:
+                        price_increases += 1
+                    elif new_price < old_price:
+                        price_decreases += 1
+                    else:
+                        unchanged += 1
+                
+                # Calculate method usage
+                methods = {}
+                for entry in entries:
+                    method = entry.get("extraction_method")
+                    if method:
+                        if method not in methods:
+                            methods[method] = 0
+                        methods[method] += 1
+                
+                # Format method usage as list
+                method_stats = [{"method": method, "count": count} for method, count in methods.items()]
+                
+            # Otherwise, check price_history table
+            else:
+                logger.info(f"No batch_results found, checking price_history for batch_id: {batch_id}")
+                
+                # Get price history entries for this batch
+                history_response = self.supabase.table(PRICE_HISTORY_TABLE) \
+                    .select("machine_id, price, previous_price, price_change, percentage_change, extraction_method, failure_reason") \
+                    .eq("batch_id", batch_id) \
+                    .execute()
+                
+                entries = history_response.data if history_response.data else []
+                logger.info(f"Found {len(entries)} entries in price_history for batch_id: {batch_id}")
+                
+                # Calculate statistics
+                total_entries = len(entries)
+                successful = sum(1 for entry in entries if entry.get("failure_reason") is None)
+                failed = total_entries - successful
+                
+                # Calculate price changes
+                price_increases = 0
+                price_decreases = 0
+                unchanged = 0
+                
+                for entry in entries:
+                    if entry.get("price_change") is None:
+                        continue
+                        
+                    if entry.get("price_change") > 0:
+                        price_increases += 1
+                    elif entry.get("price_change") < 0:
+                        price_decreases += 1
+                    else:
+                        unchanged += 1
+                
+                # Calculate method usage
+                methods = {}
+                for entry in entries:
+                    method = entry.get("extraction_method")
+                    if method:
+                        if method not in methods:
+                            methods[method] = 0
+                        methods[method] += 1
+                
+                # Format method usage as list
+                method_stats = [{"method": method, "count": count} for method, count in methods.items()]
+            
+            # Return statistics
+            stats = {
+                "batch_id": batch_id,
+                "total_machines": batch_data.get("total_machines", 0),
+                "processed": total_entries,
+                "successful": successful,
+                "failed": failed,
+                "price_increases": price_increases,
+                "price_decreases": price_decreases,
+                "unchanged": unchanged,
+                "methods": method_stats,
+                "start_time": batch_data.get("start_time"),
+                "end_time": batch_data.get("end_time"),
+                "status": batch_data.get("status")
+            }
+            
+            return stats
         except Exception as e:
-            logger.error(f"Error counting flagged machines: {str(e)}")
-            return 0
-    
+            logger.error(f"Error getting batch stats for {batch_id}: {str(e)}")
+            return None
+
     async def get_machine_latest_price(self, machine_id: str, variant_attribute: str = "DEFAULT") -> Optional[Dict[str, Any]]:
         """
         Get the latest price record for a machine and variant.
@@ -917,6 +849,28 @@ class DatabaseService:
                 
             if response.data and len(response.data) > 0:
                 return response.data[0]
+            
+            # If no entry in machines_latest, fall back to machines table
+            logger.info(f"No entry in machines_latest for {machine_id}/{variant_attribute}, falling back to machines table")
+            machines_response = self.supabase.table(MACHINES_TABLE) \
+                .select("id, \"Price\"") \
+                .eq("id", machine_id) \
+                .execute()
+                
+            if machines_response.data and len(machines_response.data) > 0 and machines_response.data[0].get("Price"):
+                # Convert machines table data to machines_latest format
+                machine_price = machines_response.data[0].get("Price")
+                now = datetime.now(timezone.utc)
+                
+                return {
+                    "machine_id": machine_id,
+                    "variant_attribute": variant_attribute,
+                    "machines_latest_price": machine_price,
+                    "currency": "USD",  # Default assumption
+                    "last_checked": now.isoformat(),
+                    "tier": "FALLBACK_FROM_MACHINES",
+                    "confidence": 0.95  # Default confidence
+                }
                 
             return None
         except Exception as e:
@@ -957,840 +911,361 @@ class DatabaseService:
             logger.error(f"Error fetching previous price for {machine_id}/{variant_attribute}: {str(e)}")
             return None
     
-    def _determine_flag_reason(self, new_price: float, old_price: float, confidence: float) -> str:
+    async def create_batch(self, count: int, days_threshold: int = 7, machine_ids: list = None, limit: Optional[int] = None, max_workers: Optional[int] = None) -> str:
         """
-        Determine the reason for flagging a price.
+        Create a new batch record for tracking batch updates.
         
         Args:
-            new_price (float): New price
-            old_price (float): Old price
-            confidence (float): Confidence score
+            count (int): Number of machines in this batch
+            days_threshold (int): Days threshold used for this batch
+            machine_ids (list, optional): List of specific machine IDs in this batch
+            limit (Optional[int], optional): Limit used for this batch
+            max_workers (Optional[int], optional): Max workers used for this batch
             
         Returns:
-            Reason string
+            str: ID of the created batch record or None if creation failed
         """
-        # Set default thresholds
-        low_confidence_threshold = 0.90
-        high_change_threshold = 0.25  # 25% change
-        
-        if confidence is not None and confidence < low_confidence_threshold:
-            return "Low extraction confidence"
+        try:
+            batch_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc)
             
-        if old_price is not None and new_price is not None and old_price > 0:
-            percentage_change = abs((new_price - old_price) / old_price)
-            if percentage_change > high_change_threshold:
-                direction = "increase" if new_price > old_price else "decrease"
-                return f"Large price {direction} ({int(percentage_change * 100)}%)"
+            # Create metadata object for additional fields
+            metadata = {
+                "limit": limit,
+                "max_workers": max_workers,
+                "machine_ids": machine_ids[:5] if machine_ids and len(machine_ids) > 5 else machine_ids
+            }
+            
+            # Prepare batch data according to the database schema
+            batch_data = {
+                "id": batch_id,
+                "status": "in_progress",
+                "start_time": now.isoformat(),
+                "end_time": None,
+                "total_machines": count,
+                "days_threshold": days_threshold,
+                "metadata": json.dumps(metadata)
+            }
+            
+            logger.debug(f"Attempting to insert batch data: {batch_data}")
+            
+            # Insert into batches table
+            response = self.supabase.table("batches").insert(batch_data).execute()
+            
+            if response.data:
+                logger.info(f"Created batch record with ID: {batch_id}")
+                return batch_id
+            else:
+                logger.error("Failed to create batch record: empty response data")
+                if hasattr(response, 'error'):
+                    logger.error(f"Response error: {response.error}")
+                return None
                 
-        return "Multiple issues detected"
+        except Exception as e:
+            logger.error(f"Error creating batch record: {str(e)}")
+            # Print more detailed error info
+            if hasattr(e, '__dict__'):
+                logger.error(f"Error details: {e.__dict__}")
+            return None
     
-    async def get_machines_with_variants(
-        self,
-        limit: int = 100,
-        skip: int = 0,
-        days_threshold: Optional[int] = None,
-        search: Optional[str] = None,
-        company: Optional[str] = None,
-        category: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    async def update_batch_status(self, batch_id: str, status: str, end_time: bool = True) -> bool:
         """
-        Get machines with their variant price information.
+        Update the status of a batch job.
+        
+        Args:
+            batch_id (str): ID of the batch to update
+            status (str): New status value ('in_progress', 'completed', 'failed')
+            end_time (bool): Whether to set the end_time to now
+            
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            update_data = {"status": status}
+            
+            if end_time:
+                update_data["end_time"] = datetime.now(timezone.utc).isoformat()
+                
+            response = self.supabase.table("batches") \
+                .update(update_data) \
+                .eq("id", batch_id) \
+                .execute()
+                
+            if response.data:
+                logger.info(f"Updated batch {batch_id} status to {status}")
+                return True
+            else:
+                logger.warning(f"Failed to update batch {batch_id} status")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error updating batch status: {str(e)}")
+            return False
+    
+    async def update_batch_count(self, batch_id: str, count: int) -> bool:
+        """
+        Update the machine count of a batch job.
+        
+        Args:
+            batch_id (str): ID of the batch to update
+            count (int): New machine count
+            
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            response = self.supabase.table("batches") \
+                .update({"total_machines": count}) \
+                .eq("id", batch_id) \
+                .execute()
+                
+            if response.data:
+                logger.info(f"Updated batch {batch_id} count to {count}")
+                return True
+            else:
+                logger.warning(f"Failed to update batch {batch_id} count")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error updating batch count: {str(e)}")
+            return False
+
+    async def add_batch_result(self, batch_id: str, machine_id: str, 
+                            machine_name: str, url: str, 
+                            success: bool, old_price: Optional[float] = None, 
+                            new_price: Optional[float] = None, 
+                            extraction_method: Optional[str] = None,
+                            error: Optional[str] = None,
+                            start_time: Optional[str] = None,
+                            end_time: Optional[str] = None,
+                            http_status: Optional[int] = None,
+                            html_size: Optional[int] = None,
+                            extraction_attempts: Optional[List[Dict[str, Any]]] = None,
+                            needs_review: bool = False,
+                            review_reason: Optional[str] = None,
+                            tier: Optional[str] = None,
+                            extracted_confidence: Optional[float] = None,
+                            validation_confidence: Optional[float] = None,
+                            confidence: Optional[float] = None) -> bool:
+        """
+        Add a result entry to the batch_results table.
+        
+        Args:
+            batch_id: ID of the batch
+            machine_id: ID of the machine
+            machine_name: Name of the machine
+            url: URL that was scraped
+            success: Whether extraction was successful
+            old_price: Previous price of the machine
+            new_price: New extracted price
+            extraction_method: Method used for extraction
+            error: Error message if extraction failed
+            start_time: When extraction started
+            end_time: When extraction completed
+            http_status: HTTP status code from scraping
+            html_size: Size of HTML content in bytes
+            extraction_attempts: Details of extraction attempts
+            needs_review: Whether this result needs manual review
+            review_reason: Reason for manual review flag
+            tier: Extraction tier used
+            extracted_confidence: Confidence of extraction
+            validation_confidence: Confidence of validation
+            confidence: Overall confidence score
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            now = datetime.now(timezone.utc)
+            
+            # Calculate duration if we have start and end times
+            duration_seconds = None
+            if start_time and end_time:
+                try:
+                    start = datetime.fromisoformat(start_time.replace('Z', '+00:00')) if isinstance(start_time, str) else start_time
+                    end = datetime.fromisoformat(end_time.replace('Z', '+00:00')) if isinstance(end_time, str) else end_time
+                    duration_seconds = (end - start).total_seconds()
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error calculating duration: {str(e)}")
+            
+            # Calculate price change
+            price_change = None
+            percentage_change = None
+            if old_price is not None and new_price is not None:
+                price_change = new_price - old_price
+                if old_price > 0:
+                    percentage_change = (price_change / old_price) * 100
+            
+            # Prepare batch result data
+            result_data = {
+                "id": str(uuid.uuid4()),
+                "batch_id": batch_id,
+                "machine_id": machine_id,
+                "machine_name": machine_name,
+                "url": url,
+                "success": success,
+                "old_price": old_price,
+                "new_price": new_price,
+                "price_change": price_change,
+                "percentage_change": percentage_change,
+                "error": error,
+                "start_time": start_time or now.isoformat(),
+                "end_time": end_time or now.isoformat(),
+                "duration_seconds": duration_seconds,
+                "extraction_method": extraction_method,
+                "http_status": http_status,
+                "html_size": html_size,
+                "needs_review": needs_review,
+                "review_reason": review_reason,
+                "tier": tier or extraction_method,
+                "extracted_confidence": extracted_confidence,
+                "validation_confidence": validation_confidence,
+                "confidence": confidence or extracted_confidence
+            }
+            
+            # Add extraction attempts if provided
+            if extraction_attempts:
+                result_data["extraction_attempts"] = json.dumps(extraction_attempts)
+            
+            # Insert into batch_results table
+            response = self.supabase.table("batch_results").insert(result_data).execute()
+            
+            if response.data:
+                logger.info(f"Added batch result for {machine_id} to batch {batch_id}")
+                return True
+            else:
+                logger.warning(f"Failed to add batch result for {machine_id} to batch {batch_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error adding batch result for {machine_id} to batch {batch_id}: {str(e)}")
+            return False
+            
+    async def get_flagged_machines(self, limit: int = 100, skip: int = 0, reason: str = None, 
+                           confidence: float = None, sort_by: str = None, 
+                           sort_order: str = "desc", search: str = None) -> List[Dict[str, Any]]:
+        """
+        Get machines flagged for manual review.
         
         Args:
             limit (int): Maximum number of machines to return
             skip (int): Number of machines to skip (for pagination)
-            days_threshold (int, optional): Filter by days since last update
+            reason (str, optional): Filter by specific flag reason
+            confidence (float, optional): Filter by minimum confidence
+            sort_by (str, optional): Field to sort by
+            sort_order (str): Sort order ("asc" or "desc")
             search (str, optional): Search term for machine name
-            company (str, optional): Filter by company name
-            category (str, optional): Filter by machine category
             
         Returns:
-            List of machines with their variant information
+            List of machines flagged for manual review with details.
         """
         try:
-            # Build query for machines table - EXCLUDE html_content to improve performance
-            query = self.supabase.table(MACHINES_TABLE).select(
-                "id, \"Machine Name\", Company, \"Machine Category\", \"Laser Category\", Price, product_link, html_timestamp",
-                count="exact"
-            )
-            
-            # Apply filters
-            if days_threshold is not None:
-                # Not ideal to do date calculation in SQL, but Supabase doesn't support date operations in the query builder
-                # We'll filter after fetching the data
-                pass
-                
-            if search:
-                query = query.ilike("Machine Name", f"%{search}%")
-                
-            if company:
-                query = query.eq("Company", company)
-                
-            if category:
-                query = query.eq("Machine Category", category)
-                
-            # Execute query with pagination
-            response = query.range(skip, skip + limit - 1).execute()
-            
-            if not response.data:
-                logger.info("No machines found matching criteria")
-                return []
-                
-            machines = response.data
-            
-            # Apply days_threshold filter if specified
-            if days_threshold is not None:
-                cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_threshold)
-                machines = [m for m in machines if not m.get("html_timestamp") or datetime.fromisoformat(m.get("html_timestamp").replace("Z", "+00:00")) < cutoff_date]
-            
-            # Fetch variant information for each machine - use bulk operation for better performance
-            machine_ids = [machine.get("id") for machine in machines]
-            
-            if not machine_ids:
-                return []
-                
-            # Get all variants in a single query
-            variants_response = self.supabase.table(MACHINES_LATEST_TABLE) \
+            # Query the machines_latest table for flagged machines
+            query = self.supabase.table(MACHINES_LATEST_TABLE) \
                 .select("*") \
-                .in_("machine_id", machine_ids) \
-                .execute()
-                
-            # Group variants by machine_id for easier assignment
-            variants_by_machine = {}
-            if variants_response.data:
-                for variant in variants_response.data:
-                    machine_id = variant.get("machine_id")
-                    if machine_id not in variants_by_machine:
-                        variants_by_machine[machine_id] = []
-                    variants_by_machine[machine_id].append(variant)
+                .eq("manual_review_flag", True) \
+                .order("last_checked", desc=(sort_order.lower() == "desc"))
             
-            # Add variants to each machine
-            machines_with_variants = []
-            for machine in machines:
-                machine_id = machine.get("id")
-                machine["variants"] = variants_by_machine.get(machine_id, [])
-                machines_with_variants.append(machine)
+            # Apply filters if provided
+            if reason and "flag_reason" in self.get_columns(MACHINES_LATEST_TABLE):
+                query = query.ilike("flag_reason", f"%{reason}%")
                 
-            return machines_with_variants
-        except Exception as e:
-            logger.error(f"Error fetching machines with variants: {str(e)}")
-            return []
-    
-    async def get_machines_count(
-        self,
-        days_threshold: Optional[int] = None,
-        search: Optional[str] = None,
-        company: Optional[str] = None,
-        category: Optional[str] = None
-    ) -> int:
-        """
-        Get total count of machines matching criteria.
-        
-        Args:
-            days_threshold (int, optional): Filter by days since last update
-            search (str, optional): Search term for machine name
-            company (str, optional): Filter by company name
-            category (str, optional): Filter by machine category
+            if confidence is not None:
+                query = query.gte("confidence", confidence)
+                
+            # Apply custom sorting if provided
+            if sort_by:
+                # Map frontend sort fields to database fields
+                sort_field_map = {
+                    "date": "last_checked",
+                    "confidence": "confidence",
+                    "price": "machines_latest_price",
+                }
+                
+                # Use mapped field or original if not in map
+                db_sort_field = sort_field_map.get(sort_by, sort_by)
+                query = query.order(db_sort_field, desc=(sort_order.lower() == "desc"))
             
-        Returns:
-            Total count of machines matching criteria
-        """
-        try:
-            # Build proper COUNT query for machines table
-            query = self.supabase.table(MACHINES_TABLE).select("*", count="exact")
-            
-            # Apply filters
-            if search:
-                query = query.ilike("Machine Name", f"%{search}%")
+            # Apply pagination
+            if limit:
+                query = query.range(skip, skip + limit - 1)
                 
-            if company:
-                query = query.eq("Company", company)
-                
-            if category:
-                query = query.eq("Machine Category", category)
-                
-            # Execute count query
             response = query.execute()
             
-            # Get the count from the response
-            count = response.count if response.count is not None else 0
+            # Process the results to get the previous prices and machine names
+            results = []
+            for item in response.data:
+                # Get the previous price from price history
+                previous_price = await self.get_previous_price(item.get("machine_id"), item.get("variant_attribute"))
                 
-            # If days_threshold is specified, we can't accurately count with Supabase's limitations
-            # We'll return an approximate count
-            if days_threshold is not None and count > 0:
-                # This is a very rough approximation
-                # In a real implementation, you'd need a more accurate approach
-                count = int(count * 0.7)  # Assuming ~70% of machines need updates
+                # Get machine name directly
+                machine_data = await self.get_machine_by_id(item.get("machine_id"))
+                machine_name = machine_data.get("Machine Name") if machine_data else "Unknown"
+                
+                # Build the result item
+                result_item = {
+                    "machine_id": item.get("machine_id"),
+                    "variant_attribute": item.get("variant_attribute"),
+                    "machine_name": machine_name,
+                    "machines_latest_price": item.get("machines_latest_price"),
+                    "previous_price": previous_price,
+                    "currency": item.get("currency"),
+                    "tier": item.get("tier"),
+                    "confidence": item.get("confidence"),
+                    "last_checked": item.get("last_checked"),
+                    "flag_reason": item.get("flag_reason") if "flag_reason" in item else "Price change"
+                }
+                
+                # Filter by search query if provided
+                if search and machine_name:
+                    if search.lower() not in machine_name.lower():
+                        continue
                     
-            return count
+                results.append(result_item)
+                
+            return results
+            
         except Exception as e:
-            logger.error(f"Error counting machines: {str(e)}")
+            logger.error(f"Error fetching flagged machines: {str(e)}")
+            return []
+            
+    def get_columns(self, table_name: str) -> List[str]:
+        """
+        Get list of column names for a table.
+        
+        Args:
+            table_name (str): Name of the table
+            
+        Returns:
+            List of column names
+        """
+        try:
+            # First try to get a single row to examine columns
+            response = self.supabase.table(table_name).select("*").limit(1).execute()
+            
+            if response.data and len(response.data) > 0:
+                return list(response.data[0].keys())
+            return []
+            
+        except Exception as e:
+            logger.warning(f"Error fetching columns for {table_name}: {str(e)}")
+            return []
+            
+    async def get_flagged_machines_count(self) -> int:
+        """
+        Get the total count of machines flagged for manual review.
+        
+        Returns:
+            int: Count of flagged machines
+        """
+        try:
+            response = self.supabase.table(MACHINES_LATEST_TABLE) \
+                .select("count", count="exact") \
+                .eq("manual_review_flag", True) \
+                .execute()
+            
+            return response.count if hasattr(response, 'count') else 0
+            
+        except Exception as e:
+            logger.error(f"Error fetching flagged machines count: {str(e)}")
             return 0
-            
-    async def get_price_history(
-        self,
-        machine_id: str,
-        variant_attribute: str = "DEFAULT",
-        limit: int = 30,
-        skip: int = 0
-    ) -> List[Dict[str, Any]]:
-        """
-        Get price history for a machine and optional variant.
-        
-        Args:
-            machine_id (str): Machine ID
-            variant_attribute (str): Variant attribute (optional)
-            limit (int): Maximum number of history entries
-            skip (int): Number of entries to skip
-            
-        Returns:
-            List of price history entries
-        """
-        try:
-            # Build query for price_history table
-            query = self.supabase.table(PRICE_HISTORY_TABLE) \
-                .select("*") \
-                .eq("machine_id", machine_id)
-                
-            # Add variant filter if not "ALL"
-            if variant_attribute.upper() != "ALL":
-                query = query.eq("variant_attribute", variant_attribute)
-                
-            # Order by date descending and apply pagination
-            response = query.order("date", desc=True).range(skip, skip + limit - 1).execute()
-            
-            if not response.data:
-                logger.info(f"No price history found for {machine_id}/{variant_attribute}")
-                return []
-                
-            # Calculate price change percentage for each entry
-            price_history = response.data
-            for i, entry in enumerate(price_history):
-                old_price = entry.get("old_price")
-                new_price = entry.get("price")
-                
-                if old_price is not None and old_price > 0 and new_price is not None:
-                    entry["percentage_change"] = ((new_price - old_price) / old_price) * 100
-                else:
-                    entry["percentage_change"] = None
-                    
-            return price_history
-        except Exception as e:
-            logger.error(f"Error fetching price history for {machine_id}/{variant_attribute}: {str(e)}")
-            return []
-            
-    async def get_price_history_count(
-        self,
-        machine_id: str,
-        variant_attribute: str = "DEFAULT"
-    ) -> int:
-        """
-        Get count of price history entries for a machine and optional variant.
-        
-        Args:
-            machine_id (str): Machine ID
-            variant_attribute (str): Variant attribute (optional)
-            
-        Returns:
-            Count of price history entries
-        """
-        try:
-            # Build query for price_history table
-            query = self.supabase.table(PRICE_HISTORY_TABLE) \
-                .select("id", "count") \
-                .eq("machine_id", machine_id)
-                
-            # Add variant filter if not "ALL"
-            if variant_attribute.upper() != "ALL":
-                query = query.eq("variant_attribute", variant_attribute)
-                
-            # Execute count query
-            response = query.execute()
-            
-            if response.count is not None:
-                return response.count
-                
-            # Fallback if count is not available
-            return len(response.data) if response.data else 0
-        except Exception as e:
-            logger.error(f"Error counting price history for {machine_id}/{variant_attribute}: {str(e)}")
-            return 0
-    
-    async def get_llm_usage_summary(self, days: int = 30) -> Optional[Dict[str, Any]]:
-        """
-        Get overall LLM usage summary for the past number of days.
-        
-        Args:
-            days (int): Number of days to include in summary
-            
-        Returns:
-            Summary of usage including total cost, requests, and breakdowns
-        """
-        try:
-            # Calculate cutoff date
-            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            
-            # Get total usage
-            usage_response = self.supabase.table(LLM_USAGE_TABLE) \
-                .select("estimated_cost, model, tier") \
-                .gte("timestamp", cutoff_date) \
-                .execute()
-                
-            if not usage_response.data:
-                logger.info(f"No LLM usage found in the past {days} days")
-                return None
-                
-            usage_data = usage_response.data
-            
-            # Calculate total cost and requests
-            total_cost = sum(entry.get("estimated_cost", 0) for entry in usage_data)
-            total_requests = len(usage_data)
-            
-            # Calculate model breakdown
-            model_usage = {}
-            for entry in usage_data:
-                model = entry.get("model", "unknown")
-                cost = entry.get("estimated_cost", 0)
-                
-                if model not in model_usage:
-                    model_usage[model] = {
-                        "model": model,
-                        "cost": 0,
-                        "requests": 0
-                    }
-                    
-                model_usage[model]["cost"] += cost
-                model_usage[model]["requests"] += 1
-            
-            # Calculate tier breakdown
-            tier_usage = {}
-            for entry in usage_data:
-                tier = entry.get("tier", "unknown")
-                cost = entry.get("estimated_cost", 0)
-                
-                if tier not in tier_usage:
-                    tier_usage[tier] = {
-                        "tier": tier,
-                        "cost": 0,
-                        "requests": 0
-                    }
-                    
-                tier_usage[tier]["cost"] += cost
-                tier_usage[tier]["requests"] += 1
-            
-            # Format the summary
-            summary = {
-                "total_cost": total_cost,
-                "total_requests": total_requests,
-                "models": list(model_usage.values()),
-                "tiers": list(tier_usage.values())
-            }
-            
-            return summary
-        except Exception as e:
-            logger.error(f"Error getting LLM usage summary: {str(e)}")
-            return None
-            
-    async def get_llm_usage_by_model(self, days: int = 30) -> List[Dict[str, Any]]:
-        """
-        Get LLM usage breakdown by model for the past number of days.
-        
-        Args:
-            days (int): Number of days to include
-            
-        Returns:
-            List of usage statistics by model
-        """
-        try:
-            # Calculate cutoff date
-            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            
-            # Get usage grouped by model
-            usage_response = self.supabase.from_(LLM_USAGE_TABLE) \
-                .select("model, estimated_cost, prompt_tokens, completion_tokens, success") \
-                .gte("timestamp", cutoff_date) \
-                .execute()
-                
-            if not usage_response.data:
-                return []
-                
-            usage_data = usage_response.data
-            
-            # Calculate model breakdown
-            model_usage = {}
-            for entry in usage_data:
-                model = entry.get("model", "unknown")
-                cost = entry.get("estimated_cost", 0)
-                prompt_tokens = entry.get("prompt_tokens", 0)
-                completion_tokens = entry.get("completion_tokens", 0)
-                success = entry.get("success", False)
-                
-                if model not in model_usage:
-                    model_usage[model] = {
-                        "model": model,
-                        "cost": 0,
-                        "requests": 0,
-                        "successful_requests": 0,
-                        "prompt_tokens": 0,
-                        "completion_tokens": 0,
-                        "total_tokens": 0
-                    }
-                    
-                model_usage[model]["cost"] += cost
-                model_usage[model]["requests"] += 1
-                model_usage[model]["successful_requests"] += 1 if success else 0
-                model_usage[model]["prompt_tokens"] += prompt_tokens
-                model_usage[model]["completion_tokens"] += completion_tokens
-                model_usage[model]["total_tokens"] += prompt_tokens + completion_tokens
-            
-            # Calculate success rate
-            for model in model_usage.values():
-                if model["requests"] > 0:
-                    model["success_rate"] = (model["successful_requests"] / model["requests"]) * 100
-                else:
-                    model["success_rate"] = 0
-            
-            return sorted(list(model_usage.values()), key=lambda x: x["cost"], reverse=True)
-        except Exception as e:
-            logger.error(f"Error getting LLM usage by model: {str(e)}")
-            return []
-            
-    async def get_llm_usage_by_tier(self, days: int = 30) -> List[Dict[str, Any]]:
-        """
-        Get LLM usage breakdown by extraction tier for the past number of days.
-        
-        Args:
-            days (int): Number of days to include
-            
-        Returns:
-            List of usage statistics by extraction tier
-        """
-        try:
-            # Calculate cutoff date
-            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            
-            # Get usage grouped by tier
-            usage_response = self.supabase.from_(LLM_USAGE_TABLE) \
-                .select("tier, estimated_cost, model, success") \
-                .gte("timestamp", cutoff_date) \
-                .execute()
-                
-            if not usage_response.data:
-                return []
-                
-            usage_data = usage_response.data
-            
-            # Calculate tier breakdown
-            tier_usage = {}
-            for entry in usage_data:
-                tier = entry.get("tier", "unknown")
-                cost = entry.get("estimated_cost", 0)
-                model = entry.get("model", "unknown")
-                success = entry.get("success", False)
-                
-                if tier not in tier_usage:
-                    tier_usage[tier] = {
-                        "tier": tier,
-                        "cost": 0,
-                        "requests": 0,
-                        "successful_requests": 0,
-                        "models": {}
-                    }
-                    
-                tier_usage[tier]["cost"] += cost
-                tier_usage[tier]["requests"] += 1
-                tier_usage[tier]["successful_requests"] += 1 if success else 0
-                
-                # Track model usage within tier
-                if model not in tier_usage[tier]["models"]:
-                    tier_usage[tier]["models"][model] = 0
-                tier_usage[tier]["models"][model] += 1
-            
-            # Calculate success rate and format model usage
-            for tier in tier_usage.values():
-                if tier["requests"] > 0:
-                    tier["success_rate"] = (tier["successful_requests"] / tier["requests"]) * 100
-                else:
-                    tier["success_rate"] = 0
-                    
-                # Convert models dict to list of objects
-                models_list = []
-                for model, count in tier["models"].items():
-                    models_list.append({
-                        "model": model,
-                        "count": count,
-                        "percentage": (count / tier["requests"]) * 100 if tier["requests"] > 0 else 0
-                    })
-                tier["models"] = models_list
-            
-            return sorted(list(tier_usage.values()), key=lambda x: x["cost"], reverse=True)
-        except Exception as e:
-            logger.error(f"Error getting LLM usage by tier: {str(e)}")
-            return []
-            
-    async def get_llm_usage_by_date(self, days: int = 30, group_by: str = "day") -> List[Dict[str, Any]]:
-        """
-        Get LLM usage trends over time for the past number of days.
-        
-        Args:
-            days (int): Number of days to include
-            group_by (str): Grouping level (day, week, month)
-            
-        Returns:
-            List of usage statistics grouped by date
-        """
-        try:
-            # Calculate cutoff date
-            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            
-            # Get usage data
-            usage_response = self.supabase.from_(LLM_USAGE_TABLE) \
-                .select("timestamp, estimated_cost, model") \
-                .gte("timestamp", cutoff_date) \
-                .execute()
-                
-            if not usage_response.data:
-                return []
-                
-            usage_data = usage_response.data
-            
-            # Group by date based on specified level
-            date_usage = {}
-            for entry in usage_data:
-                timestamp_str = entry.get("timestamp")
-                if not timestamp_str:
-                    continue
-                    
-                timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-                
-                # Format date string based on grouping level
-                if group_by == "day":
-                    date_key = timestamp.strftime("%Y-%m-%d")
-                elif group_by == "week":
-                    # ISO week format: YYYY-WW
-                    date_key = f"{timestamp.isocalendar()[0]}-W{timestamp.isocalendar()[1]:02d}"
-                elif group_by == "month":
-                    date_key = timestamp.strftime("%Y-%m")
-                else:
-                    # Default to day
-                    date_key = timestamp.strftime("%Y-%m-%d")
-                
-                cost = entry.get("estimated_cost", 0)
-                model = entry.get("model", "unknown")
-                
-                if date_key not in date_usage:
-                    date_usage[date_key] = {
-                        "date": date_key,
-                        "cost": 0,
-                        "requests": 0,
-                        "models": {}
-                    }
-                    
-                date_usage[date_key]["cost"] += cost
-                date_usage[date_key]["requests"] += 1
-                
-                # Track model usage within date
-                if model not in date_usage[date_key]["models"]:
-                    date_usage[date_key]["models"][model] = {
-                        "model": model,
-                        "cost": 0,
-                        "requests": 0
-                    }
-                date_usage[date_key]["models"][model]["cost"] += cost
-                date_usage[date_key]["models"][model]["requests"] += 1
-            
-            # Format model usage for each date
-            for date_entry in date_usage.values():
-                date_entry["models"] = list(date_entry["models"].values())
-            
-            # Convert to list and sort by date
-            result = list(date_usage.values())
-            result.sort(key=lambda x: x["date"])
-            
-            return result
-        except Exception as e:
-            logger.error(f"Error getting LLM usage by date: {str(e)}")
-            return []
-    
-    async def get_machine_variants(self, machine_id: str) -> List[Dict[str, Any]]:
-        """
-        Get all variants for a machine.
-        
-        Args:
-            machine_id (str): Machine ID
-            
-        Returns:
-            List of variant records for the machine
-        """
-        try:
-            # Get variants from machines_latest table
-            response = self.supabase.table(MACHINES_LATEST_TABLE) \
-                .select("*") \
-                .eq("machine_id", machine_id) \
-                .execute()
-                
-            if not response.data:
-                logger.info(f"No variants found for machine {machine_id}")
-                return []
-                
-            return response.data
-        except Exception as e:
-            logger.error(f"Error fetching variants for machine {machine_id}: {str(e)}")
-            return []
-    
-    async def create_machine_variant(self, machine_id: str, variant_attribute: str, initial_price: float) -> bool:
-        """
-        Create a new variant for a machine.
-        
-        Args:
-            machine_id (str): Machine ID
-            variant_attribute (str): Variant attribute
-            initial_price (float): Initial price for the variant
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Check if variant already exists
-            existing = await self.get_machine_latest_price(machine_id, variant_attribute)
-            if existing:
-                logger.warning(f"Variant {variant_attribute} already exists for machine {machine_id}")
-                return False
-                
-            # Get machine to ensure it exists
-            machine = await self.get_machine_by_id(machine_id)
-            if not machine:
-                logger.error(f"Machine {machine_id} not found")
-                return False
-                
-            # Current time for timestamp
-            now = datetime.now(timezone.utc)
-            
-            # Create the variant in machines_latest
-            variant_data = {
-                "machine_id": machine_id,
-                "variant_attribute": variant_attribute,
-                "machines_latest_price": float(initial_price),
-                "currency": "USD",  # Default to USD
-                "last_checked": now.isoformat(),
-                "tier": "MANUAL_CREATE",
-                "confidence": 1.0,
-                "manual_review_flag": False
-            }
-            
-            response = self.supabase.table(MACHINES_LATEST_TABLE) \
-                .insert(variant_data) \
-                .execute()
-                
-            if response.data:
-                logger.info(f"Created variant {variant_attribute} for machine {machine_id}")
-                
-                # Add to price history
-                await self.add_price_history(
-                    machine_id=machine_id,
-                    variant_attribute=variant_attribute,
-                    new_price=initial_price,
-                    old_price=None,
-                    tier="MANUAL_CREATE",
-                    extracted_confidence=1.0,
-                    validation_confidence=1.0,
-                    success=True,
-                    error_message=None,
-                    source="admin_create_variant"
-                )
-                
-                return True
-            else:
-                logger.error(f"Failed to create variant {variant_attribute} for machine {machine_id}")
-                return False
-        except Exception as e:
-            logger.error(f"Error creating variant for machine {machine_id}: {str(e)}")
-            return False
-    
-    async def delete_machine_variant(self, machine_id: str, variant_attribute: str) -> bool:
-        """
-        Delete a variant for a machine.
-        
-        Args:
-            machine_id (str): Machine ID
-            variant_attribute (str): Variant attribute
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Don't allow deleting the DEFAULT variant
-            if variant_attribute == "DEFAULT":
-                logger.warning(f"Cannot delete the DEFAULT variant for machine {machine_id}")
-                return False
-                
-            # Delete from machines_latest
-            response = self.supabase.table(MACHINES_LATEST_TABLE) \
-                .delete() \
-                .eq("machine_id", machine_id) \
-                .eq("variant_attribute", variant_attribute) \
-                .execute()
-                
-            if response.data:
-                logger.info(f"Deleted variant {variant_attribute} for machine {machine_id}")
-                
-                # Also delete any configuration for this variant
-                await self.delete_variant_configs(machine_id, variant_attribute)
-                
-                return True
-            else:
-                logger.error(f"Failed to delete variant {variant_attribute} for machine {machine_id}")
-                return False
-        except Exception as e:
-            logger.error(f"Error deleting variant for machine {machine_id}: {str(e)}")
-            return False
-    
-    async def update_variant_config(self, machine_id: str, variant_attribute: str, domain: str, config_data: Dict[str, Any]) -> bool:
-        """
-        Update configuration for a variant.
-        
-        Args:
-            machine_id (str): Machine ID
-            variant_attribute (str): Variant attribute
-            domain (str): Domain
-            config_data (dict): Configuration updates
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Improved logging to see what we're trying to update
-            logger.info(f"Attempting to update config for {machine_id}/{variant_attribute}/{domain} with data: {config_data}")
-            
-            # Check if config exists
-            existing = await self.get_variant_config(machine_id, variant_attribute, domain)
-            
-            if not existing:
-                logger.warning(f"No configuration exists for {machine_id}/{variant_attribute}/{domain}. Creating new config.")
-                # Instead of returning False, let's create a new configuration
-                return await self.create_variant_config({
-                    "machine_id": machine_id,
-                    "variant_attribute": variant_attribute,
-                    "domain": domain,
-                    **config_data
-                })
-                
-            # Update the configuration
-            response = self.supabase.table(VARIANT_CONFIG_TABLE) \
-                .update(config_data) \
-                .eq("machine_id", machine_id) \
-                .eq("variant_attribute", variant_attribute) \
-                .eq("domain", domain) \
-                .execute()
-                
-            if response and hasattr(response, 'data') and response.data:
-                logger.info(f"Updated configuration for {machine_id}/{variant_attribute}/{domain}")
-                return True
-            else:
-                logger.error(f"Failed to update configuration for {machine_id}/{variant_attribute}/{domain}, response: {response}")
-                return False
-        except Exception as e:
-            logger.error(f"Error updating configuration for {machine_id}/{variant_attribute}/{domain}: {str(e)}", exc_info=True)
-            return False
-    
-    async def create_variant_config(self, config_data: Dict[str, Any]) -> bool:
-        """
-        Create a new configuration for a variant.
-        
-        Args:
-            config_data (dict): Configuration data
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Ensure required fields are present
-            required_fields = ["machine_id", "variant_attribute", "domain"]
-            for field in required_fields:
-                if field not in config_data:
-                    logger.error(f"Missing required field {field} in configuration data")
-                    return False
-                    
-            # Create the configuration
-            response = self.supabase.table(VARIANT_CONFIG_TABLE) \
-                .insert(config_data) \
-                .execute()
-                
-            if response.data:
-                logger.info(f"Created configuration for {config_data['machine_id']}/{config_data['variant_attribute']}/{config_data['domain']}")
-                return True
-            else:
-                logger.error(f"Failed to create configuration for {config_data['machine_id']}/{config_data['variant_attribute']}/{config_data['domain']}")
-                return False
-        except Exception as e:
-            logger.error(f"Error creating configuration: {str(e)}")
-            return False
-    
-    async def delete_variant_configs(self, machine_id: str, variant_attribute: str) -> bool:
-        """
-        Delete all configurations for a variant.
-        
-        Args:
-            machine_id (str): Machine ID
-            variant_attribute (str): Variant attribute
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Delete all configurations for this variant
-            response = self.supabase.table(VARIANT_CONFIG_TABLE) \
-                .delete() \
-                .eq("machine_id", machine_id) \
-                .eq("variant_attribute", variant_attribute) \
-                .execute()
-                
-            logger.info(f"Deleted configurations for {machine_id}/{variant_attribute}")
-            return True
-        except Exception as e:
-            logger.error(f"Error deleting configurations for {machine_id}/{variant_attribute}: {str(e)}")
-            return False
-    
-    async def get_machines_needing_update(self, days_threshold: int = 7, machine_ids: List[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Get machines that need price updates based on last update time.
-        
-        Args:
-            days_threshold (int): Days since last update to qualify for an update
-            machine_ids (List[str], optional): Specific machine IDs to consider for update
-            limit (Optional[int], optional): Maximum number of machines to return
-            
-        Returns:
-            List[Dict[str, Any]]: List of machines needing updates
-        """
-        try:
-            logger.info(f"Getting machines needing update with days_threshold={days_threshold}")
-            
-            # Start building the query with machines table
-            query = self.supabase.table(MACHINES_TABLE).select("*")
-            
-            # Filter by specific machine IDs if provided
-            if machine_ids and len(machine_ids) > 0:
-                query = query.in_("id", machine_ids)
-                logger.info(f"Filtering by {len(machine_ids)} specific machine IDs")
-            else:
-                # Only consider machines with a product link
-                query = query.not_.is_("product_link", "null")
-            
-            # Apply limit if specified
-            if limit is not None:
-                query = query.limit(limit)
-                logger.info(f"Limiting to {limit} machines")
-                
-            # Execute the query
-            response = query.execute()
-            
-            if not response.data:
-                logger.info("No machines found needing updates")
-                return []
-                
-            logger.info(f"Found {len(response.data)} machines needing updates")
-            return response.data
-        except Exception as e:
-            logger.error(f"Error getting machines needing update: {str(e)}")
-            return [] 
