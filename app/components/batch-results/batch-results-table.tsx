@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronDown, Clock, ExternalLink, Info } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Clock, ExternalLink, Info, CheckCircle, XCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +26,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
 
 interface BatchResultsTableProps {
   results: BatchResultItem[];
@@ -344,6 +345,72 @@ function DurationDisplay({ durationSeconds }: { durationSeconds: number | null }
 
 // Actions menu
 function ActionsMenu({ result }: { result: BatchResultItem }) {
+  const handleApprove = async () => {
+    try {
+      const response = await fetch(`/api/v1/reviews/${result.id}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to approve price: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to approve price');
+      }
+      
+      // Show success message
+      toast.success(`Price update for ${result.machineName} has been approved.`);
+      
+      // Refresh the page to show updated data
+      window.location.reload();
+      
+    } catch (err: any) {
+      console.error('Error approving price:', err);
+      
+      // Show error toast
+      toast.error(err.message || "Failed to approve price");
+    }
+  };
+  
+  const handleReject = async () => {
+    try {
+      const response = await fetch(`/api/v1/reviews/${result.id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to reject price: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to reject price');
+      }
+      
+      // Show success message
+      toast.success(`Price update for ${result.machineName} has been rejected.`);
+      
+      // Refresh the page to show updated data
+      window.location.reload();
+      
+    } catch (err: any) {
+      console.error('Error rejecting price:', err);
+      
+      // Show error toast
+      toast.error(err.message || "Failed to reject price");
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -359,6 +426,26 @@ function ActionsMenu({ result }: { result: BatchResultItem }) {
           <ExternalLink className="mr-2 h-4 w-4" />
           View Source
         </DropdownMenuItem>
+        
+        {result.needsReview && (
+          <>
+            <DropdownMenuItem 
+              onClick={handleApprove}
+              className="cursor-pointer text-green-600 hover:text-green-700 hover:bg-green-50"
+            >
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Approve Price
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem 
+              onClick={handleReject}
+              className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <XCircle className="mr-2 h-4 w-4" />
+              Reject Price
+            </DropdownMenuItem>
+          </>
+        )}
         
         {(!result.success || result.needsReview) && (
           <ValidationDetailsButton result={result} />
