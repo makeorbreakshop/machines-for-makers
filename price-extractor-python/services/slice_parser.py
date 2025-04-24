@@ -43,14 +43,14 @@ class SliceParser:
         
         # Price-related regex patterns
         self.price_patterns = [
-            r'\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})',  # $1,299.99
-            r'\d{1,3}(?:,\d{3})*(?:\.\d{2})\s*USD',  # 1,299.99 USD
-            r'Price:\s*\$?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})',  # Price: $1,299.99
-            r'^\d{1,3}(?:,\d{3})*(?:\.\d{2})$',  # 1,299.99 (standalone number)
-            r'Sale\s+price:\s*\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})',  # Sale price: $1,299.99
-            r'Regular\s+price:\s*\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})',  # Regular price: $1,299.99
-            r'(?:Original|Was):\s*\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})',  # Original: $1,299.99
-            r'(?:Now|Current):\s*\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})'  # Now: $1,299.99
+            r'\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?',  # $1,299.99 or $1,299
+            r'\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*USD',  # 1,299.99 USD or 1,299 USD
+            r'Price:\s*\$?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?',  # Price: $1,299.99 or Price: $1,299
+            r'^\d{1,3}(?:,\d{3})*(?:\.\d{2})?$',  # 1,299.99 or 1,299 (standalone number)
+            r'Sale\s+price:\s*\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?',  # Sale price: $1,299.99 or Sale price: $1,299
+            r'Regular\s+price:\s*\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?',  # Regular price: $1,299.99 or Regular price: $1,299
+            r'(?:Original|Was):\s*\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?',  # Original: $1,299.99 or Original: $1,299
+            r'(?:Now|Current):\s*\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?'  # Now: $1,299.99 or Now: $1,299
         ]
         
         # Tokens and costs tracking
@@ -155,7 +155,7 @@ class SliceParser:
             logger.error(f"Error in extract_price: {str(e)}")
             return {"error": str(e)}
     
-    def extract_fast(self, html_content: str, url: str, previous_price: Optional[Decimal] = None) -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
+    def extract_fast(self, html_content: str, url: str, previous_price: Optional[Decimal] = None, variant_attribute: str = "DEFAULT") -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
         """
         Extract price from HTML snippet using Claude Haiku (fast tier).
         
@@ -163,6 +163,7 @@ class SliceParser:
             html_content: HTML content of the page
             url: URL of the page
             previous_price: Previous known price (for context)
+            variant_attribute: Variant attribute (e.g., '60W', 'Pro HD', etc.)
             
         Returns:
             Tuple of (price, method, confidence, usage_info)
@@ -176,12 +177,13 @@ class SliceParser:
             url, 
             previous_price_str, 
             CLAUDE_HAIKU_MODEL, 
-            TIER_SLICE_FAST
+            TIER_SLICE_FAST,
+            variant_attribute
         )
         
         return result
     
-    def extract_balanced(self, html_content: str, url: str, previous_price: Optional[Decimal] = None) -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
+    def extract_balanced(self, html_content: str, url: str, previous_price: Optional[Decimal] = None, variant_attribute: str = "DEFAULT") -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
         """
         Extract price from HTML snippet using Claude Sonnet (balanced tier).
         
@@ -189,6 +191,7 @@ class SliceParser:
             html_content: HTML content of the page
             url: URL of the page
             previous_price: Previous known price (for context)
+            variant_attribute: Variant attribute (e.g., '60W', 'Pro HD', etc.)
             
         Returns:
             Tuple of (price, method, confidence, usage_info)
@@ -202,7 +205,8 @@ class SliceParser:
             url, 
             previous_price_str, 
             CLAUDE_SONNET_MODEL,
-            TIER_SLICE_BALANCED
+            TIER_SLICE_BALANCED,
+            variant_attribute
         )
         
         return result
@@ -319,19 +323,136 @@ class SliceParser:
             
             return []
     
-    def _extract_with_claude(self, snippets: List[str], url: str, previous_price: str, model: str, tier: str) -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
+    def _extract_with_claude(self, snippets: List[str], url: str, previous_price: str, model: str, tier: str, variant_attribute: str = "DEFAULT") -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
         """
-        Use Claude to extract price from snippets.
+        Extract price from snippets using a specified Claude model.
         
         Args:
-            snippets: List of HTML snippets
+            snippets: List of HTML snippets containing potential price info
             url: URL of the page
             previous_price: Previous price as string
-            model: Claude model to use
-            tier: Extraction tier name
+            model: Claude model name (e.g., CLAUDE_HAIKU_MODEL)
+            tier: The extraction tier calling this function (e.g., TIER_SLICE_FAST)
+            variant_attribute: Variant attribute (e.g., '60W', 'Pro HD', etc.)
             
         Returns:
-            Tuple of (price, method, confidence, usage_info)
+            Tuple of (price, method, confidence, llm_usage_data)
+        """
+        if not snippets:
+            logger.warning(f"No snippets found for {tier} tier on {url}")
+            return None, f"{tier}_NO_SNIPPETS", 0.0, {}
+            
+        # Prepare the prompt
+        prompt = self._build_claude_prompt(snippets, url, previous_price, variant_attribute)
+        
+        # Estimate prompt tokens (basic estimate)
+        prompt_tokens_estimated = len(prompt.split()) // 0.75 
+        
+        # Log API call attempt
+        logger.info(f"Calling Claude model {model} for {tier} extraction on {url}")
+        logger.debug(f"Claude Prompt for {tier} ({url}):\n{prompt[:500]}...") # Log first 500 chars
+        
+        try:
+            # Make the API call
+            response = self.claude.messages.create(
+                model=model,
+                max_tokens=500,
+                temperature=0.1,
+                system="You are an AI assistant specialized in extracting product prices from HTML snippets. Respond ONLY with a JSON object containing 'price' (float or null), 'currency' (string, e.g., 'USD'), and 'confidence' (float 0.0-1.0).",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            
+            # Process response
+            prompt_tokens = response.usage.input_tokens
+            completion_tokens = response.usage.output_tokens
+            
+            # Log successful API call
+            logger.success(f"Claude API call successful for {tier} ({url}). Tokens: {prompt_tokens}p + {completion_tokens}c")
+            logger.debug(f"Claude Raw Response ({tier}, {url}): {response.content}")
+            
+            try:
+                # Extract JSON content - response.content is a list of blocks
+                if response.content and isinstance(response.content, list) and hasattr(response.content[0], 'text'):
+                    json_content = response.content[0].text
+                    result = json.loads(json_content)
+                    logger.debug(f"Parsed JSON result ({tier}, {url}): {result}")
+                else:
+                    logger.error(f"Unexpected Claude response format for {tier} ({url}): {response.content}")
+                    raise ValueError("Unexpected response format")
+                
+                # Extract price, confidence, and currency
+                price_value = result.get("price")
+                confidence = float(result.get("confidence", 0.0))
+                # currency = result.get("currency", "USD") # Currency handled later
+                
+                if price_value is not None:
+                    # Convert price to Decimal
+                    try:
+                        price_decimal = Decimal(str(price_value))
+                        
+                        # Calculate estimated cost
+                        cost_info = LLM_COSTS.get(model, {})
+                        estimated_cost = (
+                            (prompt_tokens / 1_000_000) * cost_info.get("input", 0) +
+                            (completion_tokens / 1_000_000) * cost_info.get("output", 0)
+                        )
+                        
+                        llm_usage_data = {
+                            "model": model,
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": completion_tokens,
+                            "estimated_cost": estimated_cost
+                        }
+                        
+                        logger.info(f"Extracted price {price_decimal} with confidence {confidence} using {tier}")
+                        return price_decimal, f"{tier}:{model}", confidence, llm_usage_data
+                    except (ValueError, TypeError, Decimal.InvalidOperation) as e:
+                        logger.error(f"Error converting extracted price '{price_value}' to Decimal for {tier} ({url}): {e}")
+                        # Fall through to return failure
+                else:
+                    logger.warning(f"Claude ({tier}) did not find a price in the response for {url}")
+                    
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON response from Claude ({tier}) for {url}: {e}")
+                logger.error(f"Raw non-JSON content: {json_content}")
+            except Exception as e:
+                logger.error(f"Error processing Claude response ({tier}) for {url}: {e}")
+
+        except anthropic.APIStatusError as e:
+            logger.error(f"Claude API returned an error ({tier}, {url}): Status Code {e.status_code}, Response: {e.response}")
+        except anthropic.APIConnectionError as e:
+            logger.error(f"Failed to connect to Claude API ({tier}, {url}): {e}")
+        except anthropic.RateLimitError as e:
+            logger.error(f"Claude API rate limit exceeded ({tier}, {url}): {e}")
+        except anthropic.AuthenticationError as e:
+             logger.error(f"Claude API authentication failed ({tier}, {url}). Check API key. Error: {e}")
+        except Exception as e:
+            # Catch any other unexpected errors during the API call or processing
+            logger.exception(f"Unexpected error calling Claude API or processing response ({tier}, {url}): {e}")
+        
+        # Return failure if any error occurred or price wasn't extracted
+        llm_usage_data = {"model": model, "error": f"Failed during {tier} Claude call"}
+        # Add token usage if available, even on failure
+        if 'response' in locals() and response.usage:
+             llm_usage_data["prompt_tokens"] = response.usage.input_tokens
+             llm_usage_data["completion_tokens"] = response.usage.output_tokens
+             
+        return None, f"{tier}_FAILED", 0.0, llm_usage_data
+    
+    def _build_claude_prompt(self, snippets: List[str], url: str, previous_price: str, variant_attribute: str = "DEFAULT") -> str:
+        """
+        Build the prompt for Claude API call.
+        
+        Args:
+            snippets: List of HTML snippets containing potential price info
+            url: URL of the page
+            previous_price: Previous price as string
+            variant_attribute: Variant attribute (e.g., '60W', 'Pro HD', etc.)
+            
+        Returns:
+            Prompt string for Claude API call
         """
         # Combine snippets with limit
         combined_text = "\n---\n".join(snippets)
@@ -345,110 +466,50 @@ class SliceParser:
             f"of the product in USD ($). Previous known price was {previous_price}."
         )
         
-        # Create user prompt
-        user_prompt = (
-            f"I need you to extract the current price of the product from the following HTML snippets from {url}.\n\n"
-            f"When determining the price:\n"
-            f"1. Look for the main product price, not shipping, tax, or add-on prices\n"
-            f"2. If there's a sale price and regular price, choose the sale price\n"
-            f"3. Ignore strikethrough prices, 'was' prices, or crossed-out prices\n"
-            f"4. Prefer prices that are prominently displayed or near 'add to cart' buttons\n"
-            f"5. The previous known price was {previous_price}, which might help identify the correct price area\n\n"
-            f"HTML SNIPPETS:\n{combined_text}\n\n"
-            f"Provide your answer in JSON format with these fields:\n"
-            f"- price: The numerical price value (e.g., 1299.99) without currency symbols or formatting\n"
-            f"- extracted_price_display: How the price appears on the site (e.g., '$1,299.99')\n"
-            f"- confidence: A number from 0 to 1 indicating your confidence in the extraction\n"
-            f"- explanation: A brief explanation of how you identified this price\n\n"
-            f"Only respond with valid JSON. If you cannot find a price, set price to null and explain why."
-        )
-        
-        usage_info = {
-            "model": model,
-            "tier": tier,
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "estimated_cost": 0.0
-        }
-        
-        try:
-            # Call Claude API
-            response = self.claude.messages.create(
-                model=model,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}],
-                max_tokens=1000,
-                temperature=0.0
+        # Create user prompt with variant information
+        if variant_attribute == "DEFAULT":
+            # For DEFAULT variants, look for the main/primary model price
+            user_prompt = (
+                f"I need you to extract the current price of the product from the following HTML snippets from {url}.\n\n"
+                f"IMPORTANT: I'm looking for the price of the main/primary model. This is likely:\n"
+                f"- The most prominently displayed price\n"
+                f"- The first or featured model price\n"
+                f"- Often labeled as 'Pro', 'Pro HD', or the model mentioned in the URL\n"
+                f"- The most expensive option if multiple models are shown\n\n"
+                f"When determining the price:\n"
+                f"1. Look for the main product price, not shipping, tax, or add-on prices\n"
+                f"2. If there's a sale price and regular price, choose the sale price\n"
+                f"3. Ignore strikethrough prices, 'was' prices, or crossed-out prices\n"
+                f"4. Prefer prices that are prominently displayed or near 'add to cart' buttons\n"
+                f"5. If multiple models are shown, prioritize finding the price for the primary/main model (likely the 'Pro HD' model)\n"
+                f"6. The previous known price was {previous_price}, which might help identify the correct price area\n\n"
+                f"HTML SNIPPETS:\n{combined_text}\n\n"
+                f"Provide your answer in JSON format with these fields:\n"
+                f"- price: The numerical price value (e.g., 1299.99) without currency symbols or formatting\n"
+                f"- extracted_price_display: How the price appears on the site (e.g., '$1,299.99')\n"
+                f"- confidence: A number from 0 to 1 indicating your confidence in the extraction\n"
+                f"- explanation: A brief explanation of how you identified this price\n\n"
+                f"Only respond with valid JSON. If you cannot find a price, set price to null and explain why."
             )
-            
-            # Extract response text
-            response_text = response.content[0].text
-            
-            # Parse JSON response
-            try:
-                # Handle potential text before or after JSON
-                json_match = re.search(r'({[\s\S]*})', response_text)
-                if json_match:
-                    json_str = json_match.group(1)
-                    result = json.loads(json_str)
-                else:
-                    # Try to fix common JSON issues
-                    cleaned_text = response_text.strip()
-                    if cleaned_text.startswith('```json'):
-                        cleaned_text = cleaned_text[7:]
-                    if cleaned_text.endswith('```'):
-                        cleaned_text = cleaned_text[:-3]
-                    result = json.loads(cleaned_text)
-            except json.JSONDecodeError:
-                # Try to extract just the price if JSON parsing fails
-                price_match = re.search(r'"price":\s*(\d+(?:\.\d+)?)', response_text)
-                if price_match:
-                    price_value = float(price_match.group(1))
-                    result = {
-                        "price": price_value,
-                        "confidence": 0.7,
-                        "explanation": "Extracted price from partial JSON response"
-                    }
-                else:
-                    logger.error(f"Failed to parse JSON from Claude response: {response_text}")
-                    result = {
-                        "price": None,
-                        "confidence": 0,
-                        "explanation": "Failed to parse response"
-                    }
-            
-            # Calculate token usage and cost
-            prompt_tokens = response.usage.input_tokens
-            completion_tokens = response.usage.output_tokens
-            
-            # Calculate cost
-            input_cost = (prompt_tokens / 1_000_000) * LLM_COSTS[model]["input"]
-            output_cost = (completion_tokens / 1_000_000) * LLM_COSTS[model]["output"]
-            estimated_cost = input_cost + output_cost
-            
-            # Update usage info
-            usage_info["prompt_tokens"] = prompt_tokens
-            usage_info["completion_tokens"] = completion_tokens
-            usage_info["estimated_cost"] = estimated_cost
-            
-            # Store for later reference
-            self.last_tokens_used = usage_info
-            
-            # Extract price and confidence
-            price_value = result.get("price")
-            confidence = result.get("confidence", 0)
-            explanation = result.get("explanation", "")
-            
-            if price_value is not None:
-                try:
-                    price = Decimal(str(price_value))
-                    method = f"{tier}:{model.split('-')[-1]}"
-                    return price, method, float(confidence), usage_info
-                except (ValueError, TypeError, InvalidOperation):
-                    logger.error(f"Invalid price value from Claude: {price_value}")
-            
-            return None, f"{tier}_FAILED", 0.0, usage_info
-            
-        except Exception as e:
-            logger.error(f"Error calling Claude for price extraction: {str(e)}")
-            return None, f"{tier}_ERROR", 0.0, usage_info 
+        else:
+            # For specific variants, look for that exact variant
+            user_prompt = (
+                f"I need you to extract the current price of the product from the following HTML snippets from {url}.\n\n"
+                f"IMPORTANT: I'm specifically looking for the price of the '{variant_attribute}' variant/model.\n\n"
+                f"When determining the price:\n"
+                f"1. Look for the main product price for the '{variant_attribute}' model/variant, not shipping, tax, or add-on prices\n"
+                f"2. If there's a sale price and regular price, choose the sale price\n"
+                f"3. Ignore strikethrough prices, 'was' prices, or crossed-out prices\n"
+                f"4. Prefer prices that are prominently displayed or near 'add to cart' buttons\n"
+                f"5. Look specifically for elements that mention '{variant_attribute}' near the price\n"
+                f"6. The previous known price was {previous_price}, which might help identify the correct price area\n\n"
+                f"HTML SNIPPETS:\n{combined_text}\n\n"
+                f"Provide your answer in JSON format with these fields:\n"
+                f"- price: The numerical price value (e.g., 1299.99) without currency symbols or formatting\n"
+                f"- extracted_price_display: How the price appears on the site (e.g., '$1,299.99')\n"
+                f"- confidence: A number from 0 to 1 indicating your confidence in the extraction\n"
+                f"- explanation: A brief explanation of how you identified this price\n\n"
+                f"Only respond with valid JSON. If you cannot find a price, set price to null and explain why."
+            )
+        
+        return user_prompt 

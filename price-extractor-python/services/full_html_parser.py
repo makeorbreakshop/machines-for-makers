@@ -11,8 +11,10 @@ from decimal import Decimal
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import bs4
 from bs4 import BeautifulSoup
-import openai
-from openai import RateLimitError, APIError, APIConnectionError, Timeout
+# Remove the old direct import if it exists (it might not be explicitly imported)
+# import openai 
+# Import the specific client classes needed
+from openai import AsyncOpenAI, RateLimitError, APIError, APIConnectionError, Timeout 
 from httpx import AsyncClient  # Add this import for test compatibility
 
 from config import (
@@ -28,20 +30,25 @@ class FullHtmlParser:
     Implements the FULL_HTML tier using GPT-4o for complex documents.
     """
     
-    def __init__(self):
+    def __init__(self, config=None):
         """Initialize the Full HTML parser with GPT integration."""
         # Check for OpenAI API key
         self.api_key = os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             logger.warning("OpenAI API key not found in environment variables")
             self.available = False
+            self.client = None # Explicitly set client to None if unavailable
         else:
             self.available = True
-            openai.api_key = self.api_key
+            # Instantiate the AsyncOpenAI client
+            self.client = AsyncOpenAI(api_key=self.api_key)
             
-        # Configure the LLM client
-        self.model = "gpt-4o"
-        self.max_html_tokens = 120000  # GPT-4o context limit is much higher, but we'll be conservative
+        # Store config if provided
+        self.config = config
+            
+        # Configure the LLM model name (using the variable from config)
+        self.model = GPT4O_MODEL 
+        self.max_html_tokens = 25000  # Reduced from 120000 to 25000
         
         # Set up extraction prompts
         self.system_prompt = """You are a specialized AI trained to extract product price information from HTML content.
@@ -74,7 +81,7 @@ Be precise and return only the exact current price, not ranges, "starting at" pr
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10)
     )
-    async def extract(self, html_content: str, url: str, variant_attribute: str = "DEFAULT") -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
+    async def extract(self, html_content: str, url: str, variant_attribute: str = "DEFAULT", previous_price: Optional[Decimal] = None) -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
         """
         Extract price from complete HTML using GPT-4o.
         
@@ -82,12 +89,13 @@ Be precise and return only the exact current price, not ranges, "starting at" pr
             html_content: Complete HTML content
             url: URL of the page (for context)
             variant_attribute: Variant attribute to extract price for
+            previous_price: Previous price (optional, for context in prompt)
             
         Returns:
             Tuple of (price, method, confidence, llm_usage_data)
         """
-        if not self.available:
-            logger.error("Full HTML parser not available: OpenAI API key not configured")
+        if not self.available or not self.client:
+            logger.error("Full HTML parser not available: OpenAI API key not configured or client not initialized")
             return None, "FULL_HTML_NOT_CONFIGURED", 0.0, {}
         
         try:
@@ -100,11 +108,13 @@ Be precise and return only the exact current price, not ranges, "starting at" pr
             user_message = f"URL: {url}\n"
             if variant_attribute != "DEFAULT":
                 user_message += f"Variant: {variant_attribute}\n"
+            if previous_price is not None:
+                 user_message += f"Previous Price: ${previous_price:.2f}\n" # Add previous price to prompt
             user_message += f"HTML content:\n{processed_html}"
             
-            # Call the OpenAI API
-            logger.info(f"Calling GPT-4o to extract price from {url}")
-            response = await openai.ChatCompletion.acreate(
+            # Call the OpenAI API using the new client syntax
+            logger.info(f"Calling {self.model} to extract price from {url}")
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": self.system_prompt},
@@ -115,10 +125,11 @@ Be precise and return only the exact current price, not ranges, "starting at" pr
                 response_format={"type": "json_object"}
             )
             
-            # Calculate token usage
-            prompt_tokens = response.usage.prompt_tokens
-            completion_tokens = response.usage.completion_tokens
-            total_tokens = response.usage.total_tokens
+            # Calculate token usage (accessing usage directly from response)
+            usage = response.usage
+            prompt_tokens = usage.prompt_tokens if usage else 0
+            completion_tokens = usage.completion_tokens if usage else 0
+            total_tokens = usage.total_tokens if usage else 0
             processing_time = time.time() - start_time
             
             # Parse the response
@@ -199,20 +210,32 @@ Be precise and return only the exact current price, not ranges, "starting at" pr
             # Parse the HTML
             soup = BeautifulSoup(html_content, 'html.parser')
             
+            # CRITICAL FIX: Check for maximum length before processing
+            # If HTML is extremely large, truncate it first to avoid processing overhead
+            if len(html_content) > 100000:
+                logger.warning(f"HTML content too large ({len(html_content)} chars), pre-truncating")
+                html_content = html_content[:100000]
+                soup = BeautifulSoup(html_content, 'html.parser')
+            
             # Remove unnecessary elements that typically don't contain price information
-            for element in soup.select('script:not([type="application/ld+json"])'):
-                element.decompose()
-                
-            for element in soup.select('style, iframe, svg, path, noscript, head > meta, head > link'):
-                element.decompose()
+            for selector in ['script:not([type="application/ld+json"])', 'style', 'iframe', 'svg', 'path', 'noscript', 'head > meta', 'head > link']:
+                for element in soup.select(selector):
+                    # CRITICAL FIX: Check element type before calling decompose
+                    if hasattr(element, 'decompose'):
+                        element.decompose()
             
             # Keep only specific parts of the HEAD for structured data
             head = soup.find('head')
             if head:
                 # Keep only title, json-ld scripts, and price meta tags
                 for child in list(head.children):
+                    # CRITICAL FIX: Check if child is a tag (not NavigableString)
+                    if not hasattr(child, 'name'):
+                        continue
+                        
                     if child.name not in ['title', 'script', 'meta']:
-                        child.decompose()
+                        if hasattr(child, 'decompose'):
+                            child.decompose()
                     elif child.name == 'meta':
                         # Keep only meta tags related to product or price
                         property_attr = child.get('property', '')
@@ -220,7 +243,8 @@ Be precise and return only the exact current price, not ranges, "starting at" pr
                         if not ('product' in property_attr or 'price' in property_attr or 
                                 'product' in name_attr or 'price' in name_attr or
                                 'og:' in property_attr):
-                            child.decompose()
+                            if hasattr(child, 'decompose'):
+                                child.decompose()
             
             # Focus on main product sections
             product_sections = []
@@ -243,36 +267,59 @@ Be precise and return only the exact current price, not ranges, "starting at" pr
                 
                 # Add structured data scripts
                 for script in structured_data_scripts:
-                    new_soup.head.append(script)
+                    if hasattr(new_soup.head, 'append'):
+                        new_soup.head.append(script)
                 
                 # Add structured data meta tags
                 meta_tags = soup.select('meta[property*="product"], meta[property*="price"], meta[property^="og:"]')
                 for tag in meta_tags:
-                    new_soup.head.append(tag)
+                    if hasattr(new_soup.head, 'append'):
+                        new_soup.head.append(tag)
                 
                 # Add product sections to the body
                 for section in product_sections:
-                    new_soup.body.append(section)
+                    # CRITICAL FIX: Skip NavigableString objects
+                    if hasattr(section, 'name') and hasattr(new_soup.body, 'append'):
+                        new_soup.body.append(section)
                 
                 # Use the reduced HTML
                 processed_html = str(new_soup)
             else:
-                # If we couldn't find good focused elements, use the cleaned full HTML
-                processed_html = str(soup)
+                # CRITICAL FIX: Find product-related div elements only, don't use full soup
+                body = soup.find('body')
+                if body:
+                    # Extract only product and price related sections
+                    relevant_sections = body.select('div[class*="product"], div[class*="price"], div[id*="product"], div[id*="price"]')
+                    if relevant_sections:
+                        new_body = BeautifulSoup('<body></body>', 'html.parser').body
+                        for section in relevant_sections:
+                            if hasattr(section, 'name') and hasattr(new_body, 'append'):
+                                new_body.append(section)
+                        processed_html = str(new_body)
+                    else:
+                        # If no product sections found, use truncated body
+                        processed_html = str(body)[:40000]
+                else:
+                    # If no body found, use truncated original HTML
+                    processed_html = html_content[:40000]
             
             # Remove excessive whitespace
             processed_html = re.sub(r'\s+', ' ', processed_html)
             
-            # Check the length and further truncate if needed
-            if len(processed_html) > self.max_html_tokens * 4:  # Rough character to token ratio
-                logger.warning(f"HTML still too large after preprocessing, truncating to approximately {self.max_html_tokens} tokens")
-                processed_html = processed_html[:self.max_html_tokens * 4]
+            # CRITICAL FIX: Enforce a much stricter token limit
+            max_chars = self.max_html_tokens * 4  # Rough character to token ratio
+            if len(processed_html) > max_chars:
+                logger.warning(f"HTML still too large after preprocessing, truncating to {self.max_html_tokens} tokens")
+                processed_html = processed_html[:max_chars]
+                
+            logger.info(f"Preprocessed HTML length: {len(processed_html)} characters, approximately {len(processed_html) // 4} tokens")
             
             return processed_html
             
         except Exception as e:
             logger.error(f"Error preprocessing HTML: {str(e)}")
             # Return truncated original content on error
+            # CRITICAL FIX: Return a much smaller truncated HTML
             return html_content[:self.max_html_tokens * 4]
 
 # Add the FullHTMLParser class for test compatibility
@@ -285,7 +332,7 @@ class FullHTMLParser:
     def __init__(self, config=None):
         """Initialize the Full HTML parser with config."""
         self.config = config
-        self.parser = FullHtmlParser()
+        self.parser = FullHtmlParser(config)
         self.api_key = OPENAI_API_KEY
         
         # Get model from config if provided

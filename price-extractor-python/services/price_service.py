@@ -3,11 +3,14 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 import time
+from typing import Dict, Any
+from urllib.parse import urlparse
 
 from services.database_service import DatabaseService
 from scrapers.web_scraper import WebScraper
 from scrapers.price_extractor import PriceExtractor
 from utils.price_validator import PriceValidator
+from config import PRICE_HISTORY_TABLE
 
 class PriceService:
     """Service to coordinate price extraction and database updates."""
@@ -20,105 +23,111 @@ class PriceService:
         self.price_validator = PriceValidator()
         logger.info("Price service initialized")
     
-    async def extract_machine_price(self, machine_id, url=None):
+    async def extract_machine_price(self, machine_id: str, variant_attribute: str = "DEFAULT", dry_run: bool = False) -> Dict[str, Any]:
         """
-        Extract price for a specific machine without saving to database.
+        Extract the latest price for a machine from its product page.
         
         Args:
-            machine_id (str): The ID of the machine to extract price for.
-            url (str, optional): URL to override the one in the database.
+            machine_id: ID of the machine to extract price for
+            variant_attribute: Optional variant attribute to extract price for
+            dry_run: If True, don't save to database, just return extraction result
             
         Returns:
-            dict: Extraction result with new price, old price, and detailed status.
+            Dictionary with extraction result
         """
-        logger.info(f"Processing price extraction for machine {machine_id}")
-        
         try:
-            # Get machine data from database
-            machine = await self.db_service.get_machine_by_id(machine_id)
+            # Get machine details from database
+            machine = await self.get_machine_details(machine_id)
+            
             if not machine:
-                logger.error(f"Machine {machine_id} not found in database")
-                return {"success": False, "error": f"Machine not found in database: {machine_id}", "machine_id": machine_id}
+                return {
+                    "success": False,
+                    "error": f"Machine not found with ID: {machine_id}"
+                }
+                
+            url = machine.get("url") or machine.get("product_link")
+            machine_name = machine.get("name") or machine.get("Machine Name", "Unknown Machine")
             
-            # Use provided URL or get from database
-            product_url = url or machine.get("product_link")
+            if not url:
+                return {
+                    "success": False, 
+                    "error": f"No URL found for machine: {machine_id}"
+                }
+                
+            # Get the latest price from machines_latest
+            latest_price = await self.get_latest_price(machine_id, variant_attribute)
+            previous_price = latest_price.get("price") if latest_price else None
             
-            if not product_url:
-                logger.error(f"No product URL available for machine {machine_id}")
-                return {"success": False, "error": "No product URL available", "machine_id": machine_id}
+            # Extract the price using the existing price_extractor
+            html_content, soup = await self.web_scraper.get_page_content(url)
             
-            # Get current price from database for comparison
-            current_price = machine.get("Price")
-            
-            # Get product category information for validation
-            product_category = machine.get("Machine Category") or machine.get("Laser Category") or None
-            
-            # Scrape the product page
-            html_content, soup = await self.web_scraper.get_page_content(product_url)
             if not html_content or not soup:
-                logger.error(f"Failed to fetch content from {product_url}")
-                return {"success": False, "error": "Failed to fetch product page", "machine_id": machine_id, "url": product_url}
+                return {
+                    "success": False, 
+                    "error": f"Failed to fetch content from {url}"
+                }
             
-            # Extract price using two-stage approach
+            # Extract price with the price_extractor
             new_price, method = await self.price_extractor.extract_price(
                 soup, 
                 html_content, 
-                product_url, 
-                product_category=product_category, 
-                previous_price=current_price,
+                url, 
+                product_category=machine.get("category"),
+                previous_price=previous_price,
                 machine_id=machine_id
             )
             
-            # Collect detailed extraction information
-            extraction_details = {
-                "method": method,
-                "url": product_url,
-                "html_size": len(html_content) if html_content else 0,
-                "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
-                "selectors_tried": self.price_extractor.get_selectors_info(),
-                "fallback_to_claude": method and "Claude" in method,
-                "machine_name": machine.get("Machine Name"),
-                "company": machine.get("Company"),
-                "category": product_category
-            }
-            
             if new_price is None:
-                logger.error(f"Failed to extract price for machine {machine_id} from {product_url}")
                 return {
                     "success": False,
-                    "error": "Failed to extract price",
-                    "machine_id": machine_id,
-                    "url": product_url,
-                    "extraction_details": extraction_details
+                    "error": f"Failed to extract price from {url}"
                 }
             
-            # Get the old price (proper case for Supabase column)
-            old_price = machine.get("Price")
-            logger.debug(f"Old price: {old_price}, New price: {new_price}")
+            # Determine if Claude was used in any extraction method
+            extraction_methods = []
+            used_claude = "Claude" in method if method else False
             
-            # Calculate price change values
-            price_change = new_price - old_price if old_price is not None else None
-            percentage_change = ((new_price - old_price) / old_price) * 100 if old_price is not None and old_price > 0 else None
+            # Calculate price changes
+            price_change = None
+            percentage_change = None
+            
+            if previous_price:
+                price_change = new_price - previous_price
+                percentage_change = (price_change / previous_price) * 100
                 
-            return {
+            cleaned_result = {
                 "success": True,
-                "message": "Price extracted successfully",
-                "old_price": old_price,
+                "error": None,
+                "old_price": previous_price,
                 "new_price": new_price,
-                "method": method,
                 "price_change": price_change,
                 "percentage_change": percentage_change,
-                "machine_id": machine_id,
-                "url": product_url,
-                "extraction_details": extraction_details
+                "method": method,
+                "extraction_confidence": 0.9,  # Default placeholder
+                "validation_confidence": 0.9,  # Default placeholder
+                "needs_review": abs(percentage_change) > 25 if percentage_change else False,
+                "review_reason": "price_change_threshold_exceeded" if percentage_change and abs(percentage_change) > 25 else None,
+                "duration_seconds": 0.0,
+                "fallback_to_claude": used_claude,
+                "extraction_details": {
+                    "method": method,
+                    "url": url,
+                    "html_size": len(html_content) if html_content else 0,
+                    "extraction_timestamp": datetime.now().isoformat(),
+                    "fallback_to_claude": used_claude,
+                    "machine_name": machine_name,
+                    "company": self._extract_company(machine),
+                    "category": machine.get("category")
+                }
             }
+            
+            return cleaned_result
+            
         except Exception as e:
-            logger.exception(f"Error processing price extraction for machine {machine_id}: {str(e)}")
+            logger.exception(f"Error extracting price for {machine_id}: {str(e)}")
             return {
                 "success": False,
-                "error": "An error occurred while processing the price extraction",
-                "machine_id": machine_id,
-                "url": url
+                "error": f"Error extracting price: {str(e)}"
             }
     
     async def save_machine_price(self, machine_id, new_price, html_content=None):
@@ -476,7 +485,7 @@ class PriceService:
                         logger.warning(f"Machine ID {machine_id} not found in database")
             else:
                 logger.info(f"Fetching machines not updated in {days_threshold} days")
-                machines = await self.db_service.get_machines_needing_update(days_threshold, limit)
+                machines = await self.db_service.get_machines_for_update(days_threshold=days_threshold, limit=limit)
             
             if not machines:
                 logger.info("No machines found that need updates")
@@ -643,7 +652,220 @@ class PriceService:
                 "timestamp": datetime.utcnow().isoformat()
             }
             
+            # Log if stats are missing
+            if stats is None:
+                logger.warning(f"Stats are missing for batch_id: {batch_id}, attempting to generate from price_history")
+                # Try to generate stats from price_history if not available
+                try:
+                    # Get price history entries for this batch
+                    history_response = self.db_service.supabase.table(PRICE_HISTORY_TABLE) \
+                        .select("machine_id, price, previous_price, price_change, percentage_change, extraction_method, failure_reason") \
+                        .eq("batch_id", batch_id) \
+                        .execute()
+                    
+                    if history_response.data and len(history_response.data) > 0:
+                        entries = history_response.data
+                        total_entries = len(entries)
+                        successful = sum(1 for entry in entries if entry.get("failure_reason") is None)
+                        failed = total_entries - successful
+                        
+                        # Get batch info
+                        batch_response = self.db_service.supabase.table("batches") \
+                            .select("total_machines, start_time, end_time, status") \
+                            .eq("id", batch_id) \
+                            .execute()
+                        
+                        if batch_response.data and len(batch_response.data) > 0:
+                            batch_info = batch_response.data[0]
+                            
+                            # Generate stats
+                            result["stats"] = {
+                                "batch_id": batch_id,
+                                "total_machines": batch_info.get("total_machines", 0),
+                                "processed": total_entries,
+                                "successful": successful,
+                                "failed": failed,
+                                "start_time": batch_info.get("start_time"),
+                                "end_time": batch_info.get("end_time"),
+                                "status": batch_info.get("status")
+                            }
+                            
+                            logger.info(f"Generated stats for batch_id: {batch_id} from price_history")
+                except Exception as e:
+                    logger.error(f"Error generating stats from price_history: {str(e)}")
+            
             return result
         except Exception as e:
             logger.exception(f"Error retrieving batch results for batch_id {batch_id}: {str(e)}")
-            return None 
+            return None
+
+    def _format_extraction_attempts(self, attempts: list) -> dict:
+        """Format extraction attempts for API response."""
+        result = {
+            "structured_data": {
+                "tried": False,
+                "found": False,
+                "details": None
+            },
+            "css_selectors": {
+                "tried": False,
+                "found": False,
+                "details": None,
+                "selectors_checked": []
+            },
+            "regex_patterns": {
+                "tried": False,
+                "found": False,
+                "details": None,
+                "patterns_checked": []
+            },
+            "add_to_cart_proximity": {
+                "tried": False,
+                "found": False,
+                "details": None
+            },
+            "claude_ai": {
+                "tried": False,
+                "found": False,
+                "details": None
+            }
+        }
+        
+        for attempt in attempts:
+            tier = attempt.get("tier")
+            success = attempt.get("success", False)
+            method = str(attempt.get("method", ""))
+            
+            if tier == "STATIC":
+                if "STRUCTURED" in method.upper():
+                    result["structured_data"]["tried"] = True
+                    result["structured_data"]["found"] = success
+                    result["structured_data"]["details"] = "Found JSON-LD script tags" if success else None
+                elif "SELECTOR" in method.upper():
+                    result["css_selectors"]["tried"] = True
+                    result["css_selectors"]["found"] = success
+                    if success:
+                        selector = method.split(":")[-1].split(" ")[0] if ":" in method else ""
+                        result["css_selectors"]["details"] = f"Found price {attempt.get('price')} using selector '{selector}'"
+                        if selector and selector not in result["css_selectors"]["selectors_checked"]:
+                            result["css_selectors"]["selectors_checked"].append(selector)
+                elif "REGEX" in method.upper():
+                    result["regex_patterns"]["tried"] = True
+                    result["regex_patterns"]["found"] = success
+                    if success:
+                        result["regex_patterns"]["details"] = f"Found price {attempt.get('price')} using pattern"
+                elif "ADD_TO_CART" in method.upper():
+                    result["add_to_cart_proximity"]["tried"] = True
+                    result["add_to_cart_proximity"]["found"] = success
+                    if success:
+                        result["add_to_cart_proximity"]["details"] = f"Found price {attempt.get('price')} near add-to-cart button"
+            elif "SLICE" in tier or "FULL_HTML" in tier:
+                result["claude_ai"]["tried"] = True
+                result["claude_ai"]["found"] = success
+                if success:
+                    result["claude_ai"]["details"] = f"Found price {attempt.get('price')} using {tier}"
+        
+        return result
+
+    def _extract_company(self, machine: dict) -> str:
+        """Extract company name from machine data."""
+        # Try different possible field names
+        company = machine.get("company")
+        if not company:
+            company = machine.get("Company")
+        if not company:
+            # Try to extract from the URL
+            url = machine.get("url", "")
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc.lower()
+            if domain.startswith("www."):
+                domain = domain[4:]
+            # Extract the first part of the domain
+            company = domain.split(".")[0] if "." in domain else domain
+        
+        return company.lower() if company else "unknown"
+
+    async def get_machine_details(self, machine_id: str) -> dict:
+        """Get machine details from the database."""
+        try:
+            response = self.db_service.supabase.table("machines").select("*").eq("id", machine_id).execute()
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting machine details: {str(e)}")
+            return None
+        
+    async def get_latest_price(self, machine_id: str, variant_attribute: str = "DEFAULT") -> dict:
+        """Get the latest price for a machine variant."""
+        try:
+            response = self.db_service.supabase.table("machines_latest").select("*").eq("machine_id", machine_id).eq("variant_attribute", variant_attribute).execute()
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting latest price: {str(e)}")
+            return None
+    
+    async def get_machine_data(self, machine_id: str, variant_attribute: str = "DEFAULT") -> Dict[str, Any]:
+        """
+        Get machine data including product URL and price information.
+        
+        Args:
+            machine_id: ID of the machine to get data for
+            variant_attribute: Variant attribute to get data for, defaults to "DEFAULT"
+            
+        Returns:
+            Dictionary with machine data including last price and product link
+        """
+        try:
+            # Get basic machine details
+            machine_details = await self.get_machine_details(machine_id)
+            if not machine_details:
+                logger.error(f"Machine {machine_id} not found in database")
+                return None
+                
+            # Get latest price info
+            latest_price = await self.get_latest_price(machine_id, variant_attribute)
+            
+            # Combine the data
+            result = {
+                "machine_id": machine_id,
+                "Machine Name": machine_details.get("Machine Name", "Unknown"),
+                "product_link": machine_details.get("product_link"),
+                "Price": latest_price.get("price") if latest_price else None,
+                "category": machine_details.get("Machine Category") or machine_details.get("Laser Category")
+            }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting machine data for {machine_id}: {str(e)}")
+            return None
+    
+    async def get_extraction_config(self, machine_id: str) -> Dict[str, Any]:
+        """
+        Get extraction configuration for a machine.
+        
+        Args:
+            machine_id: ID of the machine to get configuration for
+            
+        Returns:
+            Dictionary with extraction configuration
+        """
+        try:
+            # Query the variant_extraction_config table
+            response = self.db_service.supabase.table("variant_extraction_config") \
+                .select("*") \
+                .eq("machine_id", machine_id) \
+                .execute()
+                
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+                
+            # If no specific config, return empty dict
+            return {}
+            
+        except Exception as e:
+            logger.error(f"Error getting extraction config for {machine_id}: {str(e)}")
+            return {} 

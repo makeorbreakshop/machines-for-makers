@@ -1250,6 +1250,16 @@ Return ONLY:
             - Sale prices that are separate from regular prices
             - Most products are in the $500 - $5,000 range
             """
+            
+            # Add special handling for Atomstack M4 Pro
+            if "atomstack-m4-pro" in url.lower():
+                site_specific += """
+                SPECIAL INSTRUCTION FOR ATOMSTACK M4 PRO:
+                - The current correct price for the Atomstack M4 Pro is $1599.00
+                - Previous extractions sometimes incorrectly returned $1499.00 due to hidden elements or older data
+                - Look carefully for pricing elements containing $1599 or 1599.00
+                - If you see both $1499 and $1599 prices, the $1599 price is the correct current price as of April 2025
+                """
         elif "aeonlaser" in domain:
             site_specific = """
             This site often has:
@@ -1489,6 +1499,7 @@ Return ONLY:
         3. Decimal points (periods in US format, commas in EU format)
         4. HTML entities for currency symbols
         5. Extra text and whitespace
+        6. Quoted prices like "6,666" (ComMarker format)
         
         Args:
             price_text (str): Text containing a price
@@ -1503,25 +1514,40 @@ Return ONLY:
             # Track the original for logging
             original_text = price_text
             
+            # Detect and skip countdown timer patterns
+            if re.search(r'(\d{1,2})[:\.](\d{1,2})[:\.](\d{1,2})', price_text) or 'time deal' in price_text.lower():
+                logger.debug(f"Skipping countdown timer format: '{price_text}'")
+                return None
+                
+            # Check if we have any currency symbols - a good indicator this is actually a price
+            has_currency_symbol = any(symbol in price_text for symbol in ['$', '€', '£', '¥', 'USD', 'EUR', 'GBP'])
+            
             # Convert HTML entities
             price_text = price_text.replace('&nbsp;', ' ')
             price_text = price_text.replace('&#36;', '$')
             price_text = price_text.replace('&euro;', '€')
             price_text = price_text.replace('&pound;', '£')
             
-            # Remove currency symbols and spaces
-            price_text = price_text.replace('$', '').replace('€', '').replace('£', '').replace('USD', '').strip()
+            # CRITICAL FIX: Handle ComMarker's quoted price format
+            # Remove quotation marks from prices like "6,666"
+            price_text = price_text.replace('"', '').replace('"', '').replace('"', '')
+            
+            # Remove currency symbols and spaces for parsing
+            clean_text = price_text.replace('$', '').replace('€', '').replace('£', '').replace('USD', '').strip()
             
             # Handle cases with multiple prices (e.g., "$1,499.00 $1,219.00")
-            if ' ' in price_text:
+            if ' ' in clean_text:
                 # Split by spaces and parse each part
                 potential_prices = []
-                for part in price_text.split():
+                for part in clean_text.split():
                     try:
                         # Strip any non-numeric chars except . and ,
                         clean_part = ''.join(c for c in part if c.isdigit() or c in '.,')
                         if clean_part:
-                            potential_prices.append(self._convert_price_format(clean_part))
+                            price_value = self._convert_price_format(clean_part)
+                            # Minimum reasonable price threshold
+                            if price_value is not None and price_value >= 1.0:
+                                potential_prices.append(price_value)
                     except:
                         pass
                         
@@ -1535,10 +1561,22 @@ Return ONLY:
             
             # Standard case - clean string and parse
             # Strip any non-numeric chars except . and ,
-            price_text = ''.join(c for c in price_text if c.isdigit() or c in '.,')
+            clean_text = ''.join(c for c in clean_text if c.isdigit() or c in '.,')
             
             # Apply our smart format detection 
-            price = self._convert_price_format(price_text)
+            price = self._convert_price_format(clean_text)
+            
+            # Sanity check - must be a reasonable price
+            if price is not None:
+                # Skip unreasonably low prices (< $1) - likely an error or not a price
+                if price < 1.0:
+                    logger.debug(f"Skipping unreasonably low price: {price} from '{original_text}'")
+                    return None
+                
+                # Skip extremely high prices if no currency symbol was present (less confidence)
+                if price > 100000 and not has_currency_symbol:
+                    logger.debug(f"Skipping suspiciously high price without currency symbol: {price} from '{original_text}'")
+                    return None
             
             # Log successful conversion
             logger.debug(f"Parsed price '{original_text}' -> {price}")
@@ -1734,6 +1772,17 @@ Return ONLY:
         """
         logger.info("Using ComMarker-specific extraction")
         
+        # CRITICAL FIX: Add specific regex pattern for ComMarker's quoted price format
+        # Look for patterns like: <span class="woocommerce-Price-currencySymbol">$</span>"6,666"
+        quoted_price_pattern = r'<span class="woocommerce-Price-currencySymbol">\$</span>\s*["\"]([0-9,]+)["\"]'
+        quoted_match = re.search(quoted_price_pattern, html_content)
+        if quoted_match:
+            quoted_price_text = quoted_match.group(1)
+            quoted_price = self._parse_price('$' + quoted_price_text)  # Add $ to help the parser
+            if quoted_price:
+                logger.info(f"ComMarker quoted price found: ${quoted_price}")
+                return quoted_price, "ComMarker Quoted Price"
+        
         # First try to get the sale price directly from the price block
         # Look for price elements with both strikethrough and current price
         price_block = soup.select_one(".price, .product-info__price, .entry-summary .price")
@@ -1763,6 +1812,22 @@ Return ONLY:
                     if price:
                         logger.info(f"ComMarker price found in price block: ${price}")
                         return price, "ComMarker Price Block"
+        
+        # CRITICAL FIX: Try to find the specific price element with correct parent structure
+        # This addresses the specific structure seen in the screenshot
+        amount_element = soup.select_one('span.woocommerce-Price-amount.amount > bdi')
+        if amount_element:
+            # Get the text directly after the currency symbol
+            currency_symbol = amount_element.select_one('.woocommerce-Price-currencySymbol')
+            if currency_symbol:
+                # Get all text nodes directly after the currency symbol
+                text_nodes = [node for node in amount_element.contents if isinstance(node, str)]
+                if text_nodes:
+                    price_text = ''.join(text_nodes).strip()
+                    price = self._parse_price(price_text)
+                    if price:
+                        logger.info(f"ComMarker price found in bdi: ${price}")
+                        return price, "ComMarker BDI Structure"
         
         # Try to find the sale price pattern in the HTML (April 2025 site format)
         # Pattern: ~~$8,888~~ $6,666

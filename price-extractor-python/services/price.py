@@ -23,11 +23,21 @@ async def batch_update_machines(self, days_threshold: int = 7, machine_ids: List
             start_time = time.time()
             
             # Get machines that need updates
-            machines = await self.db_service.get_machines_needing_update(
-                days_threshold=days_threshold,
-                machine_ids=machine_ids,
-                limit=limit
-            )
+            if machine_ids:
+                logger.info(f"Using provided list of {len(machine_ids)} machine IDs")
+                machines = []
+                for machine_id in machine_ids:
+                    machine = await self.db_service.get_machine_by_id(machine_id)
+                    if machine:
+                        machines.append(machine)
+                    else:
+                        logger.warning(f"Machine ID {machine_id} not found in database")
+            else:
+                logger.info(f"Fetching machines not updated in {days_threshold} days")
+                machines = await self.db_service.get_machines_for_update(
+                    days_threshold=days_threshold,
+                    limit=limit
+                )
             
             if not machines:
                 logger.info("No machines to update")

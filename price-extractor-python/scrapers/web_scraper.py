@@ -42,11 +42,6 @@ class WebScraper:
         self.default_user_agent = user_agent or self.user_agents[0]
         
         # Initialize with the default user agent
-        self.session = httpx.AsyncClient(
-            headers={"User-Agent": self.default_user_agent},
-            follow_redirects=True,
-            timeout=30.0
-        )
         
         # Store proxy information
         self.proxies = proxies or {}
@@ -134,9 +129,9 @@ class WebScraper:
     
     async def get_page_content(self, url: str, 
                               force_user_agent_rotation: bool = False,
-                              custom_max_retries: Optional[int] = None) -> Tuple[Optional[str], Optional[BeautifulSoup]]:
+                              custom_max_retries: Optional[int] = None) -> Tuple[Optional[str], Optional[int]]:
         """
-        Fetch HTML content from a URL with retry logic and return both HTML and parsed BeautifulSoup.
+        Fetch HTML content from a URL with retry logic and return both HTML and HTTP status code.
         
         Args:
             url (str): URL to fetch content from
@@ -144,7 +139,7 @@ class WebScraper:
             custom_max_retries (Optional[int]): Override the default max retries value
             
         Returns:
-            Tuple[Optional[str], Optional[BeautifulSoup]]: A tuple containing (html_content, soup)
+            Tuple[Optional[str], Optional[int]]: A tuple containing (html_content, http_status)
                                       If failed, returns (None, None)
         """
         if not self.is_valid_url(url):
@@ -198,8 +193,10 @@ class WebScraper:
                     if response.status_code == 200:
                         logger.success(f"Successfully fetched content from {url}")
                         html_content = response.text
+                        # Parse HTML using a separate method
                         soup = self.parse_html(html_content)
-                        return html_content, soup
+                        # Return HTML content and status code instead of soup
+                        return html_content, response.status_code
                     
                     # Check if we should retry based on status code
                     if response.status_code in self.retry_status_codes:
@@ -213,7 +210,7 @@ class WebScraper:
                     
                     # If we get here, either we got a non-retryable status code or we've exhausted retries
                     logger.error(f"Failed to fetch content from {url}. Status code: {response.status_code}")
-                    return None, None
+                    return None, response.status_code
                     
             except httpx.TimeoutException:
                 retry_count += 1
@@ -276,15 +273,3 @@ class WebScraper:
             logger.error(f"Error extracting data with selector '{selector}': {str(e)}")
             return None
     
-    async def close(self):
-        """Close the HTTP session."""
-        await self.session.aclose()
-        
-    def __del__(self):
-        """Ensure the session is closed when the object is deleted."""
-        try:
-            # Cannot await in __del__, so just log that cleanup is needed
-            logger.warning("WebScraper deleted, client session might need explicit cleanup")
-            # In a real application, we'd use a context manager pattern instead
-        except:
-            pass 

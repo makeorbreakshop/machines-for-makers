@@ -3,14 +3,14 @@
 ## 1. Introduction
 
 ### 1.1 Purpose
-The Laser Price Tracker V3 is designed to automatically fetch, validate, and maintain up-to-date prices for laser machines and their variants from various e-commerce websites. It replaces and enhances the existing system with a more robust, reliable, and efficient approach to price tracking.
+The Laser Price Tracker V3 is designed to automatically fetch, validate, and maintain up-to-date prices for laser machines and their variants from various e-commerce websites. It replaces and enhances the existing system with a more robust, reliable, and efficient approach to price tracking, focusing on a comprehensive historical log.
 
 ### 1.2 Scope
 This system will provide:
 - Automatic price extraction using multiple techniques in a staged approach
 - Intelligent validation of extracted prices
-- Complete audit trail of price history
-- Fast-lookup tables for current prices
+- **Complete, detailed audit trail of every extraction attempt in `price_history`**
+- **A summary/pointer table (`machines_latest`) for quick lookup of the latest *valid* state**
 - Minimal human oversight requirement
 - Support for machine variants (e.g., different wattages, sizes)
 
@@ -21,6 +21,7 @@ The current price tracking system has several limitations:
 - Lacks configuration for site-specific extraction rules
 - Doesn't provide fine-grained confidence metrics
 - Requires more manual intervention for problematic sites
+- **Historical data lacks clarity on failure reasons, review status at the time of extraction, and the exact price used for validation.**
 
 ## 2. System Overview
 
@@ -33,69 +34,119 @@ The system follows a multi-stage pipeline architecture:
 5. **JS Interaction Check** - ✅ Uses API endpoints or Playwright for JS-driven sites
 6. **Full HTML Check** - ✅ Uses GPT-4o or equivalent for complex extraction from full HTML
 7. **Final Validation** - ✅ Applies sanity checks and validation rules
-8. **Database Write** - ✅ Updates price history and latest price tables
+8. **Database Write** - ✅ **Logs every attempt to `price_history` with detailed status and conditionally updates the `machines_latest` pointer table.**
 
 ### 2.2 Key Components
 - Python orchestrator
 - Multiple extraction methods with escalation path
 - LLM integration (Claude 3 Haiku/Sonnet, GPT-4o)
 - Headless browser capability (Playwright)
-- Comprehensive database schema
+- **Normalized database schema with `price_history` as the primary log**
 - Configurable validation rules
 - Cost tracking and optimization
 
 ## 3. Detailed Requirements
 
-### 3.1 Database Schema
+### 3.1 Database Schema (Revised Architecture) ✅
 
-#### 3.1.1 New Tables to Create
+**Core Principle:** `price_history` is the single source of truth for all extraction attempts. `machines_latest` provides a quick reference to the *latest successfully validated* entry in `price_history`.
 
-1. **machines_latest**
-   - `machine_id` (TEXT, PK part 1) - Foreign key to machines
-   - `variant_attribute` (TEXT, PK part 2) - Variant identifier (e.g., '60W', 'Size M')
-   - `machines_latest_price` (NUMERIC) - Latest confirmed price
-   - `currency` (TEXT) - Currency of the price (e.g., USD)
-   - `last_checked` (TIMESTAMP) - When this price was fetched
-   - `tier` (TEXT) - Identifier for the extraction step (e.g., 'STATIC', 'SLICE_FAST')
-   - `confidence` (REAL) - Confidence score from LLM/Validator
-   - `manual_review_flag` (BOOLEAN) - Flag for requiring manual review
+#### 3.1.1 `price_history` (The Comprehensive Log) ✅
 
-2. **variant_extraction_config**
-   - `machine_id` (TEXT, PK part 1) - Foreign key to machines
-   - `variant_attribute` (TEXT, PK part 2) - Variant identifier (e.g., '60W', 'Size M')
-   - `domain` (TEXT, PK part 3) - Domain of the e-commerce site
-   - `requires_js_interaction` (BOOLEAN) - Whether JS clicks/actions are needed
-   - `api_endpoint_template` (TEXT) - Template for API endpoint if discovered
-   - `api_endpoint_discovered_at` (TIMESTAMP) - When endpoint was last discovered
-   - `css_price_selector` (TEXT) - CSS selector for price element
-   - `js_click_sequence` (JSONB) - Array of Playwright actions
-   - `min_extraction_confidence` (REAL) - Override for extraction confidence threshold
-   - `min_validation_confidence` (REAL) - Override for validation confidence threshold
-   - `sanity_check_threshold` (REAL) - Override for price change percentage threshold
+##### Primary Fields
+- `id` (UUID, PK) - Unique identifier for this specific extraction attempt.
+- `machine_id` (TEXT, NOT NULL) - Foreign key to machines.
+- `variant_attribute` (TEXT, NOT NULL) - Variant identifier (e.g., '60W', 'Size M'). Default 'DEFAULT'.
+- `date` (TIMESTAMP WITH TIME ZONE, NOT NULL) - Timestamp of the extraction attempt. Default `now()`.
+- `status` (TEXT, NOT NULL) - Outcome of the attempt ('SUCCESS', 'FAILED', 'NEEDS_REVIEW').
+- `price` (NUMERIC, nullable) - The extracted price, only populated if `status` is 'SUCCESS' or 'NEEDS_REVIEW'.
+- `currency` (TEXT, nullable) - Currency of the extracted price (e.g., 'USD'). Default 'USD'.
 
-3. **llm_usage_tracking**
-   - `id` (UUID, PK) - Unique identifier for the usage record
-   - `timestamp` (TIMESTAMP) - When the LLM was used
-   - `machine_id` (TEXT) - Associated machine ID
-   - `variant_attribute` (TEXT) - Associated variant
-   - `model` (TEXT) - Model used (e.g., 'haiku', 'sonnet', 'gpt-4o')
-   - `tier` (TEXT) - Extraction tier that used the model
-   - `prompt_tokens` (INTEGER) - Number of prompt tokens
-   - `completion_tokens` (INTEGER) - Number of completion tokens
-   - `estimated_cost` (NUMERIC) - Calculated cost based on token usage
-   - `success` (BOOLEAN) - Whether the extraction was successful
+##### Extraction Context
+- `batch_id` (UUID, nullable) - Foreign key to `batches` table if part of a batch.
+- `scraped_from_url` (TEXT, nullable) - The URL the data was fetched from.
+- `original_url` (TEXT, nullable) - The original product URL before any redirects.
+- `html_size` (INTEGER, nullable) - Size in bytes of the HTML content fetched.
+- `http_status` (INTEGER, nullable) - HTTP status code of the response.
 
-#### 3.1.2 Modifications to Existing Tables
+##### Extraction Method
+- `tier` (TEXT, nullable) - Identifier for the extraction step used (e.g., 'STATIC', 'SLICE_FAST').
+- `extraction_method` (TEXT, nullable) - More specific method details if available (e.g., 'STATIC_STRUCTURED_DATA:$.offers.price').
+- `extracted_confidence` (REAL, nullable) - Confidence score from the extraction step.
+- `validation_confidence` (REAL, nullable) - Confidence score from the validation step.
+- `structured_data_type` (TEXT, nullable) - Type of structured data found (JSON-LD, microdata, etc.).
+- `fallback_to_claude` (BOOLEAN, nullable) - Whether the system had to fall back to using Claude for extraction.
 
-1. **price_history** - Add new fields:
-   - `variant_attribute` (TEXT) - Variant identifier
-   - `tier` (TEXT) - Extraction method used
-   - `extracted_confidence` (REAL) - LLM extraction confidence
-   - `validation_confidence` (REAL) - LLM/Validator validation confidence
-   - `failure_reason` (TEXT) - If applicable, reason for extraction failure
-   - Modify `machine_id` to be TEXT instead of UUID to match new schema
+##### Price Processing
+- `validation_basis_price` (NUMERIC, nullable) - The specific "old price" value used for validation during this attempt.
+- `raw_price_text` (TEXT, nullable) - The original text content before parsing into a numeric price value.
+- `cleaned_price_string` (TEXT, nullable) - The intermediate cleaned price string before numeric conversion.
+- `parsed_currency_from_text` (TEXT, nullable) - Currency symbol or code detected in the raw text.
 
-### 3.2 Extraction Pipeline
+##### Status and Reasons
+- `failure_reason` (TEXT, nullable) - Populated if `status` is 'FAILED'. Describes why the extraction failed (e.g., 'URL fetch error', 'Parsing error', 'Timeout').
+- `review_reason` (TEXT, nullable) - Populated if `status` is 'NEEDS_REVIEW'. Describes why review was flagged (e.g., 'Significant price change: +15%', 'Low validation confidence: 0.75').
+
+##### Performance and Debugging
+- `extraction_duration_seconds` (NUMERIC, nullable) - How long the extraction process took.
+- `retry_count` (INTEGER, nullable) - Number of retry attempts made.
+- `dom_elements_analyzed` (INTEGER, nullable) - Count of DOM elements analyzed during extraction.
+- `price_location_in_dom` (TEXT, nullable) - Path in the DOM where the price was found.
+
+##### Detailed Extraction Data (JSON fields)
+- `extraction_attempts` (JSONB, nullable) - Record of all extraction methods tried.
+- `selectors_tried` (JSONB, nullable) - Which CSS selectors, regex patterns were attempted.
+- `request_headers` (JSONB, nullable) - The HTTP headers used for the request.
+- `response_headers` (JSONB, nullable) - The HTTP response headers received.
+- `validation_steps` (JSONB, nullable) - Each validation step applied and its result.
+
+##### Categorization
+- `company` (TEXT, nullable) - Company/brand associated with the product.
+- `category` (TEXT, nullable) - Category of the product (e.g., 'laser_cutter').
+
+##### Review Data
+- `reviewed_by` (TEXT, nullable) - User who reviewed this entry (if applicable).
+- `reviewed_at` (TIMESTAMP WITH TIME ZONE, nullable) - When the entry was reviewed.
+- `original_record_id` (UUID, nullable) - Reference to the original record being reviewed (if this is a review decision record).
+
+##### Legacy Fields (Consider deprecating)
+- `previous_price` (NUMERIC, nullable) - Previous known price (deprecated, use validation_basis_price instead).
+- `price_change` (NUMERIC, nullable) - Calculated price change (deprecated, calculate dynamically).
+- `percentage_change` (NUMERIC, nullable) - Percentage change (deprecated, calculate dynamically).
+- `is_all_time_low` (BOOLEAN, nullable) - Whether this is an all-time low price (deprecated).
+- `is_all_time_high` (BOOLEAN, nullable) - Whether this is an all-time high price (deprecated).
+
+#### 3.1.2 `machines_latest` (Pointer/Summary Table) ✅
+- `machine_id` (TEXT, PK part 1, NOT NULL) - Foreign key to machines.
+- `variant_attribute` (TEXT, PK part 2, NOT NULL) - Variant identifier (e.g., '60W', 'Size M'). Default 'DEFAULT'.
+- `latest_price_history_id` (UUID, nullable) - FK pointing to the `id` in `price_history` representing the most recent attempt (could be success, failed, or needs review).
+- `latest_successful_price_history_id` (UUID, nullable) - FK pointing to the `id` in `price_history` representing the most recent attempt with `status = 'SUCCESS'`. Used for displaying the "current" price.
+- `last_successful_update_time` (TIMESTAMP WITH TIME ZONE, nullable) - Timestamp from the record pointed to by `latest_successful_price_history_id`.
+- `last_attempt_time` (TIMESTAMP WITH TIME ZONE, nullable) - Timestamp from the record pointed to by `latest_price_history_id`.
+- `manual_review_flag` (BOOLEAN, default: false) - Indicates if the *current state* requires attention.
+- `flag_reason` (TEXT, nullable) - Reason corresponding to the current `manual_review_flag`.
+
+#### 3.1.3 Foreign Key Relationships ✅
+- `price_history.machine_id` → `machines.id`
+- `price_history.batch_id` → `batches.id`
+- `price_history.original_record_id` → `price_history.id`
+- `machines_latest.machine_id` → `machines.id`
+- `machines_latest.latest_price_history_id` → `price_history.id`
+- `machines_latest.latest_successful_price_history_id` → `price_history.id`
+
+#### 3.1.4 Recommended Indexes ✅
+- `price_history(machine_id, variant_attribute, date DESC)` - For quickly finding history for a specific machine/variant
+- `price_history(batch_id)` - For quickly retrieving all entries in a batch
+- `price_history(status)` - For filtering by status
+- `machines_latest(manual_review_flag)` - For quickly finding entries that need review
+
+#### 3.1.5 Other Related Tables ✅
+- `variant_extraction_config` - Stores extraction configuration for specific machine variants
+- `llm_usage_tracking` - Tracks LLM API usage and costs
+- `batches` - Information about batch extraction runs
+- **Note: The `batch_results` table will be removed in the new schema. This table currently duplicates data that will now be stored in `price_history`. All batch-related queries should directly access `price_history` filtered by `batch_id` instead.**
+
+### 3.2 Extraction Pipeline (Database Write Step Revised)
 
 #### 3.2.1 Scheduler
 - Initially focus on functionality without automated scheduling
@@ -145,11 +196,27 @@ The system follows a multi-stage pipeline architecture:
 - ✅ Set manual review flags for suspicious changes or low confidence
 - ✅ Handle currency conversion for non-USD prices
 
-#### 3.2.8 Database Write ✅
-- ✅ Insert complete record into price_history
-- ✅ Update machines_latest with new price and metadata
-- ✅ Ensure atomic operations with proper error handling
-- ✅ Track LLM usage and costs
+#### 3.2.8 Database Write (Implementation Details) ✅
+- ✅ **Always Insert into `price_history`**: Create a comprehensive record for *every* extraction attempt.
+  - Populate all relevant fields: `machine_id`, `variant_attribute`, `date`, `batch_id`, `url`, `status` (`SUCCESS`, `FAILED`, `NEEDS_REVIEW`), `price` (if applicable), `currency`, `validation_basis_price` (the price used for comparison), `tier`, `method`, confidences, `failure_reason` (if FAILED), `review_reason` (if NEEDS_REVIEW).
+- ✅ **Conditionally Update `machines_latest`**:
+  - **Always Update `latest_price_history_id`**: Set this to the `id` of the record just inserted into `price_history`. Update `last_attempt_time`.
+  - **Update `latest_successful_price_history_id` ONLY IF `status` is 'SUCCESS'**: Set this to the `id` of the new `price_history` record. Update `last_successful_update_time`.
+  - **Update `manual_review_flag` / `flag_reason`**: Define logic based on the new history status (e.g., set flag if status is 'NEEDS_REVIEW', potentially clear if 'SUCCESS', needs careful thought on failure cases).
+- ✅ Ensure atomic operations using database transactions.
+- ✅ Track LLM usage (remains the same).
+
+**Implementation Steps:**
+1. Create a database transaction
+2. Insert new record into `price_history` with proper status
+3. Query existing `machines_latest` record for this machine/variant
+4. If record exists:
+   - Always update `latest_price_history_id` and `last_attempt_time`
+   - If status='SUCCESS', update `latest_successful_price_history_id` and `last_successful_update_time`
+   - Update `manual_review_flag` based on status of new record
+5. If record doesn't exist, create new `machines_latest` record with appropriate pointers
+6. Commit transaction
+7. Log extraction details to `llm_usage_tracking` if LLM was used
 
 ### 3.3 Error Handling & Retries
 
@@ -169,210 +236,307 @@ The system follows a multi-stage pipeline architecture:
 - ✅ Add retry logic for transient database errors
 - ✅ Log all database operations and errors
 
-### 3.4 Administration Interface
+### 3.4 Administration Interface (Impact Notes and Implementation) ✅
 
-#### 3.4.1 Price Overview
-- ✅ Backend: Create API endpoint to fetch machines with variant prices
-  - ✅ Implement GET /api/v1/machines endpoint with variant support
-  - ✅ Add filtering options (last checked date, price change %)
-  - ✅ Include extraction tier and confidence in response
-- ✅ Frontend: Enhance price listing UI
-  - ✅ Update table to show variant information
-  - ✅ Add visual indicators for price change percentage
-  - ✅ Color-code confidence levels
-  - ✅ Display last checked timestamp in user-friendly format
-- ✅ Frontend: Add variant selector dropdown
-  - ✅ Allow filtering by variant attribute
-  - ✅ Show "All Variants" option as default
+**Note:** All sections displaying "current" price, change, confidence, or review status will need to adapt to the new schema. Data previously read directly from `machines_latest` might now require joins or lookups via `latest_successful_price_history_id` to the `price_history` table. Price change calculations shown in the UI will need to be performed dynamically based on historical data.
 
-#### 3.4.2 Manual Review Interface
-- ✅ Backend: Create API endpoints for manual review workflow
-  - ✅ Implement GET /api/v1/machines/flagged-for-review endpoint
-  - ✅ Implement POST /api/v1/machines/:id/review endpoint
-  - ✅ Add filtering for review reasons (price change, low confidence)
-- ✅ Frontend: Create review queue UI
-  - ✅ Display machines requiring manual review in priority order
-  - ✅ Show old price, new price, and change percentage
-  - ✅ Indicate extraction tier that triggered the review
-  - ✅ Display specific reason for flagging
-- ✅ Frontend: Build review action interface
-  - ✅ Allow price confirmation with one click
-  - ✅ Add manual price override capability
-  - ✅ Include reject option with reason selection
-  - ✅ Show recent price history for context
+#### 3.4.1 Price Overview (Implementation Details) ✅
+- Backend API: `GET /api/v1/machines` needs modification to join `machines_latest` with `price_history` using `latest_successful_price_history_id` to retrieve the current price, confidence, tier etc. Price change calculation logic needs to be added (comparing the latest successful price with the second-latest successful price).
+- Frontend UI: No major visual changes, but data source and change calculation logic updates are needed.
 
-#### 3.4.3 Batch Operations
-- ✅ Backend: Enhance batch update API
-  - ✅ Implement progress tracking for batch operations
-  - ✅ Add advanced filtering (by category, company, variant)
-  - ✅ Create export endpoint for batch results
-  - ✅ Add JS-specific filter option
-- ✅ Frontend: Improve batch operations UI
-  - ✅ Create filter selection interface with previews
-  - ✅ Add real-time progress indicators
-  - ✅ Show success/failure statistics during run
-  - ✅ Implement export functionality (CSV, JSON)
-- ✅ Backend: Create batch history endpoints
-  - ✅ Implement GET /api/v1/batches endpoint
-  - ✅ Add batch details endpoint with full results
+**Implementation Steps:**
+1. Update API endpoint to join tables and calculate dynamic price changes
+2. Modify frontend to handle the updated response format
+3. Ensure proper handling of null values when no successful price exists
 
-#### 3.4.4 Configuration Management
-- ✅ Backend: Create configuration API endpoints
-  - ✅ Implement GET/POST /api/v1/machines/:id/config endpoint
-  - ✅ Create variant configuration CRUD endpoints
-  - ✅ Add JS interaction configuration endpoint
-  - ✅ Implement global thresholds configuration API
-- ✅ Frontend: Build machine configuration UI
-  - ✅ Create form for basic extraction settings
-  - ✅ Add variant management interface
-  - ✅ Implement JS click sequence builder/editor
-  - ✅ Create confidence threshold sliders
-- ✅ Frontend: Add configuration testing
-  - ✅ Create "Test Configuration" button
-  - ✅ Show live preview of extraction results
-  - ✅ Display detailed parsing logs
+#### 3.4.2 Manual Review Interface (Implementation Details) ✅
+- Backend API: `GET /api/v1/machines/flagged-for-review` should query `machines_latest` where `manual_review_flag` is true. The review action endpoints should implement the review process below.
+- Frontend UI: Display data retrieved via the updated `machines_latest` -> `price_history` link, showing `review_reason` from the specific entry that triggered the flag.
 
-#### 3.4.5 Visual Sequence Builder for JS Interaction
+**Review Process Implementation:** ✅
+1. **When Price is Accepted in Review** ✅
+   - Create a new record in `price_history` with:
+     - Same machine_id, variant_attribute, price as the reviewed record
+     - Status = 'SUCCESS'
+     - Reference to original reviewed record
+     - Current timestamp
+   - Update `machines_latest`:
+     - Update `latest_price_history_id` to point to this new record
+     - Update `latest_successful_price_history_id` to point to this new record
+     - Set `manual_review_flag = false`
+     - Clear `flag_reason`
 
-- Backend: Create JS sequence recording and playback service
-  - Implement "Record Mode" API endpoint for browser interaction
-  - Create sequence optimization service to generate robust selectors
-  - Add automated discovery service for common e-commerce patterns
-  - Implement visual feedback for sequence testing
-  - Develop intelligent selector generation to prevent brittle configurations
+2. **When Price is Rejected in Review** ✅
+   - Create a new record in `price_history` with:
+     - Same machine_id, variant_attribute
+     - Status = 'FAILED'
+     - Failure reason = "Rejected in review"
+     - Reference to original reviewed record
+     - Current timestamp
+   - Keep `machines_latest` pointing to the last successful record
+   - Update only `latest_price_history_id` to point to this new rejection record
+   - Set `manual_review_flag = false`
+   - Clear `flag_reason`
 
-- Frontend: Build visual sequence builder UI
-  - Create "Record Sequence" button that launches guided mode
-  - Implement browser extension/script for click recording
-  - Add element selection helper with visual highlighting
-  - Display human-readable sequence preview panel
-  - Create drag-and-drop interface for reordering steps
-  - Add simple controls for timing adjustments
-  - Implement one-click testing with visual feedback
-  - Provide ML-based suggestions for common interaction patterns
+#### 3.4.3 Batch Operations (Implementation Details) ✅
+- Backend API: Batch results (`GET /api/v1/batches/:id`) should pull detailed results directly from `price_history` filtered by `batch_id`. The calculation of "Old Price" and "Change" needs to query the `price_history` table for the relevant preceding price.
+- **Important: The `batch_results` table is redundant in the new schema and should be removed. All batch result data will be stored directly in `price_history`, making it the single source of truth.**
+- Frontend UI: Update the BatchResultsTable component to display:
+  - Status (SUCCESS/FAILED/NEEDS_REVIEW)
+  - Review reasons
+  - Extraction and validation confidence
+  - Map filter controls to the new status values:
+    - `showSuccessful` → status = 'SUCCESS'
+    - `showFailed` → status = 'FAILED'
+    - `showNeedsReview` → status = 'NEEDS_REVIEW'
+    - `showUnchanged` → price = validation_basis_price
+    - `showUpdated` → price ≠ validation_basis_price
 
-- Integration: Simplify end user workflow
-  - Remove all JSON editing requirements
-  - Create guided step-by-step interface
-  - Allow direct demonstration of required clicks
-  - Automatically capture and optimize selectors
-  - Provide immediate visual feedback on sequence effectiveness
-  - Support automatic sequence generation for common site patterns
-  - Create smart recovery features for failed steps
+#### 3.4.4 Configuration Management (Minimal Impact) ✅
+- Configuration data is stored separately (`variant_extraction_config`), so minimal direct impact.
 
-> **UPDATE (2025-05)**: The coordinate extractor functionality has been removed from the current implementation. This was initially designed to help with coordinate-based extraction but has been deprecated in favor of more reliable methods.
+#### 3.4.5 Visual Sequence Builder for JS Interaction (Minimal Impact) ✅
+- Primarily affects `variant_extraction_config`.
 
-This approach dramatically reduces technical knowledge requirements while increasing configuration accuracy and speed. Users can simply demonstrate the required site interactions rather than writing code.
+#### 3.4.6 Cost Tracking Dashboard (Minimal Impact) ✅
+- Uses `llm_usage_tracking`, should be unaffected.
 
-#### 3.4.6 Cost Tracking Dashboard
-- ✅ Backend: Create cost tracking API endpoints
-  - ✅ Implement GET /api/v1/usage/summary endpoint
-  - ✅ Add date range filtering
-  - ✅ Create endpoints for model/tier breakdown
-  - ✅ Add historical usage trend endpoint
-- ✅ Frontend: Build dashboard UI
-  - ✅ Create main cost overview panel
-  - ✅ Add usage breakdown by model charts
-  - ✅ Implement tier-specific usage visualization
-  - ✅ Add date range selector
-- ✅ Backend: Implement budget alert functionality
-  - ✅ Create budget threshold configuration endpoint
-  - ✅ Add notification system for threshold crossing
-  - ✅ Implement cost projection calculations
+#### 3.4.7 Unified Price History Dashboard (New Addition) ✅
+- **Consolidate Review and Batch Pages**: Replace separate review and batch results pages with a single unified dashboard.
+- **Comprehensive Filtering**:
+  - Filter by status ('SUCCESS', 'FAILED', 'NEEDS_REVIEW')
+  - Filter by batch (dropdown showing recent batches with dates/times)
+  - Filter by date range, machine name/brand, price change percentage
+  - Filter by extraction method/tier
+  - Save favorite filter combinations
+  - URL parameters to preserve filter state for sharing/bookmarking
+- **View Modes**:
+  - "Review Mode" (pre-filtered to show NEEDS_REVIEW items)
+  - "Batch Mode" (pre-filtered to show a specific batch)
+  - "History Mode" (showing full history with custom filters)
+- **Essential Information Display**:
+  - **Product URLs**: Prominently display product URLs for manual price verification
+  - Machine name, variant, current price, new price
+  - Price change amount and percentage
+  - Extraction method and confidence
+  - Status and review reasons
+- **Contextual Actions**:
+  - Review actions (approve/reject/override) for NEEDS_REVIEW items
+  - Batch summary statistics when viewing a specific batch
+  - Direct links to product pages for manual verification
+- **Implementation Approach**:
+  - Backend API should query directly from `price_history`
+  - Implement a single unified endpoint with filtering parameters
+  - API must handle complex join queries for proper filtering
+  - Frontend should use shared components for all views
 
-## 4. Integration Requirements
+**Benefits**:
+- Aligns with `price_history` as single source of truth
+- Eliminates duplicate code and UI inconsistencies
+- Provides more powerful filtering options
+- Improves user experience for price review workflows
+- Ensures all necessary context is available for making review decisions
 
-### 4.1 Backend API Integration
-- ✅ Machine Price Endpoints
-  - ✅ GET /api/v1/machines - List all machines with pagination and filtering
-  - ✅ GET /api/v1/machines/:id - Get detailed information for a specific machine with variants
-  - ✅ POST /api/v1/machines/:id/extract-price - Extract price without saving (preview)
-  - ✅ POST /api/v1/machines/:id/update-price - Update price with optional confirmation
-  - ✅ GET /api/v1/machines/:id/price-history - Get price history for a machine with variants
+#### 3.4.8 Implementation Approach (Fresh Build)
 
-- ✅ Review Management Endpoints
-  - ✅ GET /api/v1/reviews - Get machines flagged for manual review
-  - ✅ POST /api/v1/reviews/:id/approve - Approve a flagged price change
-  - ✅ POST /api/v1/reviews/:id/reject - Reject a flagged price change
-  - ✅ POST /api/v1/reviews/:id/override - Override with manual price
+**Starting Fresh**:
+- **Delete Existing Endpoints**: Remove all existing batch-specific and review-specific endpoints in favor of the unified approach.
+- **Create New Schema**: Build the new database schema from scratch rather than migrating existing data.
+- **No Data Migration**: Skip complex data migration since we're starting with a clean slate.
 
-- ✅ Batch Operation Endpoints
-  - ✅ GET /api/v1/batches - List all batch operations with status
-  - ✅ POST /api/v1/batches - Start a new batch update operation
-  - ✅ GET /api/v1/batches/:id - Get details and results of a specific batch
-  - ✅ POST /api/v1/batches/:id/cancel - Cancel an in-progress batch operation
-  - ✅ GET /api/v1/batches/:id/export - Export batch results in CSV/JSON format
+**Core Implementation**:
+1. **Database Layer**:
+   - Create `price_history` schema with all fields specified in section 3.1.1
+   - Implement `machines_latest` pointer table as specified in section 3.1.2
+   - Set up appropriate indexes and foreign key relationships
 
-- ✅ Configuration Management Endpoints
-  - ✅ GET /api/v1/config/global - Get global configuration settings
-  - ✅ POST /api/v1/config/global - Update global configuration
-  - ✅ GET /api/v1/machines/:id/config - Get configuration for a machine
-  - ✅ POST /api/v1/machines/:id/config - Update machine configuration
-  - ✅ GET /api/v1/machines/:id/variants - List variants for a machine
-  - ✅ POST /api/v1/machines/:id/variants - Create a new variant
-  - ✅ PUT /api/v1/machines/:id/variants/:variant_id - Update a variant
-  - ✅ DELETE /api/v1/machines/:id/variants/:variant_id - Delete a variant
-  - ✅ POST /api/v1/machines/:id/js-config - Configure JS interaction
+2. **Backend APIs**:
+   - Create a single `/api/v1/price-history` endpoint with comprehensive filtering options
+   - Implement review action endpoints (approve/reject/override)
+   - Remove redundant batch-specific endpoints
 
-- ✅ Cost Tracking Endpoints
-  - ✅ GET /api/v1/usage/summary - Get overall usage summary
-  - ✅ GET /api/v1/usage/by-model - Get usage breakdown by model
-  - ✅ GET /api/v1/usage/by-tier - Get usage breakdown by extraction tier
-  - ✅ GET /api/v1/usage/by-date - Get usage trends over time
-  - ✅ GET /api/v1/usage/projected - Get projected costs based on current usage
-  - ✅ POST /api/v1/usage/budget - Configure budget thresholds and alerts
+3. **Frontend Components**:
+   - Build unified dashboard with tabbed interface or filter presets
+   - Create comprehensive filtering UI with saved filter capability
+   - Design responsive table with appropriate action buttons based on item status
 
-### 4.2 Frontend Integration
-- ✅ Admin Dashboard Enhancements
-  - ✅ Create new sidebar navigation with dedicated sections
-  - ✅ Implement responsive layout for all screen sizes
-  - ✅ Add global search functionality across machines
-  - ✅ Create central notification system for alerts
+**Batch Creation**:
+- **Reuse Existing Functionality**: Continue using the existing price-tracker batch creation process.
+- **Ensure Compatibility**: Update the batch process to write to the new schema as specified in section 3.2.8.
+- **Verification**: Confirm that the existing batch creation functionality properly triggers the extraction pipeline and writes to the new schema.
 
-- ✅ Price Tracking Interface
-  - ✅ Build main machines table with variant support
-  - ✅ Implement sorting/filtering on all columns
-  - ✅ Create price change visualizations (up/down indicators)
-  - ✅ Add quick action buttons for common operations
-  - ✅ Implement "View Details" expandable sections
+**Implementation Priorities**:
+1. First: Database schema implementation
+2. Second: Core API endpoints
+3. Third: Unified dashboard UI
+4. Finally: Advanced filtering and user preference features
 
-- ✅ Manual Review Workflow UI
-  - ✅ Create review queue with priority indicators
-  - ✅ Build side-by-side comparison view (old vs new price)
-  - ✅ Implement action buttons (approve/reject/modify)
-  - ✅ Add contextual information panel with extraction details
-  - ✅ Create comment/note system for rejected items
+This approach allows for a clean implementation without legacy constraints, while preserving existing batch creation functionality that works well.
 
-- ✅ Batch Operations Interface
-  - ✅ Build filter selection panel with previews
-  - ✅ Create batch configuration form
-  - ✅ Implement real-time progress tracking
-  - ✅ Design results visualization dashboard
-  - ✅ Add export controls for batch results
+#### 3.4.9 Direct Supabase Integration for Admin Interface
 
-- ✅ Configuration Management UI
-  - ✅ Create machine configuration form
-  - ✅ Build variant management interface
-  - ✅ Implement JS click sequence builder
-  - ✅ Add confidence threshold controls
-  - ✅ Create test configuration feature
+**Current Issue:**
+The current admin interface unnecessarily routes read operations (data fetching) through the Python service, which causes:
+- Performance bottlenecks due to Python cold starts
+- Redundant connections to Supabase
+- Increased latency for simple data displays
+- Inefficient resource usage
 
-- ✅ Cost Tracking Dashboard
-  - ✅ Create main overview panel
-  - ✅ Build usage breakdown charts
-  - ✅ Implement trend visualization
-  - ✅ Add budget management interface
-  - ✅ Create export functionality
+**Architectural Refinement:**
+Separate the system into two clear access patterns:
+1. **Data Display Operations (READ)**: 
+   - Access Supabase directly from Next.js API routes or client components
+   - Use client-side caching (SWR/React Query) for improved performance
+   - Implement proper pagination directly against Supabase
+   - Only fetch the data actually needed for display
 
-### 4.3 Data Migration Strategy
-- Create one-time migration script to:
-  - Create new tables (machines_latest, variant_extraction_config, llm_usage_tracking)
-  - Add new columns to price_history
-  - Populate machines_latest with most recent prices using "DEFAULT" as variant_attribute
-  - Set tier="MIGRATION" for initial records
-  - Leave historical price_history records with NULL values for new fields
+2. **Price Extraction Operations (WRITE)**:
+   - Continue using the Python service for:
+     - Web scraping and price extraction
+     - Batch operations
+     - Extraction configuration
+     - LLM integration
+     - Validation logic
 
-## 5. Testing Strategy ✅
+**Implementation Checklist:**
+- [ ] Create direct Supabase access in Next.js API routes for:
+  - [ ] `/api/admin/price-history` - Direct Supabase query for price history
+  - [ ] `/api/admin/machines` - Direct Supabase query for machines with prices
+  - [ ] `/api/admin/reviews` - Direct Supabase query for flagged machines
+  - [ ] `/api/admin/batches` - Direct Supabase query for batch information
+- [ ] Update frontend components to use these direct API routes instead of proxying through Python
+- [ ] Add proper client-side caching with SWR or React Query
+- [ ] Implement proper error handling for direct Supabase queries
+- [ ] Reserve Python API calls exclusively for extraction operations:
+  - `/api/v1/extract-price` (Python) - Trigger a price extraction
+  - `/api/v1/batch-update` (Python) - Run a batch update
+  - `/api/v1/batch-configure` (Python) - Configure a batch operation
+
+**Benefits:**
+- Significantly improved admin interface performance
+- Reduced server load and costs
+- Better separation of concerns
+- Simplified architecture for read operations
+- Improved user experience with faster load times
+
+**Technical Approach:**
+```typescript
+// Example Next.js API route with direct Supabase access
+// /pages/api/admin/price-history.ts
+import { createClient } from '@supabase/supabase-js'
+
+export default async function handler(req, res) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  
+  const { data, error } = await supabase
+    .from('price_history')
+    .select('*')
+    .order('date', { ascending: false })
+    .limit(req.query.limit || 50)
+    
+  if (error) return res.status(500).json({ error: error.message })
+  return res.status(200).json({ items: data })
+}
+```
+
+### 3.5 Migration Strategy and Batch Run Process
+
+#### 3.5.1 Data Migration Steps
+1. **Add New Columns to `price_history`:** 
+   - Add `status` (TEXT NOT NULL), 
+   - Add `review_reason` (TEXT), 
+   - Add `validation_basis_price` (NUMERIC).
+
+2. **Populate `status`:** 
+   - Backfill based on existing data: 
+   - Set to 'FAILED' if `failure_reason` is not NULL
+   - Set to 'SUCCESS' if price is valid and no failure
+   - Set to 'NEEDS_REVIEW' based on old confidence flags if possible
+   - Default to 'SUCCESS' or 'UNKNOWN' if unsure
+
+3. **Populate `validation_basis_price`:** 
+   - Backfill using the `previous_price` value from existing data
+
+4. **Update `machines_latest` Table Structure:**
+   - Add new pointer fields
+   - Update constraints and relationships
+   - Populate pointers based on existing price_history records
+
+5. **Deploy Code Changes:**
+   - Update backend code to use new schema
+   - Gradually roll out frontend changes
+   - Support dual formats during transition
+
+#### 3.5.2 Batch Run Process Flow
+
+When a batch run executes with the new schema:
+
+1. **Pre-batch Processing**
+   - Load machine configurations and variants
+   - Determine extraction methods based on configuration
+   - Retrieve previous successful prices as validation context
+
+2. **Per-Machine Extraction**
+   - For each machine/variant:
+     - Try each extraction tier in sequence (Static → Slice Fast → Balanced → JS → Full HTML)
+     - At each tier, attempt price extraction with appropriate validation
+
+3. **Database Writing**
+   - For each extraction attempt (success or failure):
+     - Create complete record in `price_history` with all metadata
+     - Set `status` as 'SUCCESS', 'FAILED', or 'NEEDS_REVIEW'
+     - Include `validation_basis_price` (price used for comparison)
+     - Record extraction method, confidence scores, and any failure/review reasons
+
+4. **Update Summary Table**
+   - Always update `latest_price_history_id` in `machines_latest` to point to newest attempt
+   - Update `latest_successful_price_history_id` only if status is 'SUCCESS'
+   - Set `manual_review_flag` based on status (true if 'NEEDS_REVIEW')
+   - Update timestamp fields accordingly
+
+5. **Batch Summary Generation**
+   - Generate summary by querying `price_history` filtered by batch_id
+   - Calculate success rates, price changes, and review flags
+   - Log any issues encountered during the batch
+
+This approach maintains a comprehensive audit trail of every extraction attempt while providing quick access to the latest valid state for each machine variant.
+
+## 4. Integration Requirements (Impact Notes)
+
+**Note:** API endpoint definitions need review. Endpoints returning the "current" state of a machine must be updated to reflect the new data retrieval logic (querying/joining `price_history`).
+
+### 4.1 Backend API Integration (Impacted)
+- ✅ Machine Price Endpoints (All GET endpoints need modification)
+  - `GET /api/v1/machines`, `GET /api/v1/machines/:id` must join or perform lookups to get current price/details from `price_history`.
+  - `GET /api/v1/machines/:id/price-history` now queries the primary log directly.
+- ✅ Review Management Endpoints (Logic needs review)
+  - Endpoints need to correctly interpret `manual_review_flag` in `machines_latest` and potentially interact with `price_history` status.
+- ✅ Batch Operation Endpoints (Impacted)
+  - `GET /api/v1/batches/:id` and `/export` should source detailed results from `price_history`.
+
+### 4.2 Frontend Integration (Impacted)
+- All UIs displaying current price, status, confidence, change % need to adapt to data fetched via the new backend logic (which queries `price_history`).
+- Price change calculations need to be implemented dynamically in the frontend or backend API layer based on historical data.
+
+### 4.3 Data Migration Strategy (Revised)
+- Create a multi-step migration script:
+  1.  **Add New Columns to `price_history`:** Add `status` (TEXT NOT NULL), `review_reason` (TEXT), `validation_basis_price` (NUMERIC).
+  2.  **Populate `status`:** Backfill the new `status` column based on existing data (e.g., set to 'FAILED' if `failure_reason` is not NULL, 'SUCCESS' otherwise, potentially 'NEEDS_REVIEW' based on old confidence flags if possible). Default to 'SUCCESS' or 'UNKNOWN' if unsure.
+  3.  **Populate `validation_basis_price`:** Backfill using the `previous_price` value calculated by the old trigger/backfill, if available and deemed accurate enough for historical context.
+  4.  **(Optional) Drop Old Columns:** Remove `previous_price`, `price_change`, `percentage_change`, `is_all_time_low`, `is_all_time_high` from `price_history` if deciding to calculate dynamically.
+  5.  **Create `machines_latest` Table:** Define the new structure (PKs, `latest_price_history_id`, `latest_successful_price_history_id`, `last_successful_update_time`, `last_attempt_time`, `manual_review_flag`, `flag_reason`).
+  6.  **Populate `machines_latest`:** For each unique `machine_id`/`variant_attribute`, find the corresponding most recent entry and most recent *successful* entry in `price_history` and insert the pointers (`id`s and timestamps) into `machines_latest`. Determine initial `manual_review_flag` based on the status of the latest entry.
+  7.  **Add Foreign Keys:** Establish FK constraints between `machines_latest` and `price_history`.
+  8.  **Update Functions/Triggers:** Remove the old `calculate_price_changes` trigger from `price_history` if dynamic calculation is chosen.
+  9.  **Deprecate `batch_results` Table:** After verifying all batch functionality works with the new schema, remove the `batch_results` table as it's redundant with `price_history` filtered by `batch_id`.
+
+## 5. Testing Strategy (Impact Notes)
+- Backend tests for database interactions need significant updates.
+- API tests need updating for changed response structures and data sources.
+- Frontend tests relying on mocked API data for current prices need adjustment.
 
 ### 5.1 Frontend Testing Infrastructure ✅
 - ✅ Jest configuration with Next.js support
@@ -710,8 +874,10 @@ This approach dramatically reduces technical knowledge requirements while increa
 
 ## Implementation Status Legend
 - ✅ Completed
-- 🔄 Partially Implemented
+- 🔄 Partially Implemented / Needs Rework
 - ⬜ Pending
+
+**Note:** Sections related to Database Schema, Database Write, Admin Interface, API Integration, Frontend Integration, and Data Migration Strategy are marked as 🔄 'Needs Rework' due to this architectural change. Implementation progress for these areas needs reassessment.
 
 ## 10. Next Steps - Updated
 
@@ -721,8 +887,10 @@ This approach dramatically reduces technical knowledge requirements while increa
    - Document JS configuration format
    - Add variant management tutorial
    - Include cost tracking guide
+   - Add Unified Dashboard usage documentation
 
 2. **UI/UX Improvements**
+   - ✅ Implemented Unified Dashboard with tabbed interface
    - Add tooltips for complex settings
    - Improve form validation feedback
    - Enhance error messages
@@ -752,14 +920,6 @@ This approach dramatically reduces technical knowledge requirements while increa
    - Automated testing tools
    - Configuration backup/restore
    - Audit logging
-
-### Success Metrics Update
-- Configuration UI completion: 90%
-- Review workflow implementation: 100%
-- Cost tracking implementation: 100%
-- Overall frontend completion: 95%
-- Backend testing completion: 100% (Core components)
-- Integration testing completion: 30%
 
 ## 11. Recent Progress - Updated April 2025
 
@@ -833,7 +993,32 @@ This approach dramatically reduces technical knowledge requirements while increa
    - Validates extraction result processing
    - Tests LLM integration with mocks
 
-### 11.5 Next Focus Areas
+### 11.5 Unified Dashboard Implementation
+1. ✅ **Created Unified Dashboard UI**
+   - Implemented tabbed interface with History, Review, and Batch modes
+   - Added comprehensive filtering options with status, date range, and price change filters
+   - Designed responsive table layout with key price data and extraction details
+   - Added direct links to product pages for easy verification
+
+2. ✅ **Backend API Integration**
+   - Created unified `/api/v1/price-history` endpoint with filter parameters
+   - Implemented pagination support for large result sets
+   - Added sorting capabilities by date, price change, and confidence
+   - Optimized database queries for performance
+
+3. ✅ **Navigation Integration**
+   - Added Unified Dashboard link to main Price Tracker navigation
+   - Ensured consistent styling with existing navigation elements
+   - Implemented path-based tab switching with URL parameters
+   - Added deep linking support for sharing specific views
+
+4. ✅ **Price Review Workflow**
+   - Integrated approve/reject/override actions directly in dashboard
+   - Added detailed view modal with comprehensive extraction context
+   - Implemented notes field for review decisions
+   - Added confirmation dialogs for critical actions
+
+### 11.6 Next Focus Areas
 1. **Integration Tests**
    - Develop full extraction pipeline tests
    - Test the tier escalation process
@@ -871,8 +1056,10 @@ This approach dramatically reduces technical knowledge requirements while increa
    - Document JS configuration format
    - Add variant management tutorial
    - Include cost tracking guide
+   - Add Unified Dashboard usage documentation
 
 2. **UI/UX Improvements**
+   - ✅ Implemented Unified Dashboard with tabbed interface
    - Add tooltips for complex settings
    - Improve form validation feedback
    - Enhance error messages
@@ -901,12 +1088,4 @@ This approach dramatically reduces technical knowledge requirements while increa
    - Enhanced error reporting
    - Automated testing tools
    - Configuration backup/restore
-   - Audit logging
-
-### Success Metrics Update
-- Configuration UI completion: 90%
-- Review workflow implementation: 100%
-- Cost tracking implementation: 100%
-- Overall frontend completion: 95%
-- Backend testing completion: 100% (Core components)
-- Integration testing completion: 30% 
+   - Audit logging 

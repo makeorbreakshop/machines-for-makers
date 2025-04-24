@@ -1,117 +1,141 @@
-import * as React from "react"
-import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
+"use client"
 
-import { cn } from "@/lib/utils"
-import { ButtonProps, buttonVariants } from "@/components/ui/button"
-
-const Pagination = ({ className, ...props }: React.ComponentProps<"nav">) => (
-  <nav
-    role="navigation"
-    aria-label="pagination"
-    className={cn("mx-auto flex w-full justify-center", className)}
-    {...props}
-  />
-)
-Pagination.displayName = "Pagination"
-
-const PaginationContent = React.forwardRef<
-  HTMLUListElement,
-  React.ComponentProps<"ul">
->(({ className, ...props }, ref) => (
-  <ul
-    ref={ref}
-    className={cn("flex flex-row items-center gap-1", className)}
-    {...props}
-  />
-))
-PaginationContent.displayName = "PaginationContent"
-
-const PaginationItem = React.forwardRef<
-  HTMLLIElement,
-  React.ComponentProps<"li">
->(({ className, ...props }, ref) => (
-  <li ref={ref} className={cn("", className)} {...props} />
-))
-PaginationItem.displayName = "PaginationItem"
-
-type PaginationLinkProps = {
-  isActive?: boolean
-} & Pick<ButtonProps, "size"> &
-  React.ComponentProps<"a">
-
-const PaginationLink = ({
-  className,
-  isActive,
-  size = "icon",
-  ...props
-}: PaginationLinkProps) => (
-  <a
-    aria-current={isActive ? "page" : undefined}
-    className={cn(
-      buttonVariants({
-        variant: isActive ? "outline" : "ghost",
-        size,
-      }),
-      className
-    )}
-    {...props}
-  />
-)
-PaginationLink.displayName = "PaginationLink"
-
-const PaginationPrevious = ({
-  className,
-  ...props
-}: React.ComponentProps<typeof PaginationLink>) => (
-  <PaginationLink
-    aria-label="Go to previous page"
-    size="default"
-    className={cn("gap-1 pl-2.5", className)}
-    {...props}
-  >
-    <ChevronLeft className="h-4 w-4" />
-    <span>Previous</span>
-  </PaginationLink>
-)
-PaginationPrevious.displayName = "PaginationPrevious"
-
-const PaginationNext = ({
-  className,
-  ...props
-}: React.ComponentProps<typeof PaginationLink>) => (
-  <PaginationLink
-    aria-label="Go to next page"
-    size="default"
-    className={cn("gap-1 pr-2.5", className)}
-    {...props}
-  >
-    <span>Next</span>
-    <ChevronRight className="h-4 w-4" />
-  </PaginationLink>
-)
-PaginationNext.displayName = "PaginationNext"
-
-const PaginationEllipsis = ({
-  className,
-  ...props
-}: React.ComponentProps<"span">) => (
-  <span
-    aria-hidden
-    className={cn("flex h-9 w-9 items-center justify-center", className)}
-    {...props}
-  >
-    <MoreHorizontal className="h-4 w-4" />
-    <span className="sr-only">More pages</span>
-  </span>
-)
-PaginationEllipsis.displayName = "PaginationEllipsis"
-
-export {
-  Pagination,
+import {
+  Pagination as PaginationPrimitive,
   PaginationContent,
   PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
+} from "@/components/ui/pagination-primitive"
+import { Button } from "@/components/ui/button"
+import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
+import { useCallback } from "react"
+
+interface PaginationProps {
+  currentPage: number
+  totalItems: number
+  itemsPerPage: number
+  onPageChange: (page: number) => void
+  showPageLinks?: number
+}
+
+export function Pagination({
+  currentPage,
+  totalItems,
+  itemsPerPage,
+  onPageChange,
+  showPageLinks = 5,
+}: PaginationProps) {
+  const totalPages = Math.ceil(totalItems / itemsPerPage)
+  
+  // Generate array of page numbers to show
+  const getPageNumbers = useCallback(() => {
+    const pageNumbers = []
+    
+    if (totalPages <= showPageLinks) {
+      // Show all pages if less than showPageLinks
+      for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i)
+      }
+    } else {
+      // Always show first page
+      pageNumbers.push(1)
+      
+      // Calculate range around current page
+      const leftSide = Math.floor(showPageLinks / 2)
+      const rightSide = showPageLinks - leftSide - 1
+      
+      // Calculate start and end page
+      let startPage = Math.max(2, currentPage - leftSide)
+      let endPage = Math.min(totalPages - 1, currentPage + rightSide)
+      
+      // Adjust if range is too small on one side
+      if (startPage === 2) endPage = Math.min(totalPages - 1, startPage + showPageLinks - 3)
+      if (endPage === totalPages - 1) startPage = Math.max(2, endPage - showPageLinks + 3)
+      
+      // Add ellipsis after first page if needed
+      if (startPage > 2) {
+        pageNumbers.push("ellipsis-start")
+      }
+      
+      // Add pages in range
+      for (let i = startPage; i <= endPage; i++) {
+        pageNumbers.push(i)
+      }
+      
+      // Add ellipsis before last page if needed
+      if (endPage < totalPages - 1) {
+        pageNumbers.push("ellipsis-end")
+      }
+      
+      // Always show last page
+      if (totalPages > 1) {
+        pageNumbers.push(totalPages)
+      }
+    }
+    
+    return pageNumbers
+  }, [currentPage, totalPages, showPageLinks])
+  
+  // Create page numbers
+  const pageNumbers = getPageNumbers()
+
+  // Early return if only one page
+  if (totalPages <= 1) {
+    return null
+  }
+
+  return (
+    <div className="flex items-center justify-center space-x-6 lg:space-x-8">
+      <div className="flex items-center space-x-2">
+        <p className="text-sm font-medium">
+          Page {currentPage} of {totalPages}
+        </p>
+      </div>
+      <PaginationPrimitive>
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+              aria-disabled={currentPage === 1}
+              tabIndex={currentPage === 1 ? -1 : 0}
+              className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+            />
+          </PaginationItem>
+          
+          {pageNumbers.map((page, i) => {
+            if (page === "ellipsis-start" || page === "ellipsis-end") {
+              return (
+                <PaginationItem key={`ellipsis-${i}`}>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              )
+            }
+            
+            return (
+              <PaginationItem key={`page-${page}`}>
+                <PaginationLink
+                  isActive={currentPage === page}
+                  onClick={() => onPageChange(page as number)}
+                >
+                  {page}
+                </PaginationLink>
+              </PaginationItem>
+            )
+          })}
+          
+          <PaginationItem>
+            <PaginationNext
+              onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+              aria-disabled={currentPage === totalPages}
+              tabIndex={currentPage === totalPages ? -1 : 0}
+              className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </PaginationPrimitive>
+    </div>
+  )
 }

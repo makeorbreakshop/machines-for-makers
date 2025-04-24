@@ -138,8 +138,25 @@ class ExtractionService:
             # Get previous price for comparison
             previous_price = None
             price_record = await self.db_service.get_machine_latest_price(machine_id, variant_attribute)
-            if price_record:
-                previous_price = Decimal(str(price_record.get("machines_latest_price", 0)))
+            
+            # First try machines_latest_price
+            if price_record and price_record.get("machines_latest_price") is not None:
+                try:
+                    previous_price = Decimal(str(price_record.get("machines_latest_price")))
+                except (decimal.InvalidOperation, TypeError, ValueError) as e:
+                    logger.warning(f"Failed to convert machines_latest_price to Decimal: {str(e)}")
+                    previous_price = None
+            
+            # If no price in machines_latest, try getting from machines table
+            if previous_price is None:
+                machine = await self.db_service.get_machine_by_id(machine_id)
+                if machine and machine.get("Price") is not None:
+                    try:
+                        previous_price = Decimal(str(machine.get("Price")))
+                        logger.info(f"Using fallback price from machines table: {previous_price}")
+                    except (decimal.InvalidOperation, TypeError, ValueError) as e:
+                        logger.warning(f"Failed to convert machines.Price to Decimal: {str(e)}")
+                        previous_price = None
             
             # Determine validation threshold based on variant config or default
             validation_confidence_threshold = 0.85
@@ -215,7 +232,7 @@ class ExtractionService:
             # Skip to JS tier if site is known to require JavaScript
             if not requires_js:
                 # 1. Try STATIC tier
-                extracted_price, extraction_method, extraction_confidence = await self._extract_static(
+                extracted_price, extraction_method, extraction_confidence, extraction_metadata = await self._extract_static(
                     html_content, 
                     product_url, 
                     variant_config
@@ -466,7 +483,7 @@ class ExtractionService:
             
             # Save the price to database if not dry run and save_to_db is true
             if not dry_run and save_to_db:
-                saved = await self.db_service.save_price_extraction_results(
+                saved = await self.save_price_extraction_results(
                     machine_id=machine_id,
                     variant_attribute=variant_attribute,
                     price=extracted_price,
@@ -475,9 +492,25 @@ class ExtractionService:
                     validation_confidence=validation_result["validation_confidence"],
                     currency="USD",
                     manual_review_flag=validation_result["needs_manual_review"],
+                    review_reason=validation_result["validation_reason"],
                     llm_usage_data=llm_usage_data,
                     batch_id=batch_id,
-                    url=product_url
+                    url=product_url,
+                    html_size=html_size,
+                    http_status=http_status,
+                    extraction_duration_seconds=time.time() - start_time,
+                    extraction_attempts=self.extraction_attempts,
+                    raw_price_text=str(extracted_price),
+                    structured_data_type=extraction_metadata.get("structured_data_type"),
+                    selectors_tried=extraction_metadata.get("selectors_tried"),
+                    request_headers=extraction_metadata.get("request_headers"),
+                    response_headers=extraction_metadata.get("response_headers"),
+                    validation_steps=extraction_metadata.get("validation_steps"),
+                    dom_elements_analyzed=extraction_metadata.get("elements_analyzed"),
+                    price_location_in_dom=extraction_metadata.get("price_location"),
+                    retry_count=extraction_metadata.get("retry_count"),
+                    cleaned_price_string=extraction_metadata.get("cleaned_price_string"),
+                    parsed_currency_from_text=extraction_metadata.get("parsed_currency")
                 )
                 
                 if saved:
@@ -553,9 +586,18 @@ class ExtractionService:
                 "duration_seconds": time.time() - start_time
             }
     
-    async def _extract_static(self, html_content: str, url: str, variant_config: Optional[Dict[str, Any]] = None) -> Tuple[Optional[Decimal], str, float]:
+    async def _extract_static(self, html_content: str, url: str, variant_config: Optional[Dict[str, Any]] = None) -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
         """Extract price using static parsing methods."""
         logger.info(f"Attempting STATIC tier extraction for {url}")
+        
+        metadata = {
+            "structured_data_type": None,
+            "selectors_tried": [],
+            "dom_elements_analyzed": 0,
+            "price_location_in_dom": None,
+            "cleaned_price_string": None,
+            "parsed_currency_from_text": None
+        }
         
         # Get custom CSS selectors if available
         custom_selectors = None
@@ -565,19 +607,35 @@ class ExtractionService:
                 custom_selectors = [selectors]
             elif isinstance(selectors, list):
                 custom_selectors = selectors
+            metadata["selectors_tried"] = custom_selectors
         
         try:
-            price, method, confidence = self.static_parser.extract(html_content, url, custom_selectors)
+            # Track the start time for DOM analysis
+            dom_analysis_start = time.time()
+            
+            # Extract price using static parser
+            price, method, confidence, extraction_metadata = self.static_parser.extract(html_content, url, custom_selectors)
+            
+            # Update metadata with parser results
+            metadata.update(extraction_metadata)
+            
+            # Calculate DOM analysis time and elements
+            metadata["dom_elements_analyzed"] = extraction_metadata.get("elements_analyzed", 0)
+            metadata["price_location_in_dom"] = extraction_metadata.get("price_location", None)
+            metadata["structured_data_type"] = extraction_metadata.get("structured_data_type", None)
+            metadata["cleaned_price_string"] = extraction_metadata.get("cleaned_price_string", None)
+            metadata["parsed_currency_from_text"] = extraction_metadata.get("parsed_currency", None)
             
             if price:
                 logger.info(f"STATIC tier extracted price: {price} using {method} with confidence {confidence}")
-                return price, method, confidence
+                return price, method, confidence, metadata
             else:
                 logger.info("STATIC tier extraction failed")
-                return None, "STATIC_FAILED", 0.0
+                return None, None, 0.0, metadata
+                
         except Exception as e:
-            logger.error(f"Error in STATIC tier extraction: {str(e)}")
-            return None, "STATIC_ERROR", 0.0
+            logger.exception(f"Error in static extraction: {str(e)}")
+            return None, None, 0.0, metadata
     
     async def _extract_slice_fast(self, html_content: str, url: str, previous_price: Optional[Decimal] = None, variant_attribute: str = "DEFAULT") -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
         """Extract price using Claude Haiku for fast extraction."""
@@ -908,4 +966,268 @@ class ExtractionService:
             
         except (ValueError, decimal.InvalidOperation, TypeError) as e:
             logger.error(f"Price normalization error: {str(e)} for value: {price_value}")
-            return None 
+            return None
+
+    async def save_price_extraction_results(
+        self, 
+        machine_id: str,
+        variant_attribute: str,
+        price: Decimal,
+        extraction_method: str,
+        extraction_confidence: float,
+        validation_confidence: float = 0.0,
+        currency: str = "USD",
+        manual_review_flag: bool = False,
+        review_reason: str = None,
+        failure_reason: str = None,
+        llm_usage_data: List[Dict[str, Any]] = None,
+        batch_id: Optional[str] = None,
+        url: Optional[str] = None,
+        html_size: Optional[int] = None,
+        http_status: Optional[int] = None,
+        extraction_duration_seconds: Optional[float] = None,
+        extraction_attempts: Optional[List[Dict[str, Any]]] = None,
+        raw_price_text: Optional[str] = None,
+        # Add new parameters
+        structured_data_type: Optional[str] = None,
+        selectors_tried: Optional[List[str]] = None,
+        request_headers: Optional[Dict[str, str]] = None,
+        response_headers: Optional[Dict[str, str]] = None,
+        validation_steps: Optional[List[Dict[str, Any]]] = None,
+        dom_elements_analyzed: Optional[int] = None,
+        price_location_in_dom: Optional[str] = None,
+        retry_count: Optional[int] = None,
+        cleaned_price_string: Optional[str] = None,
+        parsed_currency_from_text: Optional[str] = None
+    ) -> bool:
+        """Save price extraction results to the database."""
+        try:
+            # Get machine details for company and category
+            machine = await self.db_service.get_machine_by_id(machine_id)
+            company = machine.get("company") if machine else None
+            category = machine.get("category") if machine else None
+            
+            # Get the previous price for validation
+            previous_price = await self.db_service.get_previous_price(machine_id, variant_attribute)
+            
+            # Add price history record
+            price_history_id = await self.db_service.add_price_history(
+                machine_id=machine_id,
+                new_price=price,
+                old_price=previous_price,
+                variant_attribute=variant_attribute,
+                tier=extraction_method,
+                extracted_confidence=extraction_confidence,
+                validation_confidence=validation_confidence,
+                success=True,
+                error_message=failure_reason,
+                url=url,
+                batch_id=batch_id,
+                html_size=html_size,
+                http_status=http_status,
+                extraction_method=extraction_method,
+                raw_price_text=raw_price_text,
+                extraction_duration_seconds=extraction_duration_seconds,
+                extraction_attempts=extraction_attempts,
+                needs_review=manual_review_flag,
+                review_reason=review_reason,
+                validation_basis_price=previous_price,
+                # Add new fields
+                structured_data_type=structured_data_type,
+                selectors_tried=selectors_tried,
+                request_headers=request_headers,
+                response_headers=response_headers,
+                validation_steps=validation_steps,
+                company=company,
+                category=category,
+                dom_elements_analyzed=dom_elements_analyzed,
+                price_location_in_dom=price_location_in_dom,
+                retry_count=retry_count,
+                cleaned_price_string=cleaned_price_string,
+                parsed_currency_from_text=parsed_currency_from_text
+            )
+            
+            if price_history_id:
+                logger.info(f"Successfully saved price extraction results for {machine_id}")
+                return True
+            else:
+                logger.error(f"Failed to save price extraction results for {machine_id}")
+                return False
+                
+        except Exception as e:
+            logger.exception(f"Error saving price extraction results: {str(e)}")
+            return False
+
+    async def extract_machine_price(
+        self,
+        machine_id: str,
+        url: str,
+        variant_attribute: str = "DEFAULT",
+        save_to_db: bool = True,
+        flags_for_review: bool = True,
+        sanity_check_threshold: float = 25.0,
+        batch_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Extract the latest price for a machine from its product page."""
+        start_time = time.time()
+        extraction_attempts = []
+        
+        try:
+            # Get machine details
+            machine = await self.db_service.get_machine_by_id(machine_id)
+            if not machine:
+                return {
+                    "success": False,
+                    "error": f"Machine {machine_id} not found"
+                }
+
+            # Validate URL
+            if not url or not isinstance(url, str):
+                return {
+                    "success": False,
+                    "error": "Invalid URL provided"
+                }
+
+            # Get the HTML content
+            html_content, html_size, http_status = await self.web_scraper.get_page_content(url)
+            if not html_content:
+                return {
+                    "success": False,
+                    "error": "Failed to fetch HTML content",
+                    "http_status": http_status
+                }
+
+            # Get the latest price history for comparison
+            latest_price = await self.db_service.get_machine_latest_price(machine_id, variant_attribute)
+            old_price = latest_price.get("machines_latest_price") if latest_price else None
+
+            # Extract price using existing price extractor
+            extraction_result = await self.price_extractor.extract_price(
+                html_content,
+                url,
+                machine.get("name", ""),
+                extraction_attempts
+            )
+
+            # Calculate duration
+            extraction_duration = time.time() - start_time
+
+            # Process extraction result
+            if not extraction_result["success"]:
+                error_msg = extraction_result.get("error", "Unknown error during price extraction")
+                if save_to_db:
+                    await self.save_price_extraction_results(
+                        machine_id=machine_id,
+                        variant_attribute=variant_attribute,
+                        price=None,
+                        extraction_method=extraction_result.get("method", "unknown"),
+                        extraction_confidence=0.0,
+                        validation_confidence=0.0,
+                        success=False,
+                        error_message=error_msg,
+                        url=url,
+                        html_size=html_size,
+                        http_status=http_status,
+                        raw_price_text=extraction_result.get("raw_price_text"),
+                        extraction_duration_seconds=extraction_duration,
+                        extraction_attempts=extraction_attempts,
+                        needs_review=False,
+                        review_reason=None,
+                        batch_id=batch_id
+                    )
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "method": extraction_result.get("method", "unknown"),
+                    "http_status": http_status
+                }
+
+            new_price = extraction_result["price"]
+            needs_review = False
+            review_reason = None
+
+            # Validate price if flags_for_review is enabled
+            if flags_for_review and old_price:
+                price_change_pct = abs((new_price - old_price) / old_price * 100)
+                if price_change_pct > sanity_check_threshold:
+                    needs_review = True
+                    review_reason = f"Price change of {price_change_pct:.1f}% exceeds threshold of {sanity_check_threshold}%"
+
+            # Save results if requested
+            if save_to_db:
+                price_history_id = await self.save_price_extraction_results(
+                    machine_id=machine_id,
+                    variant_attribute=variant_attribute,
+                    price=new_price,
+                    extraction_method=extraction_result["method"],
+                    extraction_confidence=extraction_result.get("confidence", 0.0),
+                    validation_confidence=extraction_result.get("validation_confidence", 0.0),
+                    success=True,
+                    error_message=None,
+                    url=url,
+                    html_size=html_size,
+                    http_status=http_status,
+                    raw_price_text=extraction_result.get("raw_price_text"),
+                    extraction_duration_seconds=extraction_duration,
+                    extraction_attempts=extraction_attempts,
+                    needs_review=needs_review,
+                    review_reason=review_reason,
+                    batch_id=batch_id
+                )
+                if not price_history_id:
+                    return {
+                        "success": False,
+                        "error": "Failed to save price history"
+                    }
+
+            # Calculate price change metrics
+            price_change = None
+            percentage_change = None
+            if old_price and new_price:
+                price_change = new_price - old_price
+                percentage_change = (price_change / old_price) * 100
+
+            # Return successful result
+            return {
+                "success": True,
+                "price_history_id": price_history_id if save_to_db else None,
+                "old_price": old_price,
+                "new_price": new_price,
+                "price_change": price_change,
+                "percentage_change": percentage_change,
+                "method": extraction_result["method"],
+                "confidence": extraction_result.get("confidence", 0.0),
+                "validation_confidence": extraction_result.get("validation_confidence", 0.0),
+                "needs_review": needs_review,
+                "review_reason": review_reason,
+                "extraction_duration": extraction_duration,
+                "http_status": http_status,
+                "html_size": html_size
+            }
+
+        except Exception as e:
+            logger.error(f"Error in extract_machine_price: {str(e)}")
+            if save_to_db:
+                await self.save_price_extraction_results(
+                    machine_id=machine_id,
+                    variant_attribute=variant_attribute,
+                    price=None,
+                    extraction_method="error",
+                    extraction_confidence=0.0,
+                    validation_confidence=0.0,
+                    success=False,
+                    error_message=str(e),
+                    url=url,
+                    html_size=html_size if 'html_size' in locals() else None,
+                    http_status=http_status if 'http_status' in locals() else None,
+                    raw_price_text=None,
+                    extraction_duration_seconds=time.time() - start_time,
+                    extraction_attempts=extraction_attempts,
+                    needs_review=False,
+                    review_reason=None,
+                    batch_id=batch_id
+                )
+            return {
+                "success": False,
+                "error": f"Unexpected error: {str(e)}"
+            } 

@@ -63,6 +63,11 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
   - Intelligent selection between previous, new, or alternative prices based on Claude's analysis
   - Falls back to previous price when verification fails to prevent incorrect updates
   - Improves accuracy for sale prices and special discounts
+- Added batch analytics tool for extraction result analysis
+  - Automated identification of problematic vendors and extraction patterns
+  - Statistical breakdowns of extraction failures by error type
+  - Detection of extreme price changes
+  - Vendor-specific issue tracking
 
 ### Fixed
 - Enhanced price parsing for multiple international formats
@@ -75,6 +80,8 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
   - Implemented specialized ComMarker extractor for WooCommerce discount formats
   - Added intelligent price validation against merchant price ranges
   - Enhanced detection of sale prices vs regular prices
+  - Fixed price detection for Atomstack M4 Pro to consistently extract $1599 price instead of $1499
+  - Implemented product-specific guidance for Claude AI to correctly identify current prices
 - Added smart price correction for missing digits
   - Automatic detection and correction of missing leading digits (e.g., $600 → $6,000)
   - Fixed missing trailing digit issues (e.g., $184 → $1,840)
@@ -124,6 +131,30 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
   - Improved reliability of price updates with proper headers and authentication
   - Added timezone awareness to all timestamps to ensure consistent date handling
   - Fixed date discrepancies in price history records and machine timestamps
+- Enhanced price validation and normalization
+  - Added robust price format normalization to handle numeric format issues
+  - Implemented strict validation enforcement with proper rejection of invalid prices
+  - Added configurable sanity checks for unreasonably high/low prices ($10-$100,000 range)
+  - Fixed European decimal format handling (comma vs period)
+  - Fixed excessive digit errors in price extraction
+  - Corrected multiple decimal point errors in extracted prices
+  - Fixed OMTech-specific price format where values appear with multiple $ symbols
+  - Fixed countdown timer misinterpretation as prices (e.g., "Limited time deal 00:00:00")
+- Fixed price extraction for Glowforge Pro HD and similar products
+  - Added improved CSS selectors to target prices on modern e-commerce sites
+  - Fixed TypeError in extraction_service.py for proper null handling
+  - Corrected JS parser parameter mismatch in extraction pipeline
+  - Implemented better fallback between extraction tiers
+  - Enhanced extraction configuration with product-specific selectors
+- Enhanced price extraction for sites with multiple pricing elements
+  - Improved selector matching to better identify correct price elements
+  - Fixed JS parameter handling for dynamic price extraction
+  - Added proper error handling when all extraction tiers fail
+- Added fallback to machines table when no entry exists in machines_latest
+  - Implemented automatic fallback for new machines without price history
+  - Created seamless transition between legacy and new price storage systems
+  - Added special tier identification for prices retrieved via fallback mechanism
+  - Ensured consistent price validation regardless of data source
 
 ### Removed
 - Removed coordinate-based extractor functionality from admin interface

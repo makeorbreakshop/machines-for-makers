@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -21,7 +20,7 @@ import {
 import { PriceHistoryChart } from "@/components/product/price-history-chart"
 import { format, formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
-import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink, AlertTriangle, Settings, Plus } from "lucide-react"
+import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink, AlertTriangle, Settings, Plus, Edit } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -46,704 +45,1009 @@ import {
 } from "@/components/ui/select"
 import Link from "next/link"
 import { SequenceBuilder } from "./components/SequenceBuilder"
+import { Checkbox } from "@/components/ui/checkbox"
+import { useRouter } from "next/navigation"
 
-// Add type definitions for the window object with priceTrackerAPI
-declare global {
-  interface Window {
-    priceTrackerAPI?: {
-      updateMachinePrice: (machineId: string) => Promise<any>;
-      updateAllPrices: (daysThreshold?: number, machineLimit?: number | null) => Promise<any>;
-      confirmPrice: (machineId: string, newPrice: number) => Promise<any>;
-      debugMachinePrice: (machineId: string) => Promise<any>;
-    };
-  }
+// Types for API responses
+interface Machine {
+  id: string;
+  machine_name: string;
+  brand?: string;
+  company?: string;
+  product_link?: string;
+  current_price?: number;
+  previous_price?: number;
+  last_updated?: string;
+  manual_review_flag?: boolean;
+  flag_reason?: string;
+  extraction_method?: string;
 }
 
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+interface PriceHistoryRecord {
+  id: string;
+  machine_id: string;
+  date: string;
+  price: number;
+  status: 'SUCCESS' | 'FAILED' | 'NEEDS_REVIEW';
+  source?: string;
+  scraped_from_url?: string;
+  tier?: string;
+  extraction_method?: string;
+  validation_basis_price?: number;
+  review_reason?: string;
+  failure_reason?: string;
+  is_all_time_low?: boolean;
+  is_all_time_high?: boolean;
+  machine?: {
+    id: string;
+    name?: string;
+    machine_name?: string;
+    company?: string;
+  };
+}
+
+interface BatchInfo {
+  id: string;
+  status: string;
+  start_time: string;
+  end_time?: string;
+  total_machines: number;
+  days_threshold: number;
+}
+
+interface VariantConfig {
+  machine_id: string;
+  variant_attribute: string;
+  css_price_selector?: string;
+  requires_js_interaction?: boolean;
+  min_extraction_confidence?: number;
+  min_validation_confidence?: number;
+  sanity_check_threshold?: number;
+  api_endpoint_template?: string;
+  js_click_sequence?: any[];
+  machines_latest_price?: number;
+  last_checked?: string;
+}
+
+// API base URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000';
 
 export default function PriceTrackerAdmin() {
-  const [machines, setMachines] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [priceHistory, setPriceHistory] = useState<any[]>([])
-  const [selectedMachine, setSelectedMachine] = useState<any>(null)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [recentlyUpdated, setRecentlyUpdated] = useState<any[]>([])
-  const [filterFeatured, setFilterFeatured] = useState(false)
-  const [debugInfo, setDebugInfo] = useState<any>(null)
-  const [debugDialogOpen, setDebugDialogOpen] = useState(false)
-  const [pythonApiReady, setPythonApiReady] = useState(false)
-  const [batchUpdateDialogOpen, setBatchUpdateDialogOpen] = useState(false)
-  const [daysThreshold, setDaysThreshold] = useState(7)
-  const [batchPreviewCount, setBatchPreviewCount] = useState<number | null>(null)
-  const [batchPreviewLoading, setBatchPreviewLoading] = useState(false)
-  const [machineLimit, setMachineLimit] = useState<number | null>(10)
-  const [previewMachineIds, setPreviewMachineIds] = useState<string[]>([])
-  const [batches, setBatches] = useState<any[]>([])
-  const [loadingBatches, setLoadingBatches] = useState(false)
+  // State for machines and UI
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatingPrices, setUpdatingPrices] = useState<Record<string, boolean>>({});
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryRecord[]>([]);
+  const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [recentlyUpdated, setRecentlyUpdated] = useState<PriceHistoryRecord[]>([]);
+  const [filterFeatured, setFilterFeatured] = useState(false);
+  
+  // Debug and batch states
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [debugDialogOpen, setDebugDialogOpen] = useState(false);
+  const [pythonApiReady, setPythonApiReady] = useState(false);
+  const [batchUpdateDialogOpen, setBatchUpdateDialogOpen] = useState(false);
+  const [daysThreshold, setDaysThreshold] = useState(0);
+  const [batchPreviewCount, setBatchPreviewCount] = useState<number | null>(null);
+  const [batchPreviewLoading, setBatchPreviewLoading] = useState(false);
+  const [machineLimit, setMachineLimit] = useState<number | null>(10);
+  const [previewMachineIds, setPreviewMachineIds] = useState<string[]>([]);
+  const [batches, setBatches] = useState<BatchInfo[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
   
   // Configuration state
-  const [configDialogOpen, setConfigDialogOpen] = useState(false)
-  const [machineConfig, setMachineConfig] = useState<any>(null)
-  const [configLoading, setConfigLoading] = useState(false)
-  const [variants, setVariants] = useState<any[]>([])
-  const [newVariant, setNewVariant] = useState({ attribute: "", requires_js: false })
-  const [isAddingVariant, setIsAddingVariant] = useState(false)
-  const [jsConfig, setJsConfig] = useState<any>(null)
-  const [isEditingJs, setIsEditingJs] = useState(false)
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [machineConfig, setMachineConfig] = useState<any>(null);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [variants, setVariants] = useState<VariantConfig[]>([]);
+  const [newVariant, setNewVariant] = useState({ attribute: "", requires_js: false });
+  const [isAddingVariant, setIsAddingVariant] = useState(false);
+  const [jsConfig, setJsConfig] = useState<any[]>([]);
+  const [isEditingJs, setIsEditingJs] = useState(false);
+  const [isDryRun, setIsDryRun] = useState(false);
   
-  // API URL for configuration endpoints
-  const API_BASE_URL = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'
+  const router = useRouter();
   
   // Fetch machines
   useEffect(() => {
-    const fetchMachines = async () => {
-      try {
-        setLoading(true)
-        
-        let query = supabase
-          .from("machines")
-          .select("id, \"Machine Name\", \"Company\", Price, \"Is A Featured Resource?\", product_link, \"Affiliate Link\"")
-          .order("\"Machine Name\"", { ascending: true })
-          
-        if (filterFeatured) {
-          query = query.eq("Is A Featured Resource?", "true")
-        }
-        
-        if (searchTerm) {
-          query = query.ilike("\"Machine Name\"", `%${searchTerm}%`)
-        }
-          
-        const { data, error } = await query
-        
-        if (error) throw error
-        
-        setMachines(data || [])
-      } catch (error) {
-        console.error("Error fetching machines:", error)
-        toast.error("Failed to load machines")
-      } finally {
-        setLoading(false)
+    fetchMachines();
+  }, [searchTerm, filterFeatured]);
+  
+  const fetchMachines = async () => {
+    try {
+      setLoading(true);
+      
+      // Build query params
+      const queryParams = new URLSearchParams();
+      if (filterFeatured) {
+        queryParams.append('featured', 'true');
       }
+      if (searchTerm) {
+        queryParams.append('search', searchTerm);
+      }
+      
+      const response = await fetch(
+        `/api/admin/machines?${queryParams.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success === false) {
+        throw new Error(data.error || "Failed to fetch machines");
+      }
+      
+      // Set machines from direct Supabase API
+      setMachines(data.machines || []);
+    } catch (error) {
+      console.error("Error fetching machines:", error);
+      toast.error(`Failed to load machines: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setLoading(false);
     }
-    
-    fetchMachines()
-  }, [searchTerm, filterFeatured])
+  };
   
   // Fetch recently updated machines
   useEffect(() => {
-    const fetchRecentlyUpdated = async () => {
-      try {
-        // Get the most recent price history entries
-        const { data: recentEntries, error } = await supabase
-          .from("price_history")
-          .select("id, machine_id, price, date, is_all_time_low, is_all_time_high")
-          .order("date", { ascending: false })
-          .limit(10)
-        
-        if (error) throw error
-        
-        if (recentEntries && recentEntries.length > 0) {
-          // Get machine names and current prices
-          const machineIds = [...new Set(recentEntries.map(item => item.machine_id))]
-          const { data: machineData, error: machineError } = await supabase
-            .from("machines")
-            .select("id, \"Machine Name\", \"Company\", Price")
-            .in("id", machineIds)
-          
-          if (machineError) throw machineError
-          
-          // For each recent entry, find the previous entry
-          const combinedData = await Promise.all(recentEntries.map(async (entry) => {
-            // Get previous price history entry for this machine
-            const { data: prevEntries, error: prevError } = await supabase
-              .from("price_history")
-              .select("price")
-              .eq("machine_id", entry.machine_id)
-              .lt("date", entry.date)  // Entries before the current one
-              .order("date", { ascending: false })
-              .limit(1)
-              
-            const previousPrice = prevEntries && prevEntries.length > 0 
-              ? prevEntries[0].price 
-              : entry.price // If no previous entry, use current price
-              
-            const machine = machineData?.find(m => m.id === entry.machine_id)
-            
-            // Calculate price change
-            const priceChange = prevEntries && prevEntries.length > 0 
-              ? entry.price - previousPrice
-              : 0
-            
-            // Format price change for display
-            const priceChangeClass = priceChange > 0 
-              ? 'text-red-500' 
-              : priceChange < 0 
-                ? 'text-green-500' 
-                : ''
-            
-            return {
-              id: entry.id,
-              machine_id: entry.machine_id,
-              recordedPrice: previousPrice, // Previous price
-              price: entry.price,           // Price at time of update
-              currentPrice: machine ? machine.Price : null, // Current price from machines table
-              date: entry.date,
-              is_all_time_low: entry.is_all_time_low,
-              is_all_time_high: entry.is_all_time_high,
-              machineName: machine ? machine["Machine Name"] : "Unknown",
-              company: machine ? machine["Company"] : "Unknown",
-              priceChange,
-              priceChangeClass
-            }
-          }))
-          
-          setRecentlyUpdated(combinedData)
-        } else {
-          setRecentlyUpdated([])
-        }
-      } catch (error) {
-        console.error("Error fetching recent updates:", error)
-      }
-    }
-    
-    fetchRecentlyUpdated()
-  }, [refreshing])
+    fetchRecentlyUpdated();
+  }, [refreshing]);
   
-  // Initial setup
-  useEffect(() => {
-    if (pythonApiReady) {
-      previewBatchUpdate(daysThreshold, machineLimit)
-    }
-  }, [pythonApiReady, daysThreshold, machineLimit])
-  
-  // Handle machine selection
-  const selectMachine = async (machine: any) => {
-    setSelectedMachine(machine)
-    
+  const fetchRecentlyUpdated = async () => {
     try {
-      const { data, error } = await supabase
-        .from("price_history")
-        .select("*")
-        .eq("machine_id", machine.id)
-        .order("date", { ascending: false })
-      
-      if (error) throw error
-      
-      setPriceHistory(data || [])
-    } catch (error) {
-      console.error("Error fetching price history:", error)
-      toast.error("Failed to load price history")
-    }
-  }
-  
-  // Function to trigger manual price update for a machine
-  const updatePrice = async (machine: any, debug = false) => {
-    try {
-      setDebugInfo(null)
-      
-      if (!pythonApiReady || !window.priceTrackerAPI) {
-        toast.error("Python Price Extractor API is not connected")
-        return
-      }
-      
-      // Show loading state
-      toast.info(`Extracting price for ${machine["Machine Name"]} with Python API...`)
-      
-      // Use debugMachinePrice instead of updateMachinePrice
-      const result = await window.priceTrackerAPI.debugMachinePrice(machine.id)
-      
-      if (result.success) {
-        // Always set debug info for either success or debug mode
-        setDebugInfo({
-          machine: machine["Machine Name"],
-          success: true,
-          price: result.new_price,
-          details: {
-            method: result.extraction_method || result.method,  // Adjust for different property name in debug response
-            oldPrice: result.current_db_price || result.old_price,
-            newPrice: result.new_price,
-            priceChange: result.price_change,
-            percentageChange: result.percentage_change,
-            message: result.message,
-            debug: result.debug
-          }
-        })
-        
-        // Always open the debug dialog to show the confirmation option
-        setDebugDialogOpen(true)
-        
-        // Show toast message about the extracted price
-        if (result.old_price === result.new_price) {
-          toast.info(`Price unchanged for ${machine["Machine Name"]}: ${formatPrice(result.new_price)}`)
-        } else {
-          toast.info(`Price extracted for ${machine["Machine Name"]}: ${formatPrice(result.old_price)} → ${formatPrice(result.new_price)}`)
-        }
-      } else {
-        // Handle error from Python API
-        setDebugInfo({
-          machine: machine["Machine Name"],
-          error: result.error || "Unknown error",
-          details: {
-            error: result.error,
-            url: machine.product_link,
-            debug: result.debug
-          }
-        })
-        
-        setDebugDialogOpen(true)
-        toast.error(`Failed to extract price: ${result.error}`)
-      }
-    } catch (error) {
-      console.error("Error extracting price:", error)
-      
-      // Set debug info for the error
-      setDebugInfo({
-        machine: machine["Machine Name"],
-        error: error instanceof Error ? error.message : "Unknown error",
-        details: {
-          error: error instanceof Error ? error.stack : "No stack trace available",
-          url: machine.product_link
-        }
-      })
-      
-      setDebugDialogOpen(true)
-      toast.error(`Failed to extract price: ${error instanceof Error ? error.message : "Unknown error"}`)
-    }
-  }
-  
-  // Function to run update for all featured machines
-  const updateAllPrices = async () => {
-    // Open the batch update dialog instead of immediately starting the update
-    setBatchUpdateDialogOpen(true)
-    // Reset preview count
-    setBatchPreviewCount(null)
-    // Start loading preview
-    previewBatchUpdate(daysThreshold, machineLimit)
-  }
-  
-  // Function to preview batch update (count of machines)
-  const previewBatchUpdate = async (days: number, limit: number | null = null) => {
-    try {
-      setBatchPreviewLoading(true)
-      
-      if (!pythonApiReady || !window.priceTrackerAPI) {
-        toast.error("Python Price Extractor API is not connected")
-        return
-      }
-      
-      // Use a simplified endpoint to just get machine count
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'}/api/v1/batch-configure`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          days_threshold: days,
-          limit: limit 
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (data.success) {
-        setBatchPreviewCount(data.configuration?.machine_count || 0)
-        // Store the machine IDs for use in executeBatchUpdate
-        setPreviewMachineIds(data.configuration?.machine_ids || [])
-      } else {
-        setBatchPreviewCount(0)
-        setPreviewMachineIds([])
-        toast.error("Failed to preview batch update")
-      }
-    } catch (error) {
-      console.error("Error previewing batch update:", error)
-      setBatchPreviewCount(0)
-      setPreviewMachineIds([])
-    } finally {
-      setBatchPreviewLoading(false)
-    }
-  }
-  
-  // Function to execute the batch update after confirmation
-  const executeBatchUpdate = async () => {
-    try {
-      if (!pythonApiReady || !window.priceTrackerAPI) {
-        toast.error("Python Price Extractor API is not connected")
-        return
-      }
-      
-      // Use Python API for batch update with the machine IDs from preview
-      toast.info("Starting batch update with Python API...")
-      
-      // Create custom request directly to the API
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'}/api/v1/batch-update`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          days_threshold: daysThreshold,
-          limit: machineLimit,
-          machine_ids: previewMachineIds // Pass the machine IDs from preview
-        })
-      })
-      
-      const batchResult = await response.json()
-      
-      if (batchResult.success) {
-        toast.success(`Python API batch update started in the background`)
-        
-        // Close the dialog
-        setBatchUpdateDialogOpen(false)
-        
-        // Explicitly fetch batch jobs with a longer delay to ensure the batch is created
-        const fetchBatchJobs = async () => {
-          try {
-            setLoadingBatches(true)
-            const apiUrl = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'
-            const response = await fetch(`${apiUrl}/api/v1/batches`)
-            
-            if (!response.ok) {
-              throw new Error(`Failed to fetch batch jobs: ${response.statusText}`)
-            }
-            
-            const data = await response.json()
-            
-            if (!data.success) {
-              throw new Error(data.error || 'Failed to fetch batch jobs')
-            }
-            
-            setBatches(data.batches || [])
-            
-            // If batches are loaded but empty, try one more time after a delay
-            if (data.batches.length === 0) {
-              setTimeout(fetchBatchJobs, 3000)
-            }
-          } catch (error) {
-            console.error("Error fetching batch jobs:", error)
-            toast.error("Failed to load batch jobs")
-          } finally {
-            setLoadingBatches(false)
+      // Use the direct Supabase API route
+      const response = await fetch(
+        `/api/admin/price-history?limit=10&sort=date&order=desc&status=SUCCESS`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
           }
         }
-        
-        // Wait a bit longer before fetching batch jobs to ensure the batch is created
-        setTimeout(() => {
-          fetchBatchJobs()
-          // Also refresh other data
-          if (selectedMachine) {
-            selectMachine(selectedMachine)
-          }
-          setRefreshing(prev => !prev)
-        }, 3000)
-      } else {
-        toast.error(`Python API batch update failed: ${batchResult.error}`)
-        // Close the dialog
-        setBatchUpdateDialogOpen(false)
-      }
-    } catch (error) {
-      console.error("Error updating prices:", error)
-      toast.error(`Failed to update prices: ${error instanceof Error ? error.message : "Unknown error"}`)
-      // Close the dialog
-      setBatchUpdateDialogOpen(false)
-    }
-  }
-  
-  // Function to delete a price record
-  const deletePrice = async (recordId: string) => {
-    try {
-      const response = await fetch(`/api/price-history/delete?id=${recordId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-      
-      const result = await response.json()
+      );
       
       if (!response.ok) {
-        throw new Error(result.error || "Failed to delete price record")
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
       
-      toast.success("Price record deleted")
+      const data = await response.json();
+      
+      if (data.success === false) {
+        throw new Error(data.error || "Failed to fetch recent updates");
+      }
+      
+      setRecentlyUpdated(data.items || []);
+    } catch (error) {
+      console.error("Error fetching recent updates:", error);
+      toast.error(`Failed to fetch recent updates: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+  
+  // Fetch batch jobs
+  useEffect(() => {
+    if (pythonApiReady) {
+      fetchBatchJobs();
+    }
+  }, [pythonApiReady, refreshing]);
+  
+  const fetchBatchJobs = async () => {
+    try {
+      setLoadingBatches(true);
+      
+      const response = await fetch(`/api/admin/batches`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching batches: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setBatches(data.batches || []);
+    } catch (err) {
+      console.error("Failed to fetch batches", err);
+      toast.error(`Failed to load batch jobs: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setLoadingBatches(false);
+    }
+  };
+  
+  // Select a machine and fetch its price history
+  const selectMachine = async (machine: Machine) => {
+    setSelectedMachine(machine);
+    
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/machines/${machine.id}/price-history`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success === false) {
+        throw new Error(data.error || "Failed to fetch price history");
+      }
+      
+      setPriceHistory(data.price_history || []);
+    } catch (error) {
+      console.error("Error fetching price history:", error);
+      toast.error(`Failed to load price history: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+  
+  // Initial setup for batch preview
+  useEffect(() => {
+    if (pythonApiReady) {
+      previewBatchUpdate(0, machineLimit);
+    }
+  }, [pythonApiReady, machineLimit]);
+  
+  // Update a machine price
+  const updatePrice = async (machine: Machine) => {
+    try {
+      // Set loading state for this specific machine
+      setUpdatingPrices(prev => ({ ...prev, [machine.id]: true }));
+      
+      const response = await fetch('/api/admin/tools/price-tracker/extract-price', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ machineId: machine.id }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.message || 'Failed to extract price');
+        return;
+      }
+
+      const result = await response.json();
+      
+      // Process result and show dialog
+      if (result.success) {
+        // Update just this machine in the machines array
+        setMachines(prevMachines => prevMachines.map(m => {
+          if (m.id === machine.id) {
+            return {
+              ...m,
+              current_price: result.new_price,
+              previous_price: result.old_price,
+              last_updated: new Date().toISOString(),
+              extraction_method: result.extraction_method,
+              manual_review_flag: result.needs_review,
+              flag_reason: result.review_reason
+            };
+          }
+          return m;
+        }));
+        
+        // Add the new price to the recently updated list without fetching
+        setRecentlyUpdated(prev => [{
+          id: Date.now().toString(), // Temporary ID for the new record
+          machine_id: machine.id,
+          date: new Date().toISOString(),
+          price: result.new_price,
+          status: result.needs_review ? 'NEEDS_REVIEW' : 'SUCCESS',
+          validation_basis_price: result.old_price,
+          extraction_method: result.extraction_method,
+          review_reason: result.review_reason,
+          machine: {
+            id: machine.id,
+            machine_name: machine.machine_name,
+            company: machine.company
+          }
+        }, ...prev.slice(0, 9)]); // Keep only the 10 most recent updates
+        
+        // Show success message with price change info
+        const priceChangeMsg = result.price_change !== 0 
+          ? ` (${result.price_change > 0 ? '+' : ''}${formatPrice(result.price_change)})`
+          : '';
+        toast.success(`Price updated to ${formatPrice(result.new_price)}${priceChangeMsg}`);
+        
+        // If needs review, show additional toast
+        if (result.needs_review) {
+          toast.warning(`Price flagged for review: ${result.review_reason}`);
+        }
+      } else {
+        toast.error(result.error || 'Failed to extract price');
+      }
+      
+    } catch (error) {
+      console.error('Error extracting price:', error);
+      toast.error('Failed to extract price');
+    } finally {
+      // Clear loading state for this specific machine
+      setUpdatingPrices(prev => ({ ...prev, [machine.id]: false }));
+    }
+  };
+
+  // Debug price extraction
+  const handleDebug = async (machine: Machine) => {
+    try {
+      setDebugInfo(null);
+      setDebugDialogOpen(false);
+      
+      // Show loading toast
+      toast.info(`Debugging price extraction for ${machine.machine_name}...`);
+      
+      // Updated to use the debug-extraction endpoint with new schema support
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/debug-extraction`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ machine_id: machine.id })
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      // Process result and show dialog
+      if (result.success) {
+        // Calculate price changes dynamically based on validation_basis_price
+        // Update here: Extract the correct pricing fields from the response
+        const oldPrice = result.validation_basis_price || result.old_price || machine.current_price;
+        const newPrice = result.price || result.new_price || parseFloat(JSON.stringify(result).match(/"price":\s*(\d+(\.\d+)?)/)?.[1] || '0');
+        const priceChange = newPrice - (oldPrice || 0);
+        const percentageChange = oldPrice ? (priceChange / oldPrice) * 100 : 0;
+        
+        console.log("Debug extraction response:", result);
+        console.log("Extracted prices - Old:", oldPrice, "New:", newPrice);
+        
+        // Examine response structure to find any price-related fields
+        const allFieldsStr = JSON.stringify(result);
+        const priceFields: Record<string, number> = {};
+        [
+          "price", "new_price", "current_price", "extracted_price", 
+          "validation_basis_price", "old_price", "previous_price"
+        ].forEach(field => {
+          const match = new RegExp(`"${field}":\\s*(\\d+(\\.\\d+)?)`).exec(allFieldsStr);
+          if (match) {
+            priceFields[field] = parseFloat(match[1]);
+          }
+        });
+        console.log("All detected price fields:", priceFields);
+        
+        // Find any price-related fields in nested response
+        // This recursively checks the entire response object for any price fields
+        const findPricesInObject = (obj: any, path = '') => {
+          if (!obj || typeof obj !== 'object') return;
+          
+          for (const key in obj) {
+            // Skip special fields like functions or circular references
+            if (key === 'debug' || typeof obj[key] === 'function') continue;
+            
+            const value = obj[key];
+            const newPath = path ? `${path}.${key}` : key;
+            
+            // If we find a price-like field with a number value, add it
+            if (typeof value === 'number' && 
+                (key.includes('price') || key === 'price' || key.endsWith('_price'))) {
+              priceFields[newPath] = value;
+              // Directly assign to top-level field for easy access
+              if (!priceFields[key]) {
+                priceFields[key] = value;
+              }
+            }
+            
+            // Recursively check nested objects
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+              findPricesInObject(value, newPath);
+            }
+          }
+        };
+        
+        // Search the entire result object for price fields
+        findPricesInObject(result);
+        console.log("All detected price fields (including nested):", priceFields);
+        
+        const finalOldPrice = oldPrice || priceFields.old_price || priceFields.previous_price || priceFields.validation_basis_price;
+        const finalNewPrice = newPrice || priceFields.price || priceFields.new_price || priceFields.current_price || priceFields.extracted_price;
+        
+        const finalPriceChange = finalNewPrice - (finalOldPrice || 0);
+        const finalPercentageChange = finalOldPrice ? (finalPriceChange / finalOldPrice) * 100 : 0;
+        
+        const details = {
+          method: result.extraction_method || result.tier || "Unknown method",
+          oldPrice: finalOldPrice,
+          newPrice: finalNewPrice,
+          priceChange: finalPriceChange,
+          percentageChange: finalPercentageChange,
+          url: result.scraped_from_url || machine.product_link,
+          message: result.message,
+          debug: result
+        };
+        
+        setDebugInfo({
+          success: true,
+          machine: machine.machine_name,
+          price: finalNewPrice, // Ensure we're using the correct price here
+          details: details,
+          debug: result
+        });
+      } else {
+        setDebugInfo({
+          success: false,
+          machine: machine.machine_name,
+          error: result.error || result.failure_reason,
+          details: {
+            url: machine.product_link,
+            error: result.error || result.failure_reason,
+            debug: result
+          },
+          debug: result
+        });
+      }
+      
+      // Open the debug dialog
+      setDebugDialogOpen(true);
+    } catch (error) {
+      console.error("Error debugging price:", error);
+      toast.error("Failed to debug price extraction");
+      
+      setDebugInfo({
+        success: false,
+        machine: machine.machine_name,
+        error: error instanceof Error ? error.message : "Unknown error",
+        details: {
+          url: machine.product_link,
+          error: error instanceof Error ? error.message : "Unknown error"
+        }
+      });
+      
+      setDebugDialogOpen(true);
+    }
+  };
+  
+  // Function to trigger batch update dialog
+  const updateAllPrices = async () => {
+    setBatchUpdateDialogOpen(true);
+    setBatchPreviewCount(null);
+    previewBatchUpdate(0, machineLimit);
+  };
+  
+  // Preview batch update (count of machines)
+  const previewBatchUpdate = async (days: number, limit: number | null = null) => {
+    try {
+      setBatchPreviewLoading(true);
+      
+      // Updated to use the new batch-configure endpoint that reflects the new schema
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/batch-configure`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            days_threshold: days, // Still pass days, but backend may ignore it depending on implementation
+            limit
+          })
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || "Failed to preview batch update");
+      }
+      
+      setBatchPreviewCount(data.configuration?.machine_count || 0);
+      setPreviewMachineIds(data.configuration?.machine_ids || []);
+    } catch (error) {
+      console.error("Error previewing batch update:", error);
+      setBatchPreviewCount(0);
+      setPreviewMachineIds([]);
+      toast.error(`Failed to preview batch update: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setBatchPreviewLoading(false);
+    }
+  };
+  
+  // Execute the batch update after confirmation
+  const executeBatchUpdate = async () => {
+    try {
+      toast.info(`Starting ${isDryRun ? "dry run " : ""}batch update with Python API...`);
+      
+      // Set batch parameters according to updated API requirements
+      const batchParams = { 
+        // As per the PRD, days_threshold is less relevant with the new schema, but kept for backward compatibility
+        days_threshold: 0,
+        limit: machineLimit,
+        machine_ids: previewMachineIds,
+        dry_run: isDryRun,
+        flags_for_review: true,
+        save_to_db: !isDryRun,
+        create_batch_record: true,
+        sanity_check_threshold: 25
+      };
+      
+      console.log("Batch update parameters:", batchParams);
+      
+      // The batch-update endpoint now writes directly to price_history and updates machines_latest
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/batch-update`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(batchParams)
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const batchResult = await response.json();
+      
+      if (!batchResult.success) {
+        throw new Error(batchResult.error || "Batch update failed");
+      }
+      
+      console.log("Batch update response:", batchResult);
+      
+      // Show appropriate message based on dry run status
+      if (isDryRun && batchResult.log_file) {
+        toast.success(
+          <div>
+            <p>Python API dry run batch update started in the background</p>
+            <p className="mt-2">Results will be saved to: <code className="bg-gray-100 px-1 py-0.5 rounded">{batchResult.log_file}</code></p>
+          </div>,
+          { duration: 8000 }
+        );
+      } else {
+        const batchMessage = batchResult.batch_id 
+          ? `Batch update started with ID: ${batchResult.batch_id}`
+          : `Batch update started in the background`;
+        
+        toast.success(batchMessage, { duration: 8000 });
+      }
+      
+      setBatchUpdateDialogOpen(false);
+      
+      // Wait a bit before refreshing data
+      setTimeout(() => {
+        fetchBatchJobs();
+        setRefreshing(prev => !prev);
+      }, 5000);
+    } catch (error) {
+      console.error("Error starting batch update:", error);
+      toast.error(`Failed to start batch update: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setBatchUpdateDialogOpen(false);
+    }
+  };
+
+  // Delete a price history record
+  const deletePrice = async (recordId: string) => {
+    try {
+      const apiUrl = API_BASE_URL;
+      
+      // Updated to use the new price-history DELETE endpoint
+      const response = await fetch(
+        `${apiUrl}/api/v1/price-history/${recordId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to delete price record");
+      }
+      
+      toast.success("Price record deleted");
       
       // Refresh data
-      setRefreshing(prev => !prev)
+      setRefreshing(prev => !prev);
       
       // If this is part of the selected machine's history, refresh that too
       if (selectedMachine) {
-        selectMachine(selectedMachine)
+        selectMachine(selectedMachine);
       }
     } catch (error) {
-      console.error("Error deleting price record:", error)
-      toast.error(`Failed to delete price record: ${error instanceof Error ? error.message : "Unknown error"}`)
+      console.error("Error deleting price record:", error);
+      toast.error(`Failed to delete price record: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
-  }
+  };
   
-  // Function to clean up invalid price records
+  // Clean up invalid price records
   const cleanupInvalidPrices = async () => {
     if (!window.confirm("This will remove all price records with values less than $10. Continue?")) {
       return;
     }
     
     try {
-      const response = await fetch(`/api/price-history/clean?secret=admin-panel`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      const apiUrl = API_BASE_URL;
       
-      const result = await response.json()
+      // Updated to use the new price-history/cleanup endpoint
+      const response = await fetch(
+        `${apiUrl}/api/v1/price-history/cleanup`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            min_price: 10
+          })
+        }
+      );
       
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to clean up price records")
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to clean up price records");
       }
       
-      const message = result.recordsDeleted > 0
-        ? `Removed ${result.recordsDeleted} invalid price records`
-        : "No invalid price records found"
+      const message = result.records_deleted > 0
+        ? `Removed ${result.records_deleted} invalid price records`
+        : "No invalid price records found";
         
-      toast.success(message)
+      toast.success(message);
       
       // Refresh data
-      setRefreshing(prev => !prev)
+      setRefreshing(prev => !prev);
       
       // If we have a selected machine, refresh that too
       if (selectedMachine) {
-        selectMachine(selectedMachine)
+        selectMachine(selectedMachine);
       }
     } catch (error) {
-      console.error("Error cleaning up price records:", error)
-      toast.error(`Failed to clean up price records: ${error instanceof Error ? error.message : "Unknown error"}`)
+      console.error("Error cleaning up price records:", error);
+      toast.error(`Failed to clean up price records: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
-  }
+  };
   
+  // Confirm a new price
+  const confirmPrice = async (machineId: string, newPrice: number) => {
+    try {
+      // Updated to use the confirm-price endpoint that creates a new record in price_history with SUCCESS status
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/machines/${machineId}/confirm-price`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            price: newPrice
+          })
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to confirm price");
+      }
+      
+      toast.success(`Price updated to ${formatPrice(newPrice)}`);
+      
+      // Refresh data
+      setRefreshing(prev => !prev);
+      
+      return true;
+    } catch (error) {
+      console.error("Error confirming price:", error);
+      toast.error(`Failed to confirm price: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return false;
+    }
+  };
+  
+  // Open configuration dialog
+  const openConfigDialog = async (machine: Machine) => {
+    if (!machine) return;
+    
+    setSelectedMachine(machine);
+    setConfigLoading(true);
+    setMachineConfig(null);
+    setVariants([]);
+    
+    try {
+      // Fetch both the specific config and the list of all variants
+      const [configResponse, variantsResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/v1/machines/${machine.id}/config`),
+        fetch(`${API_BASE_URL}/api/v1/machines/${machine.id}/variants`)
+      ]);
+      
+      if (!configResponse.ok) {
+        throw new Error(`Failed to fetch machine config: ${configResponse.statusText}`);
+      }
+      if (!variantsResponse.ok) {
+        throw new Error(`Failed to fetch machine variants: ${variantsResponse.statusText}`);
+      }
+      
+      const configData = await configResponse.json();
+      const variantsData = await variantsResponse.json();
+      
+      if (!configData.success) {
+        throw new Error(configData.error || 'Failed to fetch machine configuration');
+      }
+      if (!variantsData.success) {
+        throw new Error(variantsData.error || 'Failed to fetch machine variants');
+      }
+      
+      setMachineConfig(configData.config || {});
+      setVariants(variantsData.variants || []);
+      
+      // Set JS config if available
+      if (configData.config?.js_click_sequence) {
+        setJsConfig(configData.config.js_click_sequence);
+      }
+      
+      setConfigDialogOpen(true);
+    } catch (error) {
+      console.error("Error opening machine config dialog:", error);
+      toast.error(`Failed to load machine configuration: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+  
+  // Save machine configuration
+  const handleSaveConfig = async () => {
+    if (!selectedMachine) return;
+    
+    try {
+      // Format JS config if needed
+      let formattedJsConfig = jsConfig;
+      if (jsConfig && Array.isArray(jsConfig)) {
+        const needsConversion = jsConfig.some((step: any) => 'type' in step && !('action' in step));
+        if (needsConversion) {
+          formattedJsConfig = jsConfig.map((step: any) => {
+            if ('type' in step) {
+              return {
+                action: step.type,
+                selector: step.selector,
+                time: step.time
+              };
+            }
+            return step;
+          });
+        }
+      }
+      
+      // Create the config payload
+      const configPayload = {
+        config: {
+          css_price_selector: machineConfig?.css_price_selector || null,
+          requires_js_interaction: machineConfig?.requires_js_interaction || false,
+          min_extraction_confidence: machineConfig?.min_extraction_confidence || 0.85,
+          min_validation_confidence: machineConfig?.min_validation_confidence || 0.90,
+          sanity_check_threshold: machineConfig?.sanity_check_threshold || 0.25,
+          api_endpoint_template: machineConfig?.api_endpoint_template || null,
+          js_click_sequence: machineConfig?.requires_js_interaction && formattedJsConfig && formattedJsConfig.length > 0 
+            ? formattedJsConfig 
+            : null
+        }
+      };
+      
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/config`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(configPayload)
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to save configuration: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to save configuration');
+      }
+      
+      toast.success("Configuration saved successfully");
+      setConfigDialogOpen(false);
+      
+      // Refresh data
+      setRefreshing(prev => !prev);
+    } catch (error) {
+      console.error("Error saving configuration:", error);
+      toast.error(`Failed to save configuration: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+  
+  // Add a variant
+  const handleAddVariant = async () => {
+    if (!selectedMachine || !newVariant.attribute) return;
+    
+    try {
+      // Encode the variant attribute for the URL
+      const encodedVariantAttribute = encodeURIComponent(newVariant.attribute);
+      
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/variants?variant_attribute=${encodedVariantAttribute}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to add variant: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to add variant');
+      }
+      
+      if (data.variant) {
+        setVariants([...variants, data.variant]);
+      } else {
+        console.error("API success but variant data missing in response:", data);
+        toast.error("Failed to add variant: API response missing variant data.");
+      }
+      
+      setNewVariant({ attribute: "", requires_js: false });
+      setIsAddingVariant(false);
+      toast.success("Variant added successfully");
+    } catch (error) {
+      console.error("Error adding variant:", error);
+      toast.error(`Failed to add variant: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+  
+  // Delete a variant
+  const handleDeleteVariant = async (variantId: string) => {
+    if (!selectedMachine) return;
+    
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/variants/${variantId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete variant: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to delete variant');
+      }
+      
+      setVariants(variants.filter(v => v.variant_attribute !== variantId));
+      toast.success("Variant deleted successfully");
+    } catch (error) {
+      console.error("Error deleting variant:", error);
+      toast.error(`Failed to delete variant: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
   // Format date for display
   const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "MMM d, yyyy h:mm a")
-  }
+    if (!dateString) return "N/A";
+    return format(new Date(dateString), "MMM d, yyyy h:mm a");
+  };
   
   // Format price for display
-  const formatPrice = (price: number | null) => {
-    if (price === null) return "N/A"
+  const formatPrice = (price: number | null | undefined) => {
+    if (price === null || price === undefined) return "N/A";
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD"
-    }).format(price)
-  }
+    }).format(price);
+  };
   
-  // Handle API script loaded
-  const handleScriptLoad = () => {
-    setPythonApiReady(true)
-    console.log("Python Price Extractor API script loaded")
-    toast.success("Python Price Extractor API connected")
-  }
-  
-  // Handle API script error
-  const handleScriptError = () => {
-    console.error("Failed to load Python Price Extractor API script")
-    toast.error("Failed to connect to Python Price Extractor API")
-  }
-  
-  // Fetch batch jobs
-  useEffect(() => {
-    const fetchBatchJobs = async () => {
-      try {
-        setLoadingBatches(true)
-        const apiUrl = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'
-        
-        console.log("Fetching batch jobs from:", `${apiUrl}/api/v1/batches`)
-        
-        const response = await fetch(`${apiUrl}/api/v1/batches`)
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch batch jobs: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
-        console.log("Batch jobs response:", data)
-        
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to fetch batch jobs')
-        }
-        
-        setBatches(data.batches || [])
-        
-        // If no batches were found, log this info
-        if (!data.batches || data.batches.length === 0) {
-          console.log("No batch jobs found in response")
-        }
-      } catch (error) {
-        console.error("Error fetching batch jobs:", error)
-        toast.error(`Failed to load batch jobs: ${error instanceof Error ? error.message : "Unknown error"}`)
-      } finally {
-        setLoadingBatches(false)
-      }
+  // Format relative time
+  const formatRelativeTime = (dateString: string) => {
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      return formatDistanceToNow(date, { addSuffix: true });
+    } catch (error) {
+      return 'Invalid date';
     }
-    
-    // Fetch batch jobs when the component mounts and when refreshing state changes
-    if (pythonApiReady) {
-      fetchBatchJobs()
-    }
-  }, [pythonApiReady, refreshing])
+  };
   
   // Get batch status badge
   const getBatchStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed':
-        return <Badge className="bg-green-100 text-green-800 border-green-300">Completed</Badge>
+        return <Badge className="bg-green-100 text-green-800 border-green-300">Completed</Badge>;
       case 'in_progress':
       case 'started':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">In Progress</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">In Progress</Badge>;
       case 'failed':
-        return <Badge className="bg-red-100 text-red-800 border-red-300">Failed</Badge>
+        return <Badge className="bg-red-100 text-red-800 border-red-300">Failed</Badge>;
       default:
-        return <Badge className="bg-gray-100 text-gray-800 border-gray-300">{status}</Badge>
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-300">{status}</Badge>;
     }
-  }
+  };
   
-  // Format relative time
-  const formatRelativeTime = (dateString: string) => {
-    try {
-      const date = new Date(dateString)
-      return formatDistanceToNow(date, { addSuffix: true })
-    } catch (error) {
-      return 'Invalid date'
+  // Get status badge for price history records
+  const getPriceHistoryStatusBadge = (status: string) => {
+    switch (status.toUpperCase()) {
+      case 'SUCCESS':
+        return <Badge className="bg-green-100 text-green-800 border-green-300">Success</Badge>;
+      case 'FAILED':
+        return <Badge className="bg-red-100 text-red-800 border-red-300">Failed</Badge>;
+      case 'NEEDS_REVIEW':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Needs Review</Badge>;
+      default:
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-300">{status}</Badge>;
     }
-  }
+  };
   
-  // Add this new function to handle debug button clicks
-  const handleDebug = async (machine: any) => {
-    if (!pythonApiReady || !window.priceTrackerAPI || !window.priceTrackerAPI.debugMachinePrice) {
-      toast.error("Python Price Extractor API is not connected or debug mode not available")
-      return
-    }
-    
-    setDebugInfo(null)
-    setDebugDialogOpen(false)
-    
-    try {
-      // Show loading toast
-      toast.info(`Debugging price extraction for ${machine["Machine Name"]}...`)
-      
-      // Call the debug API endpoint
-      const result = await window.priceTrackerAPI.debugMachinePrice(machine.id)
-      
-      // Process the result and show in dialog
-      if (result.success) {
-        const details = {
-          method: result.extraction_method || "Unknown method",
-          oldPrice: machine.Price,
-          newPrice: result.new_price,
-          priceChange: result.price_change,
-          percentageChange: result.percentage_change,
-          url: result.product_url,
-          message: result.message,
-          debug: result.debug
-        }
-        
-        setDebugInfo({
-          success: true,
-          machine: machine["Machine Name"],
-          price: result.new_price,
-          details: details,
-          debug: result.debug
-        })
-      } else {
-        setDebugInfo({
-          success: false,
-          machine: machine["Machine Name"],
-          error: result.error,
-          details: {
-            url: machine.product_link,
-            error: result.error,
-            debug: result.debug
-          },
-          debug: result.debug
-        })
-      }
-      
-      // Open the debug dialog
-      setDebugDialogOpen(true)
-    } catch (error: any) {
-      console.error("Error debugging price:", error)
-      toast.error("Failed to debug price extraction")
-      
-      setDebugInfo({
-        success: false,
-        machine: machine["Machine Name"],
-        error: error.message || "Unknown error",
-        details: {
-          url: machine.product_link,
-          error: error.message
-        }
-      })
-      
-      setDebugDialogOpen(true)
-    }
-  }
+  // Handle API script loaded
+  const handleScriptLoad = () => {
+    setPythonApiReady(true);
+    console.log("Python Price Extractor API script loaded");
+    toast.success("Python Price Extractor API connected");
+  };
   
-  // Open configuration dialog
-  const openConfigDialog = async (machine: any) => {
-    if (!machine) return
-    
-    setSelectedMachine(machine)
-    setConfigLoading(true)
-    setMachineConfig(null) // Reset previous config
-    setVariants([])        // Reset previous variants
-    
-    try {
-      // Fetch both the specific config (e.g., DEFAULT) and the list of all variants
-      const [configResponse, variantsResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/v1/machines/${machine.id}/config`), // Fetches default config
-        fetch(`${API_BASE_URL}/api/v1/machines/${machine.id}/variants`) // Fetches ALL variants
-      ])
-      
-      if (!configResponse.ok) {
-        throw new Error(`Failed to fetch machine config: ${configResponse.statusText}`)
-      }
-      if (!variantsResponse.ok) {
-        throw new Error(`Failed to fetch machine variants: ${variantsResponse.statusText}`)
-      }
-      
-      const configData = await configResponse.json()
-      const variantsData = await variantsResponse.json()
-      
-      if (!configData.success) {
-        throw new Error(configData.error || 'Failed to fetch machine configuration')
-      }
-      if (!variantsData.success) {
-        throw new Error(variantsData.error || 'Failed to fetch machine variants')
-      }
-      
-      // Set the default config first
-      setMachineConfig(configData.config || {})
-      
-      // Set the list of all variants for the dropdown/display
-      setVariants(variantsData.variants || [])
-      
-      // TODO: Add logic to set JS config if it's part of the config endpoint
-      // setJsConfig(configData.js_config || null)
-      
-      setConfigDialogOpen(true)
-    } catch (error) {
-      console.error("Error opening machine config dialog:", error)
-      toast.error("Failed to load machine configuration and variants")
-    } finally {
-      setConfigLoading(false)
-    }
-  }
+  // Handle API script error
+  const handleScriptError = () => {
+    console.error("Failed to load Python Price Extractor API script");
+    toast.error("Failed to connect to Python Price Extractor API");
+  };
   
-  // Handle testing configuration
+  // Test machine configuration
   const handleTestConfig = async () => {
     if (!selectedMachine) return;
     
     try {
-      toast.info(`Testing configuration for ${selectedMachine["Machine Name"]}...`);
+      toast.info(`Testing configuration for ${selectedMachine.machine_name}...`);
       
       // If JS interaction is enabled, test that specifically
       if (machineConfig?.requires_js_interaction && jsConfig) {
@@ -754,9 +1058,9 @@ export default function PriceTrackerAdmin() {
           (step.action === 'extract' || step.type === 'extract')
         );
         
-        // Use our browser/extract endpoint for local testing if extract step is present
+        // Use browser extract endpoint for local testing with extract step
         if (hasExtractStep) {
-          // Format the sequence to ensure it uses 'type' instead of 'action'
+          // Format sequence for the browser extract endpoint
           const formattedSequence = jsConfig.map((step: any) => ({
             type: step.action || step.type,
             selector: step.selector,
@@ -781,7 +1085,7 @@ export default function PriceTrackerAdmin() {
           
           const data = await response.json();
           
-          // Check the extraction results
+          // Check extraction results
           const extractResult = data.results.find((r: any) => 
             r.action.type === 'extract' || r.action.action === 'extract'
           );
@@ -797,6 +1101,7 @@ export default function PriceTrackerAdmin() {
           return;
         }
         
+        // Test JS interaction with backend API
         const response = await fetch(`${API_BASE_URL}/api/v1/machines/test-js-interaction`, {
           method: 'POST',
           headers: {
@@ -805,7 +1110,7 @@ export default function PriceTrackerAdmin() {
           body: JSON.stringify({
             url: selectedMachine.product_link,
             jsClickSequence: jsConfig,
-            variantAttribute: 'DEFAULT' // Add support for variants later
+            variantAttribute: 'DEFAULT'
           })
         });
         
@@ -824,13 +1129,14 @@ export default function PriceTrackerAdmin() {
         return;
       }
       
-      // Otherwise, test the general configuration
-      const response = await fetch(`${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/extract-price`, {
+      // Test general configuration
+      const response = await fetch(`${API_BASE_URL}/api/v1/extract-price`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          machine_id: selectedMachine.id,
           test_mode: true
         })
       });
@@ -846,144 +1152,18 @@ export default function PriceTrackerAdmin() {
         return;
       }
       
-      toast.success(`Test successful! Extracted price: ${formatPrice(data.price)}`);
+      // Use the helper function to extract price information
+      const priceInfo = extractPriceInformation(data, selectedMachine);
+      
+      toast.success(`Test successful! Extracted price: ${formatPrice(priceInfo.newPrice)}`);
     } catch (error) {
       console.error("Error testing configuration:", error);
       toast.error(`Failed to test configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
   
-  // Handle configuration save
-  const handleSaveConfig = async () => {
-    if (!selectedMachine) return;
-    
-    try {
-      // Check if we have a jsConfig sequence with types but the backend expects actions
-      let formattedJsConfig = jsConfig;
-      if (jsConfig && Array.isArray(jsConfig)) {
-        // Check if we need to convert type to action (for compatibility)
-        const needsConversion = jsConfig.some((step: any) => 'type' in step && !('action' in step));
-        if (needsConversion) {
-          formattedJsConfig = jsConfig.map((step: any) => {
-            if ('type' in step) {
-              return {
-                action: step.type,
-                selector: step.selector,
-                time: step.time
-              };
-            }
-            return step;
-          });
-        }
-      }
-      
-      // Create the config object with the proper structure expected by the backend
-      const configPayload = {
-        config: {
-          css_price_selector: machineConfig?.css_price_selector || null,
-          requires_js_interaction: machineConfig?.requires_js_interaction || false,
-          min_extraction_confidence: machineConfig?.min_extraction_confidence || 0.85,
-          min_validation_confidence: machineConfig?.min_validation_confidence || 0.90,
-          sanity_check_threshold: machineConfig?.sanity_check_threshold || 0.25,
-          api_endpoint_template: machineConfig?.api_endpoint_template || null,
-          js_click_sequence: machineConfig?.requires_js_interaction && formattedJsConfig && formattedJsConfig.length > 0 ? formattedJsConfig : null
-        }
-      };
-      
-      console.log("Saving configuration:", JSON.stringify(configPayload, null, 2));
-      
-      const response = await fetch(`${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(configPayload)
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to save configuration: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to save configuration');
-      }
-      
-      toast.success("Configuration saved successfully");
-      setConfigDialogOpen(false);
-      
-      // Refresh data
-      setRefreshing(prev => !prev); // Trigger refresh of machines
-    } catch (error) {
-      console.error("Error saving configuration:", error);
-      toast.error(`Failed to save configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-  
-  // Handle adding new variant
-  const handleAddVariant = async () => {
-    if (!selectedMachine || !newVariant.attribute) return
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/variants`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newVariant)
-      })
-      
-      if (!response.ok) {
-        throw new Error(`Failed to add variant: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to add variant')
-      }
-      
-      setVariants([...variants, data.variant])
-      setNewVariant({ attribute: "", requires_js: false })
-      setIsAddingVariant(false)
-      toast.success("Variant added successfully")
-    } catch (error) {
-      console.error("Error adding variant:", error)
-      toast.error("Failed to add variant")
-    }
-  }
-  
-  // Handle deleting variant
-  const handleDeleteVariant = async (variantId: string) => {
-    if (!selectedMachine) return
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/machines/${selectedMachine.id}/variants/${variantId}`, {
-        method: 'DELETE'
-      })
-      
-      if (!response.ok) {
-        throw new Error(`Failed to delete variant: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to delete variant')
-      }
-      
-      setVariants(variants.filter(v => v.variant_attribute !== variantId))
-      toast.success("Variant deleted successfully")
-    } catch (error) {
-      console.error("Error deleting variant:", error)
-      toast.error("Failed to delete variant")
-    }
-  }
-  
-  // Inside the PriceTrackerAdmin component, add this useEffect for the message listener
+  // Listen for messages from the recording window
   useEffect(() => {
-    // Listen for messages from the recording window
     const handleRecordingMessage = (event: MessageEvent) => {
       try {
         if (typeof event.data !== 'object' || !event.data.type) return;
@@ -1001,7 +1181,131 @@ export default function PriceTrackerAdmin() {
     window.addEventListener('message', handleRecordingMessage);
     return () => window.removeEventListener('message', handleRecordingMessage);
   }, []);
-  
+
+  // Function to handle rendering of recent update table rows with dynamic price change calculation
+  const renderRecentUpdateRow = (record: PriceHistoryRecord) => {
+    // Calculate price change information dynamically
+    const oldPrice = record.validation_basis_price;
+    const newPrice = record.price;
+    const priceChange = oldPrice !== undefined ? newPrice - oldPrice : 0;
+    const priceChangeClass = priceChange > 0 
+      ? 'text-red-500' 
+      : priceChange < 0 
+        ? 'text-green-500' 
+        : '';
+        
+    return (
+      <TableRow key={record.id}>
+        <TableCell className="font-medium">
+          <div className="flex flex-col">
+            <span className="font-medium">{record.machine?.name || record.machine?.machine_name || 'Unknown Machine'}</span>
+            <span className="text-sm text-gray-500">{record.machine?.company || ''}</span>
+          </div>
+        </TableCell>
+        <TableCell>{formatPrice(oldPrice)}</TableCell>
+        <TableCell>
+          {formatPrice(newPrice)}
+          {priceChange !== 0 && (
+            <span className={`ml-2 text-sm ${priceChangeClass}`}>
+              ({priceChange > 0 ? '+' : ''}
+              {formatPrice(priceChange)})
+            </span>
+          )}
+        </TableCell>
+        <TableCell>{formatDate(record.date)}</TableCell>
+        <TableCell>
+          {getPriceHistoryStatusBadge(record.status)}
+        </TableCell>
+        <TableCell className="text-right">
+          <Button 
+            size="sm" 
+            variant="destructive"
+            onClick={() => {
+              if (window.confirm("Are you sure you want to delete this price record?")) {
+                deletePrice(record.id);
+              }
+            }}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+  // Helper function to extract price information from any API response
+  const extractPriceInformation = (result: any, machine: Machine) => {
+    console.log("Extracting price information from response:", result);
+    
+    // Examine response structure to find any price-related fields
+    const allFieldsStr = JSON.stringify(result);
+    const priceFields: Record<string, number> = {};
+    [
+      "price", "new_price", "current_price", "extracted_price", 
+      "validation_basis_price", "old_price", "previous_price"
+    ].forEach(field => {
+      const match = new RegExp(`"${field}":\\s*(\\d+(\\.\\d+)?)`).exec(allFieldsStr);
+      if (match) {
+        priceFields[field] = parseFloat(match[1]);
+      }
+    });
+    console.log("All detected price fields:", priceFields);
+    
+    // Find any price-related fields in nested response
+    const findPricesInObject = (obj: any, path = '') => {
+      if (!obj || typeof obj !== 'object') return;
+      
+      for (const key in obj) {
+        // Skip special fields like functions or circular references
+        if (key === 'debug' || typeof obj[key] === 'function') continue;
+        
+        const value = obj[key];
+        const newPath = path ? `${path}.${key}` : key;
+        
+        // If we find a price-like field with a number value, add it
+        if (typeof value === 'number' && 
+            (key.includes('price') || key === 'price' || key.endsWith('_price'))) {
+          priceFields[newPath] = value;
+          // Directly assign to top-level field for easy access
+          if (!priceFields[key]) {
+            priceFields[key] = value;
+          }
+        }
+        
+        // Recursively check nested objects
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          findPricesInObject(value, newPath);
+        }
+      }
+    };
+    
+    // Search the entire result object for price fields
+    findPricesInObject(result);
+    console.log("All detected price fields (including nested):", priceFields);
+    
+    // Extract old and new prices using all possible field names
+    const oldPrice = result.validation_basis_price || result.old_price || 
+                    priceFields.validation_basis_price || priceFields.old_price || 
+                    priceFields.previous_price || machine.current_price;
+                    
+    const newPrice = result.price || result.new_price || 
+                    priceFields.price || priceFields.new_price || 
+                    priceFields.current_price || priceFields.extracted_price;
+    
+    const priceChange = newPrice - (oldPrice || 0);
+    const percentageChange = oldPrice ? (priceChange / oldPrice) * 100 : 0;
+    
+    return {
+      oldPrice,
+      newPrice,
+      priceChange,
+      percentageChange,
+      method: result.extraction_method || result.tier || "Unknown method",
+      url: result.scraped_from_url || machine.product_link,
+      message: result.message
+    };
+  };
+
   return (
     <div className="container mx-auto py-10 space-y-8">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -1017,10 +1321,21 @@ export default function PriceTrackerAdmin() {
             asChild
             className="flex items-center gap-2"
           >
+            <Link href="/admin/tools/price-tracker/unified-dashboard">
+              <LineChart className="h-4 w-4" /> Unified Dashboard
+            </Link>
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            asChild
+            className="flex items-center gap-2"
+          >
             <Link href="/admin/tools/price-tracker/review">
               <AlertTriangle className="h-4 w-4" /> Review Queue
             </Link>
           </Button>
+          
           <Button 
             variant="outline" 
             asChild
@@ -1030,6 +1345,7 @@ export default function PriceTrackerAdmin() {
               <LineChart className="h-4 w-4" /> Batch Results
             </Link>
           </Button>
+          
           <Button
             onClick={() => setBatchUpdateDialogOpen(true)}
             className="flex items-center gap-2"
@@ -1046,605 +1362,107 @@ export default function PriceTrackerAdmin() {
         onError={handleScriptError}
       />
       
-      <Dialog open={debugDialogOpen} onOpenChange={setDebugDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {debugInfo?.success ? (
-                <span className="flex items-center">
-                  <Check className="w-5 h-5 mr-2 text-green-500" />
-                  Price Extraction Debug: {debugInfo?.machine}
-                </span>
-              ) : (
-                <span className="flex items-center">
-                  <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
-                  Price Extraction Failed: {debugInfo?.machine}
-                </span>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {debugInfo?.success ? (
-                `Successfully extracted price: ${formatPrice(debugInfo?.price)}`
-              ) : (
-                `Error: ${debugInfo?.error}`
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {debugInfo && (
-            <div className="space-y-4">
-              <Accordion type="single" collapsible className="w-full">
-                {debugInfo.success && debugInfo.details && (
-                  <AccordionItem value="price-info">
-                    <AccordionTrigger>Price Information</AccordionTrigger>
-                    <AccordionContent>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="font-medium">Method Used:</div>
-                        <div>{debugInfo.details.method || "Unknown"}</div>
-                        
-                        <div className="font-medium">Old Price:</div>
-                        <div>{formatPrice(debugInfo.details.oldPrice)}</div>
-                        
-                        <div className="font-medium">New Price:</div>
-                        <div>{formatPrice(debugInfo.details.newPrice)}</div>
-                        
-                        {debugInfo.details.priceChange !== null && (
-                          <>
-                            <div className="font-medium">Price Change:</div>
-                            <div className={debugInfo.details.priceChange > 0 ? 'text-red-500' : debugInfo.details.priceChange < 0 ? 'text-green-500' : ''}>
-                              {debugInfo.details.priceChange > 0 ? '+' : ''}{formatPrice(debugInfo.details.priceChange)}
-                              {debugInfo.details.percentageChange !== null && (
-                                <span className="ml-1">
-                                  ({debugInfo.details.percentageChange > 0 ? '+' : ''}{debugInfo.details.percentageChange.toFixed(2)}%)
-                                </span>
-                              )}
-                            </div>
-                          </>
-                        )}
-                        
-                        <div className="font-medium">Message:</div>
-                        <div>{debugInfo.details.message || "N/A"}</div>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-
-                {debugInfo.details?.url && (
-                  <AccordionItem value="url">
-                    <AccordionTrigger>URL</AccordionTrigger>
-                    <AccordionContent>
-                      <div className="bg-muted rounded-md p-2 overflow-x-auto">
-                        <a 
-                          href={debugInfo.details.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-500 hover:underline break-all"
-                        >
-                          {debugInfo.details.url}
-                        </a>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-                
-                {debugInfo.details?.error && (
-                  <AccordionItem value="error">
-                    <AccordionTrigger>Error Details</AccordionTrigger>
-                    <AccordionContent>
-                      <div className="bg-red-50 text-red-900 rounded-md p-2 overflow-auto">
-                        <p className="font-medium">{debugInfo.details.error}</p>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-                
-                {debugInfo.details?.debug && (
-                  <AccordionItem value="api">
-                    <AccordionTrigger>Python API Details</AccordionTrigger>
-                    <AccordionContent>
-                      <div className="bg-muted rounded-md p-2 overflow-x-auto">
-                        <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(debugInfo.details.debug, null, 2)}</pre>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-              </Accordion>
-              
-              {/* Price Approval Section */}
-              {debugInfo.success && debugInfo.details && debugInfo.details.newPrice && !debugInfo.details.confirmed && (
-                <div className="mt-6 space-y-4">
-                  <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
-                    <h3 className="text-lg font-medium mb-2">Confirm Price Update</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Do you want to update the price from {formatPrice(debugInfo.details.oldPrice)} to {formatPrice(debugInfo.details.newPrice)}?
-                    </p>
-                    
-                    <div className="flex items-center justify-end space-x-3">
-                      <Button
-                        variant="outline"
-                        onClick={() => setDebugDialogOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button 
-                        onClick={async () => {
-                          try {
-                            // Only proceed if the API is ready
-                            if (!pythonApiReady || !window.priceTrackerAPI) {
-                              toast.error("Python Price Extractor API is not connected");
-                              return;
-                            }
-                            
-                            // Get the machine ID and new price from debugInfo
-                            const machineId = debugInfo.details.debug?.machineId;
-                            const newPrice = debugInfo.details.newPrice;
-                            
-                            if (!machineId || newPrice === null || newPrice === undefined) {
-                              toast.error("Missing machine ID or price information");
-                              return;
-                            }
-                            
-                            // Call the API to confirm the price
-                            toast.info(`Confirming price update to ${formatPrice(newPrice)}...`);
-                            
-                            const result = await window.priceTrackerAPI.confirmPrice(machineId, newPrice);
-                            
-                            if (result.success) {
-                              toast.success(`Price updated to ${formatPrice(newPrice)}`);
-                              
-                              // Update debugInfo to show confirmation
-                              setDebugInfo({
-                                ...debugInfo,
-                                details: {
-                                  ...debugInfo.details,
-                                  confirmed: true,
-                                  message: "Price updated successfully"
-                                }
-                              });
-                              
-                              // Refresh machine data
-                              setRefreshing(prev => !prev);
-                            } else {
-                              toast.error(`Failed to confirm price: ${result.error}`);
-                            }
-                          } catch (error) {
-                            console.error("Error confirming price:", error);
-                            toast.error(`Error confirming price: ${error instanceof Error ? error.message : "Unknown error"}`);
-                          }
-                        }}
-                      >
-                        <Check className="w-4 h-4 mr-2" />
-                        Approve & Save
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* Show confirmation message if price was already confirmed */}
-              {debugInfo.success && debugInfo.details && debugInfo.details.confirmed && (
-                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700">
-                  <div className="flex items-center">
-                    <Check className="w-5 h-5 mr-2" />
-                    <span>Price has been successfully updated in the database.</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-      
-      {/* Batch Update Dialog */}
-      <Dialog open={batchUpdateDialogOpen} onOpenChange={setBatchUpdateDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Batch Update Configuration</DialogTitle>
-            <DialogDescription>
-              Configure and start a batch price update for machines.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="days-threshold">Update machines not updated in the last:</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="days-threshold"
-                  type="number"
-                  min="0"
-                  value={daysThreshold}
-                  onChange={(e) => {
-                    const newValue = Number(e.target.value)
-                    setDaysThreshold(newValue)
-                    previewBatchUpdate(newValue, machineLimit)
-                  }}
-                  className="w-20"
-                />
-                <span>days</span>
-              </div>
-              <p className="text-sm text-gray-500">
-                Set to 0 to update all machines regardless of last update time.
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="machine-limit">Limit number of machines:</Label>
-              <Select 
-                value={machineLimit === null ? "all" : machineLimit.toString()} 
-                defaultValue="10"
-                onValueChange={(value) => {
-                  const limit = value === "all" ? null : parseInt(value)
-                  setMachineLimit(limit)
-                  previewBatchUpdate(daysThreshold, limit)
-                }}
-              >
-                <SelectTrigger id="machine-limit" className="w-full">
-                  <SelectValue placeholder="Select limit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10 machines</SelectItem>
-                  <SelectItem value="25">25 machines</SelectItem>
-                  <SelectItem value="50">50 machines</SelectItem>
-                  <SelectItem value="100">100 machines</SelectItem>
-                  <SelectItem value="all">All machines</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-gray-500">
-                Limit the number of machines to update at once.
-              </p>
-            </div>
-            
-            <div className="pt-2">
-              <h4 className="text-sm font-semibold mb-1">Machines to update:</h4>
-              {batchPreviewLoading ? (
-                <div className="flex items-center gap-2 py-2">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span className="text-sm text-gray-500">Loading preview...</span>
-                </div>
-              ) : (
-                <p className="text-sm">
-                  {batchPreviewCount === null 
-                    ? "Loading..."
-                    : batchPreviewCount === 0 
-                      ? "No machines found to update."
-                      : `${batchPreviewCount} machine${batchPreviewCount === 1 ? '' : 's'} will be updated.`
-                  }
-                </p>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setBatchUpdateDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={executeBatchUpdate}
-              disabled={batchPreviewLoading || batchPreviewCount === 0}
-            >
-              Start Batch Update
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Price Tracker Admin</h1>
         <Button onClick={updateAllPrices}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Update All Prices
+          <Bug className="w-4 h-4 mr-2" />
+          Extract All Prices
         </Button>
       </div>
       
       <p className="text-gray-500">
-        Manage and test the price tracking feature. You can update prices manually or view price history.
+        Manage and test the price tracking feature. You can extract prices manually or view price history.
       </p>
       
       <Tabs defaultValue="machines">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="machines">Machines</TabsTrigger>
-          <TabsTrigger value="recent">Recent Updates</TabsTrigger>
           <TabsTrigger value="batch-jobs">Batch Jobs</TabsTrigger>
-          <TabsTrigger value="preview">Chart Preview</TabsTrigger>
+          <TabsTrigger value="preview">Preview</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="machines" className="space-y-4">
-          <Card className="col-span-3">
-            <CardHeader className="space-y-4">
-              <CardTitle>Machines</CardTitle>
-              <CardDescription>
-                View and manage price history for machines.
-              </CardDescription>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-between">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="featured-filter"
-                    checked={filterFeatured}
-                    onCheckedChange={setFilterFeatured}
-                  />
-                  <Label htmlFor="featured-filter">Show featured machines only</Label>
-                </div>
-                
-                <div className="flex-1 max-w-sm">
-                  <Input
-                    placeholder="Search machines..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Machine</TableHead>
-                      <TableHead>Current Price</TableHead>
-                      <TableHead>Source URL</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8">
-                          Loading machines...
-                        </TableCell>
-                      </TableRow>
-                    ) : machines.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8">
-                          No machines found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      machines.map(machine => (
-                        <TableRow key={machine.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex flex-col">
-                              <span className="font-medium">{machine["Machine Name"]}</span>
-                              <span className="text-sm text-gray-500">{machine["Company"]}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{formatPrice(machine["Price"])}</TableCell>
-                          <TableCell className="max-w-xs truncate">
-                            {machine.product_link || machine["Affiliate Link"] || "N/A"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => selectMachine(machine)}
-                              >
-                                <LineChart className="w-4 h-4 mr-1" /> 
-                                History
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDebug(machine)}
-                                className="mr-1"
-                              >
-                                <Bug className="w-4 h-4 mr-1" />
-                                Debug
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                onClick={() => updatePrice(machine)}
-                              >
-                                <RefreshCw className="w-4 h-4 mr-1" /> 
-                                Update
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openConfigDialog(machine);
-                                }}
-                              >
-                                <Settings className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {selectedMachine && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{selectedMachine["Machine Name"]} - Price History</CardTitle>
-                <CardDescription>
-                  Current price: {formatPrice(selectedMachine["Price"])}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {priceHistory.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No price history available. Use the "Update" button to record the current price.
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <PriceHistoryChart 
-                      machineId={selectedMachine.id}
-                      currentPrice={selectedMachine["Price"] || 0}
-                    />
-                    
-                    <Separator />
-                    
-                    <div className="rounded-md border max-h-96 overflow-y-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Price</TableHead>
-                            <TableHead>Source</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {priceHistory.map((record) => (
-                            <TableRow key={record.id}>
-                              <TableCell>{formatDate(record.date)}</TableCell>
-                              <TableCell>{formatPrice(record.price)}</TableCell>
-                              <TableCell className="max-w-xs truncate">{record.source}</TableCell>
-                              <TableCell>
-                                {record.is_all_time_low && (
-                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                    All-time Low
-                                  </Badge>
-                                )}
-                                {record.is_all_time_high && (
-                                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                    All-time High
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button 
-                                  size="sm" 
-                                  variant="destructive"
-                                  onClick={() => {
-                                    if (window.confirm("Are you sure you want to delete this price record?")) {
-                                      deletePrice(record.id)
-                                    }
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="justify-between">
-                <Button variant="outline" onClick={() => setSelectedMachine(null)}>
-                  Back to Machines
-                </Button>
-                <Button onClick={() => updatePrice(selectedMachine)}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Update Price
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="recent">
+        <TabsContent value="machines">
           <Card>
             <CardHeader>
-              <CardTitle>Recent Price Updates</CardTitle>
-              <CardDescription>
-                The 10 most recent price updates across all machines.
-              </CardDescription>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Machines</CardTitle>
+                  <CardDescription>Manage and track machines</CardDescription>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setRefreshing(prev => !prev)}
+                  disabled={loading}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
+              {loading ? (
+                <div className="flex justify-center p-4">
+                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : machines.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <p>No machines found</p>
+                  <p className="text-sm mt-2">Start adding machines</p>
+                </div>
+              ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Machine</TableHead>
-                      <TableHead>Previous Price</TableHead>
-                      <TableHead>New Price</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>Machine Name</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Current Price</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentlyUpdated.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8">
-                          No recent updates found.
+                    {machines.map((machine) => (
+                      <TableRow key={machine.id}>
+                        <TableCell className="font-medium">{machine.machine_name}</TableCell>
+                        <TableCell>{machine.brand}</TableCell>
+                        <TableCell>{machine.company}</TableCell>
+                        <TableCell>{formatPrice(machine.current_price)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updatePrice(machine)}
+                              disabled={updatingPrices[machine.id]}
+                            >
+                              {updatingPrices[machine.id] ? (
+                                <>
+                                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                  Updating...
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                  Update Price
+                                </>
+                              )}
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDebug(machine)}
+                            >
+                              <Bug className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
-                    ) : (
-                      recentlyUpdated.map((record, index) => (
-                        <TableRow key={`${record.machine_id}-${index}`}>
-                          <TableCell className="font-medium">
-                            <div className="flex flex-col">
-                              <span className="font-medium">{record.machineName}</span>
-                              <span className="text-sm text-gray-500">{record.company}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{formatPrice(record.recordedPrice)}</TableCell>
-                          <TableCell>
-                            {formatPrice(record.price)}
-                            {record.priceChange !== 0 && (
-                              <span className={`ml-2 text-sm ${record.priceChangeClass}`}>
-                                ({record.priceChange > 0 ? '+' : ''}
-                                {formatPrice(record.priceChange)})
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell>{formatDate(record.date)}</TableCell>
-                          <TableCell>
-                            {record.is_all_time_low && (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                All-time Low
-                              </Badge>
-                            )}
-                            {record.is_all_time_high && (
-                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                All-time High
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button 
-                              size="sm" 
-                              variant="destructive"
-                              onClick={() => {
-                                if (window.confirm("Are you sure you want to delete this price record?")) {
-                                  deletePrice(record.id)
-                                }
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
-              </div>
+              )}
             </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button
-                variant="outline" 
-                onClick={() => setRefreshing(prev => !prev)}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </Button>
-              
-              <Button
-                variant="secondary"
-                onClick={cleanupInvalidPrices}
-              >
-                <AlertCircle className="w-4 h-4 mr-2" />
-                Clean Invalid Records
-              </Button>
-            </CardFooter>
           </Card>
         </TabsContent>
         
@@ -1675,7 +1493,7 @@ export default function PriceTrackerAdmin() {
               ) : batches.length === 0 ? (
                 <div className="text-center py-6 text-muted-foreground">
                   <p>No batch jobs found</p>
-                  <p className="text-sm mt-2">Start a new batch update using the "Update All Prices" button</p>
+                  <p className="text-sm mt-2">Start a new batch update using the "Extract All Prices" button</p>
                 </div>
               ) : (
                 <Table>
@@ -1751,7 +1569,7 @@ export default function PriceTrackerAdmin() {
                 <div className="max-w-xl mx-auto">
                   <PriceHistoryChart 
                     machineId={selectedMachine.id}
-                    currentPrice={selectedMachine["Price"] || 0}
+                    currentPrice={selectedMachine.current_price ?? null}
                   />
                 </div>
               ) : (
@@ -1771,12 +1589,240 @@ export default function PriceTrackerAdmin() {
         </TabsContent>
       </Tabs>
       
+      {/* Dialogs will go here */}
+      
+      {/* Debug Dialog */}
+      <Dialog open={debugDialogOpen} onOpenChange={setDebugDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {debugInfo?.success ? (
+                <span className="flex items-center">
+                  <Check className="w-5 h-5 mr-2 text-green-500" />
+                  Price Extraction Debug: {debugInfo?.machine}
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
+                  Price Extraction Failed: {debugInfo?.machine}
+                </span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {debugInfo?.success ? (
+                `Successfully extracted price: ${formatPrice(debugInfo?.price)}`
+              ) : (
+                `Error: ${debugInfo?.error}`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {debugInfo && (
+            <div className="space-y-4">
+              <Accordion type="single" collapsible className="w-full">
+                {debugInfo.success && debugInfo.details && (
+                  <AccordionItem value="price-info">
+                    <AccordionTrigger>Price Information</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="font-medium">Method Used:</div>
+                        <div>{debugInfo.details.method || "Unknown"}</div>
+                        
+                        <div className="font-medium">Previous Price:</div>
+                        <div>{formatPrice(debugInfo.details.oldPrice)}</div>
+                        
+                        <div className="font-medium">New Price:</div>
+                        <div>{formatPrice(debugInfo.details.newPrice)}</div>
+                        
+                        <div className="font-medium">Price Change:</div>
+                        <div className={`${debugInfo.details.priceChange > 0 ? 'text-red-600' : debugInfo.details.priceChange < 0 ? 'text-green-600' : ''}`}>
+                          {formatPrice(debugInfo.details.priceChange)} 
+                          ({debugInfo.details.percentageChange > 0 ? '+' : ''}{debugInfo.details.percentageChange.toFixed(2)}%)
+                        </div>
+                        
+                        <div className="font-medium">Source URL:</div>
+                        <div className="break-all">
+                          <a href={debugInfo.details.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center">
+                            {debugInfo.details.url?.substring(0, 50)}...
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                          </a>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+                
+                <AccordionItem value="debug-info">
+                  <AccordionTrigger>Technical Debug Information</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="text-xs font-mono overflow-x-auto whitespace-pre-wrap bg-gray-50 p-3 rounded border">
+                      {JSON.stringify(debugInfo.debug, null, 2)}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+              
+              {/* Only show confirmation section for successful price extractions that aren't debugging */}
+              {debugInfo.success && debugInfo.details && !debugInfo.debug?.is_debug_mode && (
+                <div className="mt-6 space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <h3 className="text-lg font-medium mb-2">Confirm Price Update</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Do you want to update the price from {formatPrice(debugInfo.details.oldPrice)} to {formatPrice(debugInfo.details.newPrice)}?
+                    </p>
+                    
+                    <div className="flex items-center justify-end space-x-3">
+                      <Button
+                        variant="outline"
+                        onClick={() => setDebugDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={async () => {
+                          try {
+                            setDebugDialogOpen(false);
+                            
+                            // Call the confirmPrice function with the machine ID and new price
+                            if (selectedMachine) {
+                              await confirmPrice(selectedMachine.id, debugInfo.details.newPrice);
+                            }
+                          } catch (error) {
+                            console.error("Error confirming price:", error);
+                            toast.error("Failed to confirm price update");
+                          }
+                        }}
+                      >
+                        Confirm Update
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {debugInfo.success && debugInfo.details && debugInfo.details.confirmed && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700">
+                  <div className="flex items-center">
+                    <Check className="w-5 h-5 mr-2" />
+                    <span>Price has been successfully updated in the database.</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Batch Update Dialog */}
+      <Dialog open={batchUpdateDialogOpen} onOpenChange={setBatchUpdateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Batch Update Configuration</DialogTitle>
+            <DialogDescription>
+              Configure and start a batch price update for machines.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="days-threshold">Update machines not updated in the last:</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="days-threshold"
+                  type="number"
+                  min="0"
+                  value={daysThreshold}
+                  onChange={(e) => {
+                    const days = parseInt(e.target.value);
+                    setDaysThreshold(isNaN(days) ? 0 : days);
+                    previewBatchUpdate(days, machineLimit);
+                  }}
+                  className="w-24"
+                />
+                <span>days</span>
+              </div>
+              <p className="text-sm text-gray-500">
+                Set to 0 to include all machines regardless of last update time.
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="machine-limit">Limit number of machines to process:</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="machine-limit"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={machineLimit !== null ? machineLimit : ''}
+                  onChange={(e) => {
+                    const limit = parseInt(e.target.value);
+                    setMachineLimit(isNaN(limit) ? null : limit);
+                    previewBatchUpdate(daysThreshold, isNaN(limit) ? null : limit);
+                  }}
+                  className="w-24"
+                />
+                <span>machines</span>
+              </div>
+              <p className="text-sm text-gray-500">
+                Limit the number of machines to process in this batch.
+              </p>
+            </div>
+            
+            <div className="flex items-center space-x-2 pt-2">
+              <Checkbox
+                id="dry-run"
+                checked={isDryRun}
+                onCheckedChange={(checked) => {
+                  setIsDryRun(checked === true);
+                }}
+              />
+              <Label htmlFor="dry-run">Dry run (simulation only, no database updates)</Label>
+            </div>
+            
+            <div className="mt-4">
+              <h3 className="font-medium mb-2">Batch Preview:</h3>
+              {batchPreviewLoading ? (
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span>Loading preview...</span>
+                </div>
+              ) : (
+                <p className="text-sm">
+                  {batchPreviewCount === 0 
+                    ? "No machines match the current criteria."
+                    : batchPreviewCount === null
+                      ? "Enter criteria to preview batch update."
+                      : `${batchPreviewCount} machine${batchPreviewCount === 1 ? '' : 's'} will be updated.`
+                  }
+                </p>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setBatchUpdateDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={executeBatchUpdate}
+              disabled={batchPreviewLoading || batchPreviewCount === 0}
+            >
+              Start Batch Update
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       {/* Configuration Dialog */}
       <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {selectedMachine ? `Configure ${selectedMachine["Machine Name"]}` : 'Machine Configuration'}
+              {selectedMachine ? `Configure ${selectedMachine.machine_name}` : 'Machine Configuration'}
             </DialogTitle>
             <DialogDescription>
               Configure extraction settings, variants, and JavaScript interaction
@@ -1797,279 +1843,243 @@ export default function PriceTrackerAdmin() {
                 </TabsList>
                 
                 <TabsContent value="basic" className="space-y-4">
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="min_extraction_confidence" className="text-right">
-                        Min Extraction Confidence
-                      </Label>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="css-selector">CSS Selector for Price:</Label>
                       <Input
-                        id="min_extraction_confidence"
+                        id="css-selector"
+                        placeholder="CSS selector for price element"
+                        value={machineConfig?.css_price_selector || ''}
+                        onChange={(e) => setMachineConfig({...machineConfig, css_price_selector: e.target.value})}
+                      />
+                      <p className="text-xs text-gray-500">
+                        Custom CSS selector to extract price from the HTML (optional)
+                      </p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="min-extraction-confidence">Min Extraction Confidence:</Label>
+                        <Input
+                          id="min-extraction-confidence"
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          placeholder="0.75"
+                          value={machineConfig?.min_extraction_confidence || ''}
+                          onChange={(e) => setMachineConfig({...machineConfig, min_extraction_confidence: parseFloat(e.target.value)})}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="min-validation-confidence">Min Validation Confidence:</Label>
+                        <Input
+                          id="min-validation-confidence"
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          placeholder="0.75"
+                          value={machineConfig?.min_validation_confidence || ''}
+                          onChange={(e) => setMachineConfig({...machineConfig, min_validation_confidence: parseFloat(e.target.value)})}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="sanity-check-threshold">Sanity Check Threshold (%):</Label>
+                      <Input
+                        id="sanity-check-threshold"
                         type="number"
                         min="0"
-                        max="1"
-                        step="0.05"
-                        value={machineConfig?.min_extraction_confidence || 0.85}
-                        onChange={(e) => setMachineConfig({
-                          ...machineConfig,
-                          min_extraction_confidence: parseFloat(e.target.value)
-                        })}
-                        className="col-span-3"
+                        placeholder="20"
+                        value={machineConfig?.sanity_check_threshold || ''}
+                        onChange={(e) => setMachineConfig({...machineConfig, sanity_check_threshold: parseInt(e.target.value)})}
                       />
+                      <p className="text-xs text-gray-500">
+                        Maximum allowed price change percentage before requiring manual review (e.g. 20 for 20%)
+                      </p>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="min_validation_confidence" className="text-right">
-                        Min Validation Confidence
-                      </Label>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="api-endpoint">API Endpoint Template:</Label>
                       <Input
-                        id="min_validation_confidence"
-                        type="number"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={machineConfig?.min_validation_confidence || 0.9}
-                        onChange={(e) => setMachineConfig({
-                          ...machineConfig,
-                          min_validation_confidence: parseFloat(e.target.value)
-                        })}
-                        className="col-span-3"
+                        id="api-endpoint"
+                        placeholder="https://example.com/api/product/{id}/price"
+                        value={machineConfig?.api_endpoint_template || ''}
+                        onChange={(e) => setMachineConfig({...machineConfig, api_endpoint_template: e.target.value})}
                       />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="sanity_check_threshold" className="text-right">
-                        Price Change Threshold (%)
-                      </Label>
-                      <Input
-                        id="sanity_check_threshold"
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="5"
-                        value={machineConfig?.sanity_check_threshold || 25}
-                        onChange={(e) => setMachineConfig({
-                          ...machineConfig,
-                          sanity_check_threshold: parseFloat(e.target.value)
-                        })}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="css_price_selector" className="text-right">
-                        CSS Price Selector
-                      </Label>
-                      <Input
-                        id="css_price_selector"
-                        value={machineConfig?.css_price_selector || ""}
-                        onChange={(e) => setMachineConfig({
-                          ...machineConfig,
-                          css_price_selector: e.target.value
-                        })}
-                        className="col-span-3"
-                        placeholder=".price, .product-price, [data-price]"
-                      />
+                      <p className="text-xs text-gray-500">
+                        Custom API endpoint template for products with price APIs (optional)
+                      </p>
                     </div>
                   </div>
                 </TabsContent>
                 
                 <TabsContent value="variants" className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium">Variant Configuration</h3>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setIsAddingVariant(true)}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Variant
-                    </Button>
-                  </div>
-                  
-                  {/* Display Variant List */}
-                  {variants && variants.length > 0 ? (
+                  <div className="rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Attribute</TableHead>
-                          <TableHead>Price</TableHead>
+                          <TableHead>Variant Name</TableHead>
                           <TableHead>Last Checked</TableHead>
+                          <TableHead>Current Price</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {variants.map((variant) => (
-                          <TableRow key={variant.variant_attribute}>
-                            <TableCell>
-                              {variant.variant_attribute === 'DEFAULT' ? (
-                                <Badge variant="secondary">DEFAULT</Badge>
-                              ) : (
-                                variant.variant_attribute
-                              )}
+                        {variants.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                              No variants configured
                             </TableCell>
-                            <TableCell>{formatPrice(variant.machines_latest_price)}</TableCell>
-                            <TableCell>{formatRelativeTime(variant.last_checked)}</TableCell>
-                            <TableCell>
-                              {variant.variant_attribute !== 'DEFAULT' && (
+                          </TableRow>
+                        ) : (
+                          variants.map((variant) => (
+                            <TableRow key={variant.variant_attribute}>
+                              <TableCell>{variant.variant_attribute || "Default"}</TableCell>
+                              <TableCell>
+                                {variant.last_checked 
+                                  ? formatRelativeTime(variant.last_checked)
+                                  : "Never"
+                                }
+                              </TableCell>
+                              <TableCell>{formatPrice(variant.machines_latest_price)}</TableCell>
+                              <TableCell>
                                 <Button 
-                                  variant="ghost" 
+                                  variant="destructive" 
                                   size="sm"
-                                  onClick={() => handleDeleteVariant(variant.variant_attribute)} // Use attribute for deletion
+                                  onClick={() => handleDeleteVariant(variant.variant_attribute)}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
-                              )}
-                              {/* Add Edit button here if needed */}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
-                  ) : (
-                    <div className="text-center py-4 text-muted-foreground">
-                      No variants found for this machine.
-                    </div>
-                  )}
+                  </div>
                   
-                  {isAddingVariant && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Add New Variant</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid gap-4">
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="variant_attribute" className="text-right">
-                              Variant Name
-                            </Label>
-                            <Input
-                              id="variant_attribute"
-                              value={newVariant.attribute}
-                              onChange={(e) => setNewVariant({
-                                ...newVariant,
-                                attribute: e.target.value
-                              })}
-                              className="col-span-3"
-                              placeholder="e.g., 60W, Size M"
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="requires_js" className="text-right">
-                              Requires JavaScript
-                            </Label>
-                            <div className="col-span-3 flex items-center space-x-2">
-                              <Switch 
-                                id="requires_js"
-                                checked={newVariant.requires_js}
-                                onCheckedChange={(checked) => setNewVariant({
-                                  ...newVariant,
-                                  requires_js: checked
-                                })}
-                              />
-                              <Label htmlFor="requires_js">JavaScript interaction required</Label>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                      <CardFooter className="flex justify-between">
+                  {isAddingVariant ? (
+                    <div className="space-y-4 p-4 border rounded-md">
+                      <h3 className="font-medium">Add New Variant</h3>
+                      <div className="space-y-2">
+                        <Label htmlFor="variant-attribute">Variant Attribute:</Label>
+                        <Input
+                          id="variant-attribute"
+                          placeholder="e.g. 'Pro', '10W', 'Bundle'"
+                          value={newVariant.attribute}
+                          onChange={(e) => setNewVariant({...newVariant, attribute: e.target.value})}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="requires-js"
+                          checked={newVariant.requires_js}
+                          onCheckedChange={(checked) => {
+                            setNewVariant({...newVariant, requires_js: checked === true});
+                          }}
+                        />
+                        <Label htmlFor="requires-js">Requires JavaScript Interaction</Label>
+                      </div>
+                      
+                      <div className="flex space-x-2 justify-end">
                         <Button 
                           variant="outline" 
                           onClick={() => {
-                            setIsAddingVariant(false);
                             setNewVariant({ attribute: "", requires_js: false });
+                            setIsAddingVariant(false);
                           }}
                         >
                           Cancel
                         </Button>
-                        <Button onClick={handleAddVariant}>Add Variant</Button>
-                      </CardFooter>
-                    </Card>
+                        <Button onClick={handleAddVariant}>
+                          Add Variant
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button 
+                      onClick={() => setIsAddingVariant(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" /> Add Variant
+                    </Button>
                   )}
                 </TabsContent>
                 
                 <TabsContent value="js" className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium">JavaScript Interaction Configuration</h3>
-                    {selectedMachine?.Company === "aeon" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="js-interaction">JavaScript Interaction Sequence:</Label>
                       <Button 
                         variant="outline" 
                         size="sm"
                         onClick={() => {
-                          const aeonMiraExample = [
-                            {
-                              "action": "click",
-                              "selector": ".model-option:has-text(\"Mira Pro S\")"
-                            },
-                            {
-                              "time": 1000,
-                              "action": "wait"
-                            },
-                            {
-                              "action": "click",
-                              "selector": ".size-option:has-text(\"MIRA9 S\")"
-                            },
-                            {
-                              "time": 1000,
-                              "action": "wait"
-                            },
-                            {
-                              "action": "click",
-                              "selector": ".power-option:has-text(\"60W\")"
-                            },
-                            {
-                              "time": 1000,
-                              "action": "wait"
-                            },
-                            {
-                              "action": "extract",
-                              "selector": ".total-price .price-value"
-                            }
-                          ];
-                          setJsConfig(aeonMiraExample);
-                          setMachineConfig({
-                            ...machineConfig,
-                            requires_js_interaction: true,
-                            css_price_selector: ".total-price .price-value"
-                          });
-                          toast.success("Loaded Aeon Mira configuration template");
+                          setIsEditingJs(!isEditingJs);
                         }}
                       >
-                        Load Aeon Mira Template
+                        <Edit className="h-4 w-4 mr-2" />
+                        {isEditingJs ? "Cancel Editing" : "Edit Sequence"}
                       </Button>
-                    )}
-                  </div>
-                  
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="requires_js_interaction" className="text-right">
-                        Requires JavaScript
-                      </Label>
-                      <div className="col-span-3 flex items-center space-x-2">
-                        <Switch 
-                          id="requires_js_interaction"
-                          checked={machineConfig?.requires_js_interaction || false}
-                          onCheckedChange={(checked) => setMachineConfig({
-                            ...machineConfig,
-                            requires_js_interaction: checked
-                          })}
-                        />
-                        <Label htmlFor="requires_js_interaction">JavaScript interaction required</Label>
-                      </div>
                     </div>
                     
-                    {machineConfig?.requires_js_interaction && (
+                    {isEditingJs ? (
                       <>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label className="text-right">
-                            Interaction Sequence
-                          </Label>
-                          <div className="col-span-3">
-                            <SequenceBuilder 
-                              initialSequence={jsConfig || []}
-                              onChange={(sequence) => setJsConfig(sequence)}
-                              onTest={handleTestConfig}
-                              productUrl={selectedMachine?.product_link || ''}
-                            />
+                        <div className="border rounded-md p-4">
+                          <div className="mb-4">
+                            <h3 className="text-sm font-medium mb-2">JavaScript Click Sequence Builder</h3>
+                            <p className="text-xs text-gray-500 mb-4">
+                              Configure a sequence of click actions to navigate to the price on JavaScript-heavy sites.
+                            </p>
+                            
+                            <div className="mt-4">
+                              <SequenceBuilder 
+                                initialSequence={jsConfig} 
+                                onChange={setJsConfig}
+                                onTest={handleTestConfig}
+                                productUrl={selectedMachine?.product_link || ''}
+                              />
+                            </div>
                           </div>
                         </div>
                       </>
+                    ) : (
+                      <div className="border rounded-md p-4 bg-gray-50">
+                        {machineConfig?.requires_js_interaction ? (
+                          <>
+                            <p className="mb-2 text-sm">JavaScript interaction is enabled for this machine.</p>
+                            {jsConfig && jsConfig.length > 0 ? (
+                              <div className="text-xs font-mono overflow-x-auto whitespace-pre-wrap bg-gray-100 p-2 rounded">
+                                {JSON.stringify(jsConfig, null, 2)}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No click sequence configured.</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">JavaScript interaction is disabled for this machine.</p>
+                        )}
+                        
+                        <div className="mt-4 flex items-center space-x-2">
+                          <Checkbox
+                            id="requires-js-interaction"
+                            checked={machineConfig?.requires_js_interaction || false}
+                            onCheckedChange={(checked) => {
+                              setMachineConfig({
+                                ...machineConfig,
+                                requires_js_interaction: checked === true
+                              });
+                            }}
+                          />
+                          <Label htmlFor="requires-js-interaction">
+                            Enable JavaScript interaction
+                          </Label>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </TabsContent>
@@ -2101,5 +2111,5 @@ export default function PriceTrackerAdmin() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 } 

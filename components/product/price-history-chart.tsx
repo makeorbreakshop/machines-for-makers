@@ -29,7 +29,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 interface PriceHistoryChartProps {
   machineId: string
-  currentPrice: number
+  currentPrice: number | null
   currency?: string
   compact?: boolean
 }
@@ -108,12 +108,12 @@ export function PriceHistoryChart({
           const today = new Date().toISOString()
           setPriceHistory([{
             date: today,
-            price: currentPrice,
+            price: currentPrice ?? 0,
           }])
           setStatsData({
-            avgPrice: currentPrice,
-            minPrice: currentPrice,
-            maxPrice: currentPrice,
+            avgPrice: currentPrice ?? 0,
+            minPrice: currentPrice ?? 0,
+            maxPrice: currentPrice ?? 0,
             currentDiscount: 0,
           })
         } else {
@@ -130,7 +130,7 @@ export function PriceHistoryChart({
           const minPrice = Math.min(...prices)
           const maxPrice = Math.max(...prices)
           const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length
-          const currentDiscount = avgPrice > 0 ? ((avgPrice - currentPrice) / avgPrice) * 100 : 0
+          const currentDiscount = avgPrice > 0 ? (((avgPrice - (currentPrice ?? 0)) / avgPrice) * 100) : 0
           
           setStatsData({
             avgPrice,
@@ -240,7 +240,7 @@ export function PriceHistoryChart({
       <div className="grid grid-cols-3 gap-2 mb-2 text-center">
         <div>
           <p className="text-[10px] text-muted-foreground">Current</p>
-          <p className="text-xs font-medium">{formatPrice(currentPrice)}</p>
+          <p className="text-xs font-medium">{formatPrice(currentPrice ?? 0)}</p>
         </div>
         <div>
           <p className="text-[10px] text-muted-foreground">Average</p>
@@ -354,7 +354,7 @@ export function PriceHistoryChart({
         <div className="grid grid-cols-3 gap-4 pt-4">
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Current</p>
-            <p className="font-medium">{formatPrice(currentPrice)}</p>
+            <p className="font-medium">{formatPrice(currentPrice ?? 0)}</p>
           </div>
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Average</p>

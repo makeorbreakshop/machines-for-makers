@@ -17,8 +17,8 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # LLM Models
-CLAUDE_HAIKU_MODEL = os.getenv("CLAUDE_HAIKU_MODEL", "claude-3-haiku-20240307")
-CLAUDE_SONNET_MODEL = os.getenv("CLAUDE_SONNET_MODEL", "claude-3-sonnet-20240229")
+CLAUDE_HAIKU_MODEL = "claude-3-haiku-20240307"
+CLAUDE_SONNET_MODEL = "claude-3-5-sonnet-20241022"
 GPT4O_MODEL = os.getenv("GPT4O_MODEL", "gpt-4o")
 
 # Extraction Tiers
@@ -29,9 +29,9 @@ TIER_JS_INTERACTION = "JS_INTERACTION"
 TIER_FULL_HTML = "FULL_HTML"
 
 # Confidence Thresholds
-DEFAULT_EXTRACTION_CONFIDENCE = float(os.getenv("DEFAULT_EXTRACTION_CONFIDENCE", "0.85"))
-DEFAULT_VALIDATION_CONFIDENCE = float(os.getenv("DEFAULT_VALIDATION_CONFIDENCE", "0.90"))
-DEFAULT_SANITY_THRESHOLD = float(os.getenv("DEFAULT_SANITY_THRESHOLD", "0.25"))
+DEFAULT_EXTRACTION_CONFIDENCE = 0.85
+DEFAULT_VALIDATION_CONFIDENCE = 0.90
+DEFAULT_SANITY_THRESHOLD = 0.25  # 25% price change
 
 # Scraping Configuration
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
@@ -47,17 +47,21 @@ MACHINES_LATEST_TABLE = "machines_latest"
 VARIANT_CONFIG_TABLE = "variant_extraction_config"
 LLM_USAGE_TABLE = "llm_usage_tracking"
 
+# Price Validation
+MIN_ALLOWED_PRICE = 10.0       # $10 minimum reasonable price
+MAX_ALLOWED_PRICE = 50000.0    # $50k maximum reasonable price
+
 # Model Token Pricing (per 1M tokens)
 LLM_COSTS = {
-    "claude-3-haiku-20240307": {
+    CLAUDE_HAIKU_MODEL: {
         "input": 0.25,   # $0.25 per 1M input tokens
         "output": 1.25,  # $1.25 per 1M output tokens
     },
-    "claude-3-sonnet-20240229": {
+    CLAUDE_SONNET_MODEL: {
         "input": 3.0,    # $3.00 per 1M input tokens
         "output": 15.0,  # $15.00 per 1M output tokens
     },
-    "gpt-4o": {
+    GPT4O_MODEL: {
         "input": 5.0,    # $5.00 per 1M input tokens
         "output": 15.0,  # $15.00 per 1M output tokens
     }
@@ -83,23 +87,17 @@ logger.add(
 
 # Validate required environment variables
 def validate_config():
-    """Validates that all required environment variables are set."""
-    required_vars = [
-        ("SUPABASE_URL", SUPABASE_URL),
-        ("SUPABASE_KEY", SUPABASE_KEY),
-        ("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY),
-    ]
+    """Validate that required environment variables are set."""
+    missing_vars = []
     
-    # OpenAI key is optional for now, only needed for GPT-4o tier
-    if OPENAI_API_KEY:
-        logger.info("OpenAI API key found - Full HTML tier with GPT-4o will be available")
-    else:
-        logger.warning("OpenAI API key not found - Full HTML tier with GPT-4o will not be available")
+    if not SUPABASE_URL:
+        missing_vars.append("SUPABASE_URL")
     
-    missing_vars = [var_name for var_name, var_value in required_vars if not var_value]
-    
+    if not SUPABASE_KEY:
+        missing_vars.append("SUPABASE_KEY")
+        
     if missing_vars:
-        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        logger.error(f"Error: The following required environment variables are missing: {', '.join(missing_vars)}")
         return False
     
     return True

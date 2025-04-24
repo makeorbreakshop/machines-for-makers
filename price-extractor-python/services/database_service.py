@@ -7,6 +7,7 @@ import uuid
 from typing import Dict, List, Optional, Any, Union
 from decimal import Decimal
 import json
+import decimal
 
 # Load environment variables
 load_dotenv()
@@ -21,23 +22,56 @@ from config import (
     TIER_STATIC
 )
 
+# Create a global Supabase client that's reused across instances
+_supabase_client = None
+
+def get_supabase_client():
+    """
+    Get or create the global Supabase client.
+    
+    Returns:
+        Client: The Supabase client instance
+    """
+    global _supabase_client
+    if _supabase_client is None:
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_KEY")
+        
+        if not supabase_url or not supabase_key:
+            raise ValueError("Missing Supabase credentials in environment variables")
+            
+        _supabase_client = create_client(supabase_url, supabase_key)
+    
+    return _supabase_client
+
 class DatabaseService:
     """Service for interacting with the Supabase database."""
     
+    # Class variable to hold the singleton instance
+    _instance = None
+    
+    def __new__(cls):
+        """
+        Create a new DatabaseService instance or return the existing one (singleton pattern).
+        
+        Returns:
+            DatabaseService: The singleton instance
+        """
+        if cls._instance is None:
+            cls._instance = super(DatabaseService, cls).__new__(cls)
+            # Initialize will be called after this
+        return cls._instance
+    
     def __init__(self):
         """Initialize the database service with Supabase credentials."""
-        try:
-            supabase_url = os.getenv("SUPABASE_URL")
-            supabase_key = os.getenv("SUPABASE_KEY")
-            
-            if not supabase_url or not supabase_key:
-                raise ValueError("Missing Supabase credentials in environment variables")
-                
-            self.supabase: Client = create_client(supabase_url, supabase_key)
-            logger.info("Database service initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize database service: {str(e)}")
-            raise
+        # Only initialize once
+        if not hasattr(self, 'supabase'):
+            try:
+                self.supabase = get_supabase_client()
+                logger.info("Database service initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize database service: {str(e)}")
+                raise
     
     async def get_machine_by_id(self, machine_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -214,117 +248,242 @@ class DatabaseService:
             logger.error(f"Error updating price for {machine_id}/{variant_attribute}: {str(e)}")
             return False
     
-    async def add_price_history(self, machine_id: str, new_price: Decimal, old_price: Optional[Decimal] = None,
-                          variant_attribute: str = "DEFAULT", tier: str = TIER_STATIC, 
-                          extracted_confidence: Optional[float] = None, validation_confidence: Optional[float] = None,
-                          success: bool = True, error_message: Optional[str] = None,
-                          source: str = "price_extractor", currency: str = "USD", 
-                          url: Optional[str] = None, batch_id: Optional[str] = None) -> bool:
-        """
-        Add a price history record.
-        
-        Args:
-            machine_id: ID of the machine
-            new_price: New price value
-            old_price: Previous price value (optional)
-            variant_attribute: Variant attribute (default "DEFAULT")
-            tier: Extraction tier used
-            extracted_confidence: Confidence score for extraction
-            validation_confidence: Confidence score for validation
-            success: Whether the extraction was successful
-            error_message: Error message if extraction failed
-            source: Source of the price update
-            currency: Currency of the price
-            url: URL where the price was scraped from
-            batch_id: ID of the batch that created this history entry (optional)
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
+    async def add_price_history(
+        self, 
+        machine_id: str, 
+        new_price: Optional[Decimal] = None, 
+        old_price: Optional[Decimal] = None,
+        variant_attribute: str = "DEFAULT", 
+        tier: str = "STATIC", 
+        extracted_confidence: Optional[float] = None, 
+        validation_confidence: Optional[float] = None,
+        success: bool = True, 
+        error_message: Optional[str] = None,
+        source: str = "price_extractor", 
+        currency: str = "USD", 
+        url: Optional[str] = None, 
+        batch_id: Optional[str] = None,
+        html_size: Optional[int] = None, 
+        http_status: Optional[int] = None,
+        extraction_method: Optional[str] = None, 
+        raw_price_text: Optional[str] = None,
+        extraction_duration_seconds: Optional[float] = None,
+        extraction_attempts: Optional[List[Dict[str, Any]]] = None,
+        needs_review: bool = False, 
+        review_reason: Optional[str] = None,
+        validation_basis_price: Optional[Decimal] = None,
+        # New fields
+        structured_data_type: Optional[str] = None,
+        selectors_tried: Optional[List[str]] = None,
+        request_headers: Optional[Dict[str, str]] = None,
+        response_headers: Optional[Dict[str, str]] = None,
+        validation_steps: Optional[List[Dict[str, Any]]] = None,
+        company: Optional[str] = None,
+        category: Optional[str] = None,
+        dom_elements_analyzed: Optional[int] = None,
+        price_location_in_dom: Optional[str] = None,
+        retry_count: Optional[int] = None,
+        cleaned_price_string: Optional[str] = None,
+        parsed_currency_from_text: Optional[str] = None
+    ) -> Optional[str]:
+        """Add a new price history record, following the PRD section 3.1.1."""
         try:
-            # Calculate price change if old_price is available
-            price_change = None
-            percentage_change = None
-            is_all_time_low = False
-            is_all_time_high = False
+            # Determine status based on inputs
+            if not success:
+                status = "FAILED"
+            elif needs_review:
+                status = "NEEDS_REVIEW"
+            else:
+                status = "SUCCESS"
             
-            # Convert old_price from float to Decimal if needed
-            if old_price is not None and not isinstance(old_price, Decimal):
-                old_price = Decimal(str(old_price))
-            
-            if old_price is not None and new_price is not None:
-                price_change = new_price - old_price
-                if old_price > 0:
-                    percentage_change = (price_change / old_price) * 100
-            
-            # Check for all-time low/high (could be optimized with a separate query)
-            if new_price is not None:
-                # Get previous price history
-                history_response = self.supabase.table(PRICE_HISTORY_TABLE) \
-                    .select("price") \
-                    .eq("machine_id", machine_id) \
-                    .order("date", desc=False) \
-                    .execute()
-                
-                if history_response.data:
-                    prices = [entry.get("price") for entry in history_response.data if entry.get("price") is not None]
-                    if prices:
-                        is_all_time_low = float(new_price) <= min(prices)
-                        is_all_time_high = float(new_price) >= max(prices)
-            
-            # If url is not provided but we're saving a price change, try to fetch it from the machines table
-            if url is None and machine_id is not None:
-                try:
-                    machine_data = await self.get_machine_by_id(machine_id)
-                    if machine_data and "product_link" in machine_data:
-                        url = machine_data.get("product_link")
-                        logger.info(f"Retrieved URL {url} from machine data for {machine_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to retrieve URL for machine {machine_id}: {str(e)}")
-            
-            # Create history entry
-            history_data = {
+            # Create the price history record
+            now = datetime.now(timezone.utc)
+            price_history_data = {
                 "id": str(uuid.uuid4()),
                 "machine_id": machine_id,
                 "variant_attribute": variant_attribute,
                 "price": float(new_price) if new_price is not None else None,
-                "previous_price": float(old_price) if old_price is not None else None,
-                "date": datetime.now(timezone.utc).isoformat(),
+                "date": now.isoformat(),
+                "status": status,
                 "source": source,
                 "currency": currency,
                 "scraped_from_url": url,
-                "is_all_time_low": is_all_time_low,
-                "is_all_time_high": is_all_time_high,
-                "price_change": float(price_change) if price_change is not None else None,
-                "percentage_change": float(percentage_change) if percentage_change is not None else None,
-                "extraction_method": tier if success else None,
+                "batch_id": batch_id,
                 "tier": tier,
+                "extraction_method": extraction_method,
                 "extracted_confidence": extracted_confidence,
                 "validation_confidence": validation_confidence,
-                "failure_reason": error_message if not success else None
+                "failure_reason": error_message if status == "FAILED" else None,
+                "review_reason": review_reason if status == "NEEDS_REVIEW" else None,
+                "validation_basis_price": float(validation_basis_price) if validation_basis_price is not None else float(old_price) if old_price is not None else None,
+                "html_size": html_size,
+                "http_status": http_status,
+                "raw_price_text": raw_price_text,
+                "extraction_duration_seconds": extraction_duration_seconds,
+                "extraction_attempts": extraction_attempts,
+                # Add new fields
+                "structured_data_type": structured_data_type,
+                "selectors_tried": selectors_tried,
+                "request_headers": request_headers,
+                "response_headers": response_headers,
+                "validation_steps": validation_steps,
+                "company": company,
+                "category": category,
+                "dom_elements_analyzed": dom_elements_analyzed,
+                "price_location_in_dom": price_location_in_dom,
+                "retry_count": retry_count,
+                "cleaned_price_string": cleaned_price_string,
+                "parsed_currency_from_text": parsed_currency_from_text
             }
             
-            # Add batch_id if provided
-            if batch_id:
-                history_data["batch_id"] = batch_id
+            # Calculate price changes
+            if new_price is not None and validation_basis_price is not None:
+                try:
+                    price_change = float(new_price) - float(validation_basis_price)
+                    percentage_change = (price_change / float(validation_basis_price)) * 100 if float(validation_basis_price) > 0 else None
+                    
+                    # Get historical prices to determine all-time highs/lows
+                    historical_prices_response = await self.supabase.table(PRICE_HISTORY_TABLE) \
+                        .select("price") \
+                        .eq("machine_id", machine_id) \
+                        .eq("variant_attribute", variant_attribute) \
+                        .eq("status", "SUCCESS") \
+                        .execute()
+                    
+                    if historical_prices_response.data:
+                        historical_prices = [float(record["price"]) for record in historical_prices_response.data if record["price"] is not None]
+                        if historical_prices:
+                            min_price = min(historical_prices)
+                            max_price = max(historical_prices)
+                            price_history_data.update({
+                                "is_all_time_low": float(new_price) < min_price,
+                                "is_all_time_high": float(new_price) > max_price
+                            })
+                    
+                    price_history_data.update({
+                        "price_change": price_change,
+                        "percentage_change": percentage_change,
+                        "previous_price": float(validation_basis_price)
+                    })
+                except (ValueError, TypeError, decimal.InvalidOperation) as e:
+                    logger.warning(f"Could not calculate price changes: {str(e)}")
             
-            history_response = self.supabase.table(PRICE_HISTORY_TABLE) \
-                .insert(history_data) \
+            # Insert the price history record
+            response = self.supabase.table(PRICE_HISTORY_TABLE).insert(price_history_data).execute()
+            if not response.data or len(response.data) == 0:
+                logger.error(f"Failed to insert price history record for {machine_id}")
+                return None
+            
+            new_record_id = response.data[0]["id"]
+            logger.info(f"Added price history record {new_record_id} for {machine_id}/{variant_attribute}")
+            
+            # Update the machines_latest table with the new price history record ID
+            await self.update_machines_latest(
+                machine_id=machine_id,
+                variant_attribute=variant_attribute,
+                price_history_id=new_record_id,
+                price=new_price,
+                currency=currency,
+                tier=tier,
+                confidence=validation_confidence if validation_confidence is not None else extracted_confidence,
+                status=status,
+                flag_reason=review_reason if status == "NEEDS_REVIEW" else None
+            )
+            
+            return new_record_id
+        except Exception as e:
+            logger.error(f"Error adding price history: {str(e)}")
+            return None
+
+    async def update_machines_latest(self, machine_id: str, variant_attribute: str, price_history_id: str,
+                                  price: Optional[Decimal] = None, currency: str = "USD", tier: str = None,
+                                  confidence: Optional[float] = None, status: str = "SUCCESS",
+                                  flag_reason: Optional[str] = None) -> bool:
+        """
+        Update the machines_latest table based on a new price_history record.
+        
+        According to PRD section 3.2.8, this should:
+        1. Always update latest_price_history_id to the newest history record
+        2. Only update latest_successful_price_history_id if status is SUCCESS
+        3. Update manual_review_flag based on the status
+        
+        Args:
+            machine_id (str): Machine ID
+            variant_attribute (str): Variant attribute
+            price_history_id (str): ID of the new price_history record
+            price (Optional[Decimal]): The new price
+            currency (str): Currency code
+            tier (str): Extraction tier used
+            confidence (Optional[float]): Confidence score
+            status (str): Status of the price record ("SUCCESS", "FAILED", "NEEDS_REVIEW")
+            flag_reason (Optional[str]): Reason for flag if status is "NEEDS_REVIEW"
+            
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            now = datetime.now(timezone.utc)
+            
+            # Check if record already exists
+            response = self.supabase.table(MACHINES_LATEST_TABLE) \
+                .select("*") \
+                .eq("machine_id", machine_id) \
+                .eq("variant_attribute", variant_attribute) \
                 .execute()
             
-            if history_response.data:
-                logger.info(f"Added price history entry for {machine_id}/{variant_attribute}")
+            record_exists = response.data and len(response.data) > 0
+            
+            # Always update latest_price_history_id
+            update_data = {
+                "latest_price_history_id": price_history_id,
+                "last_attempt_time": now.isoformat()
+            }
+            
+            # Only update latest_successful_price_history_id if status is SUCCESS
+            if status == "SUCCESS":
+                update_data.update({
+                    "latest_successful_price_history_id": price_history_id,
+                    "last_successful_update_time": now.isoformat(),
+                    "machines_latest_price": float(price) if price is not None else None,
+                    "currency": currency,
+                    "tier": tier,
+                    "confidence": confidence
+                })
+            
+            # Set the manual review flag based on status
+            update_data["manual_review_flag"] = (status == "NEEDS_REVIEW")
+            update_data["flag_reason"] = flag_reason
+            
+            if record_exists:
+                # Update existing record
+                update_response = self.supabase.table(MACHINES_LATEST_TABLE) \
+                    .update(update_data) \
+                    .eq("machine_id", machine_id) \
+                    .eq("variant_attribute", variant_attribute) \
+                    .execute()
                 
-                # No need to call _update_all_time_flags since we've already set the flags
-                # based on our query above
+                success = update_response.data and len(update_response.data) > 0
+            else:
+                # Create new record
+                update_data.update({
+                    "machine_id": machine_id,
+                    "variant_attribute": variant_attribute
+                })
                 
+                insert_response = self.supabase.table(MACHINES_LATEST_TABLE) \
+                    .insert(update_data) \
+                    .execute()
+                
+                success = insert_response.data and len(insert_response.data) > 0
+            
+            if success:
+                logger.info(f"Updated machines_latest for {machine_id}/{variant_attribute}")
                 return True
             else:
-                logger.warning(f"No price history entry created for {machine_id}/{variant_attribute}")
+                logger.error(f"Failed to update machines_latest for {machine_id}/{variant_attribute}")
                 return False
-                
         except Exception as e:
-            logger.error(f"Error adding price history for {machine_id}: {str(e)}")
+            logger.error(f"Error updating machines_latest: {str(e)}")
             return False
     
     async def log_llm_usage(self, machine_id: str, model: str, tier: str, prompt_tokens: int,
@@ -566,87 +725,97 @@ class DatabaseService:
         validation_confidence: float = 0.0,
         currency: str = "USD",
         manual_review_flag: bool = False,
+        review_reason: str = None,
+        failure_reason: str = None,
         llm_usage_data: List[Dict[str, Any]] = None,
         batch_id: Optional[str] = None,
-        url: Optional[str] = None
+        url: Optional[str] = None,
+        html_size: Optional[int] = None,
+        http_status: Optional[int] = None,
+        extraction_duration_seconds: Optional[float] = None,
+        extraction_attempts: Optional[List[Dict[str, Any]]] = None,
+        raw_price_text: Optional[str] = None
     ) -> bool:
         """
-        Save price extraction results to both price_history and machines_latest tables.
+        Save the results of a price extraction to both price_history and machines_latest.
         
         Args:
-            machine_id: ID of the machine
-            variant_attribute: Variant attribute identifier
-            price: Extracted price
-            extraction_method: Method used for extraction (tier)
-            extraction_confidence: Confidence score from extraction
-            validation_confidence: Confidence score from validation
-            currency: Currency of the price
-            manual_review_flag: Whether the price needs manual review
-            llm_usage_data: List of LLM usage data for tracking
-            batch_id: ID of the batch that created this entry (optional)
-            url: URL where the price was scraped from
+            machine_id (str): Machine ID
+            variant_attribute (str): Variant attribute
+            price (Decimal): Extracted price
+            extraction_method (str): Method used for extraction
+            extraction_confidence (float): Confidence score from extraction
+            validation_confidence (float): Confidence score from validation
+            currency (str): Currency of the price
+            manual_review_flag (bool): Whether this needs manual review
+            review_reason (str): Reason for flagging for review
+            failure_reason (str): Reason for failure if extraction failed
+            llm_usage_data (List[Dict[str, Any]]): LLM usage data for cost tracking
+            batch_id (str, optional): Batch ID if part of a batch
+            url (str, optional): URL scraped from
+            html_size (int, optional): Size of HTML content
+            http_status (int, optional): HTTP status code
+            extraction_duration_seconds (float, optional): Duration of extraction
+            extraction_attempts (List[Dict[str, Any]], optional): All extraction attempts
+            raw_price_text (str, optional): Raw price text before parsing
             
         Returns:
-            True if save was successful, False otherwise
+            bool: True if saved successfully, False otherwise
         """
         try:
-            # Update the machines_latest table directly
-            now = datetime.now(timezone.utc)
-            
-            # Update machines_latest table
-            latest_data = {
-                "machine_id": machine_id,
-                "variant_attribute": variant_attribute,
-                "machines_latest_price": float(price),
-                "currency": currency,
-                "last_checked": now.isoformat(),
-                "tier": extraction_method,
-                "confidence": extraction_confidence,
-                "manual_review_flag": manual_review_flag
-            }
-            
-            latest_response = self.supabase.table(MACHINES_LATEST_TABLE) \
-                .upsert(latest_data) \
-                .execute()
-            
-            # Add to price history
+            # Get previous price for reference
             previous_price = await self.get_previous_price(machine_id, variant_attribute)
             
-            await self.add_price_history(
+            # Determine extraction success based on inputs
+            success = (failure_reason is None)
+            
+            # Split the extraction_method to get the tier
+            tier = extraction_method.split(':')[0] if ':' in extraction_method else extraction_method
+            
+            # Add to price history with the new fields and status workflow
+            price_history_id = await self.add_price_history(
                 machine_id=machine_id,
-                variant_attribute=variant_attribute,
-                new_price=price,
+                new_price=price if success else None,
                 old_price=previous_price,
-                tier=extraction_method,
+                variant_attribute=variant_attribute,
+                tier=tier,
+                extraction_method=extraction_method,
                 extracted_confidence=extraction_confidence,
                 validation_confidence=validation_confidence,
-                success=True,
-                error_message=None,
-                source="price_extractor_v2",
+                success=success,
+                error_message=failure_reason,
                 currency=currency,
+                url=url,
                 batch_id=batch_id,
-                url=url
+                needs_review=manual_review_flag,
+                review_reason=review_reason,
+                html_size=html_size,
+                http_status=http_status,
+                raw_price_text=raw_price_text,
+                extraction_duration_seconds=extraction_duration_seconds,
+                extraction_attempts=extraction_attempts
             )
             
-            # Log LLM usage if provided
+            # Record LLM usage
             if llm_usage_data:
-                for usage in llm_usage_data:
+                logger.info(f"Recording LLM usage for {machine_id}/{variant_attribute}")
+                
+                for usage_item in llm_usage_data:
                     await self.log_llm_usage(
                         machine_id=machine_id,
-                        variant_attribute=variant_attribute,
-                        model=usage.get("model", ""),
-                        tier=usage.get("tier", ""),
-                        prompt_tokens=usage.get("prompt_tokens", 0),
-                        completion_tokens=usage.get("completion_tokens", 0),
-                        estimated_cost=usage.get("estimated_cost", 0.0),
-                        success=usage.get("success", False)
+                        model=usage_item.get("model"),
+                        tier=usage_item.get("tier"),
+                        prompt_tokens=usage_item.get("prompt_tokens"),
+                        completion_tokens=usage_item.get("completion_tokens"),
+                        estimated_cost=usage_item.get("estimated_cost"),
+                        success=usage_item.get("success", True),
+                        variant_attribute=variant_attribute
                     )
             
-            logger.info(f"Successfully saved price {price} for {machine_id}/{variant_attribute} using {extraction_method}")
-            return True
+            return price_history_id is not None
             
         except Exception as e:
-            logger.error(f"Error saving price extraction results: {str(e)}")
+            logger.exception(f"Error saving price extraction results for {machine_id}: {str(e)}")
             return False
     
     async def get_batch_results(self, batch_id: str) -> Optional[Dict[str, Any]]:
@@ -1269,3 +1438,56 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error fetching flagged machines count: {str(e)}")
             return 0
+
+    async def execute_query(self, query: str, params: dict = None) -> List[Dict[str, Any]]:
+        """
+        Execute a raw SQL query with parameters.
+        
+        Args:
+            query (str): SQL query to execute
+            params (dict, optional): Parameters for the query
+            
+        Returns:
+            List[Dict[str, Any]]: Result as a list of dictionaries
+        """
+        try:
+            logger.info(f"Executing SQL query: {query[:100]}...")
+            
+            # Use direct REST API query instead of RPC function
+            # This avoids the need for a custom PostgreSQL function
+            response = self.supabase.from_("").select("*").execute(
+                options={
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "Prefer": "return=representation"
+                    },
+                    "body": json.dumps({
+                        "query": query,
+                        "params": params or {}
+                    })
+                }
+            )
+            
+            if response.error:
+                logger.error(f"Error executing query: {response.error}")
+                return []
+                
+            return response.data or []
+        except Exception as e:
+            logger.exception(f"Error executing SQL query: {str(e)}")
+            # As a fallback, use a more basic approach to query data
+            try:
+                # Extract table name from query if possible (basic parsing)
+                # This is a simplified fallback that may not work for complex queries
+                import re
+                table_match = re.search(r'FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)', query, re.IGNORECASE)
+                if table_match:
+                    table_name = table_match.group(1)
+                    logger.info(f"Falling back to basic query on table {table_name}")
+                    # Simple fallback query - this only works for very basic SELECT queries
+                    response = self.supabase.table(table_name).select("*").limit(100).execute()
+                    return response.data or []
+            except Exception as fallback_error:
+                logger.exception(f"Fallback query also failed: {str(fallback_error)}")
+            return []

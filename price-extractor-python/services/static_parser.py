@@ -4,7 +4,7 @@ Static parser for price extraction from structured data and HTML patterns.
 import json
 import re
 from bs4 import BeautifulSoup
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from loguru import logger
 from decimal import Decimal
 from urllib.parse import urlparse
@@ -16,8 +16,37 @@ class StaticParser:
     
     def __init__(self, config: Config):
         self.config = config
-        self.retry_attempts = getattr(config, 'retry_attempts', 3)
-        self.min_confidence = getattr(config, 'min_confidence', 0.8)
+        self.retry_attempts = 3
+        self.selectors = [
+            ".price",
+            "#price",
+            ".product-price",
+            ".offer-price",
+            ".current-price",
+            ".sale-price",
+            ".product__price",
+            "[data-price]",
+            "[data-product-price]",
+            ".price-box",
+            ".price__current",
+            ".price-group",
+            ".product-info-price",
+            ".price ins .woocommerce-Price-amount",
+            ".price ins .amount",
+            ".product .price ins",
+            ".woocommerce-Price-amount",
+            ".sale-price .amount",
+            ".price--sale",
+            ".sale-price",
+            ".price-sales",
+            "[data-sale-price]",
+            "span.price ins span.amount",
+            ".special-price",
+            ".price > .sale-price",
+            ".product-price-container .sale-price",
+            ".product__price--on-sale",
+            ".price-box .special-price"
+        ]
         
         # JSON-LD and microdata paths for structured data
         self.structured_data_paths = [
@@ -28,23 +57,6 @@ class StaticParser:
             "$.priceRange.highPrice",
             "$.offers.highPrice",
             "$.offers.lowPrice"
-        ]
-        
-        # Common CSS selectors for prices
-        self.common_selectors = [
-            ".product-price",
-            ".price",
-            ".price-container",
-            ".price-wrapper",
-            "span.amount",
-            "span.price",
-            ".product-info-price",
-            ".current-price",
-            ".special-price",
-            "#price",
-            "div[itemprop='price']",
-            "span[itemprop='price']",
-            ".product-price-current",
         ]
         
         # CSS selectors for elements near add-to-cart buttons
@@ -70,6 +82,12 @@ class StaticParser:
             r'([\d,.]+)\s*(?:USD|CAD|EUR|GBP)',  # Currency code suffix
             r'(?:price|cost):?\s*\$?\s*([\d,.]+)'  # Price/cost label
         ]
+        
+        # Price validation limits
+        self.MIN_ALLOWED_PRICE = 10.0    # $10 minimum reasonable price
+        self.MAX_ALLOWED_PRICE = 50000.0  # $50k maximum reasonable price
+        
+        logger.info("StaticParser initialized")
         
     async def extract_price(self, url: str, variant_attribute: Optional[str] = None) -> Dict[str, Any]:
         """Extract price from a given URL."""
@@ -211,58 +229,111 @@ class StaticParser:
         
         return None
     
-    def extract(self, html_content: str, url: str, custom_selectors: Optional[list] = None) -> Tuple[Optional[Decimal], str, float]:
+    def extract(self, html_content: str, url: str, custom_selectors: Optional[List[str]] = None) -> Tuple[Optional[Decimal], str, float, Dict[str, Any]]:
         """
-        Extract price from HTML content using structured data and basic patterns.
+        Extract price from HTML content using various methods.
         
-        Args:
-            html_content: HTML content of the page
-            url: URL of the page
-            custom_selectors: Optional custom CSS selectors to try first
-            
         Returns:
-            Tuple of (price, method, confidence)
-            - price: Extracted price as Decimal or None
-            - method: Method used to extract the price
-            - confidence: Confidence score (0.0 to 1.0)
+            Tuple containing:
+            - Extracted price (Decimal or None)
+            - Method used (str)
+            - Confidence score (float)
+            - Metadata dictionary with extraction details
         """
-        # Parse the HTML
+        metadata = {
+            "structured_data_type": None,
+            "elements_analyzed": 0,
+            "price_location": None,
+            "selectors_tried": [],
+            "cleaned_price_string": None,
+            "parsed_currency": None,
+            "retry_count": 0
+        }
+        
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
-        except Exception as e:
-            logger.error(f"Error parsing HTML: {str(e)}")
-            return None, "STATIC_FAILED", 0.0
-        
-        domain = self._extract_domain(url)
-        
-        # Step 1: Try structured data (highest confidence)
-        price, method = self._extract_from_structured_data(soup)
-        if price:
-            return price, method, 0.95  # High confidence for structured data
-        
-        # Step 2: Try custom selectors if provided
-        if custom_selectors:
-            price, selector = self._extract_from_custom_selectors(soup, custom_selectors)
+            metadata["elements_analyzed"] = len(soup.find_all())
+            
+            # Try structured data first
+            price, method = self._extract_from_structured_data(soup)
             if price:
-                return price, f"STATIC_CUSTOM_SELECTOR:{selector}", 0.92
-        
-        # Step 3: Try common selectors
-        price, selector = self._extract_from_common_selectors(soup)
-        if price:
-            return price, f"STATIC_COMMON_SELECTOR:{selector}", 0.88
-        
-        # Step 4: Look for prices near add-to-cart buttons/forms
-        price, element = self._extract_near_add_to_cart(soup)
-        if price:
-            return price, "STATIC_ADD_TO_CART_PROXIMITY", 0.85
-        
-        # Step 5: Use regex patterns on limited HTML
-        price, pattern = self._extract_from_regex_patterns(html_content[:30000])  # Limit to first 30KB
-        if price:
-            return price, f"STATIC_REGEX:{pattern}", 0.80
-        
-        # No price found with static methods
-        return None, "STATIC_NO_PRICE_FOUND", 0.0
+                metadata.update({
+                    "structured_data_type": method,
+                    "price_location": "structured_data",
+                    "cleaned_price_string": str(price)
+                })
+                return price, f"STATIC_STRUCTURED_DATA:{method}", 0.95, metadata
+            
+            # Try custom selectors if provided
+            if custom_selectors:
+                metadata["selectors_tried"].extend(custom_selectors)
+                price, selector = self._extract_from_custom_selectors(soup, custom_selectors)
+                if price:
+                    metadata.update({
+                        "price_location": f"custom_selector:{selector}",
+                        "cleaned_price_string": str(price)
+                    })
+                    return price, f"STATIC_CUSTOM_SELECTOR:{selector}", 0.9, metadata
+            
+            # Try common selectors
+            metadata["selectors_tried"].extend(self.selectors)
+            price, selector = self._extract_from_common_selectors(soup)
+            if price:
+                metadata.update({
+                    "price_location": f"common_selector:{selector}",
+                    "cleaned_price_string": str(price)
+                })
+                return price, f"STATIC_COMMON_SELECTOR:{selector}", 0.85, metadata
+            
+            # Try near add-to-cart buttons
+            metadata["selectors_tried"].extend(self.cart_proximity_selectors)
+            price, element = self._extract_near_add_to_cart(soup)
+            if price:
+                metadata.update({
+                    "price_location": "near_add_to_cart",
+                    "cleaned_price_string": str(price)
+                })
+                return price, "STATIC_CART_PROXIMITY", 0.8, metadata
+            
+            # Try regex patterns as last resort
+            price, pattern = self._extract_from_regex_patterns(html_content)
+            if price:
+                metadata.update({
+                    "price_location": f"regex:{pattern}",
+                    "cleaned_price_string": str(price)
+                })
+                return price, f"STATIC_REGEX:{pattern}", 0.7, metadata
+            
+            return None, None, 0.0, metadata
+            
+        except Exception as e:
+            logger.exception(f"Error in static extraction: {str(e)}")
+            return None, None, 0.0, metadata
+            
+    def _validate_price_range(self, price: Any) -> bool:
+        """Check if a price is within reasonable bounds."""
+        try:
+            if isinstance(price, str):
+                price = float(price.replace(',', '').strip())
+            elif not isinstance(price, (int, float, Decimal)):
+                return False
+                
+            price_float = float(price)
+            
+            # Check for obviously wrong prices
+            if price_float < self.MIN_ALLOWED_PRICE or price_float > self.MAX_ALLOWED_PRICE:
+                return False
+                
+            # Check for suspicious formatting issues (like decimal in wrong place)
+            if price_float < 100 and '.' in str(price):
+                # European format with decimals swapped?
+                parts = str(price).split('.')
+                if len(parts) > 1 and len(parts[1]) > 2 and int(parts[1]) > 0:
+                    return False
+                
+            return True
+        except (ValueError, TypeError):
+            return False
     
     def _extract_from_structured_data(self, soup: BeautifulSoup) -> Tuple[Optional[Decimal], str]:
         """Extract price from structured data in the page."""
@@ -311,7 +382,7 @@ class StaticParser:
     
     def _extract_from_common_selectors(self, soup: BeautifulSoup) -> Tuple[Optional[Decimal], str]:
         """Extract price using common CSS selectors."""
-        for selector in self.common_selectors:
+        for selector in self.selectors:
             elements = soup.select(selector)
             for element in elements:
                 price = self._parse_price_from_element(element)
