@@ -243,64 +243,59 @@ async def batch_update_machines(request: dict, background_tasks: BackgroundTasks
     Start a batch update for machines.
     
     Args:
-        request (dict): Request parameters:
-            - days_threshold (int): Days threshold for updates
-            - limit (Optional[int]): Maximum machines to update
-            - machine_ids (List[str], optional): Specific machine IDs to update
-            - dry_run (bool, optional): If True, extracts prices without saving to database
-            - flags_for_review (bool, optional): If True, ensure items are flagged for review when needed
-            - save_to_db (bool, optional): If True, save results to database
-            - create_batch_record (bool, optional): If True, create a batch record
-            - sanity_check_threshold (float, optional): Threshold for flagging significant price changes
+        request (dict): Dict with days_threshold, limit, machine_ids, dry_run, flags_for_review, 
+                       save_to_db, create_batch_record, and sanity_check_threshold
+                       
+    Returns:
+        dict: Operation result and batch ID if applicable
     """
     try:
+        # Extract parameters from request
         days_threshold = request.get("days_threshold", 7)
-        limit = request.get("limit", None)
-        machine_ids = request.get("machine_ids", None)
+        limit = request.get("limit")
+        machine_ids = request.get("machine_ids")
         dry_run = request.get("dry_run", False)
         flags_for_review = request.get("flags_for_review", True)
         save_to_db = request.get("save_to_db", True)
-        create_batch_record = request.get("create_batch_record", True)
         sanity_check_threshold = request.get("sanity_check_threshold", 25)
         
-        logger.info(f"Batch update request with days={days_threshold}, limit={limit}, machine_ids={machine_ids[:5] if machine_ids and len(machine_ids) > 5 else machine_ids}, dry_run={dry_run}, flags_for_review={flags_for_review}, save_to_db={save_to_db}, create_batch_record={create_batch_record}, sanity_check_threshold={sanity_check_threshold}")
+        # Log the request parameters for debugging
+        logger.info(f"Batch update request with days={days_threshold}, limit={limit}, machine_ids={machine_ids[:5] if machine_ids and len(machine_ids) > 5 else machine_ids}, dry_run={dry_run}, flags_for_review={flags_for_review}, save_to_db={save_to_db}, sanity_check_threshold={sanity_check_threshold}")
         
-        # Generate output filename for dry run
+        # Handle null/undefined case from client
+        if days_threshold is None:
+            days_threshold = 7
+            
+        # Validate required parameters
+        if days_threshold < 0:
+            return {"success": False, "error": "days_threshold must be a non-negative integer"}
+        
+        # Initialize output file for dry run if needed
         output_file = None
         if dry_run:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_file = f"logs/dry_run_results_{timestamp}.json"
-            # Ensure logs directory exists
-            os.makedirs("logs", exist_ok=True)
-            logger.info(f"Dry run enabled, results will be saved to {output_file}")
-        
+            output_file = f"dry_run_{timestamp}.json"
+            
+        # Execute batch update in background if background_tasks provided
         if background_tasks:
             # Pass the specific machine_ids to the batch update if provided
             background_tasks.add_task(
-                _process_batch_update_v2, 
-                days_threshold,
-                limit,
-                machine_ids,
-                dry_run,
-                output_file,
-                flags_for_review,
-                save_to_db,
-                sanity_check_threshold
+                _process_batch_update_v2,
+                days_threshold=days_threshold,
+                limit=limit,
+                machine_ids=machine_ids,
+                dry_run=dry_run,
+                output_file=output_file,
+                flags_for_review=flags_for_review,
+                save_to_db=save_to_db,
+                sanity_check_threshold=sanity_check_threshold
             )
             
             response_message = f"{'Dry run ' if dry_run else ''}Batch update started for {len(machine_ids) if machine_ids else 'all'} machines in the background"
-            if dry_run:
-                response_message += f". Results will be saved to {output_file}"
-                
-            return {
-                "success": True, 
-                "message": response_message,
-                "log_file": output_file if dry_run else None
-            }
-        else:
-            # Create a new batch record
+            
+            # Create batch_id for tracking if not in dry run mode
             batch_id = None
-            if not dry_run:
+            if not dry_run and save_to_db:
                 try:
                     batch_id = await price_service.db_service.create_batch(
                         count=len(machine_ids) if machine_ids else 0,
@@ -308,144 +303,36 @@ async def batch_update_machines(request: dict, background_tasks: BackgroundTasks
                         machine_ids=machine_ids,
                         limit=limit
                     )
-                    
-                    if not batch_id:
-                        logger.error("Failed to create batch record")
-                        # Continue processing anyway
+                    logger.info(f"Created batch record with ID: {batch_id}")
                 except Exception as e:
                     logger.error(f"Error creating batch record: {str(e)}")
-                    # Continue processing anyway
-            
-            # Get machines that need updates
-            if machine_ids:
-                logger.info(f"Using provided list of {len(machine_ids)} machine IDs")
-                machines = []
-                for machine_id in machine_ids:
-                    machine = await price_service.db_service.get_machine_by_id(machine_id)
-                    if machine:
-                        machines.append(machine)
-                    else:
-                        logger.warning(f"Machine ID {machine_id} not found in database")
-            else:
-                logger.info(f"Fetching machines not updated in {days_threshold} days")
-                machines = await price_service.db_service.get_machines_for_update(
-                    days_threshold=days_threshold,
-                    limit=limit
-                )
-            
-            if not machines:
-                logger.info("No machines to update")
-                if batch_id:
-                    await price_service.db_service.update_batch_status(batch_id, "completed")
-                return {"success": True, "message": "No machines to update", "count": 0}
-            
-            # Track results
-            success_count = 0
-            failure_count = 0
-            review_count = 0
-            results = []
-            
-            # Process each machine using extraction_service.extract_price
-            for machine in machines:
-                machine_id = machine.get("id")
-                machine_name = machine.get("Machine Name", "Unknown")
-                url = machine.get("product_link", "")
-                
-                try:
-                    logger.info(f"Processing machine {machine_id}: {machine_name}")
-                    
-                    # Use extraction_service.extract_price (which has proper validation)
-                    extraction_result = await extraction_service.extract_price(
-                        machine_id=machine_id,
-                        variant_attribute="DEFAULT",
-                        dry_run=dry_run,
-                        save_to_db=save_to_db,
-                        flags_for_review=flags_for_review,
-                        sanity_check_threshold=sanity_check_threshold
-                    )
-                    
-                    if extraction_result["success"]:
-                        if extraction_result.get("needs_review", False):
-                            review_reason = extraction_result.get("review_reason")
-                            logger.info(f"Price for {machine_name} flagged for review: {review_reason}")
-                            
-                            # Make sure we explicitly set the flag with the reason
-                            if save_to_db and not dry_run:
-                                await price_service.db_service.set_manual_review_flag(
-                                    machine_id=machine_id,
-                                    variant_attribute="DEFAULT",
-                                    flag_value=True,
-                                    flag_reason=review_reason
-                                )
-                            
-                            review_count += 1
-                        else:
-                            logger.info(f"Successfully updated price for {machine_name}")
-                            success_count += 1
-                    else:
-                        logger.error(f"Failed to extract price for {machine_id}: {extraction_result.get('error')}")
-                        failure_count += 1
-                    
-                    # For failed extractions, make sure to add old_price
-                    old_price = None
-                    if not extraction_result["success"] and "old_price" not in extraction_result:
-                        old_price = await get_current_price(machine_id)
-                    else:
-                        old_price = extraction_result.get("old_price")
-                    
-                    results.append({
-                        "machine_id": machine_id,
-                        "machine_name": machine_name,
-                        "success": extraction_result["success"],
-                        "needs_review": extraction_result.get("needs_review", False),
-                        "review_reason": extraction_result.get("review_reason"),
-                        "old_price": old_price,
-                        "new_price": extraction_result.get("new_price"),
-                        "extraction_method": extraction_result.get("extraction_method")
-                    })
-                    
-                except Exception as e:
-                    logger.exception(f"Error processing machine {machine_id}: {str(e)}")
-                    failure_count += 1
-                    results.append({
-                        "machine_id": machine_id,
-                        "machine_name": machine_name,
-                        "success": False,
-                        "error": str(e),
-                        "old_price": await get_current_price(machine_id)
-                    })
-            
-            # Update batch status if not dry run
-            if batch_id and not dry_run:
-                try:
-                    await price_service.db_service.update_batch_status(batch_id, "completed")
-                except Exception as e:
-                    logger.error(f"Error updating batch status: {str(e)}")
-            
-            # If dry run, save results to file
-            if dry_run and output_file:
-                try:
-                    with open(output_file, 'w') as f:
-                        json.dump(results, f, indent=2)
-                    logger.info(f"Dry run results saved to {output_file}")
-                except Exception as e:
-                    logger.error(f"Error writing output file: {str(e)}")
             
             return {
                 "success": True,
-                "message": f"Batch update completed. {success_count} successful, {failure_count} failed, {review_count} flagged for review.",
-                "count": len(machines),
-                "success_count": success_count,
-                "failure_count": failure_count,
-                "review_count": review_count,
+                "message": response_message,
                 "batch_id": batch_id,
-                "results": results
+                "log_file": output_file if dry_run else None
             }
+        else:
+            # Execute synchronously for testing
+            logger.info("Executing batch update synchronously (no background_tasks provided)")
+            result = await _process_batch_update_v2(
+                days_threshold=days_threshold,
+                limit=limit,
+                machine_ids=machine_ids,
+                dry_run=dry_run,
+                output_file=output_file,
+                flags_for_review=flags_for_review,
+                save_to_db=save_to_db,
+                sanity_check_threshold=sanity_check_threshold
+            )
+            
+            return result
+            
     except Exception as e:
         logger.exception(f"Error starting batch update: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error starting batch update: {str(e)}")
 
-# New background task function that uses extraction_service.extract_price
 async def _process_batch_update_v2(days_threshold, limit, machine_ids, dry_run, output_file=None, flags_for_review=True, save_to_db=True, sanity_check_threshold=25):
     """
     Process batch update with the V2 approach focused on extraction quality.
@@ -524,45 +411,22 @@ async def _process_batch_update_v2(days_threshold, limit, machine_ids, dry_run, 
             try:
                 logger.info(f"Processing machine {machine_id}: {machine_name}")
                 
-                # Record start time for performance tracking
-                start_time = datetime.now(timezone.utc)
-                http_status = None
-                html_size = None
-                
-                # Use extraction_service.extract_price (which has proper validation)
+                # Use extraction_service.extract_price with proper parameters
                 extraction_result = await extraction_service.extract_price(
                     machine_id=machine_id,
                     url=url,
-                    dry_run=True,  # Don't save to database
-                    save_to_db=False,  # Extra safety to ensure no DB changes
+                    dry_run=dry_run,  # Use the actual dry_run value
+                    save_to_db=save_to_db,  # Use the actual save_to_db value
                     flags_for_review=flags_for_review,
                     sanity_check_threshold=sanity_check_threshold,
-                    batch_id=batch_id  # Pass the batch_id to the extraction service
+                    batch_id=batch_id  # Pass the batch_id to ensure it's recorded
                 )
                 
-                # Record end time for performance tracking
-                end_time = datetime.now(timezone.utc)
-                
-                # Capture HTTP status and HTML size if available in the result
-                if "http_status" in extraction_result:
-                    http_status = extraction_result.get("http_status")
-                if "html_size" in extraction_result:
-                    html_size = extraction_result.get("html_size")
-                
+                # Track results based on extraction result
                 if extraction_result["success"]:
                     if extraction_result.get("needs_review", False):
                         review_reason = extraction_result.get("review_reason")
                         logger.info(f"Price for {machine_name} flagged for review: {review_reason}")
-                        
-                        # Make sure we explicitly set the flag with the reason
-                        if save_to_db and not dry_run:
-                            await price_service.db_service.set_manual_review_flag(
-                                machine_id=machine_id,
-                                variant_attribute="DEFAULT",
-                                flag_value=True,
-                                flag_reason=review_reason
-                            )
-                        
                         review_count += 1
                     else:
                         logger.info(f"Successfully updated price for {machine_name}")
@@ -578,6 +442,7 @@ async def _process_batch_update_v2(days_threshold, limit, machine_ids, dry_run, 
                 else:
                     old_price = extraction_result.get("old_price")
                 
+                # Add results to the tracking array for summary
                 results.append({
                     "machine_id": machine_id,
                     "machine_name": machine_name,
@@ -589,35 +454,7 @@ async def _process_batch_update_v2(days_threshold, limit, machine_ids, dry_run, 
                     "extraction_method": extraction_result.get("extraction_method")
                 })
                 
-                # Record the result in batch_results table if not in dry run mode
-                if batch_id and not dry_run and save_to_db:
-                    # Collect any extraction attempts for detailed logging
-                    extraction_attempts = None
-                    if "extraction_attempts" in extraction_result:
-                        extraction_attempts = extraction_result.get("extraction_attempts")
-                    
-                    await price_service.db_service.add_batch_result(
-                        batch_id=batch_id,
-                        machine_id=machine_id,
-                        machine_name=machine_name,
-                        url=url,
-                        success=extraction_result["success"],
-                        old_price=old_price,
-                        new_price=extraction_result.get("new_price"),
-                        extraction_method=extraction_result.get("extraction_method"),
-                        error=extraction_result.get("error") or extraction_result.get("review_reason"),
-                        start_time=start_time.isoformat(),
-                        end_time=end_time.isoformat(),
-                        http_status=http_status,
-                        html_size=html_size,
-                        extraction_attempts=extraction_attempts,
-                        needs_review=extraction_result.get("needs_review", False),
-                        review_reason=extraction_result.get("review_reason"),
-                        tier=extraction_result.get("tier"),
-                        extracted_confidence=extraction_result.get("extraction_confidence"),
-                        validation_confidence=extraction_result.get("validation_confidence"),
-                        confidence=extraction_result.get("confidence")
-                    )
+                # NOTE: We no longer write to batch_results since all data is in price_history
                 
             except Exception as e:
                 logger.exception(f"Error processing machine {machine_id}: {str(e)}")
@@ -632,49 +469,58 @@ async def _process_batch_update_v2(days_threshold, limit, machine_ids, dry_run, 
                     "old_price": await get_current_price(machine_id)
                 })
                 
-                # Record the failure in batch_results table
+                # Record the error directly to price_history instead of batch_results
                 if batch_id and not dry_run and save_to_db:
-                    # Get the current price from the machine data
-                    old_price = await get_current_price(machine_id)
-                        
-                    await price_service.db_service.add_batch_result(
-                        batch_id=batch_id,
-                        machine_id=machine_id,
-                        machine_name=machine_name,
-                        url=url,
-                        success=False,
-                        old_price=old_price,
-                        error=str(e),
-                        start_time=datetime.now(timezone.utc).isoformat(),
-                        end_time=datetime.now(timezone.utc).isoformat()
-                    )
+                    try:
+                        old_price = await get_current_price(machine_id)
+                        await price_service.db_service.add_price_history(
+                            machine_id=machine_id,
+                            new_price=None,
+                            old_price=old_price,
+                            variant_attribute="DEFAULT",
+                            tier="BATCH_PROCESS",
+                            success=False,
+                            error_message=str(e),
+                            url=url,
+                            batch_id=batch_id
+                        )
+                    except Exception as add_error:
+                        logger.error(f"Error recording failure to price_history: {str(add_error)}")
         
-        # Update batch status if not dry run
+        # Update batch status
         if batch_id and not dry_run:
-            try:
-                await price_service.db_service.update_batch_status(batch_id, "completed")
-            except Exception as e:
-                logger.error(f"Error updating batch status: {str(e)}")
+            logger.info(f"Updating batch status to completed")
+            await price_service.db_service.update_batch_status(batch_id, "completed")
+            await price_service.db_service.update_batch_results(batch_id, success_count, failure_count, review_count)
         
-        # If dry run, save results to file
-        if dry_run and output_file:
+        # Write to output file if requested
+        if output_file and results:
+            logger.info(f"Writing results to {output_file}")
             try:
-                with open(output_file, 'w') as f:
-                    json.dump(results, f, indent=2)
-                logger.info(f"Dry run results saved to {output_file}")
+                with open(output_file, "w") as f:
+                    json.dump(results, f, indent=2, default=str)
             except Exception as e:
-                logger.error(f"Error writing output file: {str(e)}")
+                logger.error(f"Error writing to output file: {str(e)}")
         
         logger.info(f"Batch update completed. {success_count} successful, {failure_count} failed, {review_count} flagged for review.")
         
+        return {
+            "success": True,
+            "message": f"Batch update completed. {success_count} successful, {failure_count} failed, {review_count} flagged for review.",
+            "batch_id": batch_id,
+            "successful": success_count,
+            "failed": failure_count,
+            "flagged_for_review": review_count,
+            "total": len(machines)
+        }
     except Exception as e:
         logger.exception(f"Error in background batch update: {str(e)}")
-        # Try to mark batch as failed if it exists
-        if batch_id and not dry_run:
-            try:
-                await price_service.db_service.update_batch_status(batch_id, "failed")
-            except Exception as update_error:
-                logger.error(f"Failed to update batch status: {str(update_error)}")
+        if batch_id:
+            await price_service.db_service.update_batch_status(batch_id, "failed")
+        return {
+            "success": False,
+            "error": f"Error during batch update: {str(e)}"
+        }
 
 @router.post("/batch-update-advanced", response_model=dict)
 async def batch_update_prices(request: BatchUpdateRequest, background_tasks: BackgroundTasks):
@@ -725,111 +571,116 @@ async def get_batch_results(batch_id: str):
     """
     Get the results of a batch update operation.
     
-    Per PRD section 3.4.3, this now pulls directly from price_history filtered by batch_id
-    instead of using the redundant batch_results table.
+    Args:
+        batch_id (str): Batch ID
+        
+    Returns:
+        dict: Batch details and results
     """
     try:
-        logger.info(f"Retrieving batch results for batch_id: {batch_id}")
+        # Get batch information
+        batch = await price_service.db_service.get_batch(batch_id)
+        if not batch:
+            raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
         
-        # Initialize price service
-        price_service = PriceService()
-        db_service = price_service.db_service
+        # Query price_history for all records with this batch_id
+        price_history_records = await price_service.db_service.get_price_history_by_batch(batch_id)
         
-        # First get the batch info
-        batch_query = """
-            SELECT * FROM batches WHERE id = :batch_id
-        """
-        batch_params = {"batch_id": batch_id}
-        batch_result = await db_service.supabase.postgrest.rpc('execute_sql', {"sql_query": batch_query, "params": batch_params}).execute()
+        # Group results by machine for display
+        results = []
+        machines_seen = set()
         
-        if not batch_result.data or len(batch_result.data) == 0:
-            return {"error": "Batch not found", "batch_id": batch_id}
-        
-        batch_info = batch_result.data[0]
-        
-        # Query price_history for this batch_id with machine details
-        results_query = """
-            SELECT 
-                ph.id,
-                ph.machine_id,
-                ph.variant_attribute,
-                ph.price AS new_price,
-                ph.validation_basis_price AS old_price,
-                ph.date,
-                ph.status,
-                ph.tier,
-                ph.extraction_method,
-                ph.extracted_confidence,
-                ph.validation_confidence,
-                ph.failure_reason,
-                ph.review_reason,
-                ph.raw_price_text,
-                ph.scraped_from_url AS url,
-                ph.http_status,
-                ph.html_size,
-                ph.extraction_duration_seconds,
-                m."Machine Name" AS machine_name,
-                m."Brand" AS brand,
-                m.product_link
-            FROM 
-                price_history ph
-            JOIN 
-                machines m ON ph.machine_id = m.id
-            WHERE 
-                ph.batch_id = :batch_id
-            ORDER BY 
-                ph.date DESC
-        """
-        results_params = {"batch_id": batch_id}
-        
-        results = await db_service.supabase.postgrest.rpc('execute_sql', {"sql_query": results_query, "params": results_params}).execute()
-        
-        if not results.data:
-            results_data = []
-        else:
-            results_data = results.data
+        for record in price_history_records:
+            machine_id = record.get("machine_id")
             
-            # Calculate price changes for each entry
-            for entry in results_data:
-                new_price = entry.get("new_price")
-                old_price = entry.get("old_price")
+            # Skip if we've already processed this machine
+            if machine_id in machines_seen:
+                continue
                 
-                if new_price is not None and old_price is not None and old_price > 0:
-                    entry["price_change"] = new_price - old_price
-                    entry["percentage_change"] = (entry["price_change"] / old_price) * 100
+            machines_seen.add(machine_id)
+            
+            # Get machine details
+            machine = await price_service.db_service.get_machine_by_id(machine_id)
+            if not machine:
+                continue
+                
+            # Get all records for this machine in this batch
+            machine_records = [r for r in price_history_records if r.get("machine_id") == machine_id]
+            
+            # Find the most relevant record (successful ones take precedence)
+            relevant_record = None
+            
+            # First check for SUCCESS records
+            success_records = [r for r in machine_records if r.get("status") == "SUCCESS"]
+            if success_records:
+                # Use the most recent success record
+                relevant_record = max(success_records, key=lambda r: r.get("date"))
+            else:
+                # Check for NEEDS_REVIEW records
+                review_records = [r for r in machine_records if r.get("status") == "NEEDS_REVIEW"]
+                if review_records:
+                    relevant_record = max(review_records, key=lambda r: r.get("date"))
+                else:
+                    # Use the most recent FAILED record
+                    failed_records = [r for r in machine_records if r.get("status") == "FAILED"]
+                    if failed_records:
+                        relevant_record = max(failed_records, key=lambda r: r.get("date"))
+            
+            if not relevant_record:
+                continue
+                
+            # Map the price_history record to the expected format
+            result_entry = {
+                "machine_id": machine_id,
+                "machine_name": machine.get("Machine Name", "Unknown"),
+                "success": relevant_record.get("status") == "SUCCESS",
+                "needs_review": relevant_record.get("status") == "NEEDS_REVIEW",
+                "old_price": relevant_record.get("validation_basis_price"),
+                "new_price": relevant_record.get("price") if relevant_record.get("status") != "FAILED" else None,
+                "url": relevant_record.get("scraped_from_url") or machine.get("product_link", ""),
+                "extraction_method": relevant_record.get("extraction_method"),
+                "error": relevant_record.get("failure_reason"),
+                "review_reason": relevant_record.get("review_reason"),
+                "tier": relevant_record.get("tier"),
+                "extraction_confidence": relevant_record.get("extracted_confidence"),
+                "validation_confidence": relevant_record.get("validation_confidence"),
+                "date": relevant_record.get("date"),
+                "status": relevant_record.get("status")
+            }
+            
+            results.append(result_entry)
         
-        # Calculate statistics
-        total = len(results_data)
-        successful = sum(1 for r in results_data if r.get("status") == "SUCCESS")
-        failed = sum(1 for r in results_data if r.get("status") == "FAILED")
-        needs_review = sum(1 for r in results_data if r.get("status") == "NEEDS_REVIEW")
+        # Calculate summary statistics
+        success_count = sum(1 for r in results if r.get("success") and not r.get("needs_review"))
+        review_count = sum(1 for r in results if r.get("needs_review"))
+        failure_count = sum(1 for r in results if not r.get("success") and not r.get("needs_review"))
         
-        # Count unchanged vs updated prices (for successful extractions only)
-        successful_entries = [r for r in results_data if r.get("status") == "SUCCESS"]
-        unchanged = sum(1 for r in successful_entries if r.get("new_price") == r.get("old_price"))
-        updated = successful - unchanged
-        
-        stats = {
-            "total": total,
-            "successful": successful,
-            "failed": failed,
-            "needs_review": needs_review,
-            "unchanged": unchanged,
-            "updated": updated,
-            "start_time": batch_info.get("start_time"),
-            "end_time": batch_info.get("end_time"),
-            "status": batch_info.get("status")
+        # Create formatted response
+        response = {
+            "success": True,
+            "batch": {
+                "id": batch.get("id"),
+                "status": batch.get("status"),
+                "start_time": batch.get("start_time"),
+                "end_time": batch.get("end_time"),
+                "days_threshold": batch.get("days_threshold"),
+                "total_machines": batch.get("count"),
+                "results_summary": {
+                    "successful": success_count,
+                    "failures": failure_count,
+                    "needs_review": review_count
+                }
+            },
+            "results": results
         }
         
-        return {
-            "batch_id": batch_id,
-            "results": results_data,
-            "stats": stats
-        }
+        return response
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error retrieving batch results: {str(e)}")
-        return {"error": str(e), "batch_id": batch_id}
+        raise HTTPException(status_code=500, detail=f"Error retrieving batch results: {str(e)}")
 
 async def _process_batch_update(days_threshold: int, limit: Optional[int] = None, machine_ids: List[str] = None, dry_run: bool = False, output_file: Optional[str] = None):
     """Process a batch update in the background."""

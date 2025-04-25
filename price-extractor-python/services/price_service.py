@@ -5,12 +5,20 @@ from bs4 import BeautifulSoup
 import time
 from typing import Dict, Any
 from urllib.parse import urlparse
+import os
+import sys
+import json
+from decimal import Decimal, InvalidOperation
+import asyncio
+import re
 
 from services.database_service import DatabaseService
 from scrapers.web_scraper import WebScraper
 from scrapers.price_extractor import PriceExtractor
 from utils.price_validator import PriceValidator
 from config import PRICE_HISTORY_TABLE
+from .extraction_service import ExtractionService
+from utils.dom_analyzer import DOMAnalyzer
 
 class PriceService:
     """Service to coordinate price extraction and database updates."""
@@ -21,6 +29,9 @@ class PriceService:
         self.web_scraper = WebScraper()
         self.price_extractor = PriceExtractor()
         self.price_validator = PriceValidator()
+        self.extraction_service = ExtractionService()
+        self.dom_analyzer = DOMAnalyzer()
+        self.sanity_check_threshold = 25  # Default threshold for price change validation (25%)
         logger.info("Price service initialized")
     
     async def extract_machine_price(self, machine_id: str, variant_attribute: str = "DEFAULT", dry_run: bool = False) -> Dict[str, Any]:
@@ -153,6 +164,14 @@ class PriceService:
             
             old_price = machine.get("Price")
             product_url = machine.get("product_link")
+            machine_name = machine.get("Machine Name", "Unknown")
+            company = machine.get("Company", "Unknown")
+            machine_category = machine.get("Machine Category", "laser_cutter")
+            
+            # Apply DOM analysis if HTML content is available
+            dom_metadata = {}
+            if html_content:
+                dom_metadata = self.dom_analyzer.analyze_html(html_content)
             
             # Update the price in the database
             update_success = await self.db_service.update_machine_price(
@@ -171,269 +190,323 @@ class PriceService:
                     "url": product_url
                 }
             
-            # Add to price history
+            # Add to price history with enhanced metadata
             history_added = await self.db_service.add_price_history(
                 machine_id=machine_id,
                 old_price=old_price,
                 new_price=new_price,
                 success=True,
-                error_message=None
+                error_message=None,
+                tier="MANUAL",
+                extraction_method="MANUAL_CONFIRMATION",
+                extracted_confidence=1.0,
+                validation_confidence=1.0,
+                source="admin_interface",
+                url=product_url,
+                
+                # Enhanced fields
+                validation_basis_price=old_price,
+                dom_elements_analyzed=dom_metadata.get("dom_elements_analyzed"),
+                price_location_in_dom=dom_metadata.get("price_location_in_dom"),
+                structured_data_type=dom_metadata.get("structured_data_type"),
+                company=company,
+                category=machine_category,
+                raw_price_text=str(new_price)
             )
             
             if not history_added:
-                logger.warning(f"Failed to add price history entry for machine {machine_id}")
+                logger.warning(f"Failed to add price history record for {machine_id}")
             
-            logger.info(f"Successfully updated price for machine {machine_id} from {old_price} to {new_price}")
-            
-            price_change = new_price - old_price if old_price is not None else None
-            percentage_change = ((new_price - old_price) / old_price) * 100 if old_price is not None and old_price > 0 else None
-            
-            return {
-                "success": True,
-                "message": "Price updated successfully",
-                "old_price": old_price,
-                "new_price": new_price,
-                "method": "Manual confirmation",
-                "price_change": price_change,
-                "percentage_change": percentage_change,
-                "machine_id": machine_id,
-                "url": product_url
-            }
-        except Exception as e:
-            logger.exception(f"Error saving price for machine {machine_id}: {str(e)}")
-            return {
-                "success": False,
-                "error": "An error occurred while saving the price",
-                "machine_id": machine_id
-            }
-    
-    async def update_machine_price(self, machine_id, url=None):
-        """
-        Extract a price for a machine and update it in the database.
-        
-        Args:
-            machine_id (str): The ID of the machine to update.
-            url (str, optional): URL to override the one in the database.
-            
-        Returns:
-            dict: Update result with status, new price, and old price.
-        """
-        logger.info(f"Processing price update for machine {machine_id}")
-        start_time = datetime.now(timezone.utc)
-        
-        debug_info = {
-            "machine_id": machine_id,
-            "start_time": start_time.isoformat(),
-            "steps": []
-        }
-        
-        try:
-            # Get machine data from database
-            machine = await self.db_service.get_machine_by_id(machine_id)
-            debug_info["steps"].append({"step": "get_machine", "timestamp": datetime.now(timezone.utc).isoformat()})
-            
-            if not machine:
-                logger.error(f"Machine {machine_id} not found in database")
-                debug_info["error_step"] = "machine_lookup"
-                return {
-                    "success": False, 
-                    "error": f"Machine not found in database: {machine_id}", 
-                    "machine_id": machine_id,
-                    "debug": debug_info
-                }
-            
-            # Use provided URL or get from database
-            product_url = url or machine.get("product_link")
-            machine_name = machine.get("Machine Name", "Unknown")
-            current_price = machine.get("Price")
-            product_category = machine.get("Machine Category") or machine.get("Laser Category") or None
-            
-            debug_info.update({
-                "machine_name": machine_name,
-                "db_id": machine.get("id"),
-                "current_price": current_price,
-                "product_category": product_category
-            })
-            
-            logger.info(f"Found machine: {machine_name} (Current price: ${current_price})")
-            
-            if not product_url:
-                error_msg = f"No product URL available for machine {machine_id}"
-                logger.error(error_msg)
-                debug_info["error_step"] = "missing_url"
-                return {
-                    "success": False, 
-                    "error": error_msg, 
-                    "machine_id": machine_id,
-                    "debug": debug_info
-                }
-            
-            logger.info(f"Fetching product page: {product_url}")
-            debug_info["product_url"] = product_url
-            debug_info["steps"].append({"step": "fetch_url", "timestamp": datetime.now(timezone.utc).isoformat()})
-            
-            # Scrape the product page
-            html_content, soup = await self.web_scraper.get_page_content(product_url)
-            
-            if not html_content or not soup:
-                error_msg = f"Failed to fetch content from {product_url}"
-                logger.error(error_msg)
-                debug_info["error_step"] = "page_fetch"
-                return {
-                    "success": False, 
-                    "error": error_msg, 
-                    "machine_id": machine_id, 
-                    "url": product_url,
-                    "debug": debug_info
-                }
-            
-            html_size = len(html_content)
-            logger.info(f"Successfully fetched page ({html_size} bytes)")
-            debug_info["html_size"] = html_size
-            debug_info["steps"].append({"step": "extract_price", "timestamp": datetime.now(timezone.utc).isoformat()})
-            
-            # Extract price with two-stage approach
-            new_price, method = await self.price_extractor.extract_price(
-                soup, 
-                html_content, 
-                product_url, 
-                product_category=product_category,
-                previous_price=current_price,
-                machine_id=machine_id
-            )
-            
-            extraction_time = datetime.now(timezone.utc)
-            debug_info["steps"].append({"step": "price_extracted", "timestamp": extraction_time.isoformat()})
-            debug_info.update({
-                "extraction_method": method,
-                "extracted_price": new_price
-            })
-            
-            if new_price is None:
-                error_msg = f"Failed to extract price from {product_url}"
-                logger.error(error_msg)
-                debug_info["error_step"] = "price_extraction"
-                return {
-                    "success": False, 
-                    "error": error_msg, 
-                    "machine_id": machine_id, 
-                    "url": product_url,
-                    "debug": debug_info
-                }
-            
-            logger.info(f"Successfully extracted price ${new_price} using method: {method}")
-            
-            # Check if the price has changed
-            price_changed = True
-            
-            if current_price is not None:
-                try:
-                    current_price_float = float(current_price)
-                    if abs(current_price_float - new_price) < 0.01:
-                        price_changed = False
-                        logger.info(f"Price unchanged for machine {machine_id}: {new_price}")
-                except (ValueError, TypeError):
-                    logger.warning(f"Could not compare prices for machine {machine_id}: invalid price value")
-            
-            debug_info["price_changed"] = price_changed
-            debug_info["steps"].append({"step": "update_db", "timestamp": datetime.now(timezone.utc).isoformat()})
-            
-            # Update the price in the database
-            update_success = await self.db_service.update_machine_price(
-                machine_id=machine_id, 
-                new_price=new_price,
-                html_content=html_content
-            )
-            
-            end_time = datetime.now(timezone.utc)
-            duration = (end_time - start_time).total_seconds()
-            
-            debug_info.update({
-                "end_time": end_time.isoformat(),
-                "duration_seconds": duration,
-                "db_update_success": update_success
-            })
-            
-            if not update_success:
-                error_msg = f"Failed to update price in database for machine {machine_id}"
-                logger.error(error_msg)
-                debug_info["error_step"] = "db_update"
-                return {
-                    "success": False, 
-                    "error": error_msg, 
-                    "machine_id": machine_id, 
-                    "url": product_url,
-                    "debug": debug_info
-                }
-            
-            # Calculate price change values for history record
+            # Calculate price change values
             price_change = None
             percentage_change = None
             
-            if current_price is not None and new_price is not None:
+            if old_price is not None and new_price is not None:
                 try:
-                    current_price_float = float(current_price)
-                    price_change = new_price - current_price_float
-                    if current_price_float > 0:
-                        percentage_change = (price_change / current_price_float) * 100
+                    old_price_float = float(old_price)
+                    price_change = float(new_price) - old_price_float
+                    if old_price_float > 0:
+                        percentage_change = (price_change / old_price_float) * 100
                 except (ValueError, TypeError):
                     logger.warning(f"Could not calculate price change: invalid price value")
             
-            # Add history record - ONLY if it wasn't already added by the update_machine_price function
-            # Check if the update_success came from the fallback path that already added a history record
-            if not getattr(update_success, 'history_record_added', False):
-                await self.db_service.add_price_history(
-                    machine_id=machine_id,
-                    old_price=current_price,
-                    new_price=new_price,
-                    success=True,
-                    tier=method
-                )
-            
-            debug_info["steps"].append({"step": "completed", "timestamp": datetime.now(timezone.utc).isoformat()})
-            
-            # Return success with price details
-            message = "Price updated successfully" if price_changed else "Price unchanged"
-            logger.info(f"{message} for {machine_name} (ID: {machine_id})")
-            
-            # Add merchant domain to problematic list if Claude was used
-            if method and "Claude" in method:
-                merchant_domain = self._extract_domain(product_url)
-                # Record this information but don't automatically add to problematic list
-                debug_info["used_claude"] = True
-                debug_info["merchant_domain"] = merchant_domain
-            
             return {
                 "success": True,
-                "message": message,
                 "machine_id": machine_id,
-                "machine_name": machine_name,
-                "old_price": current_price,
-                "new_price": new_price,
-                "price_change": price_change,
-                "percentage_change": percentage_change,
-                "url": product_url,
-                "price_changed": price_changed,
-                "extraction_method": method,
-                "debug": debug_info
+                "old_price": old_price,
+                "new_price": float(new_price) if new_price is not None else None,
+                "price_change": float(price_change) if price_change is not None else None,
+                "percentage_change": float(percentage_change) if percentage_change is not None else None,
+                "method": "MANUAL_CONFIRMATION"
             }
         except Exception as e:
-            logger.exception(f"Error processing price update for machine {machine_id}: {str(e)}")
-            end_time = datetime.now(timezone.utc)
-            duration = (end_time - start_time).total_seconds()
-            
-            debug_info.update({
-                "end_time": end_time.isoformat(),
-                "duration_seconds": duration,
-                "error": str(e)
-            })
-            
+            logger.exception(f"Error saving machine price: {str(e)}")
             return {
                 "success": False,
-                "error": f"An error occurred while processing the price update: {str(e)}",
-                "machine_id": machine_id,
+                "error": f"Error saving price: {str(e)}",
+                "machine_id": machine_id
+            }
+    
+    async def update_machine_price(self, machine_id, url=None, flags_for_review=True, save_to_db=True):
+        """
+        Update a machine's price by extracting it from the product page.
+        
+        Args:
+            machine_id (str): The ID of the machine to update.
+            url (str, optional): Override the stored product URL.
+            flags_for_review (bool): Whether to flag significant price changes for review.
+            save_to_db (bool): Whether to save the results to the database.
+            
+        Returns:
+            dict: Update result with status.
+        """
+        logger.info(f"Updating price for machine {machine_id}")
+        
+        start_time = datetime.now(timezone.utc)
+        debug_info = {"start_time": start_time.isoformat()}
+        
+        # Get machine data
+        machine = await self.db_service.get_machine_by_id(machine_id)
+        if not machine:
+            error_msg = f"Machine {machine_id} not found in database"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg, "machine_id": machine_id}
+        
+        # Get product URL from machine data if not provided
+        product_url = url if url is not None else machine.get("product_link")
+        if not product_url:
+            error_msg = f"No product URL available for machine {machine_id}"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg, "machine_id": machine_id, "url": None}
+        
+        logger.info(f"Extracting price from {product_url} for machine {machine.get('Machine Name', machine_id)}")
+        
+        # Get current price for reference
+        current_price = machine.get("Price")
+        debug_info["old_price"] = current_price
+        
+        # Get machine category if available
+        machine_category = machine.get("Machine Category", "laser_cutter")
+        machine_name = machine.get("Machine Name", "Unknown")
+        company = machine.get("Company", "Unknown")
+        
+        # Extract price from URL
+        extraction_result = await self.extraction_service.extract_price(
+            url=product_url, 
+            machine_id=machine_id,
+            variant_attribute="DEFAULT",
+            previous_price=current_price,
+            machine_name=machine_name,
+            product_category=machine_category,
+            flags_for_review=flags_for_review,
+            sanity_check_threshold=self.sanity_check_threshold
+        )
+        
+        # Add extraction details to debug info
+        debug_info.update({
+            "method": extraction_result.get("method"),
+            "extracted_confidence": extraction_result.get("extracted_confidence"),
+            "validation_confidence": extraction_result.get("validation_confidence"),
+            "http_status": extraction_result.get("http_status"),
+            "html_size": extraction_result.get("html_size")
+        })
+        
+        # If extraction failed, return error
+        if not extraction_result.get("success", False):
+            error_msg = extraction_result.get("error", "Unknown error during price extraction")
+            logger.error(f"Price extraction failed for {machine_id}: {error_msg}")
+            
+            # Save failed extraction to database if requested
+            if save_to_db:
+                # Enhanced: Extract as much information as possible from the extraction_result for logging
+                await self.db_service.add_price_history(
+                    machine_id=machine_id,
+                    variant_attribute="DEFAULT",
+                    new_price=None,
+                    old_price=current_price,
+                    tier=extraction_result.get("tier", "UNKNOWN"),
+                    success=False,
+                    error_message=error_msg,
+                    source="price_extractor",
+                    extraction_method=extraction_result.get("method"),
+                    extracted_confidence=extraction_result.get("extracted_confidence"),
+                    validation_confidence=extraction_result.get("validation_confidence"),
+                    url=product_url,
+                    html_size=extraction_result.get("html_size"),
+                    http_status=extraction_result.get("http_status"),
+                    dom_elements_analyzed=extraction_result.get("dom_elements_analyzed"),
+                    price_location_in_dom=extraction_result.get("price_location_in_dom"),
+                    extraction_duration_seconds=extraction_result.get("extraction_duration_seconds"),
+                    structured_data_type=extraction_result.get("structured_data_type"),
+                    raw_price_text=extraction_result.get("raw_price_text"),
+                    cleaned_price_string=extraction_result.get("cleaned_price_string"),
+                    selectors_tried=extraction_result.get("selectors_tried"),
+                    validation_basis_price=current_price
+                )
+            
+            return {
+                "success": False, 
+                "error": error_msg, 
+                "machine_id": machine_id, 
+                "url": product_url,
                 "debug": debug_info
             }
+        
+        # Extract the new price
+        new_price = extraction_result.get("price")
+        method = extraction_result.get("method", "UNKNOWN")
+        
+        # Add additional debug info
+        debug_info.update({
+            "new_price": float(new_price) if new_price is not None else None,
+            "tier": method.split(":")[0] if ":" in method else method,
+            "html_content_size": extraction_result.get("html_size")
+        })
+        
+        # Check if price is unchanged
+        price_unchanged = False
+        if current_price is not None and new_price is not None:
+            try:
+                current_price_float = float(current_price)
+                price_unchanged = abs(float(new_price) - current_price_float) < 0.01
+                debug_info["price_unchanged"] = price_unchanged
+            except (ValueError, TypeError):
+                pass
+        
+        # Determine if price change needs review
+        needs_review = extraction_result.get("needs_review", False)
+        review_reason = extraction_result.get("review_reason")
+        
+        # If flags_for_review is enabled and we have the data to check,
+        # perform our own additional validation
+        if flags_for_review and current_price is not None and new_price is not None:
+            try:
+                current_price_float = float(current_price)
+                if current_price_float > 0:
+                    price_change = float(new_price) - current_price_float
+                    percentage_change = (price_change / current_price_float) * 100
+                    
+                    # Log the price change details
+                    logger.info(f"Price change: {price_change} ({percentage_change:.2f}%)")
+                    
+                    # Check if price change exceeds threshold
+                    if abs(percentage_change) > self.sanity_check_threshold:
+                        needs_review = True
+                        review_reason = review_reason or f"Price change of {abs(percentage_change):.2f}% exceeds threshold of {self.sanity_check_threshold}%"
+                        logger.warning(f"Flagging price for review: {review_reason}")
+            except (ValueError, TypeError, InvalidOperation) as e:
+                logger.warning(f"Error calculating price change: {str(e)}")
+        
+        # Calculate end time and duration
+        end_time = datetime.now(timezone.utc)
+        duration = (end_time - start_time).total_seconds()
+        
+        # Here we apply additional DOM analysis if HTML content is available,
+        # to enhance the metadata for the price_history record
+        html_content = extraction_result.get("html_content")
+        dom_metadata = {}
+        if html_content:
+            # Analyze the HTML content with our new DOM analyzer
+            dom_metadata = self.dom_analyzer.analyze_html(html_content)
+            
+            # Use the extraction method to enhance metadata
+            dom_metadata = self.dom_analyzer.analyze_extraction_method(method, dom_metadata)
+        
+        # Prepare validation steps for record
+        validation_steps = []
+        if "validation_result" in extraction_result:
+            validation_steps = [{
+                "step": "main_validation",
+                "result": extraction_result["validation_result"],
+                "confidence": extraction_result.get("validation_confidence")
+            }]
+        
+        # Update the database if requested
+        update_success = True
+        if save_to_db:
+            # Always save to price_history with enhanced metadata
+            hist_id = await self.db_service.add_price_history(
+                machine_id=machine_id,
+                variant_attribute="DEFAULT",
+                new_price=new_price,
+                old_price=current_price,
+                validation_basis_price=current_price,  # Explicitly set validation basis
+                tier=method.split(":")[0] if ":" in method else method,
+                extracted_confidence=extraction_result.get("extracted_confidence"),
+                validation_confidence=extraction_result.get("validation_confidence"),
+                success=True,
+                error_message=None,
+                source="price_extractor",
+                extraction_method=method,
+                url=product_url,
+                html_size=extraction_result.get("html_size"),
+                http_status=extraction_result.get("http_status"),
+                needs_review=needs_review,
+                review_reason=review_reason,
+                raw_price_text=extraction_result.get("raw_price_text"),
+                extraction_duration_seconds=extraction_result.get("extraction_duration_seconds"),
+                extraction_attempts=extraction_result.get("extraction_attempts"),
+                
+                # Enhanced fields from DOM analyzer
+                dom_elements_analyzed=dom_metadata.get("dom_elements_analyzed") or extraction_result.get("dom_elements_analyzed"),
+                price_location_in_dom=dom_metadata.get("price_location_in_dom") or extraction_result.get("price_location_in_dom"),
+                structured_data_type=dom_metadata.get("structured_data_type") or extraction_result.get("structured_data_type"),
+                selectors_tried=dom_metadata.get("selectors_tried") or extraction_result.get("selectors_tried"),
+                cleaned_price_string=extraction_result.get("cleaned_price_string"),
+                parsed_currency_from_text=extraction_result.get("parsed_currency"),
+                validation_steps=validation_steps,
+                company=company,
+                category=machine_category
+            )
+            
+            # Only update the machine_price if not flagged for review
+            if not needs_review and not price_unchanged:
+                machine_update = await self.db_service.update_machine_price(
+                    machine_id=machine_id,
+                    new_price=new_price,
+                    variant_attribute="DEFAULT",
+                    html_content=None,  # Don't duplicate the content
+                    tier=method.split(":")[0] if ":" in method else method,
+                    confidence=extraction_result.get("validation_confidence")
+                )
+                
+                if not machine_update:
+                    logger.warning(f"Failed to update machine price for {machine_id}")
+            elif price_unchanged:
+                logger.info(f"Price unchanged for machine {machine_id}, skipping update")
+            else:
+                logger.info(f"Price flagged for review for machine {machine_id}, not updating main price")
+        
+        # Prepare the return result
+        price_change = None
+        percentage_change = None
+        
+        if current_price is not None and new_price is not None:
+            try:
+                current_price_float = float(current_price)
+                price_change = float(new_price) - current_price_float
+                if current_price_float > 0:
+                    percentage_change = (price_change / current_price_float) * 100
+            except (ValueError, TypeError):
+                logger.warning(f"Could not calculate price change: invalid price value")
+        
+        result = {
+            "success": True,
+            "machine_id": machine_id,
+            "old_price": current_price,
+            "new_price": float(new_price) if new_price is not None else None,
+            "price_change": float(price_change) if price_change is not None else None,
+            "percentage_change": float(percentage_change) if percentage_change is not None else None,
+            "method": method,
+            "needs_review": needs_review,
+            "review_reason": review_reason,
+            "price_unchanged": price_unchanged,
+            "extracted_confidence": extraction_result.get("extracted_confidence"),
+            "validation_confidence": extraction_result.get("validation_confidence"),
+            "debug": debug_info
+        }
+        
+        return result
     
     def _extract_domain(self, url):
         """

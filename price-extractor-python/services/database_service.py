@@ -1491,3 +1491,170 @@ class DatabaseService:
             except Exception as fallback_error:
                 logger.exception(f"Fallback query also failed: {str(fallback_error)}")
             return []
+
+    async def get_price_history_by_batch(self, batch_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all price history records for a specific batch.
+        
+        Args:
+            batch_id (str): The batch ID to filter by
+            
+        Returns:
+            List[Dict[str, Any]]: List of price history records
+        """
+        try:
+            logger.info(f"Fetching price history for batch ID: {batch_id}")
+            
+            # Use direct Supabase query instead of RPC
+            response = self.supabase.table(PRICE_HISTORY_TABLE) \
+                .select("*") \
+                .eq("batch_id", batch_id) \
+                .order("date", desc=True) \
+                .execute()
+            
+            if not response.data:
+                logger.info(f"No price history records found for batch ID: {batch_id}")
+                return []
+            
+            # Get machine names for these records
+            machine_ids = list(set(record.get("machine_id") for record in response.data if record.get("machine_id")))
+            
+            if machine_ids:
+                machines_response = self.supabase.table(MACHINES_TABLE) \
+                    .select("id, \"Machine Name\"") \
+                    .in_("id", machine_ids) \
+                    .execute()
+                
+                machine_names = {
+                    machine.get("id"): machine.get("Machine Name") 
+                    for machine in machines_response.data if machine.get("id")
+                }
+                
+                # Add machine names to the records
+                for record in response.data:
+                    machine_id = record.get("machine_id")
+                    if machine_id in machine_names:
+                        record["machine_name"] = machine_names[machine_id]
+                    else:
+                        record["machine_name"] = "Unknown"
+            
+            return response.data
+        except Exception as e:
+            logger.exception(f"Error fetching price history for batch {batch_id}: {str(e)}")
+            return []
+
+    async def update_batch_results(self, batch_id: str, successful: int, failed: int, flagged_for_review: int) -> bool:
+        """
+        Update batch with the results summary using the metadata field.
+        
+        Args:
+            batch_id (str): Batch ID
+            successful (int): Number of successful extractions
+            failed (int): Number of failed extractions  
+            flagged_for_review (int): Number of extractions flagged for review
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            logger.info(f"Updating batch {batch_id} with results: {successful} successful, {failed} failed, {flagged_for_review} flagged for review")
+            
+            # First, get the current metadata
+            get_response = self.supabase.table("batches") \
+                .select("metadata") \
+                .eq("id", batch_id) \
+                .execute()
+            
+            # Initialize metadata
+            metadata = {}
+            if get_response.data and len(get_response.data) > 0:
+                metadata = get_response.data[0].get("metadata") or {}
+            
+            # Update the results in metadata
+            if isinstance(metadata, str):
+                try:
+                    # If metadata is stored as a string, parse it
+                    metadata = json.loads(metadata)
+                except json.JSONDecodeError:
+                    metadata = {}
+                
+            # Create or update the results section
+            metadata["results"] = {
+                "successful": successful,
+                "failed": failed,
+                "flagged_for_review": flagged_for_review
+            }
+            
+            # Update the batch record
+            update_response = self.supabase.table("batches") \
+                .update({"metadata": metadata}) \
+                .eq("id", batch_id) \
+                .execute()
+            
+            if update_response.data and len(update_response.data) > 0:
+                logger.info(f"Successfully updated batch {batch_id} results metadata")
+                return True
+            else:
+                logger.warning(f"Failed to update batch {batch_id} metadata: No response data")
+                return False
+            
+        except Exception as e:
+            logger.exception(f"Error updating batch results for {batch_id}: {str(e)}")
+            return False
+
+    async def get_batch(self, batch_id: str) -> Dict[str, Any]:
+        """
+        Get a specific batch by ID.
+        
+        Args:
+            batch_id (str): Batch ID to fetch
+            
+        Returns:
+            Dict[str, Any]: Batch details
+        """
+        try:
+            logger.info(f"Fetching batch {batch_id}")
+            
+            response = self.supabase.table("batches") \
+                .select("*") \
+                .eq("id", batch_id) \
+                .execute()
+            
+            if not response.data or len(response.data) == 0:
+                logger.warning(f"No batch found with ID: {batch_id}")
+                return None
+                
+            batch = response.data[0]
+            
+            # Map fields to expected format
+            result = {
+                "id": batch.get("id"),
+                "start_time": batch.get("start_time"),
+                "end_time": batch.get("end_time"),
+                "count": batch.get("total_machines"),
+                "days_threshold": batch.get("days_threshold"),
+                "status": batch.get("status"),
+                "metadata": batch.get("metadata")
+            }
+            
+            # If metadata field exists and contains results, add them to the base level for backwards compatibility
+            metadata = batch.get("metadata")
+            if metadata:
+                # Convert from string if needed
+                if isinstance(metadata, str):
+                    try:
+                        metadata = json.loads(metadata)
+                    except json.JSONDecodeError:
+                        metadata = {}
+                        
+                if isinstance(metadata, dict) and "results" in metadata:
+                    results = metadata.get("results", {})
+                    result["successful"] = results.get("successful", 0)
+                    result["failed"] = results.get("failed", 0)
+                    result["flagged_for_review"] = results.get("flagged_for_review", 0)
+                
+            return result
+            
+        except Exception as e:
+            logger.exception(f"Error fetching batch {batch_id}: {str(e)}")
+            return None
