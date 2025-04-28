@@ -65,6 +65,13 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
   - Consistent text truncation across all columns
 
 ### Fixed
+- Fixed incorrect price display on compare page
+  - Updated `getMachines` function to properly retrieve latest pricing from `machines_latest` table
+  - Fixed data transformation to correctly handle machines_latest array format
+  - Implemented adapter to ensure compatibility with CompareClientPage component
+  - Resolved specific price discrepancy for Genmitsu L8 ($899 vs $799)
+  - Added comprehensive error handling and fallbacks in price retrieval
+  - Maintained existing compare page functionality while improving price accuracy
 - Fixed significant performance issues on Compare page
   - Optimized database queries to exclude large HTML content (reduced payload from ~5MB to ~50KB per machine)
   - Replaced negation syntax with explicit field selection in Supabase queries

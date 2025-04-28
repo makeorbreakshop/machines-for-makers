@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
-import type { Database, Machine } from "./database-types"
+import { Database } from '@/types/supabase'
+import type { Machine } from "./database-types"
 import { cache } from "react"
 
 // Check if Supabase environment variables are available
@@ -44,7 +45,7 @@ export async function getMachines({
       
       // Explicitly list all fields we want to fetch - excluding HTML content
       const selectFields = includeHtml
-        ? "*"
+        ? "*, machines_latest(machines_latest_price)"
         : `
           id, 
           "Machine Name", 
@@ -94,7 +95,8 @@ export async function getMachines({
           "Laser Source Manufacturer", 
           "Created On", 
           "Updated On", 
-          "Published On"
+          "Published On",
+          machines_latest(machines_latest_price)
         `;
       
       // Query without using relationships to avoid foreign key errors
@@ -116,28 +118,30 @@ export async function getMachines({
         query = query.eq("Company", company)
       }
 
-      if (priceRange) {
-        query = query.gte("Price", priceRange[0]).lte("Price", priceRange[1])
-      }
+      // For price filtering, we need to filter on machine_latest.machines_latest_price
+      // Update once initial query is complete and transformed
 
       if (search) {
         query = query.ilike("Machine Name", `%${search}%`)
       }
 
       // Apply sorting
-      switch (sort) {
-        case "newest":
-          query = query.order("Published On", { ascending: false })
-          break
-        case "price-asc":
-          query = query.order("Price", { ascending: true })
-          break
-        case "price-desc":
-          query = query.order("Price", { ascending: false })
-          break
-        case "rating-desc":
-          query = query.order("Rating", { ascending: false })
-          break
+      // Note: We'll have to manually sort after getting transformed data if sort is price-related
+      let manualPriceSort = false;
+      let priceSortAscending = true;
+      if (sort === "price-asc" || sort === "price-desc") {
+        manualPriceSort = true;
+        priceSortAscending = sort === "price-asc";
+        // Don't apply sort in query, we'll do it after transformation
+      } else {
+        switch (sort) {
+          case "newest":
+            query = query.order("Published On", { ascending: false })
+            break
+          case "rating-desc":
+            query = query.order("Rating", { ascending: false })
+            break
+        }
       }
 
       // Apply pagination
@@ -152,16 +156,91 @@ export async function getMachines({
 
       // Transform the data to match the expected format
       const data = rawData ? rawData.map(transformMachineData) : []
+      
+      // Apply price filtering if needed
+      let filteredData = data;
+      if (priceRange) {
+        filteredData = data.filter(item => 
+          item.price >= priceRange[0] && item.price <= priceRange[1]
+        );
+      }
+      
+      // Apply price sorting if needed
+      if (manualPriceSort) {
+        filteredData.sort((a, b) => {
+          const priceA = a.price || 0;
+          const priceB = b.price || 0;
+          return priceSortAscending ? priceA - priceB : priceB - priceA;
+        });
+      }
+      
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`Found ${data.length} machines matching criteria`);
+        console.log(`Found ${filteredData.length} machines matching criteria`);
       }
 
-      return { data, error, count }
+      return { data: filteredData, error, count: filteredData.length }
     } catch (err) {
       console.error("Exception in getMachines:", err);
       return { data: [], error: err, count: 0 };
     }
   })()
+}
+
+interface MachineLatest {
+  machines_latest_price: number;
+}
+
+type RawMachineData = {
+  id: string
+  "Machine Name": string
+  "Internal link": string
+  Company: string
+  Image: string
+  "Laser Type A": string
+  "Laser Power A": string
+  "Laser Type B": string | null
+  "LaserPower B": string | null
+  "Laser Category": string
+  "Machine Category": string
+  "Affiliate Link": string
+  Price: number
+  "Price Category": string
+  "Work Area": string
+  Height: string | null
+  "Machine Size": string
+  Speed: string
+  "Speed Category": string
+  Acceleration: string
+  Software: string
+  Focus: string
+  Enclosure: string
+  Wifi: string
+  Camera: string
+  Passthrough: string | null
+  Controller: string | null
+  Warranty: string | null
+  Rating: number | null
+  Award: string | null
+  "Excerpt (Short)": string | null
+  "Excerpt (Long)": string | null
+  Description: string | null
+  Review: string | null
+  "Brandon's Take": string | null
+  Highlights: string | null
+  Drawbacks: string | null
+  "YouTube Review": string | null
+  "Is A Featured Resource?": string
+  Favorited: string
+  Hidden: string
+  product_link: string
+  "Laser Frequency": string | null
+  "Pulse Width": string | null
+  "Best for:": string | null
+  "Laser Source Manufacturer": string | null
+  "Created On": string
+  "Updated On": string
+  "Published On": string
+  machines_latest: Array<{ machines_latest_price: number }> | null
 }
 
 export async function getMachineBySlug(slug: string, includeHtml: boolean = false) {
@@ -172,8 +251,10 @@ export async function getMachineBySlug(slug: string, includeHtml: boolean = fals
     }
 
     try {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`Looking for product with slug: ${slug}`);
+      // Special debugging for Genmitsu L8
+      const isGenmitsu = slug === "genmitsu-l8";
+      if (isGenmitsu) {
+        console.log(`🔍 DEBUG GENMITSU: Looking for product with slug: ${slug}`);
       }
       
       // Explicitly list all fields we want to fetch - excluding HTML content
@@ -228,27 +309,40 @@ export async function getMachineBySlug(slug: string, includeHtml: boolean = fals
           "Laser Source Manufacturer", 
           "Created On", 
           "Updated On", 
-          "Published On"
+          "Published On",
+          machines_latest(machines_latest_price)
         `;
       
-      // Simply fetch the machine data without trying to use relationships
-      // This avoids the "Could not find a relationship" errors
+      // Join with machines_latest to get current price
       const { data: rawData, error } = await supabase
         .from("machines")
         .select(selectFields)
         .ilike("Internal link", slug) // Use case-insensitive matching
         .eq("Hidden", false)
-        .single()
+        .single() as { data: RawMachineData | null, error: any }
 
-      if (process.env.NODE_ENV !== 'production') {
-        console.log("Raw data from Supabase for slug", slug, ":", rawData)
+      if (isGenmitsu && rawData) {
+        console.log("🔍 DEBUG GENMITSU Raw data from Supabase:", {
+          name: rawData["Machine Name"],
+          originalPrice: rawData.Price,
+          machinesLatest: rawData.machines_latest,
+          slug: rawData["Internal link"]
+        });
       }
 
       // Transform data to match the expected format in the product page component
-      const data = rawData ? transformMachineData(rawData) : null
+      const data = rawData ? {
+        ...transformMachineData(rawData),
+        price: rawData.machines_latest?.[0]?.machines_latest_price || rawData.Price
+      } : null
 
-      if (process.env.NODE_ENV !== 'production') {
-        console.log("Transformed data:", data)
+      if (isGenmitsu && data) {
+        console.log("🔍 DEBUG GENMITSU Transformed data:", {
+          name: data.machine_name,
+          price: data.price,
+          transformedPrice: data.price,
+          machinesLatest: rawData?.machines_latest
+        });
       }
 
       if (error) {
@@ -265,7 +359,32 @@ export async function getMachineBySlug(slug: string, includeHtml: boolean = fals
 
 // Function to transform database field names to expected format
 function transformMachineData(data: any): any {
-  return {
+  // Add debugging for Genmitsu L8
+  const isGenmitsu = data["Internal link"] === "genmitsu-l8" || data["Machine Name"] === "Genmitsu L8";
+  if (isGenmitsu) {
+    console.log("🔍 DEBUG GENMITSU in transformMachineData:", {
+      name: data["Machine Name"],
+      originalPrice: data["Price"],
+      machinesLatest: data.machines_latest
+    });
+  }
+
+  // Get the correct price from machines_latest if available
+  let latestPrice = data["Price"];
+  if (data.machines_latest && Array.isArray(data.machines_latest) && data.machines_latest.length > 0) {
+    latestPrice = data.machines_latest[0].machines_latest_price || data["Price"];
+    if (isGenmitsu) {
+      console.log("🔍 DEBUG GENMITSU latest price from array:", latestPrice);
+    }
+  } else if (data.machines_latest && typeof data.machines_latest.machines_latest_price !== 'undefined') {
+    // In case it's not an array but a direct object
+    latestPrice = data.machines_latest.machines_latest_price || data["Price"];
+    if (isGenmitsu) {
+      console.log("🔍 DEBUG GENMITSU latest price from object:", latestPrice);
+    }
+  }
+
+  const result = {
     id: data.id,
     machine_name: data["Machine Name"],
     slug: data["Internal link"],
@@ -278,7 +397,8 @@ function transformMachineData(data: any): any {
     laser_category: data["Laser Category"],
     machine_category: data["Machine Category"],
     affiliate_link: data["Affiliate Link"],
-    price: data["Price"],
+    // Use the properly extracted latest price
+    price: latestPrice,
     work_area: data["Work Area"],
     height: data["Height"],
     machine_size: data["Machine Size"],
@@ -316,7 +436,13 @@ function transformMachineData(data: any): any {
     // Only include reviews and images if they exist in the data
     ...(data.reviews && { reviews: data.reviews }),
     ...(data.images && { images: data.images }),
+  };
+
+  if (isGenmitsu) {
+    console.log("🔍 DEBUG GENMITSU final transformed price:", result.price);
   }
+
+  return result;
 }
 
 // Reviews
@@ -327,7 +453,9 @@ export async function getReviewsByMachineId(machineId: string) {
   }
 
   try {
-    console.log(`Fetching reviews for machine: ${machineId}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Fetching reviews for machine: ${machineId}`);
+    }
     
     // Check if the reviews table exists first
     const { error: checkError } = await supabase
@@ -353,7 +481,9 @@ export async function getReviewsByMachineId(machineId: string) {
       return { data: [], error: null }
     }
 
-    console.log(`Found ${data?.length || 0} reviews for machine ${machineId}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Found ${data?.length || 0} reviews`);
+    }
     return { data, error }
   } catch (err) {
     console.error("Exception fetching reviews:", err);
@@ -369,7 +499,9 @@ export async function getImagesByMachineId(machineId: string) {
   }
 
   try {
-    console.log(`Fetching images for machine: ${machineId}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Fetching images for machine: ${machineId}`);
+    }
     
     // Check if the images table exists first
     const { error: checkError } = await supabase
@@ -395,7 +527,9 @@ export async function getImagesByMachineId(machineId: string) {
       return { data: [], error: null }
     }
 
-    console.log(`Found ${data?.length || 0} images for machine ${machineId}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Found ${data?.length || 0} images`);
+    }
     return { data, error }
   } catch (err) {
     console.error("Exception fetching images:", err);
@@ -506,7 +640,9 @@ export async function getRelatedProducts(currentProduct: Machine, limit = 6) {
     // Type cast should now work correctly
     const rawProductData = data as RawMachineData;
     const laserCategory = rawProductData["Laser Category"];
-    console.log(`Finding related products for machine: ${currentProduct.id}, category: ${laserCategory}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Finding related products for machine: ${currentProduct.id}, category: ${laserCategory}`);
+    }
     
     // Get products in the same category, excluding HTML content fields
     const { data: rawData, error } = await supabase
@@ -586,14 +722,15 @@ export async function getRelatedProducts(currentProduct: Machine, limit = 6) {
       return (b.rating || 0) - (a.rating || 0);
     });
 
-    console.log(`Found ${sortedProducts.length} related products with scores:`, 
-      sortedProducts.map(p => ({
-        name: p.machine_name,
-        score: p.similarityScore,
-        rating: p.rating,
-        award: p.award
-      }))
-    );
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Found ${sortedProducts.length} related products with scores:`, 
+        sortedProducts.slice(0, 3).map(p => ({
+          name: p.machine_name,
+          score: p.similarityScore,
+          rating: p.rating
+        }))
+      );
+    }
 
     // Add minimum similarity score threshold
     const MIN_SIMILARITY_SCORE = 15;
