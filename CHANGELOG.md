@@ -57,6 +57,12 @@ based on the nature of the changes (1.1.0 for new features, 1.0.1 for bug fixes 
   - Added CASCADE delete behavior to price_history foreign key constraint
   - Machine deletions now automatically remove associated price history records
   - Simplified process for removing discontinued machines
+- Price History Dashboard layout and usability
+  - Optimized column widths for better content display
+  - Improved truncation handling for method descriptions
+  - Enhanced readability of long text content with proper tooltips
+  - Better space utilization in table layout
+  - Consistent text truncation across all columns
 
 ### Fixed
 - Fixed significant performance issues on Compare page

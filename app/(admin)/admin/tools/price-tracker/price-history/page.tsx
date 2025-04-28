@@ -10,10 +10,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Pagination } from "@/components/ui/pagination"
 import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { 
   Filter, 
   RefreshCw, 
-  ArrowDownToLine
+  ArrowDownToLine,
+  AlertCircle
 } from "lucide-react"
 import { supabaseClient } from "@/lib/supabase/client"
 
@@ -41,6 +50,274 @@ interface PriceHistoryItem {
   date: string;
   machineName?: string; // Added field for the machine name from join
   [key: string]: any; // Allow other properties
+}
+
+interface ConfirmDialogProps {
+  item: PriceHistoryItem;
+  action: 'approve' | 'reject';
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmDialog({ item, action, isOpen, onConfirm, onCancel }: ConfirmDialogProps) {
+  const priceChange = item.price && item.validation_basis_price 
+    ? ((Number(item.price) - Number(item.validation_basis_price)) / Number(item.validation_basis_price) * 100).toFixed(1)
+    : null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-yellow-500" />
+            Confirm Price {action === 'approve' ? 'Approval' : 'Rejection'}
+          </DialogTitle>
+          <DialogDescription>
+            Are you sure you want to {action} this price change?
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="py-4">
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Machine:</span>
+              <span className="font-medium">{item.machineName}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Previous Price:</span>
+              <span className="font-medium">${Number(item.validation_basis_price).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">New Price:</span>
+              <span className="font-medium">${Number(item.price).toFixed(2)}</span>
+            </div>
+            {priceChange && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Change:</span>
+                <span className={`font-medium ${Number(priceChange) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {Number(priceChange) > 0 ? '+' : ''}{priceChange}%
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Review Reason:</span>
+              <span className="font-medium text-yellow-600">{item.review_reason}</span>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button 
+            variant={action === 'approve' ? "default" : "destructive"}
+            onClick={onConfirm}
+          >
+            {action === 'approve' ? 'Approve' : 'Reject'} Price Change
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface DetailsModalProps {
+  item: PriceHistoryItem;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function DetailsModal({ item, isOpen, onClose }: DetailsModalProps) {
+  const priceChange = item.price && item.validation_basis_price 
+    ? ((Number(item.price) - Number(item.validation_basis_price)) / Number(item.validation_basis_price) * 100).toFixed(1)
+    : null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Price History Details</DialogTitle>
+          <DialogDescription>
+            Detailed information about this price update
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="grid grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Machine:</span>
+                <span className="col-span-2 font-medium">{item.machineName}</span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Variant:</span>
+                <span className="col-span-2 font-medium">{item.variant_attribute || 'DEFAULT'}</span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Status:</span>
+                <span className="col-span-2">
+                  {item.status === 'SUCCESS' && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Success
+                    </span>
+                  )}
+                  {item.status === 'FAILED' && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      Failed
+                    </span>
+                  )}
+                  {item.status === 'NEEDS_REVIEW' && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      Needs Review
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Date:</span>
+                <span className="col-span-2 font-medium">
+                  {new Date(item.date).toLocaleString()}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Price Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Current:</span>
+                <span className="col-span-2 font-medium">
+                  ${Number(item.price).toFixed(2)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Previous:</span>
+                <span className="col-span-2 font-medium">
+                  ${Number(item.validation_basis_price).toFixed(2)}
+                </span>
+              </div>
+              {priceChange && (
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Change:</span>
+                  <span className={`col-span-2 font-medium ${Number(priceChange) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {Number(priceChange) > 0 ? '+' : ''}{priceChange}%
+                  </span>
+                </div>
+              )}
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Currency:</span>
+                <span className="col-span-2 font-medium">{item.currency || 'USD'}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Extraction Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Method:</span>
+                <span className="col-span-2 font-medium">{item.extraction_method}</span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Tier:</span>
+                <span className="col-span-2 font-medium">{item.tier}</span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Confidence:</span>
+                <span className="col-span-2">
+                  <div className="flex items-center gap-1">
+                    <div className="w-14 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${
+                          (item.extracted_confidence || 0) >= 0.9 
+                            ? 'bg-green-500' 
+                            : (item.extracted_confidence || 0) >= 0.7 
+                              ? 'bg-yellow-500' 
+                              : 'bg-red-500'
+                        }`} 
+                        style={{ width: `${Math.round((item.extracted_confidence || 0) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium">{Math.round((item.extracted_confidence || 0) * 100)}%</span>
+                  </div>
+                </span>
+              </div>
+              {item.review_reason && (
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Review Reason:</span>
+                  <span className="col-span-2 font-medium text-yellow-600">{item.review_reason}</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Source Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">URL:</span>
+                <span className="col-span-2">
+                  {item.scraped_from_url ? (
+                    <a 
+                      href={item.scraped_from_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                    >
+                      {new URL(item.scraped_from_url).hostname}
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">No URL available</span>
+                  )}
+                </span>
+              </div>
+              {item.html_size && (
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Page Size:</span>
+                  <span className="col-span-2 font-medium">
+                    {(item.html_size / 1024).toFixed(1)} KB
+                  </span>
+                </div>
+              )}
+              {item.http_status && (
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">HTTP Status:</span>
+                  <span className="col-span-2 font-medium">
+                    {item.http_status}
+                  </span>
+                </div>
+              )}
+              {item.extraction_duration_seconds && (
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Duration:</span>
+                  <span className="col-span-2 font-medium">
+                    {item.extraction_duration_seconds.toFixed(2)}s
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function PriceHistoryPage() {
@@ -73,6 +350,27 @@ export default function PriceHistoryPage() {
   // URL parameters
   const searchParams = useSearchParams()
   const router = useRouter()
+  
+  // Add loading states for approval actions
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    item: PriceHistoryItem | null;
+    action: 'approve' | 'reject';
+  }>({
+    isOpen: false,
+    item: null,
+    action: 'approve'
+  });
+  
+  const [detailsModal, setDetailsModal] = useState<{
+    isOpen: boolean;
+    item: PriceHistoryItem | null;
+  }>({
+    isOpen: false,
+    item: null
+  });
   
   // Handle URL parameters for filtering
   useEffect(() => {
@@ -345,6 +643,122 @@ export default function PriceHistoryPage() {
     }
   }
   
+  const handlePriceApproval = async (
+    priceHistoryId: string,
+    machineId: string,
+    variantAttribute: string,
+    action: 'approve' | 'reject'
+  ) => {
+    try {
+      setApprovingId(priceHistoryId);
+
+      // Get the original price history record
+      const { data: originalRecord, error: fetchError } = await supabaseClient
+        .from('price_history')
+        .select('*')
+        .eq('id', priceHistoryId)
+        .single();
+
+      if (fetchError || !originalRecord) {
+        throw new Error(fetchError?.message || 'Failed to fetch original record');
+      }
+
+      const now = new Date().toISOString();
+      
+      // Create a new price history record
+      const newRecord = {
+        machine_id: machineId,
+        variant_attribute: variantAttribute,
+        price: action === 'approve' ? originalRecord.price : null,
+        date: now,
+        status: action === 'approve' ? 'SUCCESS' : 'FAILED',
+        currency: originalRecord.currency,
+        tier: originalRecord.tier,
+        extraction_method: originalRecord.extraction_method,
+        extracted_confidence: originalRecord.extracted_confidence,
+        validation_confidence: originalRecord.validation_confidence,
+        validation_basis_price: originalRecord.validation_basis_price,
+        original_record_id: priceHistoryId,
+        reviewed_by: 'admin', // TODO: Get actual user
+        reviewed_at: now,
+        failure_reason: action === 'reject' ? 'Rejected in review' : null
+      };
+
+      // Insert the new price history record
+      const { data: insertedRecord, error: insertError } = await supabaseClient
+        .from('price_history')
+        .insert([newRecord])
+        .select()
+        .single();
+
+      if (insertError || !insertedRecord) {
+        throw new Error(insertError?.message || 'Failed to create review record');
+      }
+
+      // If approved, update machines_latest
+      if (action === 'approve') {
+        const { error: updateError } = await supabaseClient
+          .from('machines_latest')
+          .upsert({
+            machine_id: machineId,
+            variant_attribute: variantAttribute,
+            machines_latest_price: originalRecord.price,
+            currency: originalRecord.currency,
+            last_checked: now,
+            tier: originalRecord.tier,
+            confidence: originalRecord.extracted_confidence
+          });
+
+        if (updateError) {
+          throw new Error(updateError.message);
+        }
+      }
+
+      toast.success(`Price change ${action}d successfully`);
+      
+      // Refresh the data
+      fetchPriceHistory();
+
+    } catch (error: any) {
+      console.error('Error handling price approval:', error);
+      toast.error(`Failed to ${action} price change: ${error.message}`);
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleViewDetails = (item: PriceHistoryItem) => {
+    setDetailsModal({
+      isOpen: true,
+      item
+    });
+  };
+  
+  const initiateApproval = (
+    item: PriceHistoryItem,
+    action: 'approve' | 'reject'
+  ) => {
+    setConfirmDialog({
+      isOpen: true,
+      item,
+      action
+    });
+  };
+
+  const handleConfirmApproval = async () => {
+    if (!confirmDialog.item) return;
+    
+    const { item, action } = confirmDialog;
+    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    
+    await handlePriceApproval(
+      item.id,
+      String(item.machine_id),
+      item.variant_attribute || 'DEFAULT',
+      action
+    );
+  };
+  
   return (
     <div className="max-w-[1800px] mx-auto px-4 py-6 space-y-4">
       <div className="flex justify-between items-center">
@@ -570,18 +984,18 @@ export default function PriceHistoryPage() {
               <table className="w-full table-fixed">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="p-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[90px]">Status</th>
-                    <th className="p-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[140px]">Machine</th>
-                    <th className="p-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[90px]">Variant</th>
-                    <th className="p-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[120px]">URL</th>
-                    <th className="p-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[110px]" title="Validation basis price used for comparison">Comparison Price</th>
-                    <th className="p-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[110px]">Current</th>
-                    <th className="p-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[110px]">Change</th>
-                    <th className="p-2 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-[120px]">Review Reason</th>
-                    <th className="p-2 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-[320px]">Method</th>
-                    <th className="p-2 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-[120px]">Confidence</th>
+                    <th className="p-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[80px]">Status</th>
+                    <th className="p-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[180px]">Machine</th>
+                    <th className="p-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[80px]">Variant</th>
+                    <th className="p-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[140px]">URL</th>
+                    <th className="p-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[100px]" title="Validation basis price used for comparison">Comparison</th>
+                    <th className="p-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[90px]">Current</th>
+                    <th className="p-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[90px]">Change</th>
+                    <th className="p-2 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-[140px]">Review Reason</th>
+                    <th className="p-2 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-[200px]">Method</th>
+                    <th className="p-2 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-[100px]">Confidence</th>
                     <th className="p-2 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-[100px]">Date</th>
-                    <th className="p-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[80px]">Actions</th>
+                    <th className="p-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[70px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -609,13 +1023,13 @@ export default function PriceHistoryPage() {
                           </span>
                         )}
                       </td>
-                      <td className="p-2 whitespace-nowrap font-medium max-w-[140px] truncate" title={item.machineName || 'Unknown Machine ID: ' + item.machine_id}>
+                      <td className="p-2 whitespace-nowrap font-medium max-w-[180px] truncate" title={item.machineName || 'Unknown Machine ID: ' + item.machine_id}>
                         {item.machineName || `ID: ${item.machine_id?.substring(0, 8)}...`}
                       </td>
-                      <td className="p-2 whitespace-nowrap text-sm max-w-[90px] truncate" title={item.variant_attribute || "DEFAULT"}>
+                      <td className="p-2 whitespace-nowrap text-sm max-w-[80px] truncate" title={item.variant_attribute || "DEFAULT"}>
                         {item.variant_attribute || "DEFAULT"}
                       </td>
-                      <td className="p-2 max-w-[120px] truncate text-sm">
+                      <td className="p-2 max-w-[140px] truncate text-sm">
                         {item.scraped_from_url ? (
                           <a 
                             href={item.scraped_from_url} 
@@ -714,7 +1128,7 @@ export default function PriceHistoryPage() {
                         })()}
                       </td>
                       <td className="p-2 text-center text-xs whitespace-normal">
-                        <div className="max-w-[120px] truncate" title={item.review_reason || '-'}>
+                        <div className="max-w-[140px] truncate" title={item.review_reason || '-'}>
                           {item.status === 'NEEDS_REVIEW' ? (
                             <span className="text-yellow-700">
                               {item.review_reason || 'Requires review'}
@@ -725,8 +1139,8 @@ export default function PriceHistoryPage() {
                         </div>
                       </td>
                       <td className="p-2 text-center">
-                        <div className="max-w-[320px] mx-auto">
-                          <span className={`px-2 py-1 text-xs rounded-md inline-block ${
+                        <div className="max-w-[200px] mx-auto">
+                          <span className={`px-2 py-1 text-xs rounded-md inline-block w-full truncate ${
                             item.tier?.toLowerCase().includes('static') 
                               ? 'bg-blue-50 text-blue-700' 
                               : item.tier?.toLowerCase().includes('slice_fast')
@@ -740,7 +1154,7 @@ export default function PriceHistoryPage() {
                                       : 'bg-gray-50 text-gray-700'
                           }`}
                           title={item.extraction_method || item.tier || '-'}>
-                            <span className="text-xs whitespace-normal break-words line-clamp-2 text-left">
+                            <span className="text-xs whitespace-nowrap overflow-hidden text-ellipsis block">
                               {item.extraction_method || item.tier || '-'}
                             </span>
                           </span>
@@ -752,16 +1166,16 @@ export default function PriceHistoryPage() {
                             <div className="w-14 h-2 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
                               <div 
                                 className={`h-full rounded-full ${
-                                  item.extracted_confidence >= 0.9 
+                                  (item.extracted_confidence || 0) >= 0.9 
                                     ? 'bg-green-500' 
-                                    : item.extracted_confidence >= 0.7 
+                                    : (item.extracted_confidence || 0) >= 0.7 
                                       ? 'bg-yellow-500' 
                                       : 'bg-red-500'
                                 }`} 
-                                style={{ width: `${Math.round(item.extracted_confidence * 100)}%` }}
+                                style={{ width: `${Math.round((item.extracted_confidence || 0) * 100)}%` }}
                               />
                             </div>
-                            <span className="text-xs font-medium flex-shrink-0">{Math.round(item.extracted_confidence * 100)}%</span>
+                            <span className="text-xs font-medium flex-shrink-0">{Math.round((item.extracted_confidence || 0) * 100)}%</span>
                           </div>
                         ) : '-'}
                       </td>
@@ -773,12 +1187,57 @@ export default function PriceHistoryPage() {
                         })}
                       </td>
                       <td className="p-2 whitespace-nowrap text-right">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span className="sr-only">Details</span>
-                        </Button>
+                        {item.status === 'NEEDS_REVIEW' ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0 rounded-full text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => initiateApproval(item, 'approve')}
+                              disabled={approvingId === item.id}
+                              title="Approve price change"
+                            >
+                              {approvingId === item.id ? (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                              <span className="sr-only">Approve</span>
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0 rounded-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => initiateApproval(item, 'reject')}
+                              disabled={approvingId === item.id}
+                              title="Reject price change"
+                            >
+                              {approvingId === item.id ? (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              )}
+                              <span className="sr-only">Reject</span>
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0 rounded-full"
+                            onClick={() => handleViewDetails(item)}
+                            title="View details"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="sr-only">Details</span>
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -854,6 +1313,24 @@ export default function PriceHistoryPage() {
             </Button>
           </div>
         </div>
+      )}
+
+      {confirmDialog.isOpen && (
+        <ConfirmDialog
+          item={confirmDialog.item!}
+          action={confirmDialog.action}
+          isOpen={confirmDialog.isOpen}
+          onConfirm={handleConfirmApproval}
+          onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        />
+      )}
+
+      {detailsModal.isOpen && detailsModal.item && (
+        <DetailsModal
+          item={detailsModal.item}
+          isOpen={detailsModal.isOpen}
+          onClose={() => setDetailsModal({ isOpen: false, item: null })}
+        />
       )}
     </div>
   )

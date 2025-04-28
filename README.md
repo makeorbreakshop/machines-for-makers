@@ -24,6 +24,14 @@ Machines for Makers is a web application designed to help makers, hobbyists, and
 - **Review Moderation**: Approve, edit, or remove user-submitted reviews
 - **Settings Configuration**: Manage site-wide settings and configurations
 - **Secure Authentication**: Protected admin interface with secure login system
+- **Price History Dashboard**: Advanced price tracking interface with
+  - Optimized table layout for better data visibility
+  - Efficient handling of long text content
+  - Clear status indicators and price change tracking
+  - Batch operations management
+  - Review system for price changes
+  - Detailed extraction method information
+  - Historical price comparisons
 
 ### Planned Future Enhancements
 - Material compatibility charts
