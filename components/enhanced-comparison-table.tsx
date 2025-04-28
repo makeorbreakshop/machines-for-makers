@@ -122,14 +122,28 @@ export default function EnhancedComparisonTable({ machines }: EnhancedComparison
   }
 
   // Helper function to render cell content based on data type
-  const renderCellContent = (value: any, fieldName: string) => {
+  const renderCellContent = (value: any, fieldName: string, machine: Machine) => {
     // Handle null/undefined values consistently
     if (value === null || value === undefined) {
       return "—"
     }
     
-    if (fieldName === "price" && typeof value === "number") {
-      return `$${value.toLocaleString()}`
+    if (fieldName === "price") {
+      // Debug price data for Genmitsu L8
+      if (machine["Internal link"] === "genmitsu-l8") {
+        console.log("DEBUGGING GENMITSU L8 IN TABLE:", {
+          name: machine["Machine Name"],
+          originalPrice: machine["Price"],
+          machinesLatest: machine.machines_latest,
+          machinesLatestPrice: machine.machines_latest?.[0]?.machines_latest_price,
+          finalPrice: machine.machines_latest?.[0]?.machines_latest_price || machine["Price"] || 0,
+          valuePassedIn: value
+        });
+      }
+      
+      // Use latest price when available
+      const price = machine.machines_latest?.[0]?.machines_latest_price || (typeof machine["Price"] === "number" ? machine["Price"] : parseFloat(String(machine["Price"] || 0)));
+      return `$${price.toLocaleString()}`
     }
 
     if (fieldName === "workArea" && typeof value === "string") {
@@ -248,147 +262,147 @@ export default function EnhancedComparisonTable({ machines }: EnhancedComparison
         id: "company",
         accessorFn: (row) => row["Company"],
         header: "Brand",
-        cell: ({ row }) => renderCellContent(row.original["Company"], "company"),
+        cell: ({ row }) => renderCellContent(row.original["Company"], "company", row.original),
       },
       // Laser Type
       {
         id: "laserTypeA",
         accessorFn: (row) => row["Laser Type A"],
         header: "Laser Type",
-        cell: ({ row }) => renderCellContent(row.original["Laser Type A"], "laserTypeA"),
+        cell: ({ row }) => renderCellContent(row.original["Laser Type A"], "laserTypeA", row.original),
       },
       // Laser Power
       {
         id: "laserPowerA",
         accessorFn: (row) => row["Laser Power A"],
         header: "Power (W)",
-        cell: ({ row }) => renderCellContent(row.original["Laser Power A"], "laserPowerA"),
+        cell: ({ row }) => renderCellContent(row.original["Laser Power A"], "laserPowerA", row.original),
       },
       // Price
       {
         id: "price",
         accessorFn: (row) => row["Price"],
         header: "Price",
-        cell: ({ row }) => renderCellContent(row.original["Price"], "price"),
+        cell: ({ row }) => renderCellContent(row.original["Price"], "price", row.original),
       },
       // Work Area
       {
         id: "workArea",
         accessorFn: (row) => row["Work Area"],
         header: "Work Area (mm)",
-        cell: ({ row }) => renderCellContent(row.original["Work Area"], "workArea"),
+        cell: ({ row }) => renderCellContent(row.original["Work Area"], "workArea", row.original),
       },
       // Height
       {
         id: "height",
         accessorFn: (row) => row["Height"],
         header: "Height (mm)",
-        cell: ({ row }) => renderCellContent(row.original["Height"], "height"),
+        cell: ({ row }) => renderCellContent(row.original["Height"], "height", row.original),
       },
       // Machine Size
       {
         id: "machineSize",
         accessorFn: (row) => row["Machine Size"],
         header: "Machine Size (mm)",
-        cell: ({ row }) => renderCellContent(row.original["Machine Size"], "machineSize"),
+        cell: ({ row }) => renderCellContent(row.original["Machine Size"], "machineSize", row.original),
       },
       // Speed
       {
         id: "speed",
         accessorFn: (row) => row["Speed"],
         header: "Speed (mm/s)",
-        cell: ({ row }) => renderCellContent(row.original["Speed"], "speed"),
+        cell: ({ row }) => renderCellContent(row.original["Speed"], "speed", row.original),
       },
       // Acceleration
       {
         id: "acceleration",
         accessorFn: (row) => row["Acceleration"],
         header: "Acceleration",
-        cell: ({ row }) => renderCellContent(row.original["Acceleration"], "acceleration"),
+        cell: ({ row }) => renderCellContent(row.original["Acceleration"], "acceleration", row.original),
       },
       // Laser Frequency
       {
         id: "laserFrequency",
         accessorFn: (row) => row["Laser Frequency"],
         header: "Frequency",
-        cell: ({ row }) => renderCellContent(row.original["Laser Frequency"], "laserFrequency"),
+        cell: ({ row }) => renderCellContent(row.original["Laser Frequency"], "laserFrequency", row.original),
       },
       // Pulse Width
       {
         id: "pulseWidth",
         accessorFn: (row) => row["Pulse Width"],
         header: "Pulse Width",
-        cell: ({ row }) => renderCellContent(row.original["Pulse Width"], "pulseWidth"),
+        cell: ({ row }) => renderCellContent(row.original["Pulse Width"], "pulseWidth", row.original),
       },
       // Focus
       {
         id: "focus",
         accessorFn: (row) => row["Focus"],
         header: "Focus",
-        cell: ({ row }) => renderCellContent(row.original["Focus"], "focus"),
+        cell: ({ row }) => renderCellContent(row.original["Focus"], "focus", row.original),
       },
       // Enclosure
       {
         id: "enclosure",
         accessorFn: (row) => row["Enclosure"],
         header: "Enclosure",
-        cell: ({ row }) => renderCellContent(row.original["Enclosure"], "enclosure"),
+        cell: ({ row }) => renderCellContent(row.original["Enclosure"], "enclosure", row.original),
       },
       // WiFi
       {
         id: "wifi",
         accessorFn: (row) => row["Wifi"],
         header: "WiFi",
-        cell: ({ row }) => renderCellContent(row.original["Wifi"], "wifi"),
+        cell: ({ row }) => renderCellContent(row.original["Wifi"], "wifi", row.original),
       },
       // Camera
       {
         id: "camera",
         accessorFn: (row) => row["Camera"],
         header: "Camera",
-        cell: ({ row }) => renderCellContent(row.original["Camera"], "camera"),
+        cell: ({ row }) => renderCellContent(row.original["Camera"], "camera", row.original),
       },
       // Passthrough
       {
         id: "passthrough",
         accessorFn: (row) => row["Passthrough"],
         header: "Passthrough",
-        cell: ({ row }) => renderCellContent(row.original["Passthrough"], "passthrough"),
+        cell: ({ row }) => renderCellContent(row.original["Passthrough"], "passthrough", row.original),
       },
       // Controller
       {
         id: "controller",
         accessorFn: (row) => row["Controller"],
         header: "Controller",
-        cell: ({ row }) => renderCellContent(row.original["Controller"], "controller"),
+        cell: ({ row }) => renderCellContent(row.original["Controller"], "controller", row.original),
       },
       // Software
       {
         id: "software",
         accessorFn: (row) => row["Software"],
         header: "Software",
-        cell: ({ row }) => renderCellContent(row.original["Software"], "software"),
+        cell: ({ row }) => renderCellContent(row.original["Software"], "software", row.original),
       },
       // Warranty
       {
         id: "warranty",
         accessorFn: (row) => row["Warranty"],
         header: "Warranty",
-        cell: ({ row }) => renderCellContent(row.original["Warranty"], "warranty"),
+        cell: ({ row }) => renderCellContent(row.original["Warranty"], "warranty", row.original),
       },
       // Laser Source Manufacturer
       {
         id: "laserSourceManufacturer",
         accessorFn: (row) => row["Laser Source Manufacturer"],
         header: "Laser Source",
-        cell: ({ row }) => renderCellContent(row.original["Laser Source Manufacturer"], "laserSourceManufacturer"),
+        cell: ({ row }) => renderCellContent(row.original["Laser Source Manufacturer"], "laserSourceManufacturer", row.original),
       },
       // Rating
       {
         id: "rating",
         accessorFn: (row) => row["Rating"],
         header: "Rating",
-        cell: ({ row }) => renderCellContent(row.original["Rating"], "rating"),
+        cell: ({ row }) => renderCellContent(row.original["Rating"], "rating", row.original),
       },
       // Compare/Actions Column
       {

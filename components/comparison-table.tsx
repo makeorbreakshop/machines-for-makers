@@ -90,7 +90,21 @@ export default function ComparisonTable({ machines }: ComparisonTableProps) {
     }
 
     if (column === "Price") {
-      return typeof value === "number" ? `$${value.toLocaleString()}` : "—"
+      // Debug price data for Genmitsu L8
+      if (machine["Internal link"] === "genmitsu-l8") {
+        console.log("DEBUGGING GENMITSU L8 IN STANDARD TABLE:", {
+          name: machine["Machine Name"],
+          originalPrice: machine["Price"],
+          machinesLatest: machine.machines_latest,
+          machinesLatestPrice: machine.machines_latest?.[0]?.machines_latest_price,
+          finalPrice: machine.machines_latest?.[0]?.machines_latest_price || machine["Price"] || 0,
+          valuePassedIn: value
+        });
+      }
+      
+      // Use latest price when available
+      const price = machine.machines_latest?.[0]?.machines_latest_price || (typeof machine["Price"] === "number" ? machine["Price"] : 0);
+      return price ? `$${price.toLocaleString()}` : "—";
     }
 
     if (column === "Rating") {

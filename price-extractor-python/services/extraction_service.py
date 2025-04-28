@@ -440,8 +440,64 @@ class ExtractionService:
             # Log validation results
             logger.info(f"Price validation results: {validation_result}")
             
-            # If validation fails or confidence is too low, don't update the price
-            if not validation_result["is_valid"] or validation_result["validation_confidence"] < validation_confidence_threshold:
+            # Check if validation failed and we should try next tier
+            if not validation_result.get("is_valid", False) and not requires_js:
+                logger.info(f"Price validation failed for {extraction_method}, trying next tier")
+                
+                # Try SLICE_FAST tier if we were in STATIC
+                if extraction_method.startswith("STATIC"):
+                    extracted_price, extraction_method, extraction_confidence, usage_info = await self._extract_slice_fast(
+                        html_content,
+                        product_url,
+                        previous_price,
+                        variant_attribute
+                    )
+                    
+                    if usage_info and usage_info.get("estimated_cost") is not None and usage_info.get("estimated_cost") > 0:
+                        llm_usage_data.append(usage_info)
+                        
+                    # Validate new price
+                    if extracted_price:
+                        validation_result = await self._perform_validation(
+                            extracted_price,
+                            previous_price,
+                            extraction_method,
+                            extraction_confidence,
+                            validation_confidence_threshold,
+                            product_category,
+                            machine.get("Machine Name"),
+                            sanity_check_threshold,
+                            flags_for_review
+                        )
+                
+                # Try SLICE_BALANCED tier if SLICE_FAST failed or validation still failed
+                if (not extracted_price or not validation_result.get("is_valid", False)) and extraction_method.startswith(("STATIC", "SLICE_FAST")):
+                    extracted_price, extraction_method, extraction_confidence, usage_info = await self._extract_slice_balanced(
+                        html_content,
+                        product_url,
+                        previous_price,
+                        variant_attribute
+                    )
+                    
+                    if usage_info and usage_info.get("estimated_cost") is not None and usage_info.get("estimated_cost") > 0:
+                        llm_usage_data.append(usage_info)
+                        
+                    # Validate new price
+                    if extracted_price:
+                        validation_result = await self._perform_validation(
+                            extracted_price,
+                            previous_price,
+                            extraction_method,
+                            extraction_confidence,
+                            validation_confidence_threshold,
+                            product_category,
+                            machine.get("Machine Name"),
+                            sanity_check_threshold,
+                            flags_for_review
+                        )
+
+            # Check the validation status
+            if validation_result["status"] == "FAILED":
                 error_msg = f"Price validation failed: {validation_result['validation_reason']}"
                 logger.warning(f"{error_msg} for {machine_id}/{variant_attribute}")
                 
@@ -491,7 +547,7 @@ class ExtractionService:
                     extraction_confidence=extraction_confidence,
                     validation_confidence=validation_result["validation_confidence"],
                     currency="USD",
-                    manual_review_flag=validation_result["needs_manual_review"],
+                    manual_review_flag=validation_result["status"] == "NEEDS_REVIEW",
                     review_reason=validation_result["validation_reason"],
                     llm_usage_data=llm_usage_data,
                     batch_id=batch_id,
@@ -529,14 +585,14 @@ class ExtractionService:
                     logger.error(f"Failed to save price for {machine_id}/{variant_attribute}")
                 
                 # Set manual review flag if needed
-                if validation_result["needs_manual_review"]:
+                if validation_result["status"] == "NEEDS_REVIEW":
                     await self.db_service.set_manual_review_flag(
                         machine_id=machine_id,
                         variant_attribute=variant_attribute,
                         flag_value=True,
                         flag_reason=validation_result["validation_reason"]
                     )
-            elif validation_result["needs_manual_review"]:
+            elif validation_result["status"] == "NEEDS_REVIEW":
                 # Even in dry run, log that this would need a review
                 logger.info(f"Dry run: Price for {machine_id}/{variant_attribute} would be flagged for review: {validation_result['validation_reason']}")
             
@@ -564,8 +620,9 @@ class ExtractionService:
                 "extraction_confidence": extraction_confidence,
                 "validation_confidence": validation_result["validation_confidence"],
                 "price_unchanged": validation_result["price_unchanged"],
-                "needs_review": validation_result["needs_manual_review"],
-                "review_reason": validation_result["validation_reason"] if validation_result["needs_manual_review"] else None,
+                "needs_review": validation_result["status"] == "NEEDS_REVIEW",
+                "review_reason": validation_result["validation_reason"] if validation_result["status"] == "NEEDS_REVIEW" else None,
+                "status": validation_result["status"],
                 "extraction_attempts": self.extraction_attempts,
                 "duration_seconds": time.time() - start_time,
                 "dry_run": dry_run
@@ -867,6 +924,9 @@ class ExtractionService:
         # Check if validation passes the threshold
         validation_passed = is_valid and validation_confidence >= validation_confidence_threshold
         
+        # Determine final status - prioritize needs_manual_review over validation_passed
+        status = "NEEDS_REVIEW" if needs_manual_review else ("PASSED" if validation_passed else "FAILED")
+        
         # Prepare validation result
         result = {
             "is_valid": is_valid,
@@ -874,7 +934,8 @@ class ExtractionService:
             "needs_manual_review": needs_manual_review,
             "validation_reason": validation_reason,
             "price_unchanged": price_unchanged,
-            "validation_passed": validation_passed
+            "validation_passed": validation_passed,
+            "status": status
         }
         
         return result

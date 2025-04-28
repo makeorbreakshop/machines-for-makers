@@ -1696,7 +1696,10 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                                       <Button 
                                         variant="outline" 
                                         size="sm"
-                                        onClick={() => removeImageFromGallery(index)}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          removeImageFromGallery(index);
+                                        }}
                                         className="text-xs text-red-500 hover:text-red-600 w-1/3"
                                       >
                                         <Trash className="h-3 w-3 mr-1" />

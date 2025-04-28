@@ -281,102 +281,57 @@ const FeaturesList = React.memo(function FeaturesList() {
 
 // Unified filtering function with optimized performance
 function applyAllFilters(products: Machine[], filters: Filters): Machine[] {
-  // Skip filtering if no filters are explicitly set
-  const isUsingDefaultFilters = 
-    filters.laserTypes.length === 0 && 
-    filters.features.length === 0 && 
-    filters.priceRange[0] === 0 && 
-    filters.priceRange[1] === 15000 &&
-    filters.powerRange[0] === 0 && 
-    filters.powerRange[1] === 150 &&
-    filters.speedRange[0] === 0 && 
-    filters.speedRange[1] === 2000 &&
-    !filters.isTopPick;
-  
-  if (isUsingDefaultFilters) {
-    return products; // Return all products if using default filters
-  }
-  
-  // Apply all filters sequentially to maintain clean and predictable behavior
-  let filteredProducts = [...products];
-  
-  // 1. Apply Top Pick filter first
-  if (filters.isTopPick) {
-    filteredProducts = filteredProducts.filter(product => product.Award);
-  }
-  
-  // 2. Apply laser type filter - this is always the thorough matching version
-  if (filters.laserTypes.length > 0) {
-    filteredProducts = filteredProducts.filter(product => 
-      filters.laserTypes.some(laserType => matchesLaserType(product, laserType))
-    );
-  }
-  
-  // 3. Apply price range filter
-  if (filters.priceRange[0] > 0 || filters.priceRange[1] < 15000) {
-    filteredProducts = filteredProducts.filter(product => {
-      const price = parseFloat(String(product.Price || 0));
-      return !isNaN(price) && price >= filters.priceRange[0] && price <= filters.priceRange[1];
-    });
-  }
-  
-  // 4. Apply power range filter
-  if (filters.powerRange[0] > 0 || filters.powerRange[1] < 150) {
-    filteredProducts = filteredProducts.filter(product => {
-      const powerStr = product["Laser Power A"] || "0";
-      let power = 0;
-      try {
-        power = typeof powerStr === 'number' 
-          ? powerStr 
-          : parseFloat(powerStr.toString().replace(/[^0-9.-]+/g,""));
-      } catch (e) {
-        power = 0;
-      }
-      
-      return !isNaN(power) && power >= filters.powerRange[0] && power <= filters.powerRange[1];
-    });
-  }
-  
-  // 5. Apply speed range filter
-  if (filters.speedRange[0] > 0 || filters.speedRange[1] < 2000) {
-    filteredProducts = filteredProducts.filter(product => {
-      const speedStr = product.Speed || "0";
-      let speed = 0;
-      try {
-        speed = typeof speedStr === 'number' 
-          ? speedStr 
-          : parseFloat(speedStr.toString().replace(/[^0-9.-]+/g,""));
-      } catch (e) {
-        speed = 0;
-      }
-      
-      return !isNaN(speed) && speed >= filters.speedRange[0] && speed <= filters.speedRange[1];
-    });
-  }
-  
-  // 6. Apply features filter last
-  if (filters.features.length > 0) {
-    filteredProducts = filteredProducts.filter(product => {
-      return filters.features.every((feature) => {
+  return products.filter(product => {
+    // Laser type filter
+    if (filters.laserTypes.length > 0) {
+      const hasMatchingLaserType = filters.laserTypes.some(type => matchesLaserType(product, type));
+      if (!hasMatchingLaserType) return false;
+    }
+
+    // Power range filter
+    const power = parseFloat(String(product["Laser Power A"] || 0));
+    if (power < filters.powerRange[0] || power > filters.powerRange[1]) {
+      return false;
+    }
+
+    // Price range filter
+    const price = product.machines_latest?.[0]?.machines_latest_price || (typeof product.Price === 'number' ? product.Price : parseFloat(String(product.Price || 0)));
+    if (price < filters.priceRange[0] || price > filters.priceRange[1]) {
+      return false;
+    }
+
+    // Speed range filter
+    const speed = parseFloat(String(product.Speed || 0));
+    if (speed < filters.speedRange[0] || speed > filters.speedRange[1]) {
+      return false;
+    }
+
+    // Features filter
+    if (filters.features.length > 0) {
+      const hasAllFeatures = filters.features.every(feature => {
         switch (feature) {
+          case "Enclosure":
+            return product.Enclosure === "Yes";
           case "Camera":
             return product.Camera === "Yes";
           case "Wifi":
             return product.Wifi === "Yes";
-          case "Enclosure":
-            return product.Enclosure === "Yes";
-          case "Focus":
-            return product.Focus === "Auto";
           case "Passthrough":
             return product.Passthrough === "Yes";
           default:
-            return false;
+            return true;
         }
       });
-    });
-  }
-  
-  return filteredProducts;
+      if (!hasAllFeatures) return false;
+    }
+
+    // Top Pick filter
+    if (filters.isTopPick && product.Award !== "Top Pick") {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 // Rate Limit Warning component 
@@ -540,12 +495,12 @@ export default function CompareClientPage({
     return [...productsToSort].sort((a, b) => {
       switch (sortOption) {
         case "price-asc":
-          const priceA = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0));
-          const priceB = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0));
+          const priceA = a.machines_latest?.[0]?.machines_latest_price || (typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0)));
+          const priceB = b.machines_latest?.[0]?.machines_latest_price || (typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0)));
           return priceA - priceB;
         case "price-desc":
-          const priceA2 = typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0));
-          const priceB2 = typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0));
+          const priceA2 = a.machines_latest?.[0]?.machines_latest_price || (typeof a.Price === 'number' ? a.Price : parseFloat(String(a.Price || 0)));
+          const priceB2 = b.machines_latest?.[0]?.machines_latest_price || (typeof b.Price === 'number' ? b.Price : parseFloat(String(b.Price || 0)));
           return priceB2 - priceA2;
         case "power-desc":
           const powerA = parseFloat(String(a["Laser Power A"] || 0));

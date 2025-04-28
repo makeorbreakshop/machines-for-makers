@@ -114,7 +114,8 @@ export async function GET(request: NextRequest) {
         "Laser Source Manufacturer", 
         "Created On", 
         "Updated On", 
-        "Published On"
+        "Published On",
+        machines_latest(machines_latest_price)
       `;
   }
 

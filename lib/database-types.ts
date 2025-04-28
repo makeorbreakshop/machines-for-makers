@@ -108,6 +108,7 @@ export type Machine = {
   "Collection ID": string | null
   "Locale ID": string | null
   "Item ID": string | null
+  machines_latest?: Array<{ machines_latest_price: number }> | null
 }
 
 export type Review = {

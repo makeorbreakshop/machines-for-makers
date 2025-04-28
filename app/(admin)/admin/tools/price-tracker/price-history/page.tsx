@@ -340,6 +340,7 @@ export default function PriceHistoryPage() {
     maxPriceChange: null as number | null,
     extractionMethod: [] as string[],
     confidence: null as number | null,
+    reviewResult: null as 'APPROVED' | 'REJECTED' | null,
   })
   
   // Pagination state
@@ -431,7 +432,12 @@ export default function PriceHistoryPage() {
       
       // Add filters
       if (filters.status.length > 0) {
-        query = query.in('status', filters.status)
+        // When in review mode, also exclude REVIEWED status
+        if (filters.status.includes('NEEDS_REVIEW')) {
+          query = query.in('status', filters.status).not('status', 'eq', 'REVIEWED');
+        } else {
+          query = query.in('status', filters.status);
+        }
       }
       
       if (filters.batchId) {
@@ -471,6 +477,11 @@ export default function PriceHistoryPage() {
         query = query
           .gte('date', filters.startDate.toISOString())
           .lte('date', filters.endDate.toISOString())
+      }
+
+      // Add review result filter
+      if (filters.reviewResult) {
+        query = query.eq('review_result', filters.reviewResult);
       }
 
       // Execute the query
@@ -522,6 +533,13 @@ export default function PriceHistoryPage() {
       setFilters(prev => ({
         ...prev,
         status: ['NEEDS_REVIEW'],
+        batchId: null,
+        reviewResult: null
+      }))
+    } else if (mode === 'reviewed') {
+      setFilters(prev => ({
+        ...prev,
+        status: ['REVIEWED'],
         batchId: null
       }))
     } else if (mode === 'batch') {
@@ -531,7 +549,8 @@ export default function PriceHistoryPage() {
       setFilters(prev => ({
         ...prev,
         status: [],
-        batchId: null
+        batchId: null,
+        reviewResult: null
       }))
     }
   }
@@ -664,15 +683,39 @@ export default function PriceHistoryPage() {
       }
 
       const now = new Date().toISOString();
+
+      // Update the original record to mark it as reviewed
+      const { error: updateError } = await supabaseClient
+        .from('price_history')
+        .update({
+          status: 'REVIEWED',
+          reviewed_by: 'admin', // TODO: Get actual user
+          reviewed_at: now,
+          review_result: action === 'approve' ? 'APPROVED' : 'REJECTED'
+        })
+        .eq('id', priceHistoryId);
+
+      if (updateError) {
+        throw new Error(`Failed to update original record: ${updateError.message}`);
+      }
+
+      // Ensure we have a valid price to use
+      const priceToUse = action === 'approve' 
+        ? originalRecord.price 
+        : (originalRecord.validation_basis_price || originalRecord.previous_price || originalRecord.price);
+
+      if (!priceToUse) {
+        throw new Error('No valid price available for the operation');
+      }
       
       // Create a new price history record
       const newRecord = {
         machine_id: machineId,
-        variant_attribute: variantAttribute,
-        price: action === 'approve' ? originalRecord.price : null,
+        variant_attribute: variantAttribute || 'DEFAULT',
+        price: priceToUse,
         date: now,
         status: action === 'approve' ? 'SUCCESS' : 'FAILED',
-        currency: originalRecord.currency,
+        currency: originalRecord.currency || 'USD',
         tier: originalRecord.tier,
         extraction_method: originalRecord.extraction_method,
         extracted_confidence: originalRecord.extracted_confidence,
@@ -691,26 +734,38 @@ export default function PriceHistoryPage() {
         .select()
         .single();
 
-      if (insertError || !insertedRecord) {
-        throw new Error(insertError?.message || 'Failed to create review record');
+      if (insertError) {
+        console.error('Insert Error:', insertError);
+        throw new Error(insertError.message || 'Failed to create review record');
+      }
+
+      if (!insertedRecord) {
+        throw new Error('No record was inserted');
       }
 
       // If approved, update machines_latest
       if (action === 'approve') {
-        const { error: updateError } = await supabaseClient
+        const { error: latestError } = await supabaseClient
           .from('machines_latest')
           .upsert({
             machine_id: machineId,
-            variant_attribute: variantAttribute,
+            variant_attribute: variantAttribute || 'DEFAULT',
             machines_latest_price: originalRecord.price,
-            currency: originalRecord.currency,
+            currency: originalRecord.currency || 'USD',
             last_checked: now,
             tier: originalRecord.tier,
-            confidence: originalRecord.extracted_confidence
+            confidence: originalRecord.extracted_confidence,
+            latest_price_history_id: insertedRecord.id,
+            latest_successful_price_history_id: insertedRecord.id,
+            last_successful_update_time: now,
+            last_attempt_time: now,
+            manual_review_flag: false,
+            flag_reason: null
           });
 
-        if (updateError) {
-          throw new Error(updateError.message);
+        if (latestError) {
+          console.error('Update Error:', latestError);
+          throw new Error(latestError.message);
         }
       }
 
@@ -792,7 +847,13 @@ export default function PriceHistoryPage() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Review Mode
+                Review Queue
+              </TabsTrigger>
+              <TabsTrigger value="reviewed" className="rounded-sm px-3 py-1.5 text-sm transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Review History
               </TabsTrigger>
               <TabsTrigger value="batch" className="rounded-sm px-3 py-1.5 text-sm transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -800,7 +861,7 @@ export default function PriceHistoryPage() {
                 </svg>
                 Batch Mode
               </TabsTrigger>
-        </TabsList>
+            </TabsList>
           </div>
           
           <TabsContent value="history" className="p-4">
@@ -825,6 +886,38 @@ export default function PriceHistoryPage() {
             <p className="text-sm text-muted-foreground ml-7 mt-1 mb-3">
                 Review and approve/reject price changes that require manual verification
               </p>
+        </TabsContent>
+        
+          <TabsContent value="reviewed" className="p-4">
+            <div className="flex items-center space-x-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <h2 className="text-xl font-semibold">Review History</h2>
+            </div>
+            <p className="text-sm text-muted-foreground ml-7 mt-1 mb-3">
+              View history of reviewed price changes and their decisions
+            </p>
+            <div className="ml-7 mt-4 flex items-center gap-3">
+              <div className="flex gap-2">
+                <Button 
+                  size="sm"
+                  variant={filters.reviewResult === 'APPROVED' ? "default" : "outline"}
+                  className={filters.reviewResult === 'APPROVED' ? "bg-green-100 text-green-800 hover:bg-green-200 hover:text-green-900 border-green-200" : ""}
+                  onClick={() => handleFilterChange({ reviewResult: filters.reviewResult === 'APPROVED' ? null : 'APPROVED' })}
+                >
+                  Approved
+                </Button>
+                <Button 
+                  size="sm"
+                  variant={filters.reviewResult === 'REJECTED' ? "default" : "outline"}
+                  className={filters.reviewResult === 'REJECTED' ? "bg-red-100 text-red-800 hover:bg-red-200 hover:text-red-900 border-red-200" : ""}
+                  onClick={() => handleFilterChange({ reviewResult: filters.reviewResult === 'REJECTED' ? null : 'REJECTED' })}
+                >
+                  Rejected
+                </Button>
+              </div>
+            </div>
         </TabsContent>
         
           <TabsContent value="batch" className="p-4">

@@ -637,10 +637,10 @@ class DatabaseService:
     async def get_machines_for_update(self, days_threshold: int = 7, limit: int = None, 
                                with_js_interaction: bool = False) -> List[Dict[str, Any]]:
         """
-        Get machines that need price updates based on last check date.
+        Get machines that need price updates based on last successful update time.
         
         Args:
-            days_threshold (int): Number of days since last check
+            days_threshold (int): Number of days since last successful update. If 0, returns all machines.
             limit (int, optional): Limit number of results
             with_js_interaction (bool): Whether to include machines requiring JS interaction
             
@@ -648,6 +648,8 @@ class DatabaseService:
             list: List of machines that need updates
         """
         try:
+            logger.info(f"Getting machines for update with days_threshold={days_threshold}, limit={limit}")
+            
             # Start by querying machines that have product links
             query = self.supabase.table(MACHINES_TABLE) \
                 .select("id, \"Machine Name\", product_link") \
@@ -661,54 +663,42 @@ class DatabaseService:
             response = query.execute()
             
             if not response.data:
+                logger.info("No machines found with product links")
                 return []
+            
+            logger.info(f"Found {len(response.data)} machines with product links")
             
             # Get the latest updates for these machines
             machine_ids = [machine.get("id") for machine in response.data]
             
             # Query machines_latest table to filter by days threshold
-            # Use direct query approach instead of stored procedure
             if days_threshold > 0:
+                cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days_threshold)).isoformat()
+                logger.info(f"Filtering machines not updated since {cutoff_date}")
+                
                 latest_query = self.supabase.table(MACHINES_LATEST_TABLE) \
-                    .select("machine_id, variant_attribute, last_checked") \
+                    .select("machine_id, variant_attribute, last_successful_update_time") \
                     .in_("machine_id", machine_ids) \
-                    .lt("last_checked", (datetime.now(timezone.utc) - timedelta(days=days_threshold)).isoformat())
-            else:
-                # If days_threshold is 0, don't filter by date
-                latest_query = self.supabase.table(MACHINES_LATEST_TABLE) \
-                    .select("machine_id, variant_attribute, last_checked") \
-                    .in_("machine_id", machine_ids)
-            
-            if with_js_interaction:
-                # Get the domains that require JS interaction
-                domains_query = self.supabase.table(VARIANT_CONFIG_TABLE) \
-                    .select("machine_id, variant_attribute, domain") \
-                    .eq("requires_js_interaction", True) \
-                    .execute()
+                    .or_(f"last_successful_update_time.lt.{cutoff_date},last_successful_update_time.is.null")
+                    
+                latest_response = latest_query.execute()
                 
-                js_machines = set()
-                if domains_query.data:
-                    for entry in domains_query.data:
-                        js_machines.add(entry.get("machine_id"))
-                
-                # Filter machines by those requiring JS interaction
-                if js_machines:
-                    machine_ids = [m_id for m_id in machine_ids if m_id in js_machines]
+                if latest_response.data:
+                    # Get machines that need updates based on last_successful_update_time date
+                    update_needed_ids = set(item.get("machine_id") for item in latest_response.data)
+                    machines_to_update = [
+                        machine for machine in response.data 
+                        if machine.get("id") in update_needed_ids
+                    ]
+                    logger.info(f"Found {len(machines_to_update)} machines needing updates (not checked in {days_threshold} days)")
+                    return machines_to_update
                 else:
-                    return []  # No machines require JS interaction
-            
-            latest_response = latest_query.execute()
-            
-            # Combine the data
-            if latest_response.data:
-                update_needed_ids = set(item.get("machine_id") for item in latest_response.data)
-                machines_to_update = [
-                    machine for machine in response.data 
-                    if machine.get("id") in update_needed_ids
-                ]
-                return machines_to_update
+                    # If no matches in machines_latest, these machines need initial update
+                    logger.info(f"No machines found in machines_latest table, returning all {len(response.data)} machines")
+                    return response.data
             else:
-                # If no matches in machines_latest, these machines need initial update
+                # If days_threshold is 0, return all machines with product links
+                logger.info(f"Days threshold is 0, returning all {len(response.data)} machines with product links")
                 return response.data
                 
         except Exception as e:

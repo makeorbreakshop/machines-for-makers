@@ -271,7 +271,7 @@ export default function PriceTrackerAdmin() {
     
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/v1/machines/${machine.id}/price-history`,
+        `/api/admin/price-history?machine_id=${machine.id}&sort=date&order=desc`,
         {
           method: 'GET',
           headers: {
@@ -290,7 +290,7 @@ export default function PriceTrackerAdmin() {
         throw new Error(data.error || "Failed to fetch price history");
       }
       
-      setPriceHistory(data.price_history || []);
+      setPriceHistory(data.items || []);
     } catch (error) {
       console.error("Error fetching price history:", error);
       toast.error(`Failed to load price history: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -584,8 +584,7 @@ export default function PriceTrackerAdmin() {
       
       // Set batch parameters according to updated API requirements
       const batchParams = { 
-        // As per the PRD, days_threshold is less relevant with the new schema, but kept for backward compatibility
-        days_threshold: 0,
+        days_threshold: daysThreshold, // Use the actual days threshold from the form
         limit: machineLimit,
         machine_ids: previewMachineIds,
         dry_run: isDryRun,
@@ -1321,8 +1320,8 @@ export default function PriceTrackerAdmin() {
             asChild
             className="flex items-center gap-2"
           >
-            <Link href="/admin/tools/price-tracker/unified-dashboard">
-              <LineChart className="h-4 w-4" /> Unified Dashboard
+            <Link href="/admin/tools/price-tracker/price-history">
+              <LineChart className="h-4 w-4" /> Price History
             </Link>
           </Button>
           
@@ -1423,7 +1422,11 @@ export default function PriceTrackerAdmin() {
                   </TableHeader>
                   <TableBody>
                     {machines.map((machine) => (
-                      <TableRow key={machine.id}>
+                      <TableRow 
+                        key={machine.id}
+                        className={`cursor-pointer hover:bg-gray-50 ${selectedMachine?.id === machine.id ? 'bg-blue-50' : ''}`}
+                        onClick={() => selectMachine(machine)}
+                      >
                         <TableCell className="font-medium">{machine.machine_name}</TableCell>
                         <TableCell>{machine.brand}</TableCell>
                         <TableCell>{machine.company}</TableCell>
@@ -1433,7 +1436,10 @@ export default function PriceTrackerAdmin() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => updatePrice(machine)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updatePrice(machine);
+                              }}
                               disabled={updatingPrices[machine.id]}
                             >
                               {updatingPrices[machine.id] ? (
@@ -1451,7 +1457,10 @@ export default function PriceTrackerAdmin() {
                             <Button 
                               variant="ghost" 
                               size="sm"
-                              onClick={() => handleDebug(machine)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDebug(machine);
+                              }}
                             >
                               <Bug className="h-4 w-4" />
                             </Button>

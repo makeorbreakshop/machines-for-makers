@@ -718,15 +718,20 @@ async def configure_batch_update(request: dict):
     
     Args:
         request (dict): The request body containing configuration parameters:
+            - days_threshold (int): Number of days since last update to filter by
             - limit (Optional[int]): Maximum number of machines to process
     """
     try:
+        days_threshold = request.get("days_threshold", 7)  # Default to 7 days if not provided
         limit = request.get("limit", None)
         
-        logger.info(f"Configuring batch update with limit={limit}")
+        logger.info(f"Configuring batch update with days_threshold={days_threshold}, limit={limit}")
         
-        # Get machines that need updates - no days threshold filtering
-        machines = await price_service.db_service.get_machines_for_update(limit=limit)
+        # Get machines that need updates - using days threshold filtering
+        machines = await price_service.db_service.get_machines_for_update(
+            days_threshold=days_threshold,
+            limit=limit
+        )
         
         # Extract machine IDs
         machine_ids = [machine.get("id") for machine in machines if machine.get("id")]
@@ -738,6 +743,7 @@ async def configure_batch_update(request: dict):
         return {
             "success": True,
             "configuration": {
+                "days_threshold": days_threshold,
                 "limit": limit,
                 "machine_count": len(machine_ids),
                 "machine_ids": machine_ids
