@@ -510,7 +510,8 @@ class ExtractionService:
                     price_location_in_dom=extraction_metadata.get("price_location"),
                     retry_count=extraction_metadata.get("retry_count"),
                     cleaned_price_string=extraction_metadata.get("cleaned_price_string"),
-                    parsed_currency_from_text=extraction_metadata.get("parsed_currency")
+                    parsed_currency_from_text=extraction_metadata.get("parsed_currency"),
+                    previous_price=previous_price
                 )
                 
                 if saved:
@@ -998,7 +999,8 @@ class ExtractionService:
         price_location_in_dom: Optional[str] = None,
         retry_count: Optional[int] = None,
         cleaned_price_string: Optional[str] = None,
-        parsed_currency_from_text: Optional[str] = None
+        parsed_currency_from_text: Optional[str] = None,
+        previous_price: Optional[Decimal] = None
     ) -> bool:
         """Save price extraction results to the database."""
         try:
@@ -1007,8 +1009,9 @@ class ExtractionService:
             company = machine.get("company") if machine else None
             category = machine.get("category") if machine else None
             
-            # Get the previous price for validation
-            previous_price = await self.db_service.get_previous_price(machine_id, variant_attribute)
+            # Only query the previous_price if not provided
+            if previous_price is None:
+                previous_price = await self.db_service.get_previous_price(machine_id, variant_attribute)
             
             # Add price history record
             price_history_id = await self.db_service.add_price_history(
@@ -1133,7 +1136,8 @@ class ExtractionService:
                         extraction_attempts=extraction_attempts,
                         needs_review=False,
                         review_reason=None,
-                        batch_id=batch_id
+                        batch_id=batch_id,
+                        previous_price=old_price
                     )
                 return {
                     "success": False,
@@ -1172,7 +1176,8 @@ class ExtractionService:
                     extraction_attempts=extraction_attempts,
                     needs_review=needs_review,
                     review_reason=review_reason,
-                    batch_id=batch_id
+                    batch_id=batch_id,
+                    previous_price=old_price
                 )
                 if not price_history_id:
                     return {
@@ -1225,7 +1230,8 @@ class ExtractionService:
                     extraction_attempts=extraction_attempts,
                     needs_review=False,
                     review_reason=None,
-                    batch_id=batch_id
+                    batch_id=batch_id,
+                    previous_price=old_price if 'old_price' in locals() else None
                 )
             return {
                 "success": False,
