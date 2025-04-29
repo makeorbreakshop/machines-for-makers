@@ -6,7 +6,7 @@ const API_URL = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localho
 
 export async function POST(request: Request) {
   try {
-    const { machineId } = await request.json();
+    const { machineId, variantAttribute = 'DEFAULT' } = await request.json();
     
     if (!machineId) {
       return NextResponse.json({ error: 'Machine ID is required' }, { status: 400 });
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
         dry_run: false,
         flags_for_review: true,
         sanity_check_threshold: 25.0,
-        variant_attribute: 'DEFAULT'
+        variant_attribute: variantAttribute
       }),
     });
 
