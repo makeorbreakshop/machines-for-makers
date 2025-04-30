@@ -15,10 +15,12 @@ This tool helps UV printer users estimate ink costs for print jobs. It allows us
 - Results visualization with breakdown by channel
 - Copy results functionality
 - API endpoint for programmatic access
-
-### To Be Completed
 - Test data collection interface in admin panel
 - Validation against real test prints
+- Auto-calibration system based on test data
+- Channel-specific calibration factors
+
+### To Be Completed
 - Unit and integration tests
 - Performance optimizations
 - Mobile responsive testing
@@ -28,18 +30,35 @@ This tool helps UV printer users estimate ink costs for print jobs. It allows us
 ## Technical Details
 
 ### Calculation Methodology
-The calculator uses a combination of:
-1. Pixel sampling to determine coverage percentage
-2. Static multipliers based on test print data
-3. Manual override capability for exact values
+The calculator uses the following approach:
+1. Pixel sampling to determine coverage percentage by channel
+2. Enhanced formula: mL = base_value + (coverage% × area × channel_factor × quality_factor × area_scaling_factor)
+3. Channel-specific calibration factors adjusted through test data
+4. Automatic recalibration based on real-world measurements
+5. Area scaling based on print size thresholds
+
+### Auto-Calibration System
+The system includes:
+- Admin validation dashboard to compare predictions vs actual measurements
+- Automatic optimization of calibration factors based on test data
+- Before/after accuracy comparison metrics
+- Persistent calibration storage in database and local storage
+- Self-improving accuracy as more test data is added
 
 ### Directory Structure
 - `/app/tools/ink-calculator` - Main application directory
   - `/components` - UI components
+  - `/services` - Service modules
+    - `auto-calibration.ts` - Calibration optimization engine
+    - `calibration-loader.ts` - Loads calibration factors
+    - `validation.ts` - Validates predictions against test data
   - `types.ts` - TypeScript type definitions
   - `config.ts` - Configuration constants
   - `utils.ts` - Utility functions for calculations
+  - `ink-calibration.ts` - Channel-specific calibration factors
 - `/app/api/ink-cost` - API endpoint for programmatic access
+- `/app/api/admin/ink-calculator/calibration` - API for calibration management
+- `/app/(admin)/admin/tools/ink-calculator/validation` - Admin validation dashboard
 
 ### API Usage
 
@@ -87,10 +106,8 @@ The API endpoint at `/api/ink-cost` accepts POST requests with the following par
 ```
 
 ## Next Steps
-1. Collect test print data for calibration
-2. Refine calculation model with real-world data
-3. Complete admin interface for test data input
-4. Run performance testing with large images
-5. Verify mobile responsiveness
-6. Prepare user documentation
-7. Final review against PRD requirements 
+1. Run comprehensive validation on all calibration factors
+2. Optimize performance with larger images
+3. Complete mobile responsiveness testing
+4. Prepare user documentation
+5. Final review against PRD requirements 

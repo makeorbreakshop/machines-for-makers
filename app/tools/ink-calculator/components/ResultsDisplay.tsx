@@ -1,6 +1,6 @@
 "use client";
 
-import { CostResult, ChannelCoverageValues } from "../types";
+import { CostResult, ChannelCoverageValues, InkUsageResult } from "../types";
 import {
   Card,
   CardContent,
@@ -10,7 +10,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, InfoIcon } from "lucide-react";
+import { Copy, Download, InfoIcon, HelpCircle } from "lucide-react";
 import { CHANNEL_COLORS } from "../config";
 import { 
   Tooltip,
@@ -26,6 +26,7 @@ interface ResultsDisplayProps {
   totalMl: number | null;
   imageUrl: string | null;
   channelCoverage?: ChannelCoverageValues | null;
+  inkUsage?: InkUsageResult | null;
 }
 
 export default function ResultsDisplay({
@@ -33,6 +34,7 @@ export default function ResultsDisplay({
   totalMl,
   imageUrl,
   channelCoverage,
+  inkUsage,
 }: ResultsDisplayProps) {
   if (!costResults) {
     return (
@@ -45,12 +47,31 @@ export default function ResultsDisplay({
                 Based on your inputs and ink coverage
               </CardDescription>
             </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="w-[220px] text-sm">Upload an image and complete the Print Specifications to see cost results here.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </CardHeader>
         <CardContent className="pb-6 pt-4">
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-              <InfoIcon className="h-8 w-8 text-muted-foreground" />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <InfoIcon className="h-8 w-8 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="w-[220px] text-sm">This calculator requires an uploaded image to analyze ink coverage and calculate costs accurately.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <p className="text-muted-foreground max-w-xs font-medium">
               Upload an image and enter specifications to see results
@@ -66,14 +87,28 @@ export default function ResultsDisplay({
     ...Object.values(costResults.channelBreakdown)
   );
   
-  // Get the max channel coverage value for scaling
-  const maxCoverageValue = channelCoverage 
-    ? Math.max(...Object.values(channelCoverage), 0.01) 
-    : 0.01;
-
   // Safe function to get channel color
   const getChannelColor = (channel: string): string => {
     return (CHANNEL_COLORS as Record<string, string>)[channel] || "#AAAAAA";
+  };
+
+  // Function to format cost value with threshold
+  const formatCost = (value: number): string => {
+    // For very small values, ensure we show something meaningful
+    if (value < 0.0001) {
+      return "< $0.0001";
+    }
+    
+    // Format with 4 decimal places for currency values
+    return value.toFixed(4);
+  };
+
+  // Function to format ml value
+  const formatMl = (value: number): string => {
+    if (value < 0.001) {
+      return "< 0.001";
+    }
+    return value.toFixed(4);
   };
 
   // Function to copy results to clipboard
@@ -81,17 +116,17 @@ export default function ResultsDisplay({
     const text = `
 UV Print Cost Calculation Results:
 ------------------------
-Cost per print: $${costResults.costPerPrint.toFixed(2)}
-Prints per ink set: ${costResults.printsPerSet}
-Total ink usage: ${totalMl?.toFixed(3) || "N/A"} mL
+Cost per print: $${formatCost(costResults.costPerPrint)}
+Prints per ink set: ${costResults.printsPerSet === Infinity ? "999,999+" : costResults.printsPerSet}
+Total ink usage: ${totalMl?.toFixed(4) || "N/A"} mL
 
 Channel Breakdown:
 ${Object.entries(costResults.channelBreakdown)
   .map(
-    ([channel, cost]) =>
-      `${channel.charAt(0).toUpperCase() + channel.slice(1)}: $${cost.toFixed(
-        2
-      )}${channelCoverage && channelCoverage[channel] ? ` (Coverage: ${(channelCoverage[channel] * 100).toFixed(1)}%)` : ''}`
+    ([channel, cost]) => {
+      const mlValue = inkUsage?.channelMl[channel] || 0;
+      return `${channel.charAt(0).toUpperCase() + channel.slice(1)}: $${formatCost(cost)} (${formatMl(mlValue)} mL)${channelCoverage && channelCoverage[channel] ? ` (Coverage: ${(channelCoverage[channel] * 100).toFixed(1)}%)` : ''}`;
+    }
   )
   .join("\n")}
 
@@ -141,7 +176,7 @@ https://machinesformakers.com/tools/ink-calculator
                 Cost per Print
               </h4>
               <p className="text-4xl font-bold text-foreground">
-                ${costResults.costPerPrint.toFixed(2)}
+                ${formatCost(costResults.costPerPrint)}
               </p>
             </div>
             
@@ -150,7 +185,7 @@ https://machinesformakers.com/tools/ink-calculator
                 Prints per Ink Set
               </h4>
               <p className="text-2xl font-semibold text-foreground">
-                {costResults.printsPerSet.toLocaleString()}
+                {costResults.printsPerSet === Infinity ? "999,999+" : costResults.printsPerSet.toLocaleString()}
               </p>
             </div>
             
@@ -167,62 +202,71 @@ https://machinesformakers.com/tools/ink-calculator
             )}
           </div>
           
-          {/* Channel Breakdown */}
+          {/* Channel Breakdown - Simplified */}
           <div className="space-y-4">
-            <h4 className="text-sm font-medium border-b pb-2">Channel Breakdown</h4>
+            <div className="flex items-center justify-between border-b pb-2">
+              <h4 className="text-sm font-medium">Channel Breakdown</h4>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-4 w-4 text-muted-foreground cursor-pointer" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="w-[220px] text-sm">
+                      Shows ink usage by color channel. Each bar represents the proportion of ink cost, with coverage percentage displayed when available.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             
-            <div className="space-y-4">
+            <div className="space-y-5">
               {Object.entries(costResults.channelBreakdown).map(
-                ([channel, cost], index) => (
-                  <div key={channel} className="space-y-1.5">
-                    <div className="flex justify-between items-center text-sm">
-                      <div className="flex items-center">
-                        <div
-                          className="w-4 h-4 rounded-full mr-2 flex-shrink-0"
-                          style={{ backgroundColor: getChannelColor(channel) }}
-                        />
-                        <span className="capitalize font-medium">{channel}</span>
-                        {channelCoverage && channelCoverage[channel] && (
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {(channelCoverage[channel] * 100).toFixed(1)}% coverage
+                ([channel, cost], index) => {
+                  const mlValue = inkUsage?.channelMl[channel] || 0;
+                  const coverage = channelCoverage && channelCoverage[channel] 
+                    ? `${(channelCoverage[channel] * 100).toFixed(1)}%` 
+                    : null;
+                  
+                  return (
+                    <div key={channel} className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center">
+                          <div
+                            className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
+                            style={{ backgroundColor: getChannelColor(channel) }}
+                          />
+                          <span className="capitalize font-medium">{channel}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          {coverage && (
+                            <Badge variant="secondary" className="font-normal text-xs">
+                              {coverage} coverage
+                            </Badge>
+                          )}
+                          <span className="font-medium">${formatCost(cost)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({formatMl(mlValue)} mL)
                           </span>
-                        )}
+                        </div>
                       </div>
-                      <span className="font-semibold">${cost.toFixed(2)}</span>
-                    </div>
-                    <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-500",
-                          "animate-in slide-in-from-left"
-                        )}
-                        style={{
-                          width: `${(cost / maxChannelValue) * 100}%`,
-                          backgroundColor: getChannelColor(channel),
-                          animationDelay: `${index * 75}ms`,
-                          animationDuration: "400ms",
-                        }}
-                      />
-                    </div>
-                    {channelCoverage && channelCoverage[channel] && (
-                      <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden mt-1">
+                      <div className="h-3 bg-muted/40 rounded-full overflow-hidden">
                         <div
                           className={cn(
                             "h-full rounded-full transition-all duration-500",
                             "animate-in slide-in-from-left"
                           )}
                           style={{
-                            width: `${(channelCoverage[channel] / maxCoverageValue) * 100}%`,
+                            width: `${(cost / maxChannelValue) * 100}%`,
                             backgroundColor: getChannelColor(channel),
-                            opacity: 0.5,
-                            animationDelay: `${index * 75 + 200}ms`,
+                            animationDelay: `${index * 75}ms`,
                             animationDuration: "400ms",
                           }}
                         />
                       </div>
-                    )}
-                  </div>
-                )
+                    </div>
+                  );
+                }
               )}
             </div>
           </div>

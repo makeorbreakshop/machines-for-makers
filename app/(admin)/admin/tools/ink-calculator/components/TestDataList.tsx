@@ -40,7 +40,8 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { InkMode } from "@/app/tools/ink-calculator/types";
-import { Trash2, ImageIcon, ExternalLink, Filter } from "lucide-react";
+import { Trash2, ImageIcon, ExternalLink, Filter, RefreshCw } from "lucide-react";
+import { analyzeImage } from "@/app/tools/ink-calculator/services/color-analysis";
 
 // Define test data type
 interface TestData {
@@ -57,6 +58,10 @@ interface TestData {
   image_url: string | null;
   notes: string | null;
   created_at: string;
+  image_analysis?: {
+    totalCoverage: number;
+    channelCoverage: Record<string, number>;
+  } | null;
 }
 
 interface TestDataListProps {
@@ -73,6 +78,7 @@ export function TestDataList({ inkModes }: TestDataListProps) {
   const [filterInkMode, setFilterInkMode] = useState<string>("all");
   const [filterQuality, setFilterQuality] = useState<string>("all");
   const [filterImageType, setFilterImageType] = useState<string>("all");
+  const [processingIds, setProcessingIds] = useState<string[]>([]);
 
   // Fetch test data
   const fetchTestData = async () => {
@@ -134,6 +140,112 @@ export function TestDataList({ inkModes }: TestDataListProps) {
     }
   };
 
+  // Recalculate image analysis
+  const recalculateAnalysis = async (id: string) => {
+    try {
+      // Add ID to processing list
+      setProcessingIds(prev => [...prev, id]);
+      
+      // Step 1: Get test data entry details
+      const response = await fetch(`/api/admin/recalculate-analysis`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch test data");
+      }
+      
+      const { testData: entryData } = await response.json();
+      
+      // Step 2: Load and analyze the image using the original ink mode's channels
+      const inkMode = inkModes[entryData.ink_mode];
+      if (!inkMode) {
+        throw new Error("Invalid ink mode");
+      }
+      
+      // Load and analyze the image
+      toast.info("Fetching and analyzing image...");
+      
+      let localImageUrl = '';
+      let results;
+      
+      try {
+        // First attempt: Try direct fetch
+        const imageResponse = await fetch(entryData.image_url, {
+          cache: "no-store" // Bypass cache to ensure fresh fetch
+        });
+        
+        if (!imageResponse.ok) {
+          throw new Error("Direct fetch failed");
+        }
+        
+        // Get the image as a blob
+        const imageBlob = await imageResponse.blob();
+        
+        // Create a local object URL to avoid CORS issues
+        localImageUrl = URL.createObjectURL(imageBlob);
+        
+        // Analyze the image using local URL
+        results = await analyzeImage(localImageUrl, inkMode.channels);
+      } catch (fetchError) {
+        console.warn("Direct fetch failed, trying proxy:", fetchError);
+        
+        // Second attempt: Use proxy
+        try {
+          // Encode the URL to avoid issues with special characters
+          const encodedUrl = encodeURIComponent(entryData.image_url);
+          const proxyUrl = `/api/admin/proxy-image?url=${encodedUrl}`;
+          
+          // Analyze via proxy
+          results = await analyzeImage(proxyUrl, inkMode.channels);
+        } catch (error: any) {
+          throw new Error(`Image analysis failed: ${error.message}`);
+        }
+      } finally {
+        // Clean up the object URL if it was created
+        if (localImageUrl) {
+          URL.revokeObjectURL(localImageUrl);
+        }
+      }
+      
+      if (!results) {
+        throw new Error("Failed to analyze image");
+      }
+      
+      // Step 3: Save the analysis results
+      const updateResponse = await fetch(`/api/admin/recalculate-analysis`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          id: entryData.id,
+          image_analysis: results
+        }),
+      });
+      
+      if (!updateResponse.ok) {
+        const error = await updateResponse.json();
+        throw new Error(error.error || "Failed to update analysis");
+      }
+      
+      toast.success("Image analysis recalculated successfully");
+      
+      // Refresh data
+      fetchTestData();
+    } catch (error: any) {
+      toast.error(error.message || "An error occurred");
+    } finally {
+      // Remove ID from processing list
+      setProcessingIds(prev => prev.filter(item => item !== id));
+    }
+  };
+
   // Reset filters
   const resetFilters = () => {
     setFilterInkMode("all");
@@ -157,6 +269,13 @@ export function TestDataList({ inkModes }: TestDataListProps) {
 
   // Check if a test entry has an image preview
   const hasImage = (entry: TestData) => !!entry.image_url;
+  
+  // Check if entry needs analysis (has image but no analysis)
+  const needsAnalysis = (entry: TestData) => 
+    !!entry.image_url && (!entry.image_analysis || Object.keys(entry.image_analysis).length === 0);
+  
+  // Check if entry is being processed
+  const isProcessing = (id: string) => processingIds.includes(id);
 
   return (
     <div className="space-y-4">
@@ -258,6 +377,9 @@ export function TestDataList({ inkModes }: TestDataListProps) {
                           fill
                           className="object-cover rounded"
                         />
+                        {entry.image_analysis && (
+                          <div className="absolute bottom-0 right-0 bg-green-500 h-2 w-2 rounded-full" title="Has image analysis data" />
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center justify-center h-10 w-10 bg-muted rounded">
@@ -282,6 +404,17 @@ export function TestDataList({ inkModes }: TestDataListProps) {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      {needsAnalysis(entry) && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={isProcessing(entry.id)}
+                          onClick={() => recalculateAnalysis(entry.id)}
+                          title="Analyze image colors"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${isProcessing(entry.id) ? 'animate-spin' : ''}`} />
+                        </Button>
+                      )}
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button variant="ghost" size="icon">
@@ -338,6 +471,29 @@ export function TestDataList({ inkModes }: TestDataListProps) {
                                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                                     {entry.notes}
                                   </p>
+                                </div>
+                              )}
+                              {entry.image_analysis && (
+                                <div>
+                                  <h3 className="text-sm font-medium mb-1">
+                                    Color Coverage Analysis
+                                  </h3>
+                                  <p className="font-medium">Total: {entry.image_analysis.totalCoverage.toFixed(1)}%</p>
+                                  <div className="grid grid-cols-2 gap-2 mt-2">
+                                    {Object.entries(entry.image_analysis.channelCoverage).map(
+                                      ([channel, coverage]) => (
+                                        <div
+                                          key={channel}
+                                          className="flex justify-between p-2 bg-muted/50 rounded"
+                                        >
+                                          <span className="capitalize font-medium">
+                                            {channel}:
+                                          </span>
+                                          <span>{coverage.toFixed(1)}%</span>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </div>

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createServerClient, createServiceClient } from "@/lib/supabase/server";
 
-// GET handler to fetch test data for the calculator
+// GET handler to fetch test data for the calculation model
 export async function GET(request: Request) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createServiceClient();
     
     // Get query parameters for filtering
     const url = new URL(request.url);
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.error("API error:", error);
     return NextResponse.json(
-      { error: error.message || "Unknown error" },
+      { error: error.message || "An error occurred" },
       { status: 500 }
     );
   }

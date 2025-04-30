@@ -9,6 +9,7 @@ export const CHANNEL_COLORS = {
   white: "#FFFFFF",
   clear: "#AAAAAA",
   primer: "#555555",
+  gloss: "#DDDDDD",
 };
 
 // Default ink package price in USD
@@ -26,53 +27,34 @@ export const ACCEPTED_FILE_TYPES = ["image/jpeg", "image/png"];
 // Ink modes configuration
 export const INK_MODES: Record<string, InkMode> = {
   CMYK: {
-    id: "CMYK",
     channels: ["cyan", "magenta", "yellow", "black"],
     passes: 1,
     label: "CMYK",
-    group: "Single-Pass",
+    group: "Standard",
   },
   WHITE_CMYK: {
-    id: "WHITE_CMYK",
     channels: ["white", "cyan", "magenta", "yellow", "black"],
     passes: 2,
-    label: "White + CMYK",
+    label: "White → CMYK",
     group: "Multi-Pass",
   },
-  CMYK_WHITE: {
-    id: "CMYK_WHITE",
-    channels: ["cyan", "magenta", "yellow", "black", "white"],
+  CMYK_GLOSS: {
+    channels: ["cyan", "magenta", "yellow", "black", "gloss"],
     passes: 2,
-    label: "CMYK + White",
+    label: "CMYK → Gloss Varnish",
     group: "Multi-Pass",
   },
-  CMYK_CLEAR: {
-    id: "CMYK_CLEAR",
-    channels: ["cyan", "magenta", "yellow", "black", "clear"],
-    passes: 2,
-    label: "CMYK + Clear",
-    group: "Multi-Pass",
-  },
-  WHITE_CMYK_CLEAR: {
-    id: "WHITE_CMYK_CLEAR",
-    channels: ["white", "cyan", "magenta", "yellow", "black", "clear"],
+  WHITE_CMYK_GLOSS: {
+    channels: ["white", "cyan", "magenta", "yellow", "black", "gloss"],
     passes: 3,
-    label: "White + CMYK + Clear",
+    label: "White → CMYK → Gloss Varnish",
     group: "Multi-Pass",
   },
-  PRIMER_CMYK: {
-    id: "PRIMER_CMYK",
-    channels: ["primer", "cyan", "magenta", "yellow", "black"],
-    passes: 2,
-    label: "Primer + CMYK",
-    group: "Multi-Pass",
-  },
-  CMYKW_DOUBLE: {
-    id: "CMYKW_DOUBLE",
-    channels: ["cyan", "magenta", "yellow", "black", "white"],
-    passes: 2,
-    label: "CMYK + White (Double Pass)",
-    group: "Double-Pass",
+  STICKER: {
+    channels: ["cyan", "magenta", "yellow", "black"],
+    passes: 1,
+    label: "Sticker",
+    group: "Special",
   },
 };
 

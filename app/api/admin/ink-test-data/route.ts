@@ -75,6 +75,7 @@ export async function POST(request: Request) {
     const channelMlString = formData.get("channelMl") as string;
     const notes = formData.get("notes") as string;
     const imageFile = formData.get("image") as File;
+    const imageAnalysisString = formData.get("imageAnalysis") as string;
     
     // Validate required fields
     if (!inkMode || !quality || !imageType || !dimensionsString || !channelMlString) {
@@ -87,13 +88,17 @@ export async function POST(request: Request) {
     // Parse JSON strings
     let dimensions;
     let channelMl;
+    let imageAnalysis = null;
     
     try {
       dimensions = JSON.parse(dimensionsString);
       channelMl = JSON.parse(channelMlString);
+      if (imageAnalysisString) {
+        imageAnalysis = JSON.parse(imageAnalysisString);
+      }
     } catch (error) {
       return NextResponse.json(
-        { error: "Invalid JSON data for dimensions or channelMl" },
+        { error: "Invalid JSON data for dimensions, channelMl, or imageAnalysis" },
         { status: 400 }
       );
     }
@@ -154,7 +159,8 @@ export async function POST(request: Request) {
         dimensions,
         channel_ml: channelMl,
         image_url: imageUrl,
-        notes
+        notes,
+        image_analysis: imageAnalysis
       })
       .select()
       .single();

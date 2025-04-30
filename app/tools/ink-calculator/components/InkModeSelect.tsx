@@ -14,15 +14,15 @@ import { INK_MODES } from "../config";
 import { InkMode } from "../types";
 
 // Group ink modes by their group property
-const groupedInkModes = Object.values(INK_MODES).reduce(
-  (groups, mode) => {
+const groupedInkModes = Object.entries(INK_MODES).reduce(
+  (groups, [id, mode]) => {
     if (!groups[mode.group]) {
       groups[mode.group] = [];
     }
-    groups[mode.group].push(mode);
+    groups[mode.group].push({ ...mode, id });
     return groups;
   },
-  {} as Record<string, InkMode[]>
+  {} as Record<string, (InkMode & { id: string })[]>
 );
 
 interface InkModeSelectProps {

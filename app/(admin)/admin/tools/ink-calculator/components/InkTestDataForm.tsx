@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -36,6 +36,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { InkMode } from "@/app/tools/ink-calculator/types";
+import { analyzeImage } from "@/app/tools/ink-calculator/services/color-analysis";
 import {
   Dialog,
   DialogContent,
@@ -88,6 +89,12 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
   const [channelInputValues, setChannelInputValues] = useState<Record<string, string>>({});
   const [submissionStatus, setSubmissionStatus] = useState<string>("");
   const [showLoadingModal, setShowLoadingModal] = useState(false);
+  const [imageAnalysisResults, setImageAnalysisResults] = useState<{
+    totalCoverage: number;
+    channelCoverage: Record<string, number>;
+  } | null>(null);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+  const [coverageText, setCoverageText] = useState<string>("");
 
   // Initialize form
   const form = useForm<FormValues>({
@@ -120,6 +127,11 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
       });
       
       setChannelInputValues(newChannelInputValues);
+      
+      // Re-analyze image if available with new channels
+      if (imagePreview && selectedMode.channels.length > 0) {
+        analyzeTestImage(imagePreview, selectedMode.channels);
+      }
     }
   };
 
@@ -128,12 +140,39 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
     handleInkModeChange(form.getValues().inkMode);
   }
 
+  // Analyze the test image to extract color coverage information
+  const analyzeTestImage = async (imageUrl: string, channels: string[]) => {
+    if (!imageUrl) return;
+    
+    setIsAnalyzingImage(true);
+    
+    try {
+      // Use the same analyzeImage function that the calculator uses
+      const results = await analyzeImage(imageUrl, channels);
+      setImageAnalysisResults(results);
+      
+      console.log("Image analysis results:", results);
+    } catch (error) {
+      console.error("Error analyzing image:", error);
+      toast.error("Failed to analyze image colors");
+    } finally {
+      setIsAnalyzingImage(false);
+    }
+  };
+
   // Handle image upload
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+      
+      const url = URL.createObjectURL(file);
+      setImagePreview(url);
+      
+      // Analyze the image once it's uploaded
+      if (activeChannels.length > 0) {
+        analyzeTestImage(url, activeChannels);
+      }
     }
   };
 
@@ -141,6 +180,7 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
   const handleRemoveImage = () => {
     setImageFile(null);
     setImagePreview(null);
+    setImageAnalysisResults(null);
   };
 
   // Handle form submission
@@ -196,6 +236,11 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
         formData.append("notes", values.notes);
       }
       
+      // Add image analysis results if available
+      if (imageAnalysisResults) {
+        formData.append("imageAnalysis", JSON.stringify(imageAnalysisResults));
+      }
+      
       // Update status before API call
       setSubmissionStatus("Uploading test data to server...");
       
@@ -217,6 +262,7 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
       form.reset();
       setImageFile(null);
       setImagePreview(null);
+      setImageAnalysisResults(null);
       
       // Refresh data
       router.refresh();
@@ -230,6 +276,33 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
         setIsSubmitting(false);
         setSubmissionStatus("");
       }, 1500);
+    }
+  };
+
+  const handleAnalyzeImage = async () => {
+    if (!imageFile) return;
+    
+    setIsAnalyzingImage(true);
+    
+    try {
+      // Create a URL for the image file
+      const imageUrl = URL.createObjectURL(imageFile);
+      
+      // Analyze the image
+      const analysisResults = await analyzeImage(imageUrl);
+      
+      // Store the results for later submission
+      setImageAnalysisResults(analysisResults);
+      
+      // Display coverage information
+      setCoverageText(`Overall coverage: ${(analysisResults.coverage * 100).toFixed(1)}%`);
+      
+      toast.success('Image analysis complete');
+    } catch (error) {
+      console.error('Image analysis error:', error);
+      toast.error('Failed to analyze image');
+    } finally {
+      setIsAnalyzingImage(false);
     }
   };
 
@@ -401,6 +474,11 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
                             width={200}
                             height={200}
                           />
+                          {isAnalyzingImage && (
+                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                              <Loader2 className="h-8 w-8 animate-spin text-white" />
+                            </div>
+                          )}
                         </div>
                         <Button
                           type="button"
@@ -412,6 +490,12 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </Card>
+                      
+                      {imageAnalysisResults && (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          <p>{coverageText}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                   
@@ -453,6 +537,32 @@ export function InkTestDataForm({ inkModes }: InkTestDataFormProps) {
                     </div>
                   </AccordionContent>
                 </AccordionItem>
+                
+                {imageAnalysisResults && (
+                  <AccordionItem value="coverage-values">
+                    <AccordionTrigger>Color Coverage Analysis</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-3 pt-2">
+                        <div className="text-sm">
+                          <p>Total coverage: {imageAnalysisResults.totalCoverage.toFixed(1)}%</p>
+                          <div className="mt-2 space-y-1">
+                            {Object.entries(imageAnalysisResults.channelCoverage)
+                              .filter(([channel]) => activeChannels.includes(channel))
+                              .map(([channel, coverage]) => (
+                                <div key={channel} className="flex justify-between">
+                                  <span className="capitalize">{channel}:</span>
+                                  <span>{coverage.toFixed(1)}%</span>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                        <FormDescription>
+                          Image color analysis results used to improve the calculator
+                        </FormDescription>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
               </Accordion>
               
               <FormField

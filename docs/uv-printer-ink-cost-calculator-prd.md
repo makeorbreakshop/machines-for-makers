@@ -364,16 +364,114 @@ For each test print, collect and store:
 - [x] Optimize sampling algorithm for performance
 - [x] Validate against test data for accuracy
 
-### 5. Test Data Validation
-- [ ] Implement comparison between calculated and actual values
-- [ ] Create dashboard for monitoring accuracy metrics
-- [ ] Set up feedback loop for algorithm improvements
+### 5. Test Data Validation & Auto-Tuning
+- [ ] Implement server-side **optimization algorithm** (e.g., Nelder-Mead) to find factors that minimize overall MAE against `ink_test_data`.
+- [ ] Create API endpoint (e.g., `/api/admin/ink-calculator/optimize-factors`) to trigger the optimization.
+- [ ] Implement logic to **save optimized factors** to the `ink_calculator_calibration` table.
+- [ ] Implement **dynamic loading and caching** of the latest factors from `ink_calculator_calibration` for use by `calculateInkUsage`.
+- [ ] Update the admin validation page to:
+    - [ ] Display MAE based on *loaded* factors.
+    - [ ] Show the timestamp of the latest optimized factors.
+    - [ ] Include a button to trigger the optimization API.
+- [ ] Ensure validation page uses stored `image_analysis.channelCoverage` where available for MAE calculation.
+- [ ] **Expand** test dataset with solids, gradients, and line art to improve optimization effectiveness.
 
-### 6. Documentation and Testing
-- [ ] Document API endpoints and response formats
-- [ ] Create internal documentation for the calculation model
-- [ ] Test across different image types and configurations
-- [ ] Performance testing and optimization
+### 6. API Endpoint Implementation
+- [x] Create `/api/ink-cost` API route.
+- [x] Support both image+metadata and direct channel inputs.
+- [ ] Verify/Implement how image analysis (`channelCoverage`) is generated and stored for *new* images submitted via API (if not part of test data).
+- [ ] Create `/api/admin/ink-calculator/optimize-factors` endpoint for auto-tuning.
+- [x] Add error handling and input validation.
+
+### 7. Testing & Validation
+- [ ] Unit tests for core calculation functions (using loaded factors).
+- [ ] Unit tests for the optimization logic.
+- [ ] Integration tests for UI components (including validation page triggers).
+- [ ] Test the factor loading/caching mechanism.
+- [ ] Verify the end-to-end auto-tuning process.
+- [ ] Add comprehensive test data (solids, gradients, line art, varied sizes).
+
+### 8. Refinement & Optimization
+- [x] UI polish and animations
+  - [x] Enhanced card layouts with consistent spacing
+  - [x] Improved dropzone with interactive states
+  - [x] Animated results display with progressive load
+  - [x] Interactive form elements with proper feedback
+- [x] Error message improvements
+  - [x] Clear validation feedback for numerical inputs
+  - [x] Visual error indicators with helpful messages
+  - [x] Improved form state handling
+- [ ] Performance optimizations
+- [x] Accessibility enhancements
+  - [x] Proper ARIA labels and keyboard navigation
+  - [x] Sufficient color contrast for text elements
+  - [x] Focus state management for form controls
+- [ ] Final bundle size optimization
+
+### 9. Documentation & Deployment
+- [ ] Create user documentation/help text
+- [ ] Add integration documentation for API
+- [ ] Code comments and internal documentation
+- [ ] Final review against PRD requirements
+- [ ] Production deployment preparation
+
+### 10. Launch & Monitoring
+- [ ] Soft launch with beta testers
+- [ ] Collect initial user feedback
+- [ ] Address critical issues
+- [ ] Full public launch
+- [ ] Set up simple analytics to track success metrics 
+
+## Styling Implementation
+The UV Printer Ink Cost Calculator now features:
+
+- ✅ Card-based layout using Shadcn UI components with consistent spacing and hierarchy
+- ✅ Modern interface with proper heading hierarchy and typographic scale
+- ✅ Interactive elements with proper hover, active, and focus states
+- ✅ Responsive design that works across all device sizes
+- ✅ Clear visual hierarchy with card headers and content sections
+- ✅ Animated feedback for input changes and calculation updates
+- ✅ Consistent color scheme using design token variables
+- ✅ Form controls with clear labels and validation feedback
+- ✅ Improved dropzone with visual feedback for drag states
+- ✅ Results display with animated data visualization
+- ✅ Sticky positioning for results on desktop for better UX 
+
+## Accuracy Analysis and Improvement Recommendations
+
+To ensure the calculator provides the most accurate estimates possible based on available test data, we will implement an automated calibration tuning process.
+
+### Current Challenges (Historical Context)
+
+Previous attempts faced issues, likely due to:
+
+1.  **Flawed Error Metrics**: Using percentage error was heavily skewed by small ink volume values.
+2.  **Limited/Biased Test Data**: Mainly photos, lacking diversity (solids, gradients, line art).
+
+### Next Step: Automated Calibration Tuning
+
+1.  **Optimization Goal**: The system will automatically find the set of calibration factors (`BASE_CONSUMPTION`, `CHANNEL_SCALING_FACTORS`, etc.) that **minimizes the overall Mean Absolute Error (MAE)** when comparing predictions against the full `ink_test_data` set.
+2.  **Automated Process**: An optimization algorithm (e.g., Nelder-Mead) will run server-side, systematically testing factor combinations to find the optimal set.
+3.  **Persistent Storage**: The best set of factors found by the optimizer will be stored as a JSON object in the existing `ink_calculator_calibration` Supabase table, along with a timestamp.
+4.  **Dynamic Loading**: The `calculateInkUsage` function will fetch the *latest* set of optimized factors from the `ink_calculator_calibration` table (with caching) to use for its calculations. It will fall back to static defaults in `ink-calibration.ts` if loading fails.
+5.  **Adaptation to New Data**: Adding new test data to `ink_test_data` and re-running the optimization process will naturally refine the factors based on the expanded dataset.
+6.  **Validation**: The validation page will continue to report MAE, showing the accuracy achieved with the *currently loaded* optimized factors, and display when the last optimization occurred.
+
+This approach automates the tuning process, aims for the best fit against available data using a robust metric (MAE), and allows the calculator to adapt as the test dataset improves.
+
+### Validation System Improvements
+
+The validation system's role shifts slightly to **report the accuracy achieved by the latest auto-tuned factors**:
+
+1.  **Report MAE**: Continue using MAE to accurately measure the difference (in mL) between predictions (using auto-tuned factors) and actual test data values.
+2.  **Transparent UI**: The admin validation page will display:
+    *   Overall MAE and per-channel MAE achieved with the latest factors.
+    *   Timestamp of the last successful optimization run.
+    *   Detailed table comparing `actual_ml` vs. `predicted_ml` (using latest factors) for each test case.
+3.  **Trigger Optimization**: Provide a button to manually trigger the server-side auto-tuning process.
+4.  **Focus on Data Quality**: Continue emphasizing the need for diverse test data, as the quality of the auto-tuned factors depends directly on the quality and coverage of the `ink_test_data`.
+
+These changes ensure the validation system accurately reflects real-world performance based on the stable, static calculation model, guiding effective manual calibration.
 
 ## Technical Notes
 
@@ -401,13 +499,12 @@ The calculator will use a combination of:
 - ✅ Create basic UI using Shadcn UI components and Tailwind CSS for consistency
 
 ## Success Criteria
-- Estimation accuracy: ≤ ±7% mean error vs UVMake preview
-  - *Note: This requires implementation of proper channel-specific color analysis*
-- Color accuracy: Each CMYK channel estimate to be within ±10% of actual UVMake preview values
-- Performance: ≤ 2s calculation time for 5 MP images
-- Adoption: ≥ 50 unique users on launch day
-- Engagement: ≥ 30% of users running 3+ quotes
-- Conversion: +10% email sign-ups via quote page
+- Estimation accuracy: Aim for Mean Absolute Error (MAE) per channel to be below a target threshold (e.g., < 0.02 mL average deviation, TBD based on initial tuning) after manual calibration against comprehensive test data. The original goal of ≤ ±7% mean *percentage* error remains a long-term aspiration for the tuned static model.
+- Color accuracy: Individual channel predictions should align closely with actual values, reflected in low MAE per channel.
+- Performance: ≤ 2s calculation time for 5 MP images (using stored analysis if possible).
+- Adoption: ≥ 50 unique users on launch day.
+- Engagement: ≥ 30% of users running 3+ quotes.
+- Conversion: +10% email sign-ups via quote page.
 
 ## Future Enhancements (Out of Scope)
 - Automatic parsing of UVMake job logs
@@ -426,6 +523,60 @@ The current implementation uses a simplified approach that calculates a single o
 5. Support for different color profiles (e.g., standard CMYK, expanded gamut)
 
 These improvements are critical for achieving the PRD's stated accuracy goal of ≤ ±7% mean error vs UVMake preview.
+
+## Accuracy Analysis and Improvement Recommendations
+
+Based on analysis of the current test data in Supabase and previous attempts at auto-calibration, we are adopting a simplified approach focusing on static calibration factors and robust validation.
+
+### Current Accuracy Issues (Historical Context)
+
+Previous iterations revealed challenges, likely due to:
+
+1.  **Flawed Error Metrics in Auto-Calibration**: Using percentage error for calibration was heavily skewed by small ink volume values.
+2.  **Overfitting/Instability**: Auto-calibration attempts might have produced unstable results due to limited/biased test data and flawed metrics.
+3.  **Limited Test Data**: Current data is mainly photos, lacking solids, gradients, and line art, hindering the generalizability of any model.
+
+### Revised Approach: Static Calibration & Manual Tuning
+
+1.  **Static Calculation Model**:
+    *   The core calculation will rely *exclusively* on the static calibration factors defined in `app/tools/ink-calculator/ink-calibration.ts`. These include:
+        *   `BASE_CONSUMPTION`: Base mL per channel.
+        *   `CHANNEL_SCALING_FACTORS`: mL per % coverage per square inch.
+        *   `QUALITY_CHANNEL_MULTIPLIERS`: Adjustments per quality setting per channel.
+        *   `AREA_SCALING_MULTIPLIERS`: Adjustments based on print area.
+    *   Dynamic loading or automatic adjustment of these factors is **removed** to ensure stability.
+2.  **Robust Validation with Mean Absolute Error (MAE)**:
+    *   A dedicated validation tool/page will compare predictions (using static factors) against the `channel_ml` values in the `ink_test_data` table.
+    *   Accuracy will be measured using **Mean Absolute Error (MAE)** per channel: `MAE = Σ |predicted_ml - actual_ml| / N`. This provides a clear average mL deviation, avoiding issues with percentage error on small values.
+    *   Validation will leverage the pre-calculated `image_analysis.channelCoverage` stored in the database for consistency and performance.
+3.  **Manual Tuning Process**:
+    *   The static factors in `ink-calibration.ts` will be manually adjusted based on the MAE results from the validation tool.
+    *   The goal is to iteratively refine these static factors to minimize the MAE across the available test data, aiming for "ballpark" accuracy initially.
+4.  **Prioritized Test Data Expansion**:
+    *   Expanding the `ink_test_data` set with diverse image types (solids, gradients, line art) and sizes is **critical** for effective manual tuning and improving the model's accuracy.
+5.  **Simplified Formula Application**:
+    *   The calculation (`calculateInkUsage`) will apply the static factors directly:
+        `mL ≈ BASE + (channelCoverage% × area × CHANNEL_FACTOR × QUALITY_FACTOR × AREA_FACTOR)`
+
+This revised approach prioritizes stability and transparency, allowing for methodical improvement through manual tuning informed by clear MAE metrics and an expanding test dataset. The PRD's target of "≤ ±7% mean error" remains the *goal* for the tuned static model, achievable through careful tuning and comprehensive test data.
+
+### Validation System Improvements
+
+The focus shifts from auto-calibration to providing a clear and robust **manual validation system**:
+
+1.  **Use Mean Absolute Error (MAE)**:
+    *   ✅ Implement MAE calculation (`Math.abs(predicted - actual)`) summed and averaged per channel across all test data. This replaces problematic percentage error calculations.
+2.  **Transparent Validation UI**:
+    *   ✅ Develop an admin page/section that displays:
+        *   Overall MAE per ink channel (Cyan, Magenta, Yellow, Black, White, etc.).
+        *   A detailed table comparing `actual_ml` vs. `predicted_ml` for every test case, highlighting absolute differences.
+    *   ✅ Use stored `image_analysis.channelCoverage` for predictions to ensure consistency.
+3.  **Removal of Auto-Calibration**:
+    *   ✅ Eliminate automated optimization routines (e.g., binary search based on flawed error metrics). Calibration is now a manual process based on MAE feedback.
+4.  **Focus on Data Quality**:
+    *   ✅ Emphasize the need for adding diverse test data (solids, gradients, line art) to improve the reliability of manual tuning.
+
+These changes ensure the validation system accurately reflects real-world performance based on the stable, static calculation model, guiding effective manual calibration.
 
 ## Technical Notes
 
@@ -509,18 +660,19 @@ The calculator will use a combination of:
 - [ ] Data validation and storage mechanisms
 
 ### 6. API Endpoint Implementation
-- [x] Create `/api/ink-cost` API route
-- [x] Support both image+metadata and direct channel inputs
-- [x] Implement response formatting with structured JSON
-- [x] Add error handling and input validation
+- [x] Create `/api/ink-cost` API route.
+- [x] Support both image+metadata and direct channel inputs.
+- [ ] Verify/Implement how image analysis (`channelCoverage`) is generated and stored for *new* images submitted via API (if not part of test data).
+- [x] Add error handling and input validation.
 
 ### 7. Testing & Validation
-- [ ] Unit tests for core calculation functions
-- [ ] Integration tests for UI components
-- [ ] Validation against known test cases
-- [ ] Performance testing with large images
-- [x] Cross-browser compatibility testing
-- [x] Mobile responsiveness verification
+- [ ] Unit tests for core calculation functions (using static factors).
+- [ ] Integration tests for UI components (including validation page).
+- [ ] Implement **manual validation system** against test data using MAE.
+- [ ] Performance testing with large images.
+- [x] Cross-browser compatibility testing.
+- [x] Mobile responsiveness verification.
+- [ ] Add comprehensive test data (solids, gradients, line art, varied sizes).
 
 ### 8. Refinement & Optimization
 - [x] UI polish and animations

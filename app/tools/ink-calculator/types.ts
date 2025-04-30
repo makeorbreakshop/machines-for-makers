@@ -34,9 +34,7 @@ export interface CostResult {
   totalMl: number;
 }
 
-export type ChannelCoverageValues = {
-  [key: string]: number;
-};
+export type ChannelCoverageValues = Record<string, number>;
 
 export type ImageAnalysisResult = {
   coverage: number;
