@@ -1321,10 +1321,10 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
   let finalSingleColorTotalError = 0;
   
   // Calculate initial error metrics
-  const initialChannelErrors: Record<string, number> = {};
-  let initialTotalError = 0;
-  let initialStandardChannelsError = 0;
-  let initialSpecialLayersError = 0;
+  const stratifiedInitialChannelErrors: Record<string, number> = {};
+  let initialTotalError1 = 0;
+  let initialStandardChannelsError1 = 0;
+  let initialSpecialLayersError1 = 0;
   
   // Calculate initial error using the initial factors
   testEntries.forEach(entry => {
@@ -1336,25 +1336,25 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
       });
       
       const error = Math.abs(estimatedMl - actualMl);
-      initialChannelErrors[channel] = (initialChannelErrors[channel] || 0) + error;
-      initialTotalError += error;
+      stratifiedInitialChannelErrors[channel] = (stratifiedInitialChannelErrors[channel] || 0) + error;
+      initialTotalError1 += error;
       
-      if (specialLayers.has(channel)) {
-        initialSpecialLayersError += error;
+      if (specialLayers.includes(channel)) {
+        initialSpecialLayersError1 += error;
       } else {
-        initialStandardChannelsError += error;
+        initialStandardChannelsError1 += error;
       }
     });
   });
   
   // Average initial errors
-  const initialChannelCount = Object.keys(initialChannelErrors).length;
+  const initialChannelCount = Object.keys(stratifiedInitialChannelErrors).length;
   if (initialChannelCount > 0) {
-    initialTotalError /= initialChannelCount;
-    Object.keys(initialChannelErrors).forEach(channel => {
+    initialTotalError1 /= initialChannelCount;
+    Object.keys(stratifiedInitialChannelErrors).forEach(channel => {
       const channelTestCount = channelDatasets[channel]?.length || 0;
       if (channelTestCount > 0) {
-        initialChannelErrors[channel] /= channelTestCount;
+        stratifiedInitialChannelErrors[channel] /= channelTestCount;
       }
     });
   }
@@ -1490,12 +1490,12 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
   
   // Compile improvement stats
   const improvement = {
-    overall: initialTotalError - finalTotalError,
-    standardChannels: initialStandardChannelsError - finalStandardChannelsError,
-    specialLayers: initialSpecialLayersError - finalSpecialLayersError,
-    percentOverall: ((initialTotalError - finalTotalError) / initialTotalError) * 100,
-    percentStandardChannels: ((initialStandardChannelsError - finalStandardChannelsError) / initialStandardChannelsError) * 100,
-    percentSpecialLayers: ((initialSpecialLayersError - finalSpecialLayersError) / initialSpecialLayersError) * 100
+    overall: initialTotalError1 - finalTotalError,
+    standardChannels: initialStandardChannelsError1 - finalStandardChannelsError,
+    specialLayers: initialSpecialLayersError1 - finalSpecialLayersError,
+    percentOverall: ((initialTotalError1 - finalTotalError) / (initialTotalError1 || 1)) * 100,
+    percentStandardChannels: ((initialStandardChannelsError1 - finalStandardChannelsError) / (initialStandardChannelsError1 || 1)) * 100,
+    percentSpecialLayers: ((initialSpecialLayersError1 - finalSpecialLayersError) / (initialSpecialLayersError1 || 1)) * 100
   };
   
   // Log detailed final results
@@ -1538,10 +1538,10 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
     factors: optimizedFactors,
     errors: {
       initial: {
-        overall: initialTotalError,
-        standardChannels: initialStandardChannelsError,
-        specialLayers: initialSpecialLayersError,
-        byChannel: initialChannelErrors
+        overall: initialTotalError1,
+        standardChannels: initialStandardChannelsError1,
+        specialLayers: initialSpecialLayersError1,
+        byChannel: stratifiedInitialChannelErrors
       },
       final: {
         overall: finalTotalError,
