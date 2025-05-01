@@ -78,6 +78,7 @@ export function calculateAbsoluteDifference(predicted: number, actual: number): 
  */
 export async function validateTestEntry(testEntry: TestDataEntry): Promise<ValidationResult> {
   console.log("[VALIDATION-DEBUG] Validating test entry:", testEntry.id);
+  console.log("[VALIDATION-DEBUG] Using enhanced non-linear model for validation");
   
   const { id, ink_mode, quality, dimensions, channel_ml, image_analysis } = testEntry;
   
@@ -105,6 +106,7 @@ export async function validateTestEntry(testEntry: TestDataEntry): Promise<Valid
   }
   
   const calculationInput = {
+    // Use raw coverage values - no conversion to 0-1 range needed
     coverage: image_analysis?.totalCoverage || 0,
     width: dimensions.width,
     height: dimensions.height, 
@@ -116,7 +118,11 @@ export async function validateTestEntry(testEntry: TestDataEntry): Promise<Valid
   
   console.log("[VALIDATION-DEBUG] Calculation input:", calculationInput);
   
-  // Calculate predicted values
+  // NOTE: The calibration factors are expected to be already loaded by the time this function is called
+  // We no longer try to reload them here, as it would cause timing/async issues
+  
+  // Calculate predicted values with the enhanced non-linear model
+  // Pass all values directly without any normalization
   const predictedValues = await calculateInkUsage(
     calculationInput.coverage,
     calculationInput.width,
@@ -171,69 +177,304 @@ export async function validateTestBatch(testEntries: TestDataEntry[]): Promise<V
 }
 
 /**
- * Calculate Mean Absolute Error (MAE) statistics from validation results
+ * Calculate MAE (Mean Absolute Error) between predicted and actual values
+ * This now separates standard CMYK channels from special layers for more accurate analysis
+ * Also includes size-stratified metrics as specified in the PRD
  */
-export function calculateMAEStats(validationResults: ValidationResult[]): any {
-  console.log("[VALIDATION-DEBUG] Calculating MAE stats from", validationResults.length, "results");
-  
-  if (!validationResults || validationResults.length === 0) {
-    console.warn("[VALIDATION-WARNING] No validation results to calculate stats from");
-    return {
-      channelMAE: {},
-      overallMAE: 0,
-      sampleCount: 0
-    };
+export function calculateMAE(
+  predictions: Record<string, number[]>,
+  actuals: Record<string, number[]>,
+  areas?: number[] // Optional array of print areas corresponding to each test entry
+): {
+  overall: number;
+  channelMAE: Record<string, number>;
+  channelSampleCounts: Record<string, number>;
+  sampleCount: number;
+  standardChannelsMAE: number;
+  specialLayersMAE: number;
+  standardChannelsSampleCount: number;
+  specialLayersSampleCount: number;
+  // Add size-stratified metrics
+  sizeMetrics?: {
+    small: { overall: number; standardChannels: number; specialLayers: number; sampleCount: number; };
+    medium: { overall: number; standardChannels: number; specialLayers: number; sampleCount: number; };
+    large: { overall: number; standardChannels: number; specialLayers: number; sampleCount: number; };
   }
+} {
+  // Define which channels are special layers
+  const specialLayers = new Set(['white', 'gloss', 'clear', 'primer']);
   
-  // Group all absolute differences by channel
-  const allDifferences: Record<string, number[]> = {};
-  let totalValidResults = 0;
+  let totalError = 0;
+  let totalSamples = 0;
+  let standardChannelsError = 0;
+  let specialLayersError = 0;
+  let standardChannelsSamples = 0;
+  let specialLayersSamples = 0;
   
-  // Collect all channel differences across all test entries
-  validationResults.forEach(result => {
-    Object.entries(result.channelDifferences).forEach(([channel, difference]) => {
-      if (!allDifferences[channel]) {
-        allDifferences[channel] = [];
+  const channelMAE: Record<string, number> = {};
+  const channelSampleCounts: Record<string, number> = {};
+  
+  // Size-specific metrics
+  const sizeErrors = {
+    small: { error: 0, count: 0, standardError: 0, standardCount: 0, specialError: 0, specialCount: 0 },
+    medium: { error: 0, count: 0, standardError: 0, standardCount: 0, specialError: 0, specialCount: 0 },
+    large: { error: 0, count: 0, standardError: 0, standardCount: 0, specialError: 0, specialCount: 0 }
+  };
+  
+  // Track index for matching areas to samples
+  let sampleIndex = 0;
+  
+  // Calculate MAE for each channel
+  Object.keys(actuals).forEach(channel => {
+    const actualValues = actuals[channel];
+    const predictedValues = predictions[channel] || [];
+    
+    // Only calculate if we have data for both
+    if (actualValues.length > 0 && predictedValues.length > 0) {
+      const samples = Math.min(actualValues.length, predictedValues.length);
+      channelSampleCounts[channel] = samples;
+      
+      let channelError = 0;
+      for (let i = 0; i < samples; i++) {
+        // Calculate error
+        const error = Math.abs(predictedValues[i] - actualValues[i]);
+        channelError += error;
+        totalError += error;
+        
+        // Get area category if available
+        let sizeCategory: 'small' | 'medium' | 'large' | null = null;
+        if (areas && areas[sampleIndex] !== undefined) {
+          const area = areas[sampleIndex];
+          if (area < 4) {
+            sizeCategory = 'small';
+          } else if (area <= 100) {
+            sizeCategory = 'medium';
+          } else {
+            sizeCategory = 'large';
+          }
+        }
+        
+        // Categorize errors by channel type
+        if (specialLayers.has(channel)) {
+          specialLayersError += error;
+          specialLayersSamples++;
+          
+          // Update size-specific metrics for special layers
+          if (sizeCategory) {
+            sizeErrors[sizeCategory].error += error;
+            sizeErrors[sizeCategory].count++;
+            sizeErrors[sizeCategory].specialError += error;
+            sizeErrors[sizeCategory].specialCount++;
+          }
+        } else {
+          standardChannelsError += error;
+          standardChannelsSamples++;
+          
+          // Update size-specific metrics for standard channels
+          if (sizeCategory) {
+            sizeErrors[sizeCategory].error += error;
+            sizeErrors[sizeCategory].count++;
+            sizeErrors[sizeCategory].standardError += error;
+            sizeErrors[sizeCategory].standardCount++;
+          }
+        }
+        
+        sampleIndex++;
       }
       
-      allDifferences[channel].push(difference);
-    });
-    
-    // Count valid test entries
-    if (Object.keys(result.channelDifferences).length > 0) {
-      totalValidResults++;
+      totalSamples += samples;
+      channelMAE[channel] = channelError / samples;
     }
   });
   
-  // Calculate Mean Absolute Error (MAE) per channel
-  const channelMAE: Record<string, number> = {};
-  let totalMAE = 0;
-  let totalChannelCount = 0;
+  // Calculate overall MAE
+  const overallMAE = totalSamples > 0 ? totalError / totalSamples : 0;
   
-  Object.entries(allDifferences).forEach(([channel, differences]) => {
-    if (differences.length > 0) {
-      // Calculate the mean of the absolute differences
-      const sum = differences.reduce((acc, val) => acc + val, 0);
-      const mae = sum / differences.length;
-      
-      channelMAE[channel] = parseFloat(mae.toFixed(4));
-      totalMAE += mae;
-      totalChannelCount++;
+  // Calculate separate MAE values for standard channels and special layers
+  const standardChannelsMAE = standardChannelsSamples > 0 ? standardChannelsError / standardChannelsSamples : 0;
+  const specialLayersMAE = specialLayersSamples > 0 ? specialLayersError / specialLayersSamples : 0;
+  
+  // Calculate size-specific metrics
+  const sizeMetrics = {
+    small: {
+      overall: sizeErrors.small.count > 0 ? sizeErrors.small.error / sizeErrors.small.count : 0,
+      standardChannels: sizeErrors.small.standardCount > 0 ? sizeErrors.small.standardError / sizeErrors.small.standardCount : 0,
+      specialLayers: sizeErrors.small.specialCount > 0 ? sizeErrors.small.specialError / sizeErrors.small.specialCount : 0,
+      sampleCount: sizeErrors.small.count
+    },
+    medium: {
+      overall: sizeErrors.medium.count > 0 ? sizeErrors.medium.error / sizeErrors.medium.count : 0,
+      standardChannels: sizeErrors.medium.standardCount > 0 ? sizeErrors.medium.standardError / sizeErrors.medium.standardCount : 0,
+      specialLayers: sizeErrors.medium.specialCount > 0 ? sizeErrors.medium.specialError / sizeErrors.medium.specialCount : 0,
+      sampleCount: sizeErrors.medium.count
+    },
+    large: {
+      overall: sizeErrors.large.count > 0 ? sizeErrors.large.error / sizeErrors.large.count : 0,
+      standardChannels: sizeErrors.large.standardCount > 0 ? sizeErrors.large.standardError / sizeErrors.large.standardCount : 0,
+      specialLayers: sizeErrors.large.specialCount > 0 ? sizeErrors.large.specialError / sizeErrors.large.specialCount : 0,
+      sampleCount: sizeErrors.large.count
     }
-  });
-  
-  // Calculate overall MAE across all channels
-  const overallMAE = totalChannelCount > 0 ? parseFloat((totalMAE / totalChannelCount).toFixed(4)) : 0;
+  };
   
   return {
-    channelMAE,        // MAE per channel
-    overallMAE,        // Average MAE across all channels
-    sampleCount: totalValidResults,   // Number of test entries used
-    channelSampleCounts: Object.fromEntries(
-      Object.entries(allDifferences).map(([channel, differences]) => [channel, differences.length])
-    )
+    overall: overallMAE,
+    channelMAE,
+    channelSampleCounts,
+    sampleCount: totalSamples,
+    standardChannelsMAE,
+    specialLayersMAE,
+    standardChannelsSampleCount: standardChannelsSamples,
+    specialLayersSampleCount: specialLayersSamples,
+    sizeMetrics: areas ? sizeMetrics : undefined
   };
 }
 
 // Legacy function name for backward compatibility
-export const calculateAccuracyStats = calculateMAEStats; 
+export const calculateAccuracyStats = calculateMAE;
+
+/**
+ * Calculate MAE statistics from validation results
+ * This is for backward compatibility with the admin validation page
+ */
+export function calculateMAEStats(validationResults: ValidationResult[]): any {
+  // Extract the predicted and actual values from the validation results
+  const predictedValues: Record<string, number[]> = {};
+  const actualValues: Record<string, number[]> = {};
+  
+  // Collect all channels for separate analysis
+  const allChannels = new Set<string>();
+  validationResults.forEach(result => {
+    Object.keys(result.actualValues).forEach(channel => {
+      allChannels.add(channel);
+    });
+  });
+  
+  // Initialize arrays for each channel
+  allChannels.forEach(channel => {
+    predictedValues[channel] = [];
+    actualValues[channel] = [];
+  });
+  
+  // Populate with data
+  validationResults.forEach(result => {
+    Object.entries(result.actualValues).forEach(([channel, actual]) => {
+      const predicted = result.predictedValues[channel] || 0;
+      predictedValues[channel].push(predicted);
+      actualValues[channel].push(actual);
+    });
+  });
+  
+  // Calculate statistics using our existing MAE function
+  return calculateMAE(predictedValues, actualValues);
+}
+
+/**
+ * Format validation results as JSON with detailed statistics
+ * Enhanced with size-stratified metrics and separate special layer statistics
+ */
+export function formatValidationResults(
+  validationResults: ValidationResult[],
+  testEntries: TestDataEntry[]
+): any {
+  // Convert validation results to the format needed for overall stats
+  const predictedValues: Record<string, number[]> = {};
+  const actualValues: Record<string, number[]> = {};
+  const areas: number[] = [];
+  
+  // Collect all channels for separate analysis
+  const allChannels = new Set<string>();
+  validationResults.forEach(result => {
+    Object.keys(result.actualValues).forEach(channel => {
+      allChannels.add(channel);
+    });
+  });
+  
+  // Initialize arrays for each channel
+  allChannels.forEach(channel => {
+    predictedValues[channel] = [];
+    actualValues[channel] = [];
+  });
+  
+  // Populate with data
+  validationResults.forEach((result, index) => {
+    // Get the test entry to extract area information
+    const testEntry = testEntries[index];
+    if (testEntry) {
+      const normalizedDimensions = normalizeSize(
+        testEntry.dimensions.width, 
+        testEntry.dimensions.height, 
+        testEntry.dimensions.unit as 'in' | 'mm'
+      );
+      const area = normalizedDimensions.width * normalizedDimensions.height;
+      
+      Object.entries(result.actualValues).forEach(([channel, actual]) => {
+        const predicted = result.predictedValues[channel] || 0;
+        predictedValues[channel].push(predicted);
+        actualValues[channel].push(actual);
+        areas.push(area);
+      });
+    }
+  });
+  
+  // Calculate statistics using improved MAE calculation with area information
+  const stats = calculateMAE(predictedValues, actualValues, areas);
+  
+  // Enhanced format with separate special layer statistics and size-stratified metrics
+  return {
+    testData: testEntries,
+    validationResults,
+    stats: {
+      overallMAE: stats.overall,
+      channelMAE: stats.channelMAE,
+      sampleCount: stats.sampleCount,
+      channelSampleCounts: stats.channelSampleCounts,
+      standardChannels: {
+        MAE: stats.standardChannelsMAE,
+        sampleCount: stats.standardChannelsSampleCount
+      },
+      specialLayers: {
+        MAE: stats.specialLayersMAE,
+        sampleCount: stats.specialLayersSampleCount
+      },
+      sizeStratified: stats.sizeMetrics ? {
+        small: {
+          overall: stats.sizeMetrics.small.overall,
+          standardChannels: stats.sizeMetrics.small.standardChannels,
+          specialLayers: stats.sizeMetrics.small.specialLayers,
+          sampleCount: stats.sizeMetrics.small.sampleCount
+        },
+        medium: {
+          overall: stats.sizeMetrics.medium.overall,
+          standardChannels: stats.sizeMetrics.medium.standardChannels,
+          specialLayers: stats.sizeMetrics.medium.specialLayers,
+          sampleCount: stats.sizeMetrics.medium.sampleCount
+        },
+        large: {
+          overall: stats.sizeMetrics.large.overall,
+          standardChannels: stats.sizeMetrics.large.standardChannels,
+          specialLayers: stats.sizeMetrics.large.specialLayers,
+          sampleCount: stats.sizeMetrics.large.sampleCount
+        }
+      } : undefined
+    },
+    timestamp: new Date().toISOString(),
+    calibrationDate: testEntries.length > 0 ? (testEntries[0] as any).updated_at : null
+  };
+}
+
+/**
+ * Helper function to normalize dimensions for area calculation
+ */
+function normalizeSize(
+  width: number,
+  height: number,
+  unit: 'in' | 'mm'
+): { width: number; height: number } {
+  if (unit === "mm") {
+    return {
+      width: width / 25.4,
+      height: height / 25.4,
+    };
+  }
+  return { width, height };
+} 

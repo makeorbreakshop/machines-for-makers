@@ -12,7 +12,11 @@ import {
   BASE_CONSUMPTION as DEFAULT_BASE_CONSUMPTION,
   CHANNEL_SCALING_FACTORS as DEFAULT_CHANNEL_SCALING_FACTORS,
   QUALITY_CHANNEL_MULTIPLIERS as DEFAULT_QUALITY_MULTIPLIERS,
-  AREA_SCALING_MULTIPLIERS as DEFAULT_AREA_SCALING_MULTIPLIERS
+  AREA_SCALING_MULTIPLIERS as DEFAULT_AREA_SCALING_MULTIPLIERS,
+  AREA_EXPONENTS as DEFAULT_AREA_EXPONENTS,
+  COVERAGE_EXPONENTS as DEFAULT_COVERAGE_EXPONENTS,
+  INK_MODE_ADJUSTMENTS as DEFAULT_INK_MODE_ADJUSTMENTS,
+  calculateAreaScalingMultiplier
 } from "../ink-calibration";
 
 // Local storage key for calibrated factors
@@ -24,6 +28,9 @@ export interface CalibrationFactors {
   channelScalingFactors: Record<string, number>;
   qualityChannelMultipliers: Record<PrintQuality, ChannelMlValues>;
   areaScalingMultipliers: Record<string, number>;
+  areaExponents: Record<string, number>;
+  coverageExponents: Record<string, number>;
+  inkModeAdjustments: Record<string, Record<string, number>>;
   lastUpdated?: string;
 }
 
@@ -86,13 +93,18 @@ export function clearCalibrationCache(): void {
 }
 
 /**
- * Load calibration factors from API
+ * Load calibration factors from API with type filtering
  */
-export async function loadCalibrationFromApi(): Promise<CalibrationFactors | null> {
-  console.log("[CALIBRATION-LOADER-DEBUG] Loading calibration from API");
+export async function loadCalibrationFromApi(calibrationType?: 'cmyk' | 'special_layer'): Promise<CalibrationFactors | null> {
+  console.log(`[CALIBRATION-LOADER-DEBUG] Loading ${calibrationType || 'combined'} calibration from API`);
   
   try {
-    const response = await fetch('/api/admin/ink-calculator/calibration');
+    // Add the calibration type as a query parameter if specified
+    const url = calibrationType 
+      ? `/api/admin/ink-calculator/calibration?type=${calibrationType}`
+      : '/api/admin/ink-calculator/calibration';
+      
+    const response = await fetch(url);
     console.log("[CALIBRATION-LOADER-DEBUG] API response status:", response.status);
     
     if (!response.ok) {
@@ -105,21 +117,25 @@ export async function loadCalibrationFromApi(): Promise<CalibrationFactors | nul
     
     if (data.factors) {
       currentCalibration = data.factors;
-      console.log("[CALIBRATION-LOADER-DEBUG] Calibration factors loaded from API");
+      console.log(`[CALIBRATION-LOADER-DEBUG] ${calibrationType || 'Combined'} calibration factors loaded from API`);
       
       // Also store in localStorage for offline use
       if (typeof window !== 'undefined') {
-        localStorage.setItem(CALIBRATION_STORAGE_KEY, JSON.stringify({
+        const storageKey = calibrationType 
+          ? `${CALIBRATION_STORAGE_KEY}_${calibrationType}`
+          : CALIBRATION_STORAGE_KEY;
+          
+        localStorage.setItem(storageKey, JSON.stringify({
           ...data.factors,
           lastUpdated: data.created_at || new Date().toISOString()
         }));
-        console.log("[CALIBRATION-LOADER-DEBUG] Calibration also saved to localStorage from API data");
+        console.log(`[CALIBRATION-LOADER-DEBUG] ${calibrationType || 'Combined'} calibration also saved to localStorage from API data`);
       }
       
       return data.factors;
     }
     
-    console.log("[CALIBRATION-LOADER-DEBUG] No calibration factors found in API response");
+    console.log(`[CALIBRATION-LOADER-DEBUG] No ${calibrationType || 'combined'} calibration factors found in API response`);
     return null;
   } catch (error) {
     console.error("[CALIBRATION-LOADER-DEBUG] Error loading from API:", error);
@@ -128,10 +144,10 @@ export async function loadCalibrationFromApi(): Promise<CalibrationFactors | nul
 }
 
 /**
- * Load calibration factors from local storage
+ * Load calibration factors from local storage with type filtering
  */
-export function loadCalibrationFromStorage(): CalibrationFactors | null {
-  console.log("[CALIBRATION-LOADER-DEBUG] Loading calibration from localStorage");
+export function loadCalibrationFromStorage(calibrationType?: 'cmyk' | 'special_layer'): CalibrationFactors | null {
+  console.log(`[CALIBRATION-LOADER-DEBUG] Loading ${calibrationType || 'combined'} calibration from localStorage`);
   
   if (typeof window === 'undefined') {
     console.log("[CALIBRATION-LOADER-DEBUG] Not browser environment, skipping localStorage load");
@@ -139,18 +155,22 @@ export function loadCalibrationFromStorage(): CalibrationFactors | null {
   }
   
   try {
-    const storedData = localStorage.getItem(CALIBRATION_STORAGE_KEY);
+    const storageKey = calibrationType 
+      ? `${CALIBRATION_STORAGE_KEY}_${calibrationType}`
+      : CALIBRATION_STORAGE_KEY;
+      
+    const storedData = localStorage.getItem(storageKey);
     
     if (storedData) {
       const parsedData = JSON.parse(storedData);
-      console.log("[CALIBRATION-LOADER-DEBUG] Calibration loaded from localStorage, timestamp:", parsedData.lastUpdated);
+      console.log(`[CALIBRATION-LOADER-DEBUG] ${calibrationType || 'Combined'} calibration loaded from localStorage, timestamp:`, parsedData.lastUpdated);
       return parsedData;
     }
   } catch (error) {
     console.error("[CALIBRATION-LOADER-DEBUG] Error loading from localStorage:", error);
   }
   
-  console.log("[CALIBRATION-LOADER-DEBUG] No calibration found in localStorage");
+  console.log(`[CALIBRATION-LOADER-DEBUG] No ${calibrationType || 'combined'} calibration found in localStorage`);
   return null;
 }
 
@@ -166,7 +186,10 @@ export function getCurrentCalibration(): CalibrationFactors {
       baseConsumption: DEFAULT_BASE_CONSUMPTION,
       channelScalingFactors: DEFAULT_CHANNEL_SCALING_FACTORS,
       qualityChannelMultipliers: DEFAULT_QUALITY_MULTIPLIERS,
-      areaScalingMultipliers: DEFAULT_AREA_SCALING_MULTIPLIERS
+      areaScalingMultipliers: DEFAULT_AREA_SCALING_MULTIPLIERS,
+      areaExponents: DEFAULT_AREA_EXPONENTS,
+      coverageExponents: DEFAULT_COVERAGE_EXPONENTS,
+      inkModeAdjustments: DEFAULT_INK_MODE_ADJUSTMENTS
     };
   }
   
@@ -184,7 +207,10 @@ export function getCurrentCalibration(): CalibrationFactors {
     baseConsumption: DEFAULT_BASE_CONSUMPTION,
     channelScalingFactors: DEFAULT_CHANNEL_SCALING_FACTORS,
     qualityChannelMultipliers: DEFAULT_QUALITY_MULTIPLIERS,
-    areaScalingMultipliers: DEFAULT_AREA_SCALING_MULTIPLIERS
+    areaScalingMultipliers: DEFAULT_AREA_SCALING_MULTIPLIERS,
+    areaExponents: DEFAULT_AREA_EXPONENTS,
+    coverageExponents: DEFAULT_COVERAGE_EXPONENTS,
+    inkModeAdjustments: DEFAULT_INK_MODE_ADJUSTMENTS
   };
   
   // Cache the default values
@@ -193,36 +219,163 @@ export function getCurrentCalibration(): CalibrationFactors {
 }
 
 /**
- * Force refresh calibration from database
+ * Load merged calibration factors combining CMYK and special layer optimizations
+ * This is the main function that should be used by the calculator to get the best of both worlds
+ */
+export async function loadMergedCalibrationFactors(): Promise<CalibrationFactors> {
+  console.log("[CALIBRATION-LOADER-DEBUG] Loading merged calibration factors");
+  
+  // Default calibration as fallback
+  const defaultCalibration = {
+    baseConsumption: DEFAULT_BASE_CONSUMPTION,
+    channelScalingFactors: DEFAULT_CHANNEL_SCALING_FACTORS,
+    qualityChannelMultipliers: DEFAULT_QUALITY_MULTIPLIERS,
+    areaScalingMultipliers: DEFAULT_AREA_SCALING_MULTIPLIERS,
+    areaExponents: DEFAULT_AREA_EXPONENTS,
+    coverageExponents: DEFAULT_COVERAGE_EXPONENTS,
+    inkModeAdjustments: DEFAULT_INK_MODE_ADJUSTMENTS
+  };
+  
+  // Step 1: Try to load CMYK calibration
+  const cmykCalibration = await loadCalibrationFromApi('cmyk') || 
+                          loadCalibrationFromStorage('cmyk');
+  
+  // Step 2: Try to load special layer calibration
+  const specialLayerCalibration = await loadCalibrationFromApi('special_layer') || 
+                                  loadCalibrationFromStorage('special_layer');
+  
+  // Step 3: Fall back to combined calibration if either is missing
+  let combinedCalibration = null;
+  if (!cmykCalibration || !specialLayerCalibration) {
+    combinedCalibration = await loadCalibrationFromApi() || 
+                          loadCalibrationFromStorage();
+  }
+  
+  // Step 4: Start with default calibration
+  const mergedCalibration = { ...defaultCalibration };
+  
+  // Step 5: Apply combined calibration if available
+  if (combinedCalibration) {
+    Object.assign(mergedCalibration, combinedCalibration);
+  }
+  
+  // Step 6: Apply CMYK calibration for CMYK channels if available
+  if (cmykCalibration) {
+    // CMYK base consumption
+    ['cyan', 'magenta', 'yellow', 'black'].forEach(channel => {
+      if (cmykCalibration.baseConsumption?.[channel] !== undefined) {
+        mergedCalibration.baseConsumption[channel] = cmykCalibration.baseConsumption[channel];
+      }
+      
+      if (cmykCalibration.channelScalingFactors?.[channel] !== undefined) {
+        mergedCalibration.channelScalingFactors[channel] = cmykCalibration.channelScalingFactors[channel];
+      }
+      
+      if (cmykCalibration.areaExponents?.[channel] !== undefined) {
+        mergedCalibration.areaExponents[channel] = cmykCalibration.areaExponents[channel];
+      }
+      
+      if (cmykCalibration.coverageExponents?.[channel] !== undefined) {
+        mergedCalibration.coverageExponents[channel] = cmykCalibration.coverageExponents[channel];
+      }
+    });
+    
+    // CMYK quality multipliers
+    Object.keys(cmykCalibration.qualityChannelMultipliers || {}).forEach(quality => {
+      const qualityKey = quality as PrintQuality;
+      ['cyan', 'magenta', 'yellow', 'black'].forEach(channel => {
+        if (cmykCalibration.qualityChannelMultipliers?.[qualityKey]?.[channel] !== undefined) {
+          mergedCalibration.qualityChannelMultipliers[qualityKey][channel] = 
+            cmykCalibration.qualityChannelMultipliers[qualityKey][channel];
+        }
+      });
+    });
+    
+    // CMYK ink mode adjustments
+    Object.keys(cmykCalibration.inkModeAdjustments || {}).forEach(mode => {
+      if (!mergedCalibration.inkModeAdjustments[mode]) {
+        mergedCalibration.inkModeAdjustments[mode] = {};
+      }
+      
+      ['cyan', 'magenta', 'yellow', 'black'].forEach(channel => {
+        if (cmykCalibration.inkModeAdjustments?.[mode]?.[channel] !== undefined) {
+          mergedCalibration.inkModeAdjustments[mode][channel] = 
+            cmykCalibration.inkModeAdjustments[mode][channel];
+        }
+      });
+    });
+  }
+  
+  // Step 7: Apply special layer calibration for special layers if available
+  if (specialLayerCalibration) {
+    // Special layer base consumption
+    ['white', 'gloss', 'clear', 'primer'].forEach(channel => {
+      if (specialLayerCalibration.baseConsumption?.[channel] !== undefined) {
+        mergedCalibration.baseConsumption[channel] = specialLayerCalibration.baseConsumption[channel];
+      }
+      
+      if (specialLayerCalibration.channelScalingFactors?.[channel] !== undefined) {
+        mergedCalibration.channelScalingFactors[channel] = specialLayerCalibration.channelScalingFactors[channel];
+      }
+      
+      if (specialLayerCalibration.areaExponents?.[channel] !== undefined) {
+        mergedCalibration.areaExponents[channel] = specialLayerCalibration.areaExponents[channel];
+      }
+      
+      if (specialLayerCalibration.coverageExponents?.[channel] !== undefined) {
+        mergedCalibration.coverageExponents[channel] = specialLayerCalibration.coverageExponents[channel];
+      }
+    });
+    
+    // Special layer quality multipliers
+    Object.keys(specialLayerCalibration.qualityChannelMultipliers || {}).forEach(quality => {
+      const qualityKey = quality as PrintQuality;
+      ['white', 'gloss', 'clear', 'primer'].forEach(channel => {
+        if (specialLayerCalibration.qualityChannelMultipliers?.[qualityKey]?.[channel] !== undefined) {
+          mergedCalibration.qualityChannelMultipliers[qualityKey][channel] = 
+            specialLayerCalibration.qualityChannelMultipliers[qualityKey][channel];
+        }
+      });
+    });
+    
+    // Special layer ink mode adjustments
+    Object.keys(specialLayerCalibration.inkModeAdjustments || {}).forEach(mode => {
+      if (!mergedCalibration.inkModeAdjustments[mode]) {
+        mergedCalibration.inkModeAdjustments[mode] = {};
+      }
+      
+      ['white', 'gloss', 'clear', 'primer'].forEach(channel => {
+        if (specialLayerCalibration.inkModeAdjustments?.[mode]?.[channel] !== undefined) {
+          mergedCalibration.inkModeAdjustments[mode][channel] = 
+            specialLayerCalibration.inkModeAdjustments[mode][channel];
+        }
+      });
+    });
+  }
+  
+  console.log("[CALIBRATION-LOADER-DEBUG] Merged calibration factors complete");
+  return mergedCalibration;
+}
+
+/**
+ * Force refresh merged calibration from database
  * This should be called whenever we need to ensure we have the latest calibration
  */
 export async function refreshCalibrationFromDatabase(): Promise<CalibrationFactors> {
-  console.log("[CALIBRATION-LOADER-DEBUG] Forcing refresh of calibration from database");
+  console.log("[CALIBRATION-LOADER-DEBUG] Forcing refresh of merged calibration from database");
   
   try {
     // Clear any cached values
     clearCalibrationCache();
     
-    // Try to load from API (database)
-    const apiData = await loadCalibrationFromApi();
-    if (apiData) {
-      console.log("[CALIBRATION-LOADER-DEBUG] Successfully refreshed calibration from database");
-      return apiData;
-    }
+    // Get merged calibration
+    const mergedCalibration = await loadMergedCalibrationFactors();
     
-    // If API fails, fall back to localStorage
-    const storedData = loadCalibrationFromStorage();
-    if (storedData) {
-      return storedData;
-    }
+    // Save to current calibration
+    currentCalibration = mergedCalibration;
     
-    // Last resort - defaults
-    return {
-      baseConsumption: DEFAULT_BASE_CONSUMPTION,
-      channelScalingFactors: DEFAULT_CHANNEL_SCALING_FACTORS,
-      qualityChannelMultipliers: DEFAULT_QUALITY_MULTIPLIERS,
-      areaScalingMultipliers: DEFAULT_AREA_SCALING_MULTIPLIERS
-    };
+    console.log("[CALIBRATION-LOADER-DEBUG] Successfully refreshed merged calibration from database");
+    return mergedCalibration;
   } catch (error) {
     console.error("[CALIBRATION-LOADER-DEBUG] Error refreshing calibration:", error);
     return getCurrentCalibration(); // Fall back to whatever we can get

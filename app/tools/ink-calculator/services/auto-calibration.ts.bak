@@ -1,0 +1,1335 @@
+/**
+ * Auto-Calibration Service
+ * 
+ * This service analyzes ink test data and automatically generates optimized
+ * calibration factors for the UV printer ink calculator.
+ */
+
+import { ChannelMlValues, PrintQuality } from "../types";
+import { calculateInkUsage, normalizeSize } from "../utils";
+import { INK_MODES } from "../config";
+import { 
+  BASE_CONSUMPTION,
+  CHANNEL_SCALING_FACTORS,
+  QUALITY_CHANNEL_MULTIPLIERS,
+  AREA_SCALING_THRESHOLDS,
+  AREA_SCALING_MULTIPLIERS,
+  AREA_EXPONENTS,
+  COVERAGE_EXPONENTS,
+  INK_MODE_ADJUSTMENTS,
+  calculateAreaScalingMultiplier
+} from "../ink-calibration";
+import { calculateErrorPercentage } from "./validation";
+
+interface TestDataEntry {
+  id: string;
+  ink_mode: string;
+  quality: string;
+  dimensions: {
+    width: number;
+    height: number;
+    unit: string;
+  };
+  channel_ml: Record<string, number>;
+  image_analysis: {
+    totalCoverage: number;
+    channelCoverage: Record<string, number>;
+  };
+}
+
+interface CalibrationFactors {
+  baseConsumption: Record<string, number>;
+  channelScalingFactors: Record<string, number>;
+  qualityChannelMultipliers: Record<PrintQuality, ChannelMlValues>;
+  areaScalingMultipliers: Record<string, number>;
+  areaExponents: Record<string, number>;
+  coverageExponents: Record<string, number>;
+  inkModeAdjustments: Record<string, Record<string, number>>;
+}
+
+interface CalibrationResult {
+  factors: CalibrationFactors;
+  accuracy: {
+    before: {
+      averageError: number;
+      channelErrors: Record<string, number>;
+      standardError?: number;
+      specialLayerError?: number;
+    };
+    after: {
+      averageError: number;
+      channelErrors: Record<string, number>;
+      standardError?: number;
+      specialLayerError?: number;
+      specialLayerErrors?: Record<string, number>;
+    };
+  };
+}
+
+// Volume thresholds for differentiating optimization strategies
+const VOLUME_CATEGORIES = {
+  verySmall: 0.02,  // Below 0.02 mL
+  small: 0.1,       // 0.02-0.1 mL
+  medium: 0.5,      // 0.1-0.5 mL
+  large: 1.0        // Above 0.5 mL
+};
+
+/**
+ * Identifies if a channel is a special layer (white underlayer or gloss finish)
+ */
+function isSpecialLayer(channel: string): boolean {
+  return channel === 'white' || channel === 'gloss' || channel === 'clear' || channel === 'primer';
+}
+
+/**
+ * Identifies single-color test entries based on channel coverage percentages
+ * A single-color test has high coverage (>70%) for one channel and low (<30%) for others
+ */
+function isSingleColorTest(entry: TestDataEntry, channel: string): boolean {
+  // Special layers use different calculation logic, don't classify as single-color tests
+  if (isSpecialLayer(channel)) {
+    return false;
+  }
+  
+  if (!entry.image_analysis?.channelCoverage) return false;
+  
+  const coverages = entry.image_analysis.channelCoverage;
+  const thisCoverage = coverages[channel] || 0;
+  
+  // Check if this channel has high coverage (>70%)
+  if (thisCoverage < 70) return false;
+  
+  // Check if other channels have low coverage (<30%)
+  const otherChannelsLow = Object.entries(coverages)
+    .filter(([key]) => key !== channel && !isSpecialLayer(key))
+    .every(([_, coverage]) => coverage < 30);
+    
+  return otherChannelsLow;
+}
+
+/**
+ * Groups test entries by type (single-color vs mixed) and by channel
+ * Also separates special layer tests (white and gloss)
+ */
+function categorizeTestEntries(testEntries: TestDataEntry[]): {
+  singleColorByChannel: Record<string, TestDataEntry[]>;
+  mixedColor: TestDataEntry[];
+  specialLayerTests: Record<string, TestDataEntry[]>;
+} {
+  const result = {
+    singleColorByChannel: {} as Record<string, TestDataEntry[]>,
+    mixedColor: [] as TestDataEntry[],
+    specialLayerTests: {} as Record<string, TestDataEntry[]>
+  };
+  
+  // Initialize empty arrays for each channel
+  const standardChannels = ['cyan', 'magenta', 'yellow', 'black'];
+  const specialLayers = ['white', 'gloss', 'clear', 'primer'];
+  
+  standardChannels.forEach(channel => {
+    result.singleColorByChannel[channel] = [];
+  });
+  
+  specialLayers.forEach(layer => {
+    result.specialLayerTests[layer] = [];
+  });
+  
+  // Categorize test entries
+  testEntries.forEach(entry => {
+    // Check if this is a special layer test
+    let hasSpecialLayer = false;
+    specialLayers.forEach(layer => {
+      if (entry.channel_ml[layer] !== undefined && entry.channel_ml[layer] > 0) {
+        result.specialLayerTests[layer].push(entry);
+        hasSpecialLayer = true;
+      }
+    });
+    
+    // Check if this is a single-color test for any standard channel
+    let isSingleColor = false;
+    
+    for (const channel of standardChannels) {
+      if (isSingleColorTest(entry, channel)) {
+        result.singleColorByChannel[channel].push(entry);
+        isSingleColor = true;
+        break;
+      }
+    }
+    
+    // If not a single-color test, it's a mixed-color test
+    if (!isSingleColor) {
+      result.mixedColor.push(entry);
+    }
+  });
+  
+  return result;
+}
+
+/**
+ * Estimate channel ink usage with a specific scaling factor
+ */
+function estimateChannelUsage(
+  entry: TestDataEntry,
+  channel: string,
+  options: { channelScalingFactor?: number } = {}
+): number {
+  const inkMode = INK_MODES[entry.ink_mode];
+  if (!inkMode) return 0;
+  
+  // Normalize dimensions to get area in square inches
+  const normalizedDimensions = normalizeSize(
+    entry.dimensions.width, 
+    entry.dimensions.height, 
+    entry.dimensions.unit as 'in' | 'mm'
+  );
+  const area = normalizedDimensions.width * normalizedDimensions.height;
+  
+  // Special handling for white and gloss layers
+  if (channel === 'white' || channel === 'gloss' || channel === 'clear' || channel === 'primer') {
+    return estimateSpecialLayerUsage(entry, channel, area, options);
+  }
+  
+  // Get channel coverage
+  let channelCoverage = entry.image_analysis.totalCoverage / 100;
+  if (entry.image_analysis.channelCoverage && 
+      entry.image_analysis.channelCoverage[channel] !== undefined) {
+    channelCoverage = entry.image_analysis.channelCoverage[channel] / 100;
+  }
+  
+  // Get base consumption
+  const baseValue = BASE_CONSUMPTION[channel] || 0;
+  
+  // Get scaling factors
+  const channelFactor = options.channelScalingFactor !== undefined 
+    ? options.channelScalingFactor 
+    : CHANNEL_SCALING_FACTORS[channel] || 0.0001;
+    
+  const quality = entry.quality as PrintQuality;
+  const qualityFactor = QUALITY_CHANNEL_MULTIPLIERS[quality][channel] || 1.0;
+  
+  // Get area scaling using continuous function
+  const areaScalingMultiplier = calculateAreaScalingMultiplier(area);
+  
+  // Get channel-specific exponents
+  const areaExponent = AREA_EXPONENTS[channel] || 0.8; // Default if not specified
+  const coverageExponent = COVERAGE_EXPONENTS[channel] || 1.0; // Default if not specified
+  
+  // Get ink mode adjustments
+  const inkModeAdjustment = INK_MODE_ADJUSTMENTS[entry.ink_mode]?.[channel] || 1.0;
+  
+  // Calculate ink usage using non-linear formula:
+  // mL = base_consumption + (area^area_exponent * coverage^coverage_exponent * channel_factor * quality_factor * area_scaling * ink_mode_adjustment)
+  const coverageComponent = 
+    Math.pow(area, areaExponent) * 
+    Math.pow(channelCoverage * 100, coverageExponent) * 
+    channelFactor * 
+    qualityFactor * 
+    areaScalingMultiplier *
+    inkModeAdjustment;
+    
+  return baseValue + coverageComponent;
+}
+
+/**
+ * Specialized estimation function for white, gloss, and other special layers
+ * Uses a more linear area-based approach that doesn't depend on image coverage
+ */
+function estimateSpecialLayerUsage(
+  entry: TestDataEntry,
+  channel: string,
+  area: number,
+  options: { channelScalingFactor?: number } = {}
+): number {
+  // Get base consumption
+  const baseValue = BASE_CONSUMPTION[channel] || 0;
+  
+  // Get scaling factor
+  const channelFactor = options.channelScalingFactor !== undefined 
+    ? options.channelScalingFactor 
+    : CHANNEL_SCALING_FACTORS[channel] || 0.0001;
+    
+  // Get quality multiplier
+  const quality = entry.quality as PrintQuality;
+  const qualityFactor = QUALITY_CHANNEL_MULTIPLIERS[quality][channel] || 1.0;
+  
+  // Get mode-specific adjustment
+  const modeAdjustment = INK_MODE_ADJUSTMENTS[entry.ink_mode]?.[channel] || 1.0;
+  
+  // For small prints, use a more linear approach
+  if (area < 2) {
+    return baseValue + (area * channelFactor * 25 * qualityFactor * modeAdjustment);
+  }
+  
+  // Get area exponent (closer to 1.0 for special layers)
+  const areaExponent = AREA_EXPONENTS[channel] || 0.95;
+  
+  // Special layers use minimal area scaling
+  let areaScalingMultiplier = 1.0;
+  
+  // Only apply minimal area scaling for large prints
+  if (area > 50) {
+    areaScalingMultiplier = 1.0 - (0.05 * Math.log10(area / 50));
+  }
+  
+  // Calculate layer usage with simplified linear-focused formula
+  const layerUsage = baseValue + 
+    (Math.pow(area, areaExponent) * 
+     channelFactor * 
+     qualityFactor * 
+     areaScalingMultiplier * 
+     modeAdjustment);
+     
+  return layerUsage;
+}
+
+/**
+ * Find the optimal value for a calibration factor using binary search
+ * with volume-specific optimization strategies and prioritization for single-color tests
+ */
+function optimizeFactor(
+  testEntries: TestDataEntry[],
+  channel: string,
+  currentValue: number,
+  evaluateError: (factor: number) => number,
+  min = currentValue * 0.1,
+  max = currentValue * 10,
+  iterations = 10,
+  options: { 
+    prioritizeSingleColor?: boolean;
+    isSpecialLayer?: boolean;
+  } = {}
+): number {
+  // Filter entries for this channel with non-zero values
+  const relevantEntries = testEntries.filter(entry => 
+    entry.channel_ml[channel] !== undefined && 
+    entry.channel_ml[channel] > 0
+  );
+  
+  // If we don't have enough test entries for this channel, return current value
+  if (relevantEntries.length < 3) {
+    console.log(`[CALIBRATION-DEBUG] Not enough test data for ${channel}, skipping optimization`);
+    return currentValue;
+  }
+
+  // Categorize test entries
+  const { singleColorByChannel, mixedColor, specialLayerTests } = categorizeTestEntries(relevantEntries);
+  const singleColorTests = singleColorByChannel[channel] || [];
+  const specialLayerEntries = specialLayerTests[channel] || [];
+  
+  // Log test data categorization
+  if (options.isSpecialLayer) {
+    console.log(`[CALIBRATION-DEBUG] Test data for special layer ${channel}:`, {
+      specialLayerTests: specialLayerEntries.length,
+      mixedColor: mixedColor.length
+    });
+  } else {
+    console.log(`[CALIBRATION-DEBUG] Test data for ${channel}:`, {
+      singleColor: singleColorTests.length,
+      mixedColor: mixedColor.length
+    });
+  }
+  
+  // Group test entries by volume category for targeted optimization
+  const entriesByVolume = {
+    verySmall: relevantEntries.filter(e => e.channel_ml[channel] < VOLUME_CATEGORIES.verySmall),
+    small: relevantEntries.filter(e => 
+      e.channel_ml[channel] >= VOLUME_CATEGORIES.verySmall && 
+      e.channel_ml[channel] < VOLUME_CATEGORIES.small
+    ),
+    medium: relevantEntries.filter(e => 
+      e.channel_ml[channel] >= VOLUME_CATEGORIES.small && 
+      e.channel_ml[channel] < VOLUME_CATEGORIES.medium
+    ),
+    large: relevantEntries.filter(e => e.channel_ml[channel] >= VOLUME_CATEGORIES.medium)
+  };
+  
+  // For special layers, also group by print area for area-correlation analysis
+  const entriesByArea = options.isSpecialLayer ? {
+    tiny: relevantEntries.filter(e => {
+      const dim = normalizeSize(e.dimensions.width, e.dimensions.height, e.dimensions.unit as 'in' | 'mm');
+      return dim.width * dim.height < 2; // Less than 2 sq inches
+    }),
+    small: relevantEntries.filter(e => {
+      const dim = normalizeSize(e.dimensions.width, e.dimensions.height, e.dimensions.unit as 'in' | 'mm');
+      const area = dim.width * dim.height;
+      return area >= 2 && area < 10; // 2-10 sq inches
+    }),
+    medium: relevantEntries.filter(e => {
+      const dim = normalizeSize(e.dimensions.width, e.dimensions.height, e.dimensions.unit as 'in' | 'mm');
+      const area = dim.width * dim.height;
+      return area >= 10 && area < 50; // 10-50 sq inches
+    }),
+    large: relevantEntries.filter(e => {
+      const dim = normalizeSize(e.dimensions.width, e.dimensions.height, e.dimensions.unit as 'in' | 'mm');
+      return dim.width * dim.height >= 50; // Over 50 sq inches
+    })
+  } : undefined;
+  
+  console.log(`[CALIBRATION-DEBUG] Test entries by volume for ${channel}:`, {
+    verySmall: entriesByVolume.verySmall.length,
+    small: entriesByVolume.small.length,
+    medium: entriesByVolume.medium.length,
+    large: entriesByVolume.large.length
+  });
+  
+  if (options.isSpecialLayer && entriesByArea) {
+    console.log(`[CALIBRATION-DEBUG] Test entries by area for ${channel}:`, {
+      tiny: entriesByArea.tiny.length,
+      small: entriesByArea.small.length,
+      medium: entriesByArea.medium.length,
+      large: entriesByArea.large.length
+    });
+  }
+  
+  let bestFactor = currentValue;
+  let bestError = evaluateError(currentValue);
+  console.log(`[CALIBRATION-DEBUG] Starting optimization for ${channel} with MAE: ${bestError.toFixed(4)} mL`);
+  
+  // Determine which volume categories have sufficient test data
+  const hasLargeVolumes = entriesByVolume.large.length >= 2;
+  const hasMediumVolumes = entriesByVolume.medium.length >= 2;
+  const hasSmallVolumes = entriesByVolume.small.length >= 2 || entriesByVolume.verySmall.length >= 2;
+  const hasSingleColorTests = singleColorTests.length >= 1;
+  const hasSpecialLayerTests = specialLayerEntries.length >= 1;
+  
+  // Determine if we have sufficient area test data for special layers
+  let hasLargeAreaTests = false;
+  let hasMediumAreaTests = false;
+  let hasSmallAreaTests = false;
+  
+  if (options.isSpecialLayer && entriesByArea) {
+    hasLargeAreaTests = entriesByArea.large.length >= 2;
+    hasMediumAreaTests = entriesByArea.medium.length >= 2;
+    hasSmallAreaTests = entriesByArea.small.length >= 2 || entriesByArea.tiny.length >= 2;
+  }
+  
+  // Prioritize optimization strategy based on test data availability
+  let optimizationPriority = 'balanced';
+  
+  if (options.isSpecialLayer) {
+    if (hasSpecialLayerTests) {
+      // For special layers, prioritize area-based optimization
+      optimizationPriority = 'specialLayer';
+      
+      if (hasLargeAreaTests && hasSmallAreaTests) {
+        // If we have good area distribution, focus on area correlation
+        optimizationPriority = 'areaCorrelation';
+      }
+      
+      console.log(`[CALIBRATION-DEBUG] Prioritizing ${optimizationPriority} for ${channel}`);
+    }
+  } else if (options.prioritizeSingleColor && hasSingleColorTests) {
+    optimizationPriority = 'singleColor';
+    console.log(`[CALIBRATION-DEBUG] Prioritizing single-color tests for ${channel}`);
+  } else if (hasLargeVolumes && !hasSmallVolumes) {
+    optimizationPriority = 'large';
+  } else if (!hasLargeVolumes && hasSmallVolumes) {
+    optimizationPriority = 'small';
+  } else if (hasLargeVolumes && hasMediumVolumes && hasSmallVolumes) {
+    optimizationPriority = 'balanced';
+  }
+  
+  console.log(`[CALIBRATION-DEBUG] Optimization priority for ${channel}: ${optimizationPriority}`);
+  
+  // Apply different optimization strategies based on priority
+  // Try several values within the range and find the one with lowest error
+  for (let i = 0; i < iterations; i++) {
+    const step = (max - min) / (iterations - 1);
+    for (let j = 0; j < iterations; j++) {
+      const testFactor = min + step * j;
+      let error = evaluateError(testFactor);
+      
+      // Apply different optimization strategies based on priority
+      if (optimizationPriority === 'areaCorrelation') {
+        // For special layers, prioritize area correlation across different sizes
+        // Weight by area categories to ensure good scaling across sizes
+        let areaBasedError = 0;
+        let totalWeight = 0;
+        
+        if (entriesByArea) {
+          if (hasLargeAreaTests) {
+            const largeError = evaluateVolumeSpecificError(entriesByArea.large, channel, testFactor);
+            areaBasedError += largeError * 4;
+            totalWeight += 4;
+          }
+          
+          if (hasMediumAreaTests) {
+            const mediumError = evaluateVolumeSpecificError(entriesByArea.medium, channel, testFactor);
+            areaBasedError += mediumError * 3;
+            totalWeight += 3;
+          }
+          
+          if (hasSmallAreaTests) {
+            const smallError = evaluateVolumeSpecificError(
+              [...entriesByArea.small, ...entriesByArea.tiny], 
+              channel, 
+              testFactor
+            );
+            areaBasedError += smallError * 2;
+            totalWeight += 2;
+          }
+          
+          // Normalize by weights
+          if (totalWeight > 0) {
+            areaBasedError /= totalWeight;
+            
+            // 80% weight to area-based error, 20% to overall error
+            error = error * 0.2 + areaBasedError * 0.8;
+          }
+        }
+      } else if (optimizationPriority === 'specialLayer') {
+        // For special layers like white and gloss, focus on area-based calculation
+        // weight large area prints higher since they're more representative
+        const largeError = hasLargeVolumes ?
+          evaluateVolumeSpecificError(entriesByVolume.large, channel, testFactor) : error;
+          
+        // Special layers focus more on large area prints (80% weight)
+        error = error * 0.2 + largeError * 0.8;
+      } else if (optimizationPriority === 'singleColor') {
+        // Give much higher weight to single-color test errors
+        const singleColorError = evaluateVolumeSpecificError(singleColorTests, channel, testFactor);
+        
+        // 80% weight to single-color tests, 20% to all tests to prevent overfitting to single-color case
+        error = error * 0.2 + singleColorError * 0.8;
+      } else if (optimizationPriority === 'large') {
+        // Give more weight to errors in large volume entries
+        const largeError = evaluateVolumeSpecificError(entriesByVolume.large, channel, testFactor);
+        error = error * 0.3 + largeError * 0.7; // 70% weight to large volumes
+      } else if (optimizationPriority === 'small') {
+        // Give more weight to errors in small volume entries
+        const smallError = evaluateVolumeSpecificError(
+          [...entriesByVolume.small, ...entriesByVolume.verySmall], 
+          channel, 
+          testFactor
+        );
+        error = error * 0.3 + smallError * 0.7; // 70% weight to small volumes
+      } else {
+        // Balanced approach with graduated weighting
+        const largeError = hasLargeVolumes ? 
+          evaluateVolumeSpecificError(entriesByVolume.large, channel, testFactor) : 0;
+        const mediumError = hasMediumVolumes ? 
+          evaluateVolumeSpecificError(entriesByVolume.medium, channel, testFactor) : 0;
+        const smallError = hasSmallVolumes ? 
+          evaluateVolumeSpecificError(
+            [...entriesByVolume.small, ...entriesByVolume.verySmall], 
+            channel, 
+            testFactor
+          ) : 0;
+        
+        // Incorporate single-color test data if available
+        const singleColorError = hasSingleColorTests ?
+          evaluateVolumeSpecificError(singleColorTests, channel, testFactor) : 0;
+        
+        // Incorporate special layer test data if available and relevant
+        const specialLayerError = options.isSpecialLayer && hasSpecialLayerTests ?
+          evaluateVolumeSpecificError(specialLayerEntries, channel, testFactor) : 0;
+        
+        // Weight distribution depends on what data we have
+        if (options.isSpecialLayer && hasSpecialLayerTests) {
+          // For special layers, prioritize large areas
+          if (hasLargeVolumes) {
+            error = specialLayerError * 0.5 + largeError * 0.3 + (mediumError + smallError) * 0.1;
+          } else {
+            error = specialLayerError * 0.7 + error * 0.3;
+          }
+        } else if (hasSingleColorTests) {
+          // Give higher weight to single-color tests even in balanced mode
+          if (hasLargeVolumes && hasMediumVolumes && hasSmallVolumes) {
+            error = singleColorError * 0.4 + largeError * 0.2 + mediumError * 0.2 + smallError * 0.2;
+          } else if (hasLargeVolumes && hasMediumVolumes) {
+            error = singleColorError * 0.5 + largeError * 0.3 + mediumError * 0.2;
+          } else if (hasMediumVolumes && hasSmallVolumes) {
+            error = singleColorError * 0.5 + mediumError * 0.3 + smallError * 0.2;
+          } else if (hasLargeVolumes && hasSmallVolumes) {
+            error = singleColorError * 0.5 + largeError * 0.3 + smallError * 0.2;
+          } else {
+            error = singleColorError * 0.7 + error * 0.3;
+          }
+        } else {
+          // Traditional balanced approach without single-color tests
+          if (hasLargeVolumes && hasMediumVolumes && hasSmallVolumes) {
+            error = largeError * 0.4 + mediumError * 0.4 + smallError * 0.2;
+          } else if (hasLargeVolumes && hasMediumVolumes) {
+            error = largeError * 0.6 + mediumError * 0.4;
+          } else if (hasMediumVolumes && hasSmallVolumes) {
+            error = mediumError * 0.6 + smallError * 0.4;
+          } else if (hasLargeVolumes && hasSmallVolumes) {
+            error = largeError * 0.7 + smallError * 0.3;
+          }
+        }
+      }
+      
+      if (error < bestError) {
+        bestError = error;
+        bestFactor = testFactor;
+        console.log(`[CALIBRATION-DEBUG] Found better factor for ${channel}: ${bestFactor.toPrecision(5)} with MAE: ${bestError.toFixed(4)} mL`);
+      }
+    }
+    
+    // Narrow the search space around the best factor found
+    const range = step * 2;
+    min = Math.max(min, bestFactor - range);
+    max = Math.min(max, bestFactor + range);
+  }
+  
+  // Round to 5 significant digits for readability
+  const result = Number(bestFactor.toPrecision(5));
+  console.log(`[CALIBRATION-DEBUG] Final optimized factor for ${channel}: ${result} with MAE: ${bestError.toFixed(4)} mL`);
+  return result;
+}
+
+/**
+ * Evaluate error for a specific volume category of test entries
+ */
+function evaluateVolumeSpecificError(
+  entries: TestDataEntry[],
+  channel: string,
+  factor: number
+): number {
+  if (entries.length === 0) return 0;
+  
+  // Calculate predicted values for each entry and measure error
+  let totalError = 0;
+  
+  entries.forEach(entry => {
+    const inkMode = INK_MODES[entry.ink_mode];
+    if (!inkMode) return;
+    
+    // Get the actual values from the test data
+    const actual = entry.channel_ml[channel];
+    if (!actual || actual <= 0) return;
+    
+    // Calculate the predicted value using the non-linear model
+    const predicted = estimateChannelUsage(entry, channel, { channelScalingFactor: factor });
+    
+    // Calculate error using absolute difference (MAE)
+    const absoluteDifference = Math.abs(predicted - actual);
+    totalError += absoluteDifference;
+  });
+  
+  return totalError / entries.length;
+}
+
+/**
+ * Calculate the average error across all test entries for a given channel
+ */
+function calculateChannelError(
+  testEntries: TestDataEntry[],
+  channel: string,
+  factors: CalibrationFactors
+): number {
+  // Filter entries that have this channel
+  const relevantEntries = testEntries.filter(entry => 
+    entry.channel_ml[channel] !== undefined && 
+    entry.channel_ml[channel] > 0
+  );
+  
+  if (relevantEntries.length === 0) {
+    return 0;
+  }
+  
+  let totalError = 0;
+  let validSampleCount = 0;
+  
+  relevantEntries.forEach(entry => {
+    const inkMode = INK_MODES[entry.ink_mode];
+    if (!inkMode) return;
+    
+    // Calculate predicted values with current factors using the same non-linear model
+    const predictedMl = estimateChannelUsage(entry, channel, {
+      channelScalingFactor: factors.channelScalingFactors[channel]
+    });
+    
+    // Calculate error using MAE
+    const actualMl = entry.channel_ml[channel];
+    const absoluteDifference = Math.abs(predictedMl - actualMl);
+    
+    // For very small ink volumes, we might still want to reduce their weight
+    const weight = actualMl < VOLUME_CATEGORIES.verySmall ? 0.5 : 1.0;
+    totalError += absoluteDifference * weight;
+    validSampleCount += weight;
+  });
+  
+  return validSampleCount > 0 ? totalError / validSampleCount : 0;
+}
+
+/**
+ * Evaluate overall error with a specific base consumption factor for a channel
+ */
+function evaluateBaseConsumptionError(
+  testEntries: TestDataEntry[],
+  channel: string,
+  factors: CalibrationFactors,
+  baseValue: number
+): number {
+  const testFactors = {
+    ...factors,
+    baseConsumption: {
+      ...factors.baseConsumption,
+      [channel]: baseValue
+    }
+  };
+  
+  return calculateChannelError(testEntries, channel, testFactors);
+}
+
+/**
+ * Evaluate overall error with a specific channel scaling factor
+ */
+function evaluateChannelScalingError(
+  testEntries: TestDataEntry[],
+  channel: string,
+  factors: CalibrationFactors,
+  scalingFactor: number
+): number {
+  const testFactors = {
+    ...factors,
+    channelScalingFactors: {
+      ...factors.channelScalingFactors,
+      [channel]: scalingFactor
+    }
+  };
+  
+  return calculateChannelError(testEntries, channel, testFactors);
+}
+
+/**
+ * Evaluate overall error with a specific quality multiplier for a channel
+ */
+function evaluateQualityMultiplierError(
+  testEntries: TestDataEntry[],
+  channel: string,
+  quality: PrintQuality,
+  factors: CalibrationFactors,
+  multiplier: number
+): number {
+  const qualityMultipliers = { ...factors.qualityChannelMultipliers };
+  qualityMultipliers[quality] = {
+    ...qualityMultipliers[quality],
+    [channel]: multiplier
+  };
+  
+  const testFactors = {
+    ...factors,
+    qualityChannelMultipliers: qualityMultipliers
+  };
+  
+  // Only consider test entries with this quality setting
+  const qualityEntries = testEntries.filter(entry => entry.quality === quality);
+  
+  return calculateChannelError(qualityEntries, channel, testFactors);
+}
+
+/**
+ * Evaluate overall error with a specific area exponent for a channel
+ */
+function evaluateAreaExponentError(
+  testEntries: TestDataEntry[],
+  channel: string,
+  factors: CalibrationFactors,
+  areaExponent: number
+): number {
+  const testFactors = {
+    ...factors,
+    areaExponents: {
+      ...factors.areaExponents,
+      [channel]: areaExponent
+    }
+  };
+  
+  return calculateChannelError(testEntries, channel, testFactors);
+}
+
+/**
+ * Evaluate overall error with a specific coverage exponent for a channel
+ */
+function evaluateCoverageExponentError(
+  testEntries: TestDataEntry[],
+  channel: string,
+  factors: CalibrationFactors,
+  coverageExponent: number
+): number {
+  const testFactors = {
+    ...factors,
+    coverageExponents: {
+      ...factors.coverageExponents,
+      [channel]: coverageExponent
+    }
+  };
+  
+  return calculateChannelError(testEntries, channel, testFactors);
+}
+
+/**
+ * Evaluate overall error with a specific ink mode adjustment for a channel
+ */
+function evaluateInkModeAdjustmentError(
+  testEntries: TestDataEntry[],
+  channel: string,
+  inkMode: string,
+  factors: CalibrationFactors,
+  adjustment: number
+): number {
+  const testFactors = {
+    ...factors,
+    inkModeAdjustments: {
+      ...factors.inkModeAdjustments,
+      [inkMode]: {
+        ...factors.inkModeAdjustments[inkMode],
+        [channel]: adjustment
+      }
+    }
+  };
+  
+  // Only consider test entries for this ink mode
+  const inkModeEntries = testEntries.filter(entry => entry.ink_mode === inkMode);
+  
+  return calculateChannelError(inkModeEntries, channel, testFactors);
+}
+
+/**
+ * Calibrate all factors based on test data with improved single-color test prioritization
+ * and separate handling for special layers (white and gloss)
+ */
+export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResult {
+  console.log("[CALIBRATION-DEBUG] Starting calibration with", testEntries.length, "test entries");
+  
+  // Start with current factors as baseline
+  const initialFactors: CalibrationFactors = {
+    baseConsumption: { ...BASE_CONSUMPTION },
+    channelScalingFactors: { ...CHANNEL_SCALING_FACTORS },
+    qualityChannelMultipliers: JSON.parse(JSON.stringify(QUALITY_CHANNEL_MULTIPLIERS)),
+    areaScalingMultipliers: { ...AREA_SCALING_MULTIPLIERS },
+    areaExponents: { ...AREA_EXPONENTS },
+    coverageExponents: { ...COVERAGE_EXPONENTS },
+    inkModeAdjustments: JSON.parse(JSON.stringify(INK_MODE_ADJUSTMENTS))
+  };
+
+  console.log("[CALIBRATION-DEBUG] Initial factors:", initialFactors);
+  
+  // Calculate initial error rates
+  const initialChannelErrors: Record<string, number> = {};
+  let initialTotalError = 0;
+  let channelCount = 0;
+  
+  // Track all unique channels in test data
+  const allChannels = new Set<string>();
+  const specialLayers = new Set<string>(['white', 'gloss', 'clear', 'primer']);
+  const standardChannels = new Set<string>();
+  
+  testEntries.forEach(entry => {
+    Object.keys(entry.channel_ml).forEach(channel => {
+      allChannels.add(channel);
+      if (specialLayers.has(channel)) {
+        // Do nothing, we already know this is a special layer
+      } else {
+        standardChannels.add(channel);
+      }
+    });
+  });
+  
+  // Calculate initial errors
+  let initialStandardError = 0;
+  let initialSpecialError = 0;
+  let standardChannelCount = 0;
+  let specialLayerCount = 0;
+  
+  allChannels.forEach(channel => {
+    const error = calculateChannelError(testEntries, channel, initialFactors);
+    if (error > 0) {
+      initialChannelErrors[channel] = Number(error.toFixed(2));
+      
+      if (specialLayers.has(channel)) {
+        initialSpecialError += error;
+        specialLayerCount++;
+      } else {
+        initialStandardError += error;
+        standardChannelCount++;
+      }
+      
+      initialTotalError += error;
+      channelCount++;
+    }
+  });
+  
+  const initialAverageError = channelCount > 0 
+    ? Number((initialTotalError / channelCount).toFixed(2)) 
+    : 0;
+  
+  const initialStandardAverageError = standardChannelCount > 0
+    ? Number((initialStandardError / standardChannelCount).toFixed(2))
+    : 0;
+    
+  const initialSpecialAverageError = specialLayerCount > 0
+    ? Number((initialSpecialError / specialLayerCount).toFixed(2))
+    : 0;
+  
+  console.log("[CALIBRATION-DEBUG] Initial errors:", {
+    overall: initialAverageError,
+    standard: initialStandardAverageError,
+    special: initialSpecialAverageError
+  });
+  
+  // Clone the factors for optimization
+  const optimizedFactors: CalibrationFactors = {
+    baseConsumption: { ...initialFactors.baseConsumption },
+    channelScalingFactors: { ...initialFactors.channelScalingFactors },
+    qualityChannelMultipliers: {
+      draft: { ...initialFactors.qualityChannelMultipliers.draft },
+      standard: { ...initialFactors.qualityChannelMultipliers.standard },
+      high: { ...initialFactors.qualityChannelMultipliers.high }
+    },
+    areaScalingMultipliers: { ...initialFactors.areaScalingMultipliers },
+    areaExponents: { ...initialFactors.areaExponents },
+    coverageExponents: { ...initialFactors.coverageExponents },
+    inkModeAdjustments: { ...initialFactors.inkModeAdjustments }
+  };
+  
+  // Categorize test entries to prioritize single-color tests and separate special layers
+  const { singleColorByChannel, mixedColor, specialLayerTests } = categorizeTestEntries(testEntries);
+  
+  console.log("[CALIBRATION-DEBUG] Test data categorization:", {
+    singleColorCyan: singleColorByChannel['cyan']?.length || 0,
+    singleColorMagenta: singleColorByChannel['magenta']?.length || 0,
+    singleColorYellow: singleColorByChannel['yellow']?.length || 0,
+    singleColorBlack: singleColorByChannel['black']?.length || 0,
+    specialLayerWhite: specialLayerTests['white']?.length || 0,
+    specialLayerGloss: specialLayerTests['gloss']?.length || 0,
+    mixedColor: mixedColor.length
+  });
+  
+  // First calibration phase: optimize special layer parameters separately from color channels
+  console.log("[CALIBRATION-DEBUG] Phase 1: Optimizing special layer parameters");
+  specialLayers.forEach(layer => {
+    if (specialLayerTests[layer]?.length >= 3) {
+      console.log(`[CALIBRATION-DEBUG] Optimizing special layer: ${layer}`);
+      
+      // 1.1 First optimize base consumption for special layers
+      const currentBase = optimizedFactors.baseConsumption[layer] || 0;
+      if (currentBase > 0) {
+        const optimizedBase = optimizeFactor(
+          testEntries,
+          layer,
+          currentBase,
+          (factor) => evaluateBaseConsumptionError(testEntries, layer, optimizedFactors, factor),
+          0.001, // min
+          0.1,   // max
+          8,     // iterations
+          { isSpecialLayer: true }
+        );
+        
+        optimizedFactors.baseConsumption[layer] = optimizedBase;
+      }
+      
+      // 1.2 Then optimize channel scaling factors
+      const currentFactor = optimizedFactors.channelScalingFactors[layer] || 0.0001;
+      const optimizedFactor = optimizeFactor(
+        testEntries,
+        layer,
+        currentFactor,
+        (factor) => evaluateChannelScalingError(testEntries, layer, optimizedFactors, factor),
+        0.00001, // min
+        0.001,   // max
+        8,       // iterations
+        { isSpecialLayer: true }
+      );
+      
+      optimizedFactors.channelScalingFactors[layer] = optimizedFactor;
+      
+      // 1.3 Optimize area exponents for special layers (different from color channels)
+      const currentExponent = optimizedFactors.areaExponents[layer] || 0.85;
+      const optimizedExponent = optimizeFactor(
+        testEntries,
+        layer,
+        currentExponent,
+        (factor) => evaluateAreaExponentError(testEntries, layer, optimizedFactors, factor),
+        0.6,  // min - allow sublinear scaling
+        1.2,  // max - can be more linear for special layers
+        8,    // iterations
+        { isSpecialLayer: true }
+      );
+      
+      optimizedFactors.areaExponents[layer] = optimizedExponent;
+    } else {
+      console.log(`[CALIBRATION-DEBUG] Not enough test data for special layer: ${layer}, skipping optimization`);
+    }
+  });
+  
+  // Second calibration phase: optimize base consumption for standard channels
+  console.log("[CALIBRATION-DEBUG] Phase 2: Optimizing base consumption for standard channels");
+  standardChannels.forEach(channel => {
+    const currentBase = optimizedFactors.baseConsumption[channel] || 0;
+    
+    // Skip if we don't have enough data or current value is 0
+    if (currentBase === 0) return;
+    
+    // Combine channel-specific single-color tests with other tests, but prioritize single-color
+    const channelSingleColorTests = singleColorByChannel[channel] || [];
+    const prioritizeSingleColor = channelSingleColorTests.length > 0;
+    
+    // Use all tests but give higher weight to single-color in the optimizer
+    const optimizedBase = optimizeFactor(
+      testEntries,
+      channel,
+      currentBase,
+      (factor) => evaluateBaseConsumptionError(testEntries, channel, optimizedFactors, factor),
+      0.001, // min
+      0.1,   // max
+      8,     // iterations
+      { prioritizeSingleColor }
+    );
+    
+    optimizedFactors.baseConsumption[channel] = optimizedBase;
+  });
+  
+  // Third calibration phase: optimize channel scaling factors for standard channels
+  console.log("[CALIBRATION-DEBUG] Phase 3: Optimizing channel scaling factors for standard channels");
+  standardChannels.forEach(channel => {
+    const currentFactor = optimizedFactors.channelScalingFactors[channel] || 0.0001;
+    
+    // Prioritize single-color tests if available
+    const channelSingleColorTests = singleColorByChannel[channel] || [];
+    const prioritizeSingleColor = channelSingleColorTests.length > 0;
+    
+    const optimizedFactor = optimizeFactor(
+      testEntries,
+      channel,
+      currentFactor,
+      (factor) => evaluateChannelScalingError(testEntries, channel, optimizedFactors, factor),
+      0.00001, // min
+      0.001,   // max
+      8,       // iterations
+      { prioritizeSingleColor }
+    );
+    
+    optimizedFactors.channelScalingFactors[channel] = optimizedFactor;
+  });
+  
+  // Fourth calibration phase: optimize area exponents for standard channels
+  console.log("[CALIBRATION-DEBUG] Phase 4: Optimizing area exponents for standard channels");
+  standardChannels.forEach(channel => {
+    const currentExponent = optimizedFactors.areaExponents[channel] || 0.8;
+    
+    // Prioritize single-color tests if available
+    const channelSingleColorTests = singleColorByChannel[channel] || [];
+    const prioritizeSingleColor = channelSingleColorTests.length > 0;
+    
+    const optimizedExponent = optimizeFactor(
+      testEntries,
+      channel,
+      currentExponent,
+      (factor) => evaluateAreaExponentError(testEntries, channel, optimizedFactors, factor),
+      0.5,  // min - allow sublinear scaling
+      1.5,  // max - allow superlinear scaling
+      8,    // iterations
+      { prioritizeSingleColor }
+    );
+    
+    optimizedFactors.areaExponents[channel] = optimizedExponent;
+  });
+
+  // Fifth calibration phase: optimize coverage exponents (only relevant for standard channels)
+  console.log("[CALIBRATION-DEBUG] Phase 5: Optimizing coverage exponents for standard channels");
+  standardChannels.forEach(channel => {
+    const currentExponent = optimizedFactors.coverageExponents[channel] || 1.0;
+    
+    // Prioritize single-color tests if available
+    const channelSingleColorTests = singleColorByChannel[channel] || [];
+    const prioritizeSingleColor = channelSingleColorTests.length > 0;
+    
+    const optimizedExponent = optimizeFactor(
+      testEntries,
+      channel,
+      currentExponent,
+      (factor) => evaluateCoverageExponentError(testEntries, channel, optimizedFactors, factor),
+      0.5,  // min - allow sublinear response to coverage
+      2.0,  // max - allow quadratic response to coverage
+      8,    // iterations
+      { prioritizeSingleColor }
+    );
+    
+    optimizedFactors.coverageExponents[channel] = optimizedExponent;
+  });
+
+  // Sixth calibration phase: optimize quality multipliers
+  console.log("[CALIBRATION-DEBUG] Phase 6: Optimizing quality multipliers");
+  const qualities: PrintQuality[] = ['draft', 'standard', 'high'];
+  
+  qualities.forEach(quality => {
+    // Only process if we have test data for this quality
+    const qualityEntries = testEntries.filter(entry => entry.quality === quality);
+    if (qualityEntries.length < 2) return;
+    
+    // Categorize quality entries
+    const qualityCategorized = categorizeTestEntries(qualityEntries);
+    
+    // Optimize quality multipliers for standard channels
+    standardChannels.forEach(channel => {
+      const currentMultiplier = optimizedFactors.qualityChannelMultipliers[quality][channel] || 1.0;
+      
+      // Prioritize single-color tests if available
+      const channelSingleColorTests = qualityCategorized.singleColorByChannel[channel] || [];
+      const prioritizeSingleColor = channelSingleColorTests.length > 0;
+      
+      const optimizedMultiplier = optimizeFactor(
+        qualityEntries,
+        channel,
+        currentMultiplier,
+        (factor) => evaluateQualityMultiplierError(qualityEntries, channel, quality, optimizedFactors, factor),
+        0.5,  // min
+        2.0,  // max
+        6,    // iterations
+        { prioritizeSingleColor }
+      );
+      
+      // Ensure quality multipliers exist for this channel
+      if (!optimizedFactors.qualityChannelMultipliers[quality][channel]) {
+        optimizedFactors.qualityChannelMultipliers[quality][channel] = 1.0;
+      }
+      
+      optimizedFactors.qualityChannelMultipliers[quality][channel] = optimizedMultiplier;
+    });
+    
+    // Optimize quality multipliers for special layers
+    specialLayers.forEach(layer => {
+      // Skip if we don't have enough test data for this quality and layer
+      const layerQualityEntries = qualityCategorized.specialLayerTests[layer] || [];
+      if (layerQualityEntries.length < 2) return;
+      
+      const currentMultiplier = optimizedFactors.qualityChannelMultipliers[quality][layer] || 1.0;
+      
+      const optimizedMultiplier = optimizeFactor(
+        layerQualityEntries,
+        layer,
+        currentMultiplier,
+        (factor) => evaluateQualityMultiplierError(layerQualityEntries, layer, quality, optimizedFactors, factor),
+        0.5,  // min
+        2.0,  // max
+        6,    // iterations
+        { isSpecialLayer: true }
+      );
+      
+      // Ensure quality multipliers exist for this layer
+      if (!optimizedFactors.qualityChannelMultipliers[quality][layer]) {
+        optimizedFactors.qualityChannelMultipliers[quality][layer] = 1.0;
+      }
+      
+      optimizedFactors.qualityChannelMultipliers[quality][layer] = optimizedMultiplier;
+    });
+  });
+
+  // Final calibration phase: optimize ink mode adjustments
+  console.log("[CALIBRATION-DEBUG] Phase 7: Optimizing ink mode adjustments");
+  const uniqueInkModes = new Set(testEntries.map(entry => entry.ink_mode));
+  
+  uniqueInkModes.forEach(inkMode => {
+    // Initialize ink mode adjustments if they don't exist
+    if (!optimizedFactors.inkModeAdjustments[inkMode]) {
+      optimizedFactors.inkModeAdjustments[inkMode] = {};
+    }
+    
+    // Get entries for this ink mode
+    const inkModeEntries = testEntries.filter(entry => entry.ink_mode === inkMode);
+    const inkModeCategorized = categorizeTestEntries(inkModeEntries);
+    
+    // First handle standard channels
+    standardChannels.forEach(channel => {
+      const currentAdjustment = optimizedFactors.inkModeAdjustments[inkMode][channel] || 1.0;
+      
+      // Prioritize single-color tests if available
+      const channelSingleColorTests = inkModeCategorized.singleColorByChannel[channel] || [];
+      const prioritizeSingleColor = channelSingleColorTests.length > 0;
+      
+      const optimizedAdjustment = optimizeFactor(
+        inkModeEntries,
+        channel,
+        currentAdjustment,
+        (factor) => evaluateInkModeAdjustmentError(testEntries, channel, inkMode, optimizedFactors, factor),
+        0.5,  // min - allow reducing ink usage for certain modes
+        2.0,  // max - allow increasing ink usage for certain modes
+        6,    // iterations
+        { prioritizeSingleColor }
+      );
+      
+      optimizedFactors.inkModeAdjustments[inkMode][channel] = optimizedAdjustment;
+    });
+    
+    // Then handle special layers
+    specialLayers.forEach(layer => {
+      // Skip if this ink mode doesn't use this special layer
+      const layerEntries = inkModeCategorized.specialLayerTests[layer] || [];
+      if (layerEntries.length < 2) return;
+      
+      const currentAdjustment = optimizedFactors.inkModeAdjustments[inkMode][layer] || 1.0;
+      
+      const optimizedAdjustment = optimizeFactor(
+        inkModeEntries,
+        layer,
+        currentAdjustment,
+        (factor) => evaluateInkModeAdjustmentError(testEntries, layer, inkMode, optimizedFactors, factor),
+        0.5,  // min
+        2.0,  // max
+        6,    // iterations
+        { isSpecialLayer: true }
+      );
+      
+      optimizedFactors.inkModeAdjustments[inkMode][layer] = optimizedAdjustment;
+    });
+  });
+  
+  // Calculate final error rates including separate metrics for standard channels vs. special layers
+  const finalChannelErrors: Record<string, number> = {};
+  const finalSingleColorErrors: Record<string, number> = {};
+  const finalSpecialLayerErrors: Record<string, number> = {};
+  let finalTotalError = 0;
+  let finalSingleColorTotalError = 0;
+  let finalSpecialLayerTotalError = 0;
+  standardChannelCount = 0;
+  let singleColorChannelCount = 0;
+  specialLayerCount = 0;
+  
+  // Calculate errors for standard channels
+  standardChannels.forEach(channel => {
+    // Overall error calculation
+    const error = calculateChannelError(testEntries, channel, optimizedFactors);
+    if (error > 0) {
+      finalChannelErrors[channel] = Number(error.toFixed(2));
+      finalTotalError += error;
+      standardChannelCount++;
+    }
+    
+    // Single-color test error calculation
+    const channelSingleColorTests = singleColorByChannel[channel] || [];
+    if (channelSingleColorTests.length > 0) {
+      const singleColorError = calculateChannelError(channelSingleColorTests, channel, optimizedFactors);
+      finalSingleColorErrors[channel] = Number(singleColorError.toFixed(2));
+      finalSingleColorTotalError += singleColorError;
+      singleColorChannelCount++;
+    }
+  });
+  
+  // Calculate errors for special layers
+  specialLayers.forEach(layer => {
+    const layerEntries = specialLayerTests[layer] || [];
+    if (layerEntries.length > 0) {
+      const specialLayerError = calculateChannelError(layerEntries, layer, optimizedFactors);
+      finalSpecialLayerErrors[layer] = Number(specialLayerError.toFixed(2));
+      finalSpecialLayerTotalError += specialLayerError;
+      specialLayerCount++;
+    }
+  });
+  
+  // Calculate average errors
+  const finalStandardAverageError = standardChannelCount > 0 
+    ? Number((finalTotalError / standardChannelCount).toFixed(2)) 
+    : 0;
+    
+  const finalSpecialLayerAverageError = specialLayerCount > 0
+    ? Number((finalSpecialLayerTotalError / specialLayerCount).toFixed(2))
+    : 0;
+    
+  const finalAverageError = (standardChannelCount + specialLayerCount) > 0 
+    ? Number((finalTotalError / (standardChannelCount + specialLayerCount)).toFixed(2)) 
+    : 0;
+    
+  const finalSingleColorAverageError = singleColorChannelCount > 0
+    ? Number((finalSingleColorTotalError / singleColorChannelCount).toFixed(2))
+    : 0;
+  
+  // Log detailed results including separate metrics
+  console.log("[CALIBRATION-DEBUG] Calibration complete.");
+  console.log("[CALIBRATION-DEBUG] Overall MAE - Before:", initialAverageError.toFixed(4), "mL, After:", finalAverageError.toFixed(4), "mL");
+  console.log("[CALIBRATION-DEBUG] Standard channels MAE - Before:", initialStandardAverageError.toFixed(4), "mL, After:", finalStandardAverageError.toFixed(4), "mL");
+  console.log("[CALIBRATION-DEBUG] Special layers MAE - Before:", initialSpecialAverageError.toFixed(4), "mL, After:", finalSpecialLayerAverageError.toFixed(4), "mL");
+  
+  if (singleColorChannelCount > 0) {
+    console.log("[CALIBRATION-DEBUG] Single-color test MAE:", finalSingleColorAverageError.toFixed(4), "mL");
+    console.log("[CALIBRATION-DEBUG] Single-color channel errors:", finalSingleColorErrors);
+  }
+  
+  if (specialLayerCount > 0) {
+    console.log("[CALIBRATION-DEBUG] Special layer MAE:", finalSpecialLayerAverageError.toFixed(4), "mL");
+    console.log("[CALIBRATION-DEBUG] Special layer errors:", finalSpecialLayerErrors);
+  }
+  
+  console.log("[CALIBRATION-DEBUG] Optimized factors:", optimizedFactors);
+  
+  return {
+    factors: optimizedFactors,
+    accuracy: {
+      before: {
+        averageError: initialAverageError,
+        channelErrors: initialChannelErrors,
+        standardError: initialStandardAverageError,
+        specialLayerError: initialSpecialAverageError
+      },
+      after: {
+        averageError: finalAverageError,
+        channelErrors: finalChannelErrors,
+        standardError: finalStandardAverageError,
+        specialLayerError: finalSpecialLayerAverageError,
+        specialLayerErrors: finalSpecialLayerErrors
+      }
+    }
+  };
+}
+
+/**
+ * Save calibrated factors to database or local storage
+ */
+export async function saveCalibrationFactors(factors: CalibrationFactors): Promise<boolean> {
+  console.log("[CALIBRATION-DEBUG] Saving calibration factors to database");
+  
+  try {
+    // Format data for API
+    const data = {
+      baseConsumption: factors.baseConsumption,
+      channelScalingFactors: factors.channelScalingFactors,
+      qualityChannelMultipliers: factors.qualityChannelMultipliers,
+      areaScalingMultipliers: factors.areaScalingMultipliers,
+      areaExponents: factors.areaExponents,
+      coverageExponents: factors.coverageExponents,
+      inkModeAdjustments: factors.inkModeAdjustments
+    };
+
+    // Save to API endpoint
+    const response = await fetch('/api/admin/ink-calculator/calibration', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    
+    console.log("[CALIBRATION-DEBUG] API response status:", response.status);
+    
+    if (!response.ok) {
+      console.error("[CALIBRATION-DEBUG] API request failed:", response.status);
+      throw new Error('Failed to save calibration factors');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('[CALIBRATION-DEBUG] Error saving calibration factors:', error);
+    return false;
+  }
+}
+
+/**
+ * Load saved calibration factors
+ */
+export async function loadCalibrationFactors(): Promise<CalibrationFactors | null> {
+  try {
+    const response = await fetch('/api/admin/ink-calculator/calibration');
+    
+    if (!response.ok) {
+      throw new Error('Failed to load calibration factors');
+    }
+    
+    const data = await response.json();
+    return data.factors;
+  } catch (error) {
+    console.error('Error loading calibration factors:', error);
+    return null;
+  }
+} 

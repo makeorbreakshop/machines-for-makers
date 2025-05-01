@@ -6,7 +6,12 @@ import {
   AREA_SCALING_MULTIPLIERS,
   BASE_CONSUMPTION,
   CHANNEL_SCALING_FACTORS,
-  QUALITY_CHANNEL_MULTIPLIERS
+  QUALITY_CHANNEL_MULTIPLIERS,
+  AREA_EXPONENTS,
+  COVERAGE_EXPONENTS,
+  INK_MODE_ADJUSTMENTS,
+  calculateAreaScalingMultiplier,
+  SPECIAL_LAYER_MODES
 } from "./ink-calibration";
 import { 
   refreshCalibrationFromDatabase, 
@@ -41,18 +46,18 @@ function calculateChannelCoverage(r: number, g: number, b: number, a: number): C
   // The resulting array contains [C, M, Y, K] values from 0-100
   const cmyk = colorConvert.rgb.cmyk([r, g, b]);
   
-  // Normalize to 0-1 range for coverage calculations
-  const c = cmyk[0] / 100;
-  const m = cmyk[1] / 100;
-  const y = cmyk[2] / 100;
-  const k = cmyk[3] / 100;
+  // No need to normalize to 0-1 range, keep values in 0-100 scale
+  const c = cmyk[0];
+  const m = cmyk[1];
+  const y = cmyk[2];
+  const k = cmyk[3];
   
-  // Apply alpha transparency factor
+  // Apply alpha transparency factor - alpha is 0-1, so we need to maintain scale
   return {
-    cyan: c * a,
-    magenta: m * a,
-    yellow: y * a,
-    black: k * a
+    cyan: c * a,           // c is 0-100, a is 0-1
+    magenta: m * a,        // m is 0-100, a is 0-1
+    yellow: y * a,         // y is 0-100, a is 0-1
+    black: k * a           // k is 0-100, a is 0-1
   };
 }
 
@@ -144,16 +149,17 @@ export async function processImage(
         // Normalize coverage values
         const avgCoverage = totalPixels > 0 ? totalCoverage / sampledPixels : 0;
         
-        // Normalize channel coverage
+        // Normalize channel coverage and convert to 0-100 scale to match test data
         if (sampledPixels > 0) {
-          channelCoverage.cyan /= sampledPixels;
-          channelCoverage.magenta /= sampledPixels;
-          channelCoverage.yellow /= sampledPixels;
-          channelCoverage.black /= sampledPixels;
+          channelCoverage.cyan = (channelCoverage.cyan / sampledPixels) * 100;
+          channelCoverage.magenta = (channelCoverage.magenta / sampledPixels) * 100;
+          channelCoverage.yellow = (channelCoverage.yellow / sampledPixels) * 100;
+          channelCoverage.black = (channelCoverage.black / sampledPixels) * 100;
         }
         
         resolve({
-          coverage: avgCoverage,
+          // Convert coverage to 0-100 scale to match test data scale
+          coverage: avgCoverage * 100,
           channelCoverage,
           imageUrl: URL.createObjectURL(file),
           dimensions: {
@@ -183,8 +189,113 @@ export async function processImage(
 }
 
 /**
+ * Calculate area scaling multiplier using dynamic calibration factors
+ * This overrides the static function in ink-calibration.ts
+ */
+function calculateDynamicAreaScalingMultiplier(area: number, calibration: any): number {
+  // If we have multipliers in the calibration, use them to calculate a weighted average
+  if (calibration && calibration.areaScalingMultipliers) {
+    const { small, medium, large, xlarge } = calibration.areaScalingMultipliers;
+    
+    // Use logarithmic scaling based on the calibrated multipliers
+    // This creates a smooth curve between the calibrated points
+    if (area < 10) {
+      return small;
+    } else if (area < 50) {
+      const t = (area - 10) / (50 - 10);
+      return small + t * (medium - small);
+    } else if (area < 100) {
+      const t = (area - 50) / (100 - 50);
+      return medium + t * (large - medium);
+    } else {
+      return xlarge;
+    }
+  }
+  
+  // Fallback to the default formula if no calibration data
+  return 1.2 - (0.15 * Math.log10(1 + area/100));
+}
+
+/**
+ * Calculate special layer usage (white underlayer or gloss finishing)
+ * Uses a completely separate area-based linear model for special layers 
+ * as specified in the PRD: mL = baseValue + (area × scalingFactor × modeSpecificFactor × qualityMultiplier)
+ */
+function calculateSpecialLayerUsage(
+  layerType: 'white' | 'gloss',
+  area: number,
+  inkMode: InkMode,
+  quality: PrintQuality,
+  calibration: any
+): number {
+  // Skip calculation if this layer type isn't in the ink mode
+  if (!inkMode.channels.includes(layerType)) {
+    return 0;
+  }
+  
+  // Get base consumption for this layer - using higher values in 0.05-0.1 mL range
+  const baseConsumption = calibration.baseConsumption[layerType] || 0.05;
+  
+  // Get scaling factor for this layer - significantly increased (100x higher than CMYK)
+  const layerFactor = calibration.channelScalingFactors[layerType] || 0.05;
+  
+  // Get quality multiplier for this layer
+  const qualityMultiplier = calibration.qualityChannelMultipliers[quality]?.[layerType] || 1.0;
+  
+  // Get ink mode adjustment with significant differences between modes (3-5x)
+  const inkModeAdjustment = calibration.inkModeAdjustments[inkMode.label]?.[layerType] || 1.0;
+  
+  // Fixed minimum threshold based on printer mechanics
+  const minimumLayerUsage = layerType === 'white' ? 0.03 : 0.04;
+  
+  // Implement size-based calculation branches
+  
+  // Small Print Handling (<50mm square = ~4 sq inches)
+  if (area < 4) {
+    // Steeper linear formula for small prints to prevent underestimation
+    const smallAreaUsage = baseConsumption + (area * layerFactor * 2.0 * qualityMultiplier * inkModeAdjustment);
+    return Math.max(smallAreaUsage, minimumLayerUsage);
+  }
+  
+  // Large Print Handling (>250mm square = >100 sq inches)
+  if (area > 100) {
+    // Tapering function for large prints to prevent extreme values
+    const taperFactor = 0.8 - (0.1 * Math.log10(area / 100));
+    const largeAreaUsage = baseConsumption + (area * layerFactor * qualityMultiplier * inkModeAdjustment * taperFactor);
+    return Math.max(largeAreaUsage, minimumLayerUsage);
+  }
+  
+  // Medium Print Handling (50-250mm square = ~4-100 sq inches)
+  // For white and gloss, determine mode-specific factor
+  let modeFactor = 1.0;
+  
+  if (layerType === 'white') {
+    // White layer is typically full coverage but can vary by mode
+    const isWhiteMode = SPECIAL_LAYER_MODES.WHITE_MODES.includes(inkMode.label);
+    modeFactor = isWhiteMode ? 1.0 : 0;
+  } else if (layerType === 'gloss') {
+    // Gloss might be selective or full coverage based on mode
+    const isGlossMode = SPECIAL_LAYER_MODES.GLOSS_MODES.includes(inkMode.label);
+    const isSelectiveGloss = inkMode.label.includes('SELECTIVE');
+    
+    if (!isGlossMode) {
+      modeFactor = 0;
+    } else {
+      // Increased difference between selective (0.5) and full (1.0)
+      modeFactor = isSelectiveGloss ? 0.5 : 1.0;
+    }
+  }
+  
+  // Standard medium-size calculation using the exact formula from the PRD
+  // mL = baseValue + (area × scalingFactor × modeSpecificFactor × qualityMultiplier)
+  const standardUsage = baseConsumption + (area * layerFactor * qualityMultiplier * inkModeAdjustment * modeFactor);
+  
+  return Math.max(standardUsage, minimumLayerUsage);
+}
+
+/**
  * Calculate ink usage based on image coverage, dimensions, and settings
- * Uses the enhanced formula: mL = base_value + (coverage% × area × channel_factor × quality_factor)
+ * Uses completely separate calculation models for CMYK vs special layers
  */
 export async function calculateInkUsage(
   coverage: number,
@@ -196,7 +307,7 @@ export async function calculateInkUsage(
   manualValues?: ChannelMlValues,
   channelCoverage?: ChannelCoverageValues
 ): Promise<InkUsageResult> {
-  console.log("[INK-CALCULATOR] Calculating ink usage with dynamic calibration factors");
+  console.log("[INK-CALCULATOR] Calculating ink usage with separate models for CMYK vs. special layers");
   
   // If manual values are provided, return them directly
   if (manualValues) {
@@ -210,30 +321,17 @@ export async function calculateInkUsage(
     };
   }
   
-  // Load the latest calibration factors from the database/storage
-  // This includes caching for performance
-  let calibrationFactors;
-  try {
-    // Try to get the latest factors - first checks cache, then API, then local storage 
-    calibrationFactors = getCurrentCalibration();
-    
-    // Every 5 minutes or so, refresh the calibration factors in the background
-    // to ensure we eventually get the latest without affecting performance
-    if (typeof window !== 'undefined' && Math.random() < 0.1) { // ~10% chance to refresh
-      refreshCalibrationFromDatabase().catch(err => {
-        console.warn("[INK-CALCULATOR] Background refresh of calibration failed:", err);
-      });
-    }
-  } catch (error) {
-    console.warn("[INK-CALCULATOR] Error loading calibration factors, using defaults:", error);
-    // Continue with default values from ink-calibration.ts (these are already imported)
-  }
+  // Get calibration factors from the latest calibration
+  const calibration = getCurrentCalibration();
   
-  // Extract the calibration factors
-  const baseConsumption = calibrationFactors?.baseConsumption || BASE_CONSUMPTION;
-  const channelScalingFactors = calibrationFactors?.channelScalingFactors || CHANNEL_SCALING_FACTORS;
-  const qualityChannelMultipliers = calibrationFactors?.qualityChannelMultipliers || QUALITY_CHANNEL_MULTIPLIERS;
-  const areaScalingMultipliers = calibrationFactors?.areaScalingMultipliers || AREA_SCALING_MULTIPLIERS;
+  const baseConsumption = calibration.baseConsumption;
+  const channelScalingFactors = calibration.channelScalingFactors;
+  const qualityChannelMultipliers = calibration.qualityChannelMultipliers;
+  const areaExponents = calibration.areaExponents;
+  const coverageExponents = calibration.coverageExponents;
+  const inkModeAdjustments = calibration.inkModeAdjustments;
+  
+  console.log("[INK-CALCULATOR] Using calibration factors from:", calibration.lastUpdated || "default");
   
   // Normalize dimensions to inches for consistent calculations
   const normalizedSize = normalizeSize(width, height, unit);
@@ -242,67 +340,86 @@ export async function calculateInkUsage(
   // Get the quality multiplier
   const qualityMultiplier = QUALITY_MULTIPLIERS[quality] || 1;
   
-  // Get area scaling multiplier based on print dimensions
-  const areaScalingMultiplier = getAreaScalingMultiplier(area, areaScalingMultipliers);
+  // Calculate area scaling multiplier using our dynamic function with calibration data
+  const areaScalingMultiplier = calculateDynamicAreaScalingMultiplier(area, calibration);
+  
+  // Define special layers to use separate calculation model
+  const specialLayers = new Set(['white', 'gloss', 'clear', 'primer']);
   
   // Initialize result object with all channels from the ink mode
   const result: ChannelMlValues = {};
   let totalMl = 0;
   
-  // For each channel in the ink mode, calculate mL usage
+  // Process each channel in the ink mode
   inkMode.channels.forEach(channel => {
-    // Get the base consumption for this channel (minimum ink used regardless of coverage)
-    const baseConsumptionValue = baseConsumption[channel] || 0.01;
+    // COMPLETELY SEPARATE CALCULATION MODELS
     
-    // Get the channel-specific scaling factor
+    // Special Layer Model: Primarily area-based linear model
+    if (specialLayers.has(channel)) {
+      const specialLayerMl = calculateSpecialLayerUsage(
+        channel as 'white' | 'gloss',
+        area,
+        inkMode,
+        quality,
+        calibration
+      );
+      
+      result[channel] = specialLayerMl;
+      totalMl += specialLayerMl;
+      return; // Skip CMYK calculation for special layers
+    }
+    
+    // CMYK Channel Model: Complex model incorporating coverage analysis
+    // Get the quality-specific multiplier for this channel
+    const channelQualityMultiplier = 
+      qualityChannelMultipliers[quality]?.[channel] || 
+      qualityMultiplier;
+    
+    // Get channel-specific exponents
+    const areaExponent = areaExponents[channel] || 0.8;
+    const coverageExponent = coverageExponents[channel] || 1.0;
+    
+    // Get channel-specific ink mode adjustment
+    const inkModeAdjustment = inkModeAdjustments[inkMode.label]?.[channel] || 1.0;
+    
+    // Get the coverage value for this specific channel, or use the average coverage
+    // IMPORTANT: Assume coverage is already in 0-100 scale, don't convert
+    let channelCoverageValue = coverage;
+    if (channelCoverage && channelCoverage[channel] !== undefined) {
+      channelCoverageValue = channelCoverage[channel];
+    }
+    
+    // Get base consumption
+    const baseValue = baseConsumption[channel] || 0;
+    
+    // Get scaling factor
     const channelFactor = channelScalingFactors[channel] || 0.0001;
     
-    // Get quality-specific channel multiplier
-    const qualityChannelMultiplier = qualityChannelMultipliers[quality]?.[channel] || qualityMultiplier;
+    // Calculate the coverage component with the non-linear formula for CMYK
+    // Since coverage is now 0-100, adjust the formula to work with this scale directly
+    // mL = baseConsumption + (area^areaExponent × (coverage/100)^coverageExponent × channelFactor × qualityMultiplier × areaScaling × inkModeAdjustment)
+    const coverageComponent = 
+      Math.pow(area, areaExponent) * 
+      Math.pow(channelCoverageValue / 100, coverageExponent) * // Divide by 100 to use in exponential calculation
+      channelFactor * 
+      channelQualityMultiplier * 
+      areaScalingMultiplier *
+      inkModeAdjustment;
     
-    // Get the coverage percentage for this specific channel
-    // If channel-specific coverage is available, use it; otherwise, use the general coverage
-    const channelCoveragePercentage = channelCoverage ? 
-      (channelCoverage[channel] || 0) : 
-      coverage * 100; // Convert 0-1 to 0-100 for percentage
+    // Calculate final ink usage for this channel
+    const channelMl = baseValue + coverageComponent;
     
-    // Calculate mL for this channel using the enhanced formula:
-    // mL = base_value + (coverage% × area × channel_factor × quality_factor × area_scaling)
-    let channelMl = baseConsumptionValue + 
-      (channelCoveragePercentage / 100 * area * channelFactor * qualityChannelMultiplier * areaScalingMultiplier);
-    
-    // Round to 4 decimal places for precision
-    channelMl = Math.round(channelMl * 10000) / 10000;
-    
-    // Store the result
-    result[channel] = channelMl;
+    // Add to result and update total
+    result[channel] = parseFloat(channelMl.toFixed(6));
     totalMl += channelMl;
   });
   
   return {
     channelMl: result,
-    channelCoverage: channelCoverage || {},
-    totalMl,
-    coverage
+    totalMl: parseFloat(totalMl.toFixed(6)),
+    coverage: coverage, // No conversion needed, already in 0-100 scale
+    channelCoverage: channelCoverage || {}
   };
-}
-
-/**
- * Get the area scaling multiplier based on print dimensions
- */
-function getAreaScalingMultiplier(area: number, customScalingMultipliers?: Record<string, number>): number {
-  // Use custom scaling multipliers if provided, otherwise use defaults
-  const scalingMultipliers = customScalingMultipliers || AREA_SCALING_MULTIPLIERS;
-  
-  if (area < AREA_SCALING_THRESHOLDS.small) {
-    return scalingMultipliers.small;
-  } else if (area < AREA_SCALING_THRESHOLDS.medium) {
-    return scalingMultipliers.medium;
-  } else if (area < AREA_SCALING_THRESHOLDS.large) {
-    return scalingMultipliers.large;
-  } else {
-    return scalingMultipliers.xlarge;
-  }
 }
 
 /**
@@ -313,45 +430,26 @@ export function calculateCost(
   inkPackagePrice: number,
   totalMlPerSet: number = DEFAULT_ML_PER_SET
 ): CostResult {
-  console.log('DEBUG: calculateCost called with:', {
-    inkUsage,
-    inkPackagePrice,
-    totalMlPerSet
-  });
+  // Calculate cost per print
+  const mlPerSet = totalMlPerSet;
+  const pricePerMl = inkPackagePrice / mlPerSet;
+  const costPerPrint = inkUsage.totalMl * pricePerMl;
   
-  // Calculate cost per ml of ink
-  const costPerMl = inkPackagePrice / totalMlPerSet;
-  console.log('DEBUG: Cost per mL:', costPerMl);
+  // Calculate prints per ink set (if no ink used, return 0 to avoid division by zero)
+  const printsPerSet = inkUsage.totalMl > 0 ? mlPerSet / inkUsage.totalMl : 0;
   
-  // Calculate cost for each channel
+  // Calculate cost breakdown per channel
   const channelBreakdown: ChannelMlValues = {};
+  
   Object.entries(inkUsage.channelMl).forEach(([channel, ml]) => {
-    // Store the raw calculated value without rounding
-    channelBreakdown[channel] = ml * costPerMl;
-    console.log(`DEBUG: Channel ${channel} cost calculation:`, {
-      ml,
-      costPerMl,
-      channelCost: channelBreakdown[channel]
-    });
+    channelBreakdown[channel] = ml * pricePerMl;
   });
   
-  // Calculate total cost per print - use raw values without rounding
-  const costPerPrint = Object.values(channelBreakdown).reduce(
-    (sum, cost) => sum + cost,
-    0
-  );
-  
-  // Calculate how many prints can be made with one set
-  const printsPerSet = Math.floor(totalMlPerSet / inkUsage.totalMl);
-  
-  const result = {
-    costPerPrint: costPerPrint, // No rounding or formatting
+  return {
+    costPerPrint,
     printsPerSet,
     channelBreakdown,
-    totalMl: inkUsage.totalMl,
-    coverage: inkUsage.coverage
+    coverage: inkUsage.coverage,
+    totalMl: inkUsage.totalMl
   };
-  
-  console.log('DEBUG: Final cost calculation result:', result);
-  return result;
 } 

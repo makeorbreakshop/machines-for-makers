@@ -1,3 +1,12 @@
+/**
+ * DEPRECATED - This file is no longer used in the codebase.
+ * 
+ * The ink calculator now exclusively uses the calculateInkUsage() function from utils.ts
+ * which pulls calibration data directly from the database.
+ * 
+ * This file is kept for reference purposes only and may be removed in a future cleanup.
+ */
+
 import { InkMode, PrintQuality, ImageType } from "../types";
 
 // Types for test data

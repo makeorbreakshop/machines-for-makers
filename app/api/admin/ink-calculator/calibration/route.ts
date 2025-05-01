@@ -7,6 +7,9 @@ export interface CalibrationFactors {
   channelScalingFactors: Record<string, number>;
   qualityChannelMultipliers: Record<string, Record<string, number>>;
   areaScalingMultipliers: Record<string, number>;
+  areaExponents?: Record<string, number>;
+  coverageExponents?: Record<string, number>;
+  inkModeAdjustments?: Record<string, Record<string, number>>;
 }
 
 /**
@@ -20,15 +23,27 @@ export async function GET(req: NextRequest) {
     await requireAdminAuth();
     console.log("[API-DEBUG] Admin auth verified for GET");
 
+    // Check if a specific calibration type was requested
+    const url = new URL(req.url);
+    const calibrationType = url.searchParams.get('type');
+    console.log("[API-DEBUG] Calibration type requested:", calibrationType || 'combined');
+
     // Initialize Supabase client
     const supabase = await createServerClient();
     
-    // Get the latest calibration entry
-    const { data, error } = await supabase
+    // Build query for the requested calibration type
+    let query = supabase
       .from('ink_calculator_calibration')
       .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .order('created_at', { ascending: false });
+    
+    // Filter by calibration type if specified
+    if (calibrationType) {
+      query = query.eq('calibration_type', calibrationType);
+    }
+    
+    // Execute the query
+    const { data, error } = await query.limit(1);
     
     console.log("[API-DEBUG] Calibration data retrieved:", data ? data.length : 0, "records");
     
@@ -39,19 +54,20 @@ export async function GET(req: NextRequest) {
     
     // If no calibration factors exist, return null
     if (!data || data.length === 0) {
-      console.log("[API-DEBUG] No calibration factors found");
+      console.log("[API-DEBUG] No calibration factors found for type:", calibrationType || 'combined');
       return NextResponse.json({ 
         factors: null,
-        message: 'No calibration factors found'
+        message: `No calibration factors found for type: ${calibrationType || 'combined'}`
       });
     }
     
-    console.log("[API-DEBUG] Returning calibration factors from:", data[0].created_at);
+    console.log("[API-DEBUG] Returning calibration factors from:", data[0].created_at, "type:", data[0].calibration_type || 'combined');
     
     // Return the latest calibration factors
     return NextResponse.json({
       factors: data[0].factors,
       created_at: data[0].created_at,
+      calibration_type: data[0].calibration_type || 'combined',
       message: 'Calibration factors loaded successfully'
     });
   } catch (error: any) {
@@ -75,10 +91,13 @@ export async function POST(req: NextRequest) {
     console.log("[API-DEBUG] Admin auth verified for POST");
     
     // Parse request body
-    const factors: CalibrationFactors = await req.json();
+    const requestData = await req.json();
+    const { factors, calibration_type } = requestData;
+    
     console.log("[API-DEBUG] Received calibration factors:", 
       Object.keys(factors.baseConsumption).length, "base consumption values",
-      Object.keys(factors.channelScalingFactors).length, "channel scaling factors");
+      Object.keys(factors.channelScalingFactors).length, "channel scaling factors",
+      "type:", calibration_type || 'combined');
     
     // Validate the data
     if (!factors || 
@@ -101,6 +120,7 @@ export async function POST(req: NextRequest) {
       .from('ink_calculator_calibration')
       .insert({
         factors,
+        calibration_type: calibration_type || 'combined',
         created_at: new Date().toISOString(),
       })
       .select();
@@ -110,11 +130,12 @@ export async function POST(req: NextRequest) {
       throw error;
     }
     
-    console.log("[API-DEBUG] Calibration factors saved successfully, ID:", data?.[0]?.id);
+    console.log("[API-DEBUG] Calibration factors saved successfully, ID:", data?.[0]?.id, "type:", calibration_type || 'combined');
     
     return NextResponse.json({
       success: true,
       id: data?.[0]?.id,
+      calibration_type: calibration_type || 'combined',
       message: 'Calibration factors saved successfully'
     });
   } catch (error: any) {

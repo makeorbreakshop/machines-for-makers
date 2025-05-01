@@ -4,10 +4,12 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DimensionUnit } from "../types";
 import { AlertCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+// Define the unit type directly since it's not exported from types.ts
+type DimensionUnit = 'in' | 'mm';
 
 interface DimensionInputsProps {
   width: number;
@@ -117,7 +119,7 @@ export default function DimensionInputs({
               id="width"
               type="number"
               min="0.1"
-              step="0.1"
+              step={unit === 'in' ? "0.1" : "1"}
               value={width || ""}
               onChange={handleWidthChange}
               className={cn(
@@ -144,7 +146,7 @@ export default function DimensionInputs({
               id="height"
               type="number"
               min="0.1"
-              step="0.1"
+              step={unit === 'in' ? "0.1" : "1"}
               value={height || ""}
               onChange={handleHeightChange}
               className={cn(

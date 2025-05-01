@@ -1,0 +1,3210 @@
+{
+  "testData": [
+    {
+      "id": "119bc77f-39fd-4016-92e4-7e250f179742",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 64.36,
+        "height": 144.84
+      },
+      "channel_ml": {
+        "cyan": 0.008333333333,
+        "black": 0.004166666667,
+        "gloss": 0.09666666667,
+        "white": 0.1025,
+        "yellow": 0.01083333333,
+        "magenta": 0.01583333333
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746104822581-8t2lcretvje.png",
+      "notes": null,
+      "created_at": "2025-05-01T13:07:05.05001+00:00",
+      "updated_at": "2025-05-01T13:07:05.05001+00:00",
+      "image_analysis": {
+        "totalCoverage": 43.90641753503262,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 46.02332525893752,
+          "gloss": 0.1,
+          "white": 62.5928309847158,
+          "yellow": 13.624310056799198,
+          "magenta": 14.636351486802539
+        }
+      }
+    },
+    {
+      "id": "97c3ecbd-a7d5-4a28-a282-802d36cf4399",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 195,
+        "height": 347.9
+      },
+      "channel_ml": {
+        "cyan": 0.07,
+        "black": 0.04,
+        "gloss": 0.88,
+        "white": 0.93,
+        "yellow": 0.1,
+        "magenta": 0.15
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746104516175-lx71g1xu2z.png",
+      "notes": null,
+      "created_at": "2025-05-01T13:01:58.580664+00:00",
+      "updated_at": "2025-05-01T13:01:58.580664+00:00",
+      "image_analysis": {
+        "totalCoverage": 43.90641753503262,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 46.02332525893752,
+          "gloss": 0.1,
+          "white": 62.5928309847158,
+          "yellow": 13.624310056799198,
+          "magenta": 14.636351486802539
+        }
+      }
+    },
+    {
+      "id": "637bc5a8-763b-4805-9ec4-0f5c75567cc8",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 100,
+        "height": 100
+      },
+      "channel_ml": {
+        "cyan": 0.02166666667,
+        "black": 0.03833333333,
+        "gloss": 0.1316666667,
+        "white": 0.1383333333,
+        "yellow": 0.05,
+        "magenta": 0.065
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746103383931-djdq9p6idvq.png",
+      "notes": null,
+      "created_at": "2025-05-01T12:43:12.112836+00:00",
+      "updated_at": "2025-05-01T12:43:12.112836+00:00",
+      "image_analysis": {
+        "totalCoverage": 73.07715320953908,
+        "channelCoverage": {
+          "cyan": 5.2958101611838995,
+          "black": 71.54950985012725,
+          "gloss": 0.1,
+          "white": 100,
+          "yellow": 43.089139409934965,
+          "magenta": 43.42995569799226
+        }
+      }
+    },
+    {
+      "id": "33675661-780e-4237-9400-dd095dad2bbf",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "in",
+        "width": 5,
+        "height": 5
+      },
+      "channel_ml": {
+        "cyan": 0.0032,
+        "black": 0.006,
+        "gloss": 0.0212,
+        "white": 0.0224,
+        "yellow": 0.008,
+        "magenta": 0.0104
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746102026933-elaalkk84uk.png",
+      "notes": null,
+      "created_at": "2025-05-01T12:20:35.322699+00:00",
+      "updated_at": "2025-05-01T12:20:35.322699+00:00",
+      "image_analysis": {
+        "totalCoverage": 73.07715320953908,
+        "channelCoverage": {
+          "cyan": 5.2958101611838995,
+          "black": 71.54950985012725,
+          "gloss": 0.1,
+          "white": 100,
+          "yellow": 43.089139409934965,
+          "magenta": 43.42995569799226
+        }
+      }
+    },
+    {
+      "id": "14a564a1-9db4-4fd6-85d5-f8c726acc249",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 50,
+        "height": 50
+      },
+      "channel_ml": {
+        "cyan": 0.0036,
+        "black": 0.0064,
+        "gloss": 0.0328,
+        "white": 0.0348,
+        "yellow": 0.0144,
+        "magenta": 0.0064
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746043857563-y2kv4fy8zs.png",
+      "notes": null,
+      "created_at": "2025-04-30T20:11:02.208249+00:00",
+      "updated_at": "2025-04-30T20:11:02.208249+00:00",
+      "image_analysis": {
+        "totalCoverage": 71.79445183168578,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 63.37001602413046,
+          "gloss": 0.1,
+          "white": 98.59972757130022,
+          "yellow": 69.67460835139975,
+          "magenta": 19.788066735790366
+        }
+      }
+    },
+    {
+      "id": "2da36a3a-afc8-409c-83f1-d0d79fc74854",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 275,
+        "height": 275
+      },
+      "channel_ml": {
+        "cyan": 0.11,
+        "black": 0.2,
+        "gloss": 0.98,
+        "white": 1.04,
+        "yellow": 0.43,
+        "magenta": 0.2
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746043397794-lwc1zf7qs3c.png",
+      "notes": null,
+      "created_at": "2025-04-30T20:03:22.049667+00:00",
+      "updated_at": "2025-04-30T20:03:22.049667+00:00",
+      "image_analysis": {
+        "totalCoverage": 71.79445183168578,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 63.37001602413046,
+          "gloss": 0.1,
+          "white": 98.59972757130022,
+          "yellow": 69.67460835139975,
+          "magenta": 19.788066735790366
+        }
+      }
+    },
+    {
+      "id": "9effc7a5-3edb-45ce-a3cd-38fbbc66fc95",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 25,
+        "height": 25
+      },
+      "channel_ml": {
+        "cyan": 0,
+        "black": 0.0001,
+        "gloss": 0.0084,
+        "white": 0.0089,
+        "yellow": 0.0027,
+        "magenta": 0.0006
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746043053038-f4idoa9mth7.png",
+      "notes": null,
+      "created_at": "2025-04-30T19:57:34.671734+00:00",
+      "updated_at": "2025-04-30T19:57:34.671734+00:00",
+      "image_analysis": {
+        "totalCoverage": 51.00085996536426,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 13.921081157507778,
+          "gloss": 0.1,
+          "white": 54.25962787792148,
+          "yellow": 71.95625977943256,
+          "magenta": 24.55809218587991
+        }
+      }
+    },
+    {
+      "id": "fe88b52d-9ea1-408d-b210-f63758342241",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 333,
+        "height": 333
+      },
+      "channel_ml": {
+        "cyan": 0.01,
+        "black": 0.03,
+        "gloss": 1.44,
+        "white": 1.52,
+        "yellow": 0.48,
+        "magenta": 0.11
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746042418077-qx8aofbvkfk.png",
+      "notes": null,
+      "created_at": "2025-04-30T19:46:59.627915+00:00",
+      "updated_at": "2025-04-30T19:46:59.627915+00:00",
+      "image_analysis": {
+        "totalCoverage": 51.00085996536426,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 13.921081157507778,
+          "gloss": 0.1,
+          "white": 54.25962787792148,
+          "yellow": 71.95625977943256,
+          "magenta": 24.55809218587991
+        }
+      }
+    },
+    {
+      "id": "1f207eb9-72d2-4654-b9c0-85b131907f18",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 333,
+        "height": 333
+      },
+      "channel_ml": {
+        "cyan": 0.01,
+        "black": 0.03,
+        "yellow": 0.48,
+        "magenta": 0.11
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746042191962-n1789ge1vje.png",
+      "notes": null,
+      "created_at": "2025-04-30T19:43:13.500475+00:00",
+      "updated_at": "2025-04-30T20:21:56.50758+00:00",
+      "image_analysis": {
+        "totalCoverage": 48.97097898011123,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 13.921081157507778,
+          "yellow": 71.95625977943256,
+          "magenta": 24.55809218587991
+        }
+      }
+    },
+    {
+      "id": "3d0107df-c748-4090-b785-69c28f75fa9b",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 25,
+        "height": 25
+      },
+      "channel_ml": {
+        "cyan": 0,
+        "black": 0,
+        "gloss": 0.0085,
+        "white": 0.0089,
+        "yellow": 0,
+        "magenta": 0.0051
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746041833502-zf3ha2sggbh.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T19:37:14.321219+00:00",
+      "updated_at": "2025-04-30T19:37:14.321219+00:00",
+      "image_analysis": {
+        "totalCoverage": 70.34467450980289,
+        "channelCoverage": {
+          "cyan": 0.1,
+          "black": 8.75,
+          "gloss": 0.1,
+          "white": 76.07843137253612,
+          "yellow": 44.28,
+          "magenta": 100
+        }
+      }
+    },
+    {
+      "id": "92d8a26f-4274-4d90-a0b1-5001884bc672",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 25,
+        "height": 25
+      },
+      "channel_ml": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0,
+        "magenta": 0.0051
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746041581938-6e0ymogpmcg.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T19:33:02.596203+00:00",
+      "updated_at": "2025-04-30T19:33:02.596203+00:00",
+      "image_analysis": {
+        "totalCoverage": 67.084,
+        "channelCoverage": {
+          "cyan": 0.1,
+          "black": 8.75,
+          "yellow": 44.28,
+          "magenta": 100
+        }
+      }
+    },
+    {
+      "id": "2b32af48-005d-4a07-98ec-1fc9e3f0b4ce",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 25,
+        "height": 25
+      },
+      "channel_ml": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0.0028,
+        "magenta": 0
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746041369720-o1mrecy0jgk.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T19:29:30.435323+00:00",
+      "updated_at": "2025-04-30T19:29:30.435323+00:00",
+      "image_analysis": {
+        "totalCoverage": 60.82666666666667,
+        "channelCoverage": {
+          "cyan": 0.1,
+          "black": 0.1,
+          "yellow": 100,
+          "magenta": 6
+        }
+      }
+    },
+    {
+      "id": "c98dfd98-5ffb-4e5b-b868-88e7dc80af5e",
+      "ink_mode": "CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 224.2,
+        "height": 400
+      },
+      "channel_ml": {
+        "cyan": 0.04,
+        "black": 0.06,
+        "gloss": 1.17,
+        "yellow": 0.05,
+        "magenta": 0.06
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746041107873-g4fhj2jj4v7.png",
+      "notes": null,
+      "created_at": "2025-04-30T19:25:16.02081+00:00",
+      "updated_at": "2025-04-30T19:25:16.02081+00:00",
+      "image_analysis": {
+        "totalCoverage": 13.336438848920864,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 19.710731414868107,
+          "gloss": 0.1,
+          "yellow": 5,
+          "magenta": 5
+        }
+      }
+    },
+    {
+      "id": "1c60293d-0a7b-4c53-8fdf-5708fd0af16d",
+      "ink_mode": "WHITE_CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 224.2,
+        "height": 400
+      },
+      "channel_ml": {
+        "cyan": 0.04,
+        "black": 0.06,
+        "white": 1.23,
+        "yellow": 0.05,
+        "magenta": 0.06
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746040799844-bi46rhvnmnn.png",
+      "notes": null,
+      "created_at": "2025-04-30T19:20:08.127477+00:00",
+      "updated_at": "2025-04-30T19:20:08.127477+00:00",
+      "image_analysis": {
+        "totalCoverage": 18.871097013791275,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 19.710731414868107,
+          "white": 25.666706453840774,
+          "yellow": 5,
+          "magenta": 5
+        }
+      }
+    },
+    {
+      "id": "e46ecb62-a502-410c-9cb3-f8d93b30886d",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 224.2,
+        "height": 400
+      },
+      "channel_ml": {
+        "cyan": 0.04,
+        "black": 0.06,
+        "yellow": 0.05,
+        "magenta": 0.06
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746040593083-bw2rfb5gze.png",
+      "notes": null,
+      "created_at": "2025-04-30T19:16:40.804547+00:00",
+      "updated_at": "2025-04-30T19:16:40.804547+00:00",
+      "image_analysis": {
+        "totalCoverage": 13.826438848920864,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 19.710731414868107,
+          "yellow": 5,
+          "magenta": 5
+        }
+      }
+    },
+    {
+      "id": "eb77c090-8c8d-4fc1-9170-ead931284000",
+      "ink_mode": "WHITE_CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 250,
+        "height": 250
+      },
+      "channel_ml": {
+        "cyan": 0.09,
+        "black": 0.13,
+        "white": 0.85,
+        "yellow": 0.31,
+        "magenta": 0.28
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746035401493-wmg737xqw89.png",
+      "notes": null,
+      "created_at": "2025-04-30T17:50:05.439627+00:00",
+      "updated_at": "2025-04-30T17:50:05.439627+00:00",
+      "image_analysis": {
+        "totalCoverage": 78.85827364113712,
+        "channelCoverage": {
+          "cyan": 19.66717881044396,
+          "black": 58.760486379489116,
+          "white": 99.65338345725698,
+          "yellow": 61.53536431331889,
+          "magenta": 50.69940616457725
+        }
+      }
+    },
+    {
+      "id": "58978016-06cf-4a92-949e-36a88e096e1c",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 250,
+        "height": 250
+      },
+      "channel_ml": {
+        "cyan": 0.14,
+        "black": 0.19,
+        "yellow": 0.44,
+        "magenta": 0.4
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746035157422-g03mhgp9dhr.png",
+      "notes": null,
+      "created_at": "2025-04-30T17:46:04.035743+00:00",
+      "updated_at": "2025-04-30T17:46:04.035743+00:00",
+      "image_analysis": {
+        "totalCoverage": 54.13816143525938,
+        "channelCoverage": {
+          "cyan": 19.66717881044396,
+          "black": 58.760486379489116,
+          "yellow": 61.53536431331889,
+          "magenta": 50.69940616457725
+        }
+      }
+    },
+    {
+      "id": "244c721f-f20e-422a-872f-4a0b780ad6d8",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 250,
+        "height": 250
+      },
+      "channel_ml": {
+        "cyan": 0.09,
+        "black": 0.13,
+        "yellow": 0.31,
+        "magenta": 0.28
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746034814183-o21uuqq5t7s.png",
+      "notes": null,
+      "created_at": "2025-04-30T17:40:18.14297+00:00",
+      "updated_at": "2025-04-30T17:40:18.14297+00:00",
+      "image_analysis": {
+        "totalCoverage": 54.13816143525938,
+        "channelCoverage": {
+          "cyan": 19.66717881044396,
+          "black": 58.760486379489116,
+          "yellow": 61.53536431331889,
+          "magenta": 50.69940616457725
+        }
+      }
+    },
+    {
+      "id": "0c6261a5-a3f8-415e-a4ab-e64f9ddf49ca",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.35,
+        "black": 0.59,
+        "yellow": 0.32,
+        "magenta": 0.42
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746029314798-bgnm9wtxks.png",
+      "notes": null,
+      "created_at": "2025-04-30T16:08:37.538291+00:00",
+      "updated_at": "2025-04-30T16:08:37.538291+00:00",
+      "image_analysis": {
+        "totalCoverage": 74.7803868413611,
+        "channelCoverage": {
+          "cyan": 52.54998114808181,
+          "black": 100,
+          "yellow": 24.66480158356113,
+          "magenta": 33.63811857856537
+        }
+      }
+    },
+    {
+      "id": "4020ddf0-549d-42f6-9d2f-94a78501f9a2",
+      "ink_mode": "WHITE_CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 25,
+        "height": 25
+      },
+      "channel_ml": {
+        "cyan": 0.0023,
+        "black": 0.0013,
+        "white": 0.0089,
+        "yellow": 0.0011,
+        "magenta": 0.0014
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746026380222-lia8m6qago.png",
+      "notes": null,
+      "created_at": "2025-04-30T15:19:44.402532+00:00",
+      "updated_at": "2025-04-30T15:19:44.402532+00:00",
+      "image_analysis": {
+        "totalCoverage": 78.81613761900273,
+        "channelCoverage": {
+          "cyan": 100,
+          "black": 65.85870487322084,
+          "white": 100,
+          "yellow": 5.917451220661703,
+          "magenta": 16.38522009614478
+        }
+      }
+    },
+    {
+      "id": "0c3ef8f7-91c1-4a9c-af4b-798ae305adc7",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 25,
+        "height": 25
+      },
+      "channel_ml": {
+        "cyan": 0.0023,
+        "black": 0.0013,
+        "yellow": 0.0011,
+        "magenta": 0.0014
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746025917942-kw4p52c4gbn.png",
+      "notes": null,
+      "created_at": "2025-04-30T15:12:01.656226+00:00",
+      "updated_at": "2025-04-30T15:12:01.656226+00:00",
+      "image_analysis": {
+        "totalCoverage": 71.75485015867031,
+        "channelCoverage": {
+          "cyan": 100,
+          "black": 65.85870487322084,
+          "yellow": 5.917451220661703,
+          "magenta": 16.38522009614478
+        }
+      }
+    },
+    {
+      "id": "44cfee9f-168c-4f17-a139-5871ce28a1d4",
+      "ink_mode": "CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.33,
+        "black": 0.19,
+        "gloss": 1.17,
+        "yellow": 0.17,
+        "magenta": 0.21
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746025101588-aw9vw1oftoo.png",
+      "notes": null,
+      "created_at": "2025-04-30T14:58:24.812226+00:00",
+      "updated_at": "2025-04-30T14:58:24.812226+00:00",
+      "image_analysis": {
+        "totalCoverage": 68.81613761900273,
+        "channelCoverage": {
+          "cyan": 100,
+          "black": 65.85870487322084,
+          "gloss": 0,
+          "yellow": 5.917451220661703,
+          "magenta": 16.38522009614478
+        }
+      }
+    },
+    {
+      "id": "994e718c-8b00-4703-a2ab-981a1cb875c5",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 50,
+        "height": 50
+      },
+      "channel_ml": {
+        "cyan": 0.0024,
+        "black": 0.0064,
+        "gloss": 0.0332,
+        "white": 0.0348,
+        "yellow": 0.02,
+        "magenta": 0.0052
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746024289743-v2e24nvgxrr.png",
+      "notes": null,
+      "created_at": "2025-04-30T14:44:54.052978+00:00",
+      "updated_at": "2025-04-30T14:44:54.052978+00:00",
+      "image_analysis": {
+        "totalCoverage": 74.80866761665548,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 55.07929588085588,
+          "gloss": 0,
+          "white": 99.89261799544961,
+          "yellow": 100,
+          "magenta": 25.13643133188802
+        }
+      }
+    },
+    {
+      "id": "e9533b62-089f-4ebe-9905-f31269521761",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 50,
+        "height": 50
+      },
+      "channel_ml": {
+        "cyan": 0.0024,
+        "black": 0.0064,
+        "yellow": 0.02,
+        "magenta": 0.0052
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746023979531-pbsppwkjav.png",
+      "notes": null,
+      "created_at": "2025-04-30T14:39:43.196445+00:00",
+      "updated_at": "2025-04-30T14:39:43.196445+00:00",
+      "image_analysis": {
+        "totalCoverage": 71.3620969616992,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 55.07929588085588,
+          "yellow": 100,
+          "magenta": 25.13643133188802
+        }
+      }
+    },
+    {
+      "id": "b6ca6891-ea17-4c67-98c2-782746f2b938",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 34.91,
+        "height": 34.94
+      },
+      "channel_ml": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0.0075,
+        "magenta": 0.0004166
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746023446289-j0y560vg6rs.png",
+      "notes": null,
+      "created_at": "2025-04-30T14:30:51.660414+00:00",
+      "updated_at": "2025-04-30T14:30:51.660414+00:00",
+      "image_analysis": {
+        "totalCoverage": 48.39509986394558,
+        "channelCoverage": {
+          "cyan": 0,
+          "black": 5,
+          "yellow": 76.32068571428573,
+          "magenta": 14.520163265306122
+        }
+      }
+    },
+    {
+      "id": "e08d70f7-ac1b-4f6a-98f1-5abea7ba0d82",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0.36,
+        "magenta": 0.03
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746022481728-biw4jkg1f6l.png",
+      "notes": null,
+      "created_at": "2025-04-30T14:14:46.685642+00:00",
+      "updated_at": "2025-04-30T14:14:46.685642+00:00",
+      "image_analysis": {
+        "totalCoverage": 48.39509986394558,
+        "channelCoverage": {
+          "cyan": 0,
+          "black": 5,
+          "yellow": 76.32068571428573,
+          "magenta": 14.520163265306122
+        }
+      }
+    },
+    {
+      "id": "a4c209ad-6753-410b-ad6a-efbda3c6216d",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 150,
+        "height": 255
+      },
+      "channel_ml": {
+        "cyan": 0.08,
+        "black": 0.13,
+        "yellow": 0.17,
+        "magenta": 0.11
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746022056210-qzj72hr9bcp.png",
+      "notes": null,
+      "created_at": "2025-04-30T14:07:41.316874+00:00",
+      "updated_at": "2025-04-30T14:07:41.316874+00:00",
+      "image_analysis": {
+        "totalCoverage": 62.076676719961235,
+        "channelCoverage": {
+          "cyan": 11.057780704941859,
+          "black": 85.20666787790697,
+          "yellow": 56.39055959302326,
+          "magenta": 14.69672965116279
+        }
+      }
+    },
+    {
+      "id": "ba6c9e0e-7992-4e66-bf1a-978bd82f7d64",
+      "ink_mode": "CMYK",
+      "quality": "high",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.36,
+        "black": 0.16,
+        "yellow": 0.32,
+        "magenta": 0.47
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746021570527-d5e1f5o817t.png",
+      "notes": null,
+      "created_at": "2025-04-30T13:59:35.042969+00:00",
+      "updated_at": "2025-04-30T13:59:35.042969+00:00",
+      "image_analysis": {
+        "totalCoverage": 59.57436440757846,
+        "channelCoverage": {
+          "cyan": 67.54225657460645,
+          "black": 64.1405881798473,
+          "yellow": 27.144861909699316,
+          "magenta": 51.58212838156282
+        }
+      }
+    },
+    {
+      "id": "4abc9fbc-64e6-4110-a095-9a9d007b667b",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.32,
+        "black": 0.16,
+        "yellow": 0.29,
+        "magenta": 0.43
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746021178098-i5b58lq7cf.png",
+      "notes": null,
+      "created_at": "2025-04-30T13:53:02.779656+00:00",
+      "updated_at": "2025-04-30T13:53:02.779656+00:00",
+      "image_analysis": {
+        "totalCoverage": 59.57436440757846,
+        "channelCoverage": {
+          "cyan": 67.54225657460645,
+          "black": 64.1405881798473,
+          "yellow": 27.144861909699316,
+          "magenta": 51.58212838156282
+        }
+      }
+    },
+    {
+      "id": "40ff95be-2933-4a2b-84fd-ad6d68ea4f42",
+      "ink_mode": "CMYK",
+      "quality": "draft",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.32,
+        "black": 0.16,
+        "yellow": 0.29,
+        "magenta": 0.42
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746020999831-e4x7oa3s4x5.png",
+      "notes": null,
+      "created_at": "2025-04-30T13:50:04.267236+00:00",
+      "updated_at": "2025-04-30T13:50:04.267236+00:00",
+      "image_analysis": {
+        "totalCoverage": 59.57436440757846,
+        "channelCoverage": {
+          "cyan": 67.54225657460645,
+          "black": 64.1405881798473,
+          "yellow": 27.144861909699316,
+          "magenta": 51.58212838156282
+        }
+      }
+    },
+    {
+      "id": "664656c0-bbc9-4500-b798-c95058cb1585",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "solid",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.005,
+        "black": 0,
+        "yellow": 0.01,
+        "magenta": 0.75
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746020302630-exe69v642k.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T13:38:23.103295+00:00",
+      "updated_at": "2025-04-30T13:38:23.103295+00:00",
+      "image_analysis": {
+        "totalCoverage": 67.07066666666667,
+        "channelCoverage": {
+          "cyan": 0,
+          "black": 8.75,
+          "yellow": 44.28,
+          "magenta": 100
+        }
+      }
+    },
+    {
+      "id": "6e99f3e7-22e3-4931-93a8-635aef181cd4",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "solid",
+      "dimensions": {
+        "unit": "mm",
+        "width": 200,
+        "height": 200
+      },
+      "channel_ml": {
+        "cyan": 0.005,
+        "black": 0,
+        "yellow": 0.005,
+        "magenta": 0.33
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746020127341-t55zkllbeep.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T13:35:27.897423+00:00",
+      "updated_at": "2025-04-30T13:35:52.405601+00:00",
+      "image_analysis": {
+        "totalCoverage": 67.07066666666667,
+        "channelCoverage": {
+          "cyan": 0,
+          "black": 8.75,
+          "yellow": 44.28,
+          "magenta": 100
+        }
+      }
+    },
+    {
+      "id": "6ae93213-7a60-4a18-bf04-4d0f74038368",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "solid",
+      "dimensions": {
+        "unit": "mm",
+        "width": 200,
+        "height": 200
+      },
+      "channel_ml": {
+        "cyan": 0.11,
+        "black": 0,
+        "yellow": 0.005,
+        "magenta": 0.02
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746019809538-l7c469os5s8.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T13:30:10.051832+00:00",
+      "updated_at": "2025-04-30T13:30:10.051832+00:00",
+      "image_analysis": {
+        "totalCoverage": 65.48,
+        "channelCoverage": {
+          "cyan": 100,
+          "black": 7.5,
+          "yellow": 0,
+          "magenta": 33.6
+        }
+      }
+    },
+    {
+      "id": "ce9d34f4-6d6f-4dbc-abbe-ad4a20903de5",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "solid",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.24,
+        "black": 0,
+        "yellow": 0.01,
+        "magenta": 0.05
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746019662863-medx5z2gdgm.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T13:27:43.335696+00:00",
+      "updated_at": "2025-04-30T13:27:43.335696+00:00",
+      "image_analysis": {
+        "totalCoverage": 65.48,
+        "channelCoverage": {
+          "cyan": 100,
+          "black": 7.5,
+          "yellow": 0,
+          "magenta": 33.6
+        }
+      }
+    },
+    {
+      "id": "9b4b9fc1-6fba-42b2-a5dd-c6d9004838d2",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "solid",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.005,
+        "black": 0,
+        "yellow": 0.41,
+        "magenta": 0.005
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746019439323-bg068wq0xet.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T13:24:00.175561+00:00",
+      "updated_at": "2025-04-30T13:31:37.605946+00:00",
+      "image_analysis": {
+        "totalCoverage": 60.8,
+        "channelCoverage": {
+          "cyan": 0,
+          "black": 0,
+          "yellow": 100,
+          "magenta": 6
+        }
+      }
+    },
+    {
+      "id": "bc252851-7023-4dd8-85fb-f4944c15e1c6",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "solid",
+      "dimensions": {
+        "unit": "mm",
+        "width": 200,
+        "height": 200
+      },
+      "channel_ml": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0.18,
+        "magenta": 0.005
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746019240090-3g9n3ojtift.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T13:20:40.522038+00:00",
+      "updated_at": "2025-04-30T13:31:43.977793+00:00",
+      "image_analysis": {
+        "totalCoverage": 60.8,
+        "channelCoverage": {
+          "cyan": 0,
+          "black": 0,
+          "yellow": 100,
+          "magenta": 6
+        }
+      }
+    },
+    {
+      "id": "93ea5c37-527a-44f7-831b-2fdeb0e926a9",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "solid",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.41,
+        "black": 1,
+        "yellow": 0.56,
+        "magenta": 0.49
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746019010149-zgmwhsma4vi.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T13:16:50.60013+00:00",
+      "updated_at": "2025-04-30T13:31:49.670841+00:00",
+      "image_analysis": {
+        "totalCoverage": 60,
+        "channelCoverage": {
+          "cyan": 0,
+          "black": 100,
+          "yellow": 0,
+          "magenta": 0
+        }
+      }
+    },
+    {
+      "id": "472ce333-3c08-477c-919f-dd0e14487689",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "solid",
+      "dimensions": {
+        "unit": "mm",
+        "width": 200,
+        "height": 200
+      },
+      "channel_ml": {
+        "cyan": 0.18,
+        "black": 0.44,
+        "yellow": 0.25,
+        "magenta": 0.22
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746018742999-9st8ujw2l1.jpg",
+      "notes": null,
+      "created_at": "2025-04-30T13:12:23.483422+00:00",
+      "updated_at": "2025-04-30T13:31:57.548372+00:00",
+      "image_analysis": {
+        "totalCoverage": 60,
+        "channelCoverage": {
+          "cyan": 0,
+          "black": 100,
+          "yellow": 0,
+          "magenta": 0
+        }
+      }
+    },
+    {
+      "id": "5e4c26b2-0a32-4576-8f1a-55a311efdcbd",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 266.7,
+        "height": 400
+      },
+      "channel_ml": {
+        "cyan": 0.12,
+        "black": 0.32,
+        "gloss": 1.39,
+        "white": 1.46,
+        "yellow": 0.7,
+        "magenta": 0.47
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746018078087-zym8465ykli.png",
+      "notes": null,
+      "created_at": "2025-04-30T13:01:23.838319+00:00",
+      "updated_at": "2025-04-30T13:01:23.838319+00:00",
+      "image_analysis": {
+        "totalCoverage": 76.38851271802326,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 66.0745594113372,
+          "gloss": 0,
+          "white": 100,
+          "yellow": 82.53003270348839,
+          "magenta": 51.25181686046511
+        }
+      }
+    },
+    {
+      "id": "3313eee0-b1ec-465f-a619-4e8fb4fadbdb",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 266.7,
+        "height": 400
+      },
+      "channel_ml": {
+        "cyan": 0.12,
+        "black": 0.32,
+        "yellow": 0.7,
+        "magenta": 0.47
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746017825695-m4fgwypfc3f.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:57:11.713177+00:00",
+      "updated_at": "2025-04-30T12:57:11.713177+00:00",
+      "image_analysis": {
+        "totalCoverage": 65.828203125,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 66.0745594113372,
+          "yellow": 82.53003270348839,
+          "magenta": 51.25181686046511
+        }
+      }
+    },
+    {
+      "id": "c37ff894-f45b-4879-a425-50fa1a8859c0",
+      "ink_mode": "CMYK_GLOSS",
+      "quality": "high",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 320,
+        "height": 213.3
+      },
+      "channel_ml": {
+        "cyan": 0.13,
+        "black": 0.23,
+        "gloss": 1.77,
+        "yellow": 0.29,
+        "magenta": 0.21
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746017434836-5v4witaecqc.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:50:39.636529+00:00",
+      "updated_at": "2025-04-30T12:50:39.636529+00:00",
+      "image_analysis": {
+        "totalCoverage": 51.817329578488376,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 75.57140261627907,
+          "gloss": 0,
+          "yellow": 45.539247819767446,
+          "magenta": 14.20563226744186
+        }
+      }
+    },
+    {
+      "id": "54e953b8-c26a-4e95-99cc-0999e59a3d18",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 320,
+        "height": 213.33
+      },
+      "channel_ml": {
+        "cyan": 0.13,
+        "black": 0.23,
+        "gloss": 1.77,
+        "white": 1.87,
+        "yellow": 0.29,
+        "magenta": 0.21
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746017001864-ygdlbumkqwk.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:43:25.824991+00:00",
+      "updated_at": "2025-04-30T12:43:25.824991+00:00",
+      "image_analysis": {
+        "totalCoverage": 71.22530261627907,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 75.57140261627907,
+          "gloss": 0,
+          "white": 100,
+          "yellow": 45.539247819767446,
+          "magenta": 14.20563226744186
+        }
+      }
+    },
+    {
+      "id": "219bf2a0-0695-46a9-ac79-f6489c2c9ace",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 250,
+        "height": 166.7
+      },
+      "channel_ml": {
+        "cyan": 0.14,
+        "black": 0.09,
+        "gloss": 0.54,
+        "white": 0.57,
+        "yellow": 0.11,
+        "magenta": 0.18
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746016639279-8lnbpwqp6kk.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:37:23.516594+00:00",
+      "updated_at": "2025-04-30T12:37:23.516594+00:00",
+      "image_analysis": {
+        "totalCoverage": 76.27081300872094,
+        "channelCoverage": {
+          "cyan": 63.404196947674414,
+          "black": 66.13724109738372,
+          "gloss": 0,
+          "white": 100,
+          "yellow": 25.203499273255815,
+          "magenta": 48.64022529069768
+        }
+      }
+    },
+    {
+      "id": "3bd28159-fd71-4434-a7d9-e9e807e68877",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 250,
+        "height": 166.67
+      },
+      "channel_ml": {
+        "cyan": 0.14,
+        "black": 0.09,
+        "yellow": 0.11,
+        "magenta": 0.18
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746016428905-q850ghq6rvg.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:33:52.932017+00:00",
+      "updated_at": "2025-04-30T12:33:52.932017+00:00",
+      "image_analysis": {
+        "totalCoverage": 57.982067526647285,
+        "channelCoverage": {
+          "cyan": 63.404196947674414,
+          "black": 66.13724109738372,
+          "yellow": 25.203499273255815,
+          "magenta": 48.64022529069768
+        }
+      }
+    },
+    {
+      "id": "9b36f1c6-f97c-4a5f-aa23-f2e785b06516",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 160,
+        "height": 240
+      },
+      "channel_ml": {
+        "cyan": 0.09,
+        "black": 0.15,
+        "gloss": 0.5,
+        "white": 0.53,
+        "yellow": 0.2,
+        "magenta": 0.13
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746016211651-qwqg028quc.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:30:17.5468+00:00",
+      "updated_at": "2025-04-30T12:30:17.5468+00:00",
+      "image_analysis": {
+        "totalCoverage": 73.38813902616279,
+        "channelCoverage": {
+          "cyan": 11.057780704941859,
+          "black": 85.20666787790697,
+          "gloss": 0,
+          "white": 100,
+          "yellow": 56.39055959302326,
+          "magenta": 14.69672965116279
+        }
+      }
+    },
+    {
+      "id": "e8f0674f-1ca2-4314-87c2-59fdd0e882b2",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 200,
+        "height": 299.99
+      },
+      "channel_ml": {
+        "cyan": 0.14,
+        "black": 0.23,
+        "yellow": 0.3,
+        "magenta": 0.2
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746015766040-2scurgf8fo7.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:22:51.88945+00:00",
+      "updated_at": "2025-04-30T12:22:51.88945+00:00",
+      "image_analysis": {
+        "totalCoverage": 62.076676719961235,
+        "channelCoverage": {
+          "cyan": 11.057780704941859,
+          "black": 85.20666787790697,
+          "yellow": 56.39055959302326,
+          "magenta": 14.69672965116279
+        }
+      }
+    },
+    {
+      "id": "b948da2c-b575-44e6-8fe3-3690a15a5051",
+      "ink_mode": "WHITE_CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 150,
+        "height": 225
+      },
+      "channel_ml": {
+        "cyan": 0.07,
+        "black": 0.13,
+        "white": 0.46,
+        "yellow": 0.15,
+        "magenta": 0.12
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746015463688-8m0tj5in6rw.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:17:49.03974+00:00",
+      "updated_at": "2025-04-30T12:17:49.03974+00:00",
+      "image_analysis": {
+        "totalCoverage": 75.39430223473838,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 84.19456304505815,
+          "white": 100,
+          "yellow": 50.16760901162791,
+          "magenta": 14.580850290697674
+        }
+      }
+    },
+    {
+      "id": "fd474f98-355a-4f65-850f-9379929eece5",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 200,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.13,
+        "black": 0.23,
+        "yellow": 0.26,
+        "magenta": 0.21
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746015185148-btghan3c7bo.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:13:10.312239+00:00",
+      "updated_at": "2025-04-30T12:13:10.312239+00:00",
+      "image_analysis": {
+        "totalCoverage": 59.8165324006783,
+        "channelCoverage": {
+          "cyan": 5,
+          "black": 84.19456304505815,
+          "yellow": 50.16760901162791,
+          "magenta": 14.580850290697674
+        }
+      }
+    },
+    {
+      "id": "d8e93f27-b5ba-4168-9962-5057a78b8567",
+      "ink_mode": "WHITE_CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 200,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.04,
+        "black": 0.05,
+        "white": 0.82,
+        "yellow": 0.15,
+        "magenta": 0.11
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746014848250-grs24bvn21b.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:07:34.20326+00:00",
+      "updated_at": "2025-04-30T12:07:34.20326+00:00",
+      "image_analysis": {
+        "totalCoverage": 44.98036325987576,
+        "channelCoverage": {
+          "cyan": 5.497915152616279,
+          "black": 30.34951853197674,
+          "white": 58.34838477542277,
+          "yellow": 41.56636264534884,
+          "magenta": 22.29952761627907
+        }
+      }
+    },
+    {
+      "id": "dcdb8e6c-a378-49cb-a764-5084f899f556",
+      "ink_mode": "CMYK",
+      "quality": "high",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 200,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.04,
+        "black": 0.06,
+        "yellow": 0.15,
+        "magenta": 0.11
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746014508967-5uczcujitxx.png",
+      "notes": null,
+      "created_at": "2025-04-30T12:01:54.428534+00:00",
+      "updated_at": "2025-04-30T12:01:54.428534+00:00",
+      "image_analysis": {
+        "totalCoverage": 32.69274576065891,
+        "channelCoverage": {
+          "cyan": 5.497915152616279,
+          "black": 30.34951853197674,
+          "yellow": 41.56636264534884,
+          "magenta": 22.29952761627907
+        }
+      }
+    },
+    {
+      "id": "3f66187b-4e0d-4ca2-b7d6-daae703e3f59",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 200,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.04,
+        "black": 0.05,
+        "yellow": 0.15,
+        "magenta": 0.11
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746014137413-in2cnmbays.png",
+      "notes": null,
+      "created_at": "2025-04-30T11:55:41.85436+00:00",
+      "updated_at": "2025-04-30T11:55:41.85436+00:00",
+      "image_analysis": {
+        "totalCoverage": 32.69274576065891,
+        "channelCoverage": {
+          "cyan": 5.497915152616279,
+          "black": 30.34951853197674,
+          "yellow": 41.56636264534884,
+          "magenta": 22.29952761627907
+        }
+      }
+    },
+    {
+      "id": "a1325c0c-6cda-40da-90b2-9f9283ab87af",
+      "ink_mode": "CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 250,
+        "height": 166.7
+      },
+      "channel_ml": {
+        "cyan": 0.05,
+        "black": 0.05,
+        "gloss": 0.54,
+        "yellow": 0.21,
+        "magenta": 0.07
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746013270104-7cf4mgbkp64.png",
+      "notes": null,
+      "created_at": "2025-04-30T11:41:15.219467+00:00",
+      "updated_at": "2025-04-30T12:18:11.338824+00:00",
+      "image_analysis": {
+        "totalCoverage": 40.927158248546505,
+        "channelCoverage": {
+          "cyan": 9.032222020348836,
+          "black": 55.1344476744186,
+          "gloss": 0,
+          "yellow": 56.25075218023256,
+          "magenta": 7.600399709302325
+        }
+      }
+    },
+    {
+      "id": "9c382f87-f338-4b93-8a10-e078a19f9cae",
+      "ink_mode": "WHITE_CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 250,
+        "height": 166.7
+      },
+      "channel_ml": {
+        "cyan": 0.05,
+        "black": 0.05,
+        "white": 0.57,
+        "yellow": 0.21,
+        "magenta": 0.07
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746012749926-dfc5ow1o9qd.png",
+      "notes": null,
+      "created_at": "2025-04-30T11:32:34.672512+00:00",
+      "updated_at": "2025-04-30T12:18:19.613439+00:00",
+      "image_analysis": {
+        "totalCoverage": 63.2966308246409,
+        "channelCoverage": {
+          "cyan": 9.032222020348836,
+          "black": 55.1344476744186,
+          "white": 84.1580811103511,
+          "yellow": 56.25075218023256,
+          "magenta": 7.600399709302325
+        }
+      }
+    },
+    {
+      "id": "caa6312c-274a-4229-af8a-739cd8e316a9",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 333,
+        "height": 222
+      },
+      "channel_ml": {
+        "cyan": 0.09,
+        "black": 0.08,
+        "yellow": 0.37,
+        "magenta": 0.12
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1745952142132-6n5s23iut18.png",
+      "notes": null,
+      "created_at": "2025-04-29T18:42:27.748107+00:00",
+      "updated_at": "2025-04-30T12:18:24.985048+00:00",
+      "image_analysis": {
+        "totalCoverage": 43.31939389534883,
+        "channelCoverage": {
+          "cyan": 9.032222020348836,
+          "black": 55.1344476744186,
+          "yellow": 56.25075218023256,
+          "magenta": 7.600399709302325
+        }
+      }
+    },
+    {
+      "id": "2b3e4e29-5f6f-417e-a602-de1e13c48292",
+      "ink_mode": "CMYK",
+      "quality": "high",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 266.6,
+        "height": 400
+      },
+      "channel_ml": {
+        "cyan": 0.07,
+        "black": 0.04,
+        "yellow": 0.07,
+        "magenta": 0.21
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1745951742495-zp8c5jky8t.jpg",
+      "notes": null,
+      "created_at": "2025-04-29T18:35:58.86595+00:00",
+      "updated_at": "2025-04-30T12:18:30.369721+00:00",
+      "image_analysis": {
+        "totalCoverage": 21.330086345381527,
+        "channelCoverage": {
+          "cyan": 7.047381461329187,
+          "black": 26.00599980567431,
+          "yellow": 12.325557714729888,
+          "magenta": 23.575709288767975
+        }
+      }
+    },
+    {
+      "id": "c12753c6-da53-448b-b20b-065f39a4ad8d",
+      "ink_mode": "CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 266.6,
+        "height": 400
+      },
+      "channel_ml": {
+        "cyan": 0.07,
+        "black": 0.04,
+        "yellow": 0.07,
+        "magenta": 0.2
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1745950296267-7njodh38o4p.jpg",
+      "notes": null,
+      "created_at": "2025-04-29T18:11:54.865119+00:00",
+      "updated_at": "2025-04-30T12:18:35.976018+00:00",
+      "image_analysis": {
+        "totalCoverage": 21.330086345381527,
+        "channelCoverage": {
+          "cyan": 7.047381461329187,
+          "black": 26.00599980567431,
+          "yellow": 12.325557714729888,
+          "magenta": 23.575709288767975
+        }
+      }
+    }
+  ],
+  "validationResults": [
+    {
+      "testId": "119bc77f-39fd-4016-92e4-7e250f179742",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.0023246666670000016,
+        "black": 0.017602333333,
+        "gloss": 0.05666666667,
+        "white": 0.0725,
+        "yellow": 0.00030733332999999946,
+        "magenta": 0.00310566667
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.010658,
+        "magenta": 0.018939,
+        "yellow": 0.010526,
+        "black": 0.021769,
+        "gloss": 0.04
+      },
+      "actualValues": {
+        "cyan": 0.008333333333,
+        "black": 0.004166666667,
+        "gloss": 0.09666666667,
+        "white": 0.1025,
+        "yellow": 0.01083333333,
+        "magenta": 0.01583333333
+      }
+    },
+    {
+      "testId": "97c3ecbd-a7d5-4a28-a282-802d36cf4399",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.040081000000000006,
+        "black": 0.007564000000000001,
+        "gloss": 0.031070724658812998,
+        "white": 0.08107072465881304,
+        "yellow": 0.06655900000000001,
+        "magenta": 0.083371
+      },
+      "predictedValues": {
+        "white": 0.848929275341187,
+        "cyan": 0.029919,
+        "magenta": 0.066629,
+        "yellow": 0.033441,
+        "black": 0.047564,
+        "gloss": 0.848929275341187
+      },
+      "actualValues": {
+        "cyan": 0.07,
+        "black": 0.04,
+        "gloss": 0.88,
+        "white": 0.93,
+        "yellow": 0.1,
+        "magenta": 0.15
+      }
+    },
+    {
+      "testId": "637bc5a8-763b-4805-9ec4-0f5c75567cc8",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.010171666670000001,
+        "black": 0.007594333329999998,
+        "gloss": 0.09166666669999998,
+        "white": 0.1083333333,
+        "yellow": 0.006337000000000002,
+        "magenta": 0.0121
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.011495,
+        "magenta": 0.0529,
+        "yellow": 0.043663,
+        "black": 0.030739,
+        "gloss": 0.04
+      },
+      "actualValues": {
+        "cyan": 0.02166666667,
+        "black": 0.03833333333,
+        "gloss": 0.1316666667,
+        "white": 0.1383333333,
+        "yellow": 0.05,
+        "magenta": 0.065
+      }
+    },
+    {
+      "testId": "33675661-780e-4237-9400-dd095dad2bbf",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.012043,
+        "black": 0.032456,
+        "gloss": 0.0188,
+        "white": 0.007599999999999999,
+        "yellow": 0.051922,
+        "magenta": 0.06396099999999999
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.015243,
+        "magenta": 0.074361,
+        "yellow": 0.059922,
+        "black": 0.038456,
+        "gloss": 0.04
+      },
+      "actualValues": {
+        "cyan": 0.0032,
+        "black": 0.006,
+        "gloss": 0.0212,
+        "white": 0.0224,
+        "yellow": 0.008,
+        "magenta": 0.0104
+      }
+    },
+    {
+      "testId": "14a564a1-9db4-4fd6-85d5-f8c726acc249",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.0010179999999999998,
+        "black": 0.007813999999999998,
+        "gloss": 0.05470015500031001,
+        "white": 0.052700155000310014,
+        "yellow": 0.013760000000000001,
+        "magenta": 0.0024859999999999995
+      },
+      "predictedValues": {
+        "white": 0.08750015500031001,
+        "cyan": 0.004618,
+        "magenta": 0.008886,
+        "yellow": 0.02816,
+        "black": 0.014214,
+        "gloss": 0.08750015500031001
+      },
+      "actualValues": {
+        "cyan": 0.0036,
+        "black": 0.0064,
+        "gloss": 0.0328,
+        "white": 0.0348,
+        "yellow": 0.0144,
+        "magenta": 0.0064
+      }
+    },
+    {
+      "testId": "2da36a3a-afc8-409c-83f1-d0d79fc74854",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.07775699999999999,
+        "black": 0.135565,
+        "gloss": 0.04033599464173443,
+        "white": 0.10033599464173448,
+        "yellow": 0.173529,
+        "magenta": 0.104703
+      },
+      "predictedValues": {
+        "white": 0.9396640053582656,
+        "cyan": 0.032243,
+        "magenta": 0.095297,
+        "yellow": 0.256471,
+        "black": 0.064435,
+        "gloss": 0.9396640053582656
+      },
+      "actualValues": {
+        "cyan": 0.11,
+        "black": 0.2,
+        "gloss": 0.98,
+        "white": 1.04,
+        "yellow": 0.43,
+        "magenta": 0.2
+      }
+    },
+    {
+      "testId": "9effc7a5-3edb-45ce-a3cd-38fbbc66fc95",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.002059,
+        "black": 0.004352,
+        "gloss": 0.0316,
+        "white": 0.0211,
+        "yellow": 0.007711999999999999,
+        "magenta": 0.00302
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.002059,
+        "magenta": 0.00362,
+        "yellow": 0.010412,
+        "black": 0.004452,
+        "gloss": 0.04
+      },
+      "actualValues": {
+        "cyan": 0,
+        "black": 0.0001,
+        "gloss": 0.0084,
+        "white": 0.0089,
+        "yellow": 0.0027,
+        "magenta": 0.0006
+      }
+    },
+    {
+      "testId": "fe88b52d-9ea1-408d-b210-f63758342241",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.031997,
+        "black": 0.004007999999999998,
+        "gloss": 0.0954030398878225,
+        "white": 0.17540303988782258,
+        "yellow": 0.12481799999999998,
+        "magenta": 0.047142
+      },
+      "predictedValues": {
+        "white": 1.3445969601121774,
+        "cyan": 0.041997,
+        "magenta": 0.157142,
+        "yellow": 0.355182,
+        "black": 0.025992,
+        "gloss": 1.3445969601121774
+      },
+      "actualValues": {
+        "cyan": 0.01,
+        "black": 0.03,
+        "gloss": 1.44,
+        "white": 1.52,
+        "yellow": 0.48,
+        "magenta": 0.11
+      }
+    },
+    {
+      "testId": "1f207eb9-72d2-4654-b9c0-85b131907f18",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.031997,
+        "black": 0.004007999999999998,
+        "yellow": 0.12481799999999998,
+        "magenta": 0.047142
+      },
+      "predictedValues": {
+        "cyan": 0.041997,
+        "magenta": 0.157142,
+        "yellow": 0.355182,
+        "black": 0.025992
+      },
+      "actualValues": {
+        "cyan": 0.01,
+        "black": 0.03,
+        "yellow": 0.48,
+        "magenta": 0.11
+      }
+    },
+    {
+      "testId": "3d0107df-c748-4090-b785-69c28f75fa9b",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.000647,
+        "black": 0.004001,
+        "gloss": 0.0315,
+        "white": 0.0211,
+        "yellow": 0.005858,
+        "magenta": 0.007455999999999999
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.000647,
+        "magenta": 0.012556,
+        "yellow": 0.005858,
+        "black": 0.004001,
+        "gloss": 0.04
+      },
+      "actualValues": {
+        "cyan": 0,
+        "black": 0,
+        "gloss": 0.0085,
+        "white": 0.0089,
+        "yellow": 0,
+        "magenta": 0.0051
+      }
+    },
+    {
+      "testId": "92d8a26f-4274-4d90-a0b1-5001884bc672",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.000647,
+        "black": 0.004001,
+        "yellow": 0.005858,
+        "magenta": 0.007455999999999999
+      },
+      "predictedValues": {
+        "cyan": 0.000647,
+        "magenta": 0.012556,
+        "yellow": 0.005858,
+        "black": 0.004001
+      },
+      "actualValues": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0,
+        "magenta": 0.0051
+      }
+    },
+    {
+      "testId": "2b32af48-005d-4a07-98ec-1fc9e3f0b4ce",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.000647,
+        "black": 0.003028,
+        "yellow": 0.012606,
+        "magenta": 0.00109
+      },
+      "predictedValues": {
+        "cyan": 0.000647,
+        "magenta": 0.00109,
+        "yellow": 0.015406,
+        "black": 0.003028
+      },
+      "actualValues": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0.0028,
+        "magenta": 0
+      }
+    },
+    {
+      "testId": "c98dfd98-5ffb-4e5b-b868-88e7dc80af5e",
+      "inkMode": "CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.003734000000000001,
+        "black": 0.030264,
+        "gloss": 0.06784730292950969,
+        "yellow": 0.037556000000000006,
+        "magenta": 0.028266
+      },
+      "predictedValues": {
+        "cyan": 0.036266,
+        "magenta": 0.031734,
+        "yellow": 0.012444,
+        "black": 0.029736,
+        "gloss": 1.1021526970704902
+      },
+      "actualValues": {
+        "cyan": 0.04,
+        "black": 0.06,
+        "gloss": 1.17,
+        "yellow": 0.05,
+        "magenta": 0.06
+      }
+    },
+    {
+      "testId": "1c60293d-0a7b-4c53-8fdf-5708fd0af16d",
+      "inkMode": "WHITE_CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.003734000000000001,
+        "black": 0.030264,
+        "white": 0.12784730292950974,
+        "yellow": 0.037556000000000006,
+        "magenta": 0.028266
+      },
+      "predictedValues": {
+        "white": 1.1021526970704902,
+        "cyan": 0.036266,
+        "magenta": 0.031734,
+        "yellow": 0.012444,
+        "black": 0.029736
+      },
+      "actualValues": {
+        "cyan": 0.04,
+        "black": 0.06,
+        "white": 1.23,
+        "yellow": 0.05,
+        "magenta": 0.06
+      }
+    },
+    {
+      "testId": "e46ecb62-a502-410c-9cb3-f8d93b30886d",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.003734000000000001,
+        "black": 0.030264,
+        "yellow": 0.037556000000000006,
+        "magenta": 0.028266
+      },
+      "predictedValues": {
+        "cyan": 0.036266,
+        "magenta": 0.031734,
+        "yellow": 0.012444,
+        "black": 0.029736
+      },
+      "actualValues": {
+        "cyan": 0.04,
+        "black": 0.06,
+        "yellow": 0.05,
+        "magenta": 0.06
+      }
+    },
+    {
+      "testId": "eb77c090-8c8d-4fc1-9170-ead931284000",
+      "inkMode": "WHITE_CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.022138999999999992,
+        "black": 0.07200400000000001,
+        "white": 0.82,
+        "yellow": 0.105788,
+        "magenta": 0.07668100000000003
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.067861,
+        "magenta": 0.203319,
+        "yellow": 0.204212,
+        "black": 0.057996
+      },
+      "actualValues": {
+        "cyan": 0.09,
+        "black": 0.13,
+        "white": 0.85,
+        "yellow": 0.31,
+        "magenta": 0.28
+      }
+    },
+    {
+      "testId": "58978016-06cf-4a92-949e-36a88e096e1c",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.07213900000000001,
+        "black": 0.132004,
+        "yellow": 0.235788,
+        "magenta": 0.19668100000000002
+      },
+      "predictedValues": {
+        "cyan": 0.067861,
+        "magenta": 0.203319,
+        "yellow": 0.204212,
+        "black": 0.057996
+      },
+      "actualValues": {
+        "cyan": 0.14,
+        "black": 0.19,
+        "yellow": 0.44,
+        "magenta": 0.4
+      }
+    },
+    {
+      "testId": "244c721f-f20e-422a-872f-4a0b780ad6d8",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.022138999999999992,
+        "black": 0.07200400000000001,
+        "yellow": 0.105788,
+        "magenta": 0.07668100000000003
+      },
+      "predictedValues": {
+        "cyan": 0.067861,
+        "magenta": 0.203319,
+        "yellow": 0.204212,
+        "black": 0.057996
+      },
+      "actualValues": {
+        "cyan": 0.09,
+        "black": 0.13,
+        "yellow": 0.31,
+        "magenta": 0.28
+      }
+    },
+    {
+      "testId": "0c6261a5-a3f8-415e-a4ab-e64f9ddf49ca",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.20242499999999997,
+        "black": 0.48876699999999995,
+        "yellow": 0.235885,
+        "magenta": 0.24351099999999998
+      },
+      "predictedValues": {
+        "cyan": 0.147575,
+        "magenta": 0.176489,
+        "yellow": 0.084115,
+        "black": 0.101233
+      },
+      "actualValues": {
+        "cyan": 0.35,
+        "black": 0.59,
+        "yellow": 0.32,
+        "magenta": 0.42
+      }
+    },
+    {
+      "testId": "4020ddf0-549d-42f6-9d2f-94a78501f9a2",
+      "inkMode": "WHITE_CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.007619000000000001,
+        "black": 0.0067339999999999995,
+        "white": 0.0211,
+        "yellow": 0.0004850000000000001,
+        "magenta": 0.001146
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.009919,
+        "magenta": 0.002546,
+        "yellow": 0.000615,
+        "black": 0.008034
+      },
+      "actualValues": {
+        "cyan": 0.0023,
+        "black": 0.0013,
+        "white": 0.0089,
+        "yellow": 0.0011,
+        "magenta": 0.0014
+      }
+    },
+    {
+      "testId": "0c3ef8f7-91c1-4a9c-af4b-798ae305adc7",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.007619000000000001,
+        "black": 0.0067339999999999995,
+        "yellow": 0.0004850000000000001,
+        "magenta": 0.001146
+      },
+      "predictedValues": {
+        "cyan": 0.009919,
+        "magenta": 0.002546,
+        "yellow": 0.000615,
+        "black": 0.008034
+      },
+      "actualValues": {
+        "cyan": 0.0023,
+        "black": 0.0013,
+        "yellow": 0.0011,
+        "magenta": 0.0014
+      }
+    },
+    {
+      "testId": "44cfee9f-168c-4f17-a139-5871ce28a1d4",
+      "inkMode": "CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.11313000000000001,
+        "black": 0.11666900000000001,
+        "gloss": 0.06416603146188593,
+        "yellow": 0.15475,
+        "magenta": 0.117573
+      },
+      "predictedValues": {
+        "cyan": 0.21687,
+        "magenta": 0.092427,
+        "yellow": 0.01525,
+        "black": 0.073331,
+        "gloss": 1.105833968538114
+      },
+      "actualValues": {
+        "cyan": 0.33,
+        "black": 0.19,
+        "gloss": 1.17,
+        "yellow": 0.17,
+        "magenta": 0.21
+      }
+    },
+    {
+      "testId": "994e718c-8b00-4703-a2ab-981a1cb875c5",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.002218,
+        "black": 0.0066240000000000005,
+        "gloss": 0.05430015500031001,
+        "white": 0.052700155000310014,
+        "yellow": 0.023391,
+        "magenta": 0.005797
+      },
+      "predictedValues": {
+        "white": 0.08750015500031001,
+        "cyan": 0.004618,
+        "magenta": 0.010997,
+        "yellow": 0.043391,
+        "black": 0.013024,
+        "gloss": 0.08750015500031001
+      },
+      "actualValues": {
+        "cyan": 0.0024,
+        "black": 0.0064,
+        "gloss": 0.0332,
+        "white": 0.0348,
+        "yellow": 0.02,
+        "magenta": 0.0052
+      }
+    },
+    {
+      "testId": "e9533b62-089f-4ebe-9905-f31269521761",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.002218,
+        "black": 0.0066240000000000005,
+        "yellow": 0.023391,
+        "magenta": 0.005797
+      },
+      "predictedValues": {
+        "cyan": 0.004618,
+        "magenta": 0.010997,
+        "yellow": 0.043391,
+        "black": 0.013024
+      },
+      "actualValues": {
+        "cyan": 0.0024,
+        "black": 0.0064,
+        "yellow": 0.02,
+        "magenta": 0.0052
+      }
+    },
+    {
+      "testId": "b6ca6891-ea17-4c67-98c2-782746f2b938",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.000498,
+        "black": 0.003956,
+        "yellow": 0.010873,
+        "magenta": 0.0034284
+      },
+      "predictedValues": {
+        "cyan": 0.000498,
+        "magenta": 0.003845,
+        "yellow": 0.018373,
+        "black": 0.003956
+      },
+      "actualValues": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0.0075,
+        "magenta": 0.0004166
+      }
+    },
+    {
+      "testId": "e08d70f7-ac1b-4f6a-98f1-5abea7ba0d82",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.000498,
+        "black": 0.011942,
+        "yellow": 0.034038999999999986,
+        "magenta": 0.052913
+      },
+      "predictedValues": {
+        "cyan": 0.000498,
+        "magenta": 0.082913,
+        "yellow": 0.325961,
+        "black": 0.011942
+      },
+      "actualValues": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0.36,
+        "magenta": 0.03
+      }
+    },
+    {
+      "testId": "a4c209ad-6753-410b-ad6a-efbda3c6216d",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.042883000000000004,
+        "black": 0.06728200000000001,
+        "yellow": 0.032167,
+        "magenta": 0.06115
+      },
+      "predictedValues": {
+        "cyan": 0.037117,
+        "magenta": 0.04885,
+        "yellow": 0.137833,
+        "black": 0.062718
+      },
+      "actualValues": {
+        "cyan": 0.08,
+        "black": 0.13,
+        "yellow": 0.17,
+        "magenta": 0.11
+      }
+    },
+    {
+      "testId": "ba6c9e0e-7992-4e66-bf1a-978bd82f7d64",
+      "inkMode": "CMYK",
+      "quality": "high",
+      "channelDifferences": {
+        "cyan": 0.12012999999999999,
+        "black": 0.05371100000000001,
+        "yellow": 0.206799,
+        "magenta": 0.145947
+      },
+      "predictedValues": {
+        "cyan": 0.23987,
+        "magenta": 0.324053,
+        "yellow": 0.113201,
+        "black": 0.106289
+      },
+      "actualValues": {
+        "cyan": 0.36,
+        "black": 0.16,
+        "yellow": 0.32,
+        "magenta": 0.47
+      }
+    },
+    {
+      "testId": "4abc9fbc-64e6-4110-a095-9a9d007b667b",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.14852200000000002,
+        "black": 0.088141,
+        "yellow": 0.19564899999999996,
+        "magenta": 0.170738
+      },
+      "predictedValues": {
+        "cyan": 0.171478,
+        "magenta": 0.259262,
+        "yellow": 0.094351,
+        "black": 0.071859
+      },
+      "actualValues": {
+        "cyan": 0.32,
+        "black": 0.16,
+        "yellow": 0.29,
+        "magenta": 0.43
+      }
+    },
+    {
+      "testId": "40ff95be-2933-4a2b-84fd-ad6d68ea4f42",
+      "inkMode": "CMYK",
+      "quality": "draft",
+      "channelDifferences": {
+        "cyan": 0.216914,
+        "black": 0.11912700000000001,
+        "yellow": 0.22392399999999998,
+        "magenta": 0.251444
+      },
+      "predictedValues": {
+        "cyan": 0.103086,
+        "magenta": 0.168556,
+        "yellow": 0.066076,
+        "black": 0.040873
+      },
+      "actualValues": {
+        "cyan": 0.32,
+        "black": 0.16,
+        "yellow": 0.29,
+        "magenta": 0.42
+      }
+    },
+    {
+      "testId": "664656c0-bbc9-4500-b798-c95058cb1585",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.004502,
+        "black": 0.016991,
+        "yellow": 0.159655,
+        "magenta": 0.279657
+      },
+      "predictedValues": {
+        "cyan": 0.000498,
+        "magenta": 0.470343,
+        "yellow": 0.169655,
+        "black": 0.016991
+      },
+      "actualValues": {
+        "cyan": 0.005,
+        "black": 0,
+        "yellow": 0.01,
+        "magenta": 0.75
+      }
+    },
+    {
+      "testId": "6e99f3e7-22e3-4931-93a8-635aef181cd4",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.004502,
+        "black": 0.012876,
+        "yellow": 0.101075,
+        "magenta": 0.047667000000000015
+      },
+      "predictedValues": {
+        "cyan": 0.000498,
+        "magenta": 0.282333,
+        "yellow": 0.106075,
+        "black": 0.012876
+      },
+      "actualValues": {
+        "cyan": 0.005,
+        "black": 0,
+        "yellow": 0.005,
+        "magenta": 0.33
+      }
+    },
+    {
+      "testId": "6ae93213-7a60-4a18-bf04-4d0f74038368",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.03133100000000001,
+        "black": 0.01173,
+        "yellow": 0.0049,
+        "magenta": 0.08585799999999999
+      },
+      "predictedValues": {
+        "cyan": 0.141331,
+        "magenta": 0.105858,
+        "yellow": 0.0001,
+        "black": 0.01173
+      },
+      "actualValues": {
+        "cyan": 0.11,
+        "black": 0,
+        "yellow": 0.005,
+        "magenta": 0.02
+      }
+    },
+    {
+      "testId": "ce9d34f4-6d6f-4dbc-abbe-ad4a20903de5",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.023129999999999984,
+        "black": 0.015368,
+        "yellow": 0.0099,
+        "magenta": 0.126309
+      },
+      "predictedValues": {
+        "cyan": 0.21687,
+        "magenta": 0.176309,
+        "yellow": 0.0001,
+        "black": 0.015368
+      },
+      "actualValues": {
+        "cyan": 0.24,
+        "black": 0,
+        "yellow": 0.01,
+        "magenta": 0.05
+      }
+    },
+    {
+      "testId": "9b4b9fc1-6fba-42b2-a5dd-c6d9004838d2",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.004502,
+        "black": 0.003,
+        "yellow": 0.040773000000000004,
+        "magenta": 0.032482000000000004
+      },
+      "predictedValues": {
+        "cyan": 0.000498,
+        "magenta": 0.037482,
+        "yellow": 0.450773,
+        "black": 0.003
+      },
+      "actualValues": {
+        "cyan": 0.005,
+        "black": 0,
+        "yellow": 0.41,
+        "magenta": 0.005
+      }
+    },
+    {
+      "testId": "bc252851-7023-4dd8-85fb-f4944c15e1c6",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.000498,
+        "black": 0.003,
+        "yellow": 0.10177999999999998,
+        "magenta": 0.017536
+      },
+      "predictedValues": {
+        "cyan": 0.000498,
+        "magenta": 0.022536,
+        "yellow": 0.28178,
+        "black": 0.003
+      },
+      "actualValues": {
+        "cyan": 0,
+        "black": 0,
+        "yellow": 0.18,
+        "magenta": 0.005
+      }
+    },
+    {
+      "testId": "93ea5c37-527a-44f7-831b-2fdeb0e926a9",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.409502,
+        "black": 0.898767,
+        "yellow": 0.5599000000000001,
+        "magenta": 0.4899
+      },
+      "predictedValues": {
+        "cyan": 0.000498,
+        "magenta": 0.0001,
+        "yellow": 0.0001,
+        "black": 0.101233
+      },
+      "actualValues": {
+        "cyan": 0.41,
+        "black": 1,
+        "yellow": 0.56,
+        "magenta": 0.49
+      }
+    },
+    {
+      "testId": "472ce333-3c08-477c-919f-dd0e14487689",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.179502,
+        "black": 0.367661,
+        "yellow": 0.2499,
+        "magenta": 0.2199
+      },
+      "predictedValues": {
+        "cyan": 0.000498,
+        "magenta": 0.0001,
+        "yellow": 0.0001,
+        "black": 0.072339
+      },
+      "actualValues": {
+        "cyan": 0.18,
+        "black": 0.44,
+        "yellow": 0.25,
+        "magenta": 0.22
+      }
+    },
+    {
+      "testId": "5e4c26b2-0a32-4576-8f1a-55a311efdcbd",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.07911199999999999,
+        "black": 0.238912,
+        "gloss": 0.09328131534911166,
+        "white": 0.16328131534911172,
+        "yellow": 0.29329099999999997,
+        "magenta": 0.17468799999999995
+      },
+      "predictedValues": {
+        "white": 1.2967186846508882,
+        "cyan": 0.040888,
+        "magenta": 0.295312,
+        "yellow": 0.406709,
+        "black": 0.081088,
+        "gloss": 1.2967186846508882
+      },
+      "actualValues": {
+        "cyan": 0.12,
+        "black": 0.32,
+        "gloss": 1.39,
+        "white": 1.46,
+        "yellow": 0.7,
+        "magenta": 0.47
+      }
+    },
+    {
+      "testId": "3313eee0-b1ec-465f-a619-4e8fb4fadbdb",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.07911199999999999,
+        "black": 0.238912,
+        "yellow": 0.29329099999999997,
+        "magenta": 0.17468799999999995
+      },
+      "predictedValues": {
+        "cyan": 0.040888,
+        "magenta": 0.295312,
+        "yellow": 0.406709,
+        "black": 0.081088
+      },
+      "actualValues": {
+        "cyan": 0.12,
+        "black": 0.32,
+        "yellow": 0.7,
+        "magenta": 0.47
+      }
+    },
+    {
+      "testId": "c37ff894-f45b-4879-a425-50fa1a8859c0",
+      "inkMode": "CMYK_GLOSS",
+      "quality": "high",
+      "channelDifferences": {
+        "cyan": 0.08813700000000001,
+        "black": 0.12723700000000002,
+        "gloss": 0.7052663998592181,
+        "yellow": 0.11888699999999999,
+        "magenta": 0.128548
+      },
+      "predictedValues": {
+        "cyan": 0.041863,
+        "magenta": 0.081452,
+        "yellow": 0.171113,
+        "black": 0.102763,
+        "gloss": 1.0647336001407819
+      },
+      "actualValues": {
+        "cyan": 0.13,
+        "black": 0.23,
+        "gloss": 1.77,
+        "yellow": 0.29,
+        "magenta": 0.21
+      }
+    },
+    {
+      "testId": "54e953b8-c26a-4e95-99cc-0999e59a3d18",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.09995200000000001,
+        "black": 0.16048500000000002,
+        "gloss": 0.916100906583469,
+        "white": 1.016100906583469,
+        "yellow": 0.14737399999999998,
+        "magenta": 0.144811
+      },
+      "predictedValues": {
+        "white": 0.853899093416531,
+        "cyan": 0.030048,
+        "magenta": 0.065189,
+        "yellow": 0.142626,
+        "black": 0.069515,
+        "gloss": 0.853899093416531
+      },
+      "actualValues": {
+        "cyan": 0.13,
+        "black": 0.23,
+        "gloss": 1.77,
+        "white": 1.87,
+        "yellow": 0.29,
+        "magenta": 0.21
+      }
+    },
+    {
+      "testId": "219bf2a0-0695-46a9-ac79-f6489c2c9ace",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.029822000000000015,
+        "black": 0.03621799999999999,
+        "gloss": 0.5,
+        "white": 0.5399999999999999,
+        "yellow": 0.054622000000000004,
+        "magenta": 0.028251
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.110178,
+        "magenta": 0.151749,
+        "yellow": 0.055378,
+        "black": 0.053782,
+        "gloss": 0.04
+      },
+      "actualValues": {
+        "cyan": 0.14,
+        "black": 0.09,
+        "gloss": 0.54,
+        "white": 0.57,
+        "yellow": 0.11,
+        "magenta": 0.18
+      }
+    },
+    {
+      "testId": "3bd28159-fd71-4434-a7d9-e9e807e68877",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.029833000000000012,
+        "black": 0.036223,
+        "yellow": 0.054628,
+        "magenta": 0.02826899999999999
+      },
+      "predictedValues": {
+        "cyan": 0.110167,
+        "magenta": 0.151731,
+        "yellow": 0.055372,
+        "black": 0.053777
+      },
+      "actualValues": {
+        "cyan": 0.14,
+        "black": 0.09,
+        "yellow": 0.11,
+        "magenta": 0.18
+      }
+    },
+    {
+      "testId": "9b36f1c6-f97c-4a5f-aa23-f2e785b06516",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.0528,
+        "black": 0.08717,
+        "gloss": 0.46,
+        "white": 0.5,
+        "yellow": 0.06182700000000002,
+        "magenta": 0.08102100000000001
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.0372,
+        "magenta": 0.048979,
+        "yellow": 0.138173,
+        "black": 0.06283,
+        "gloss": 0.04
+      },
+      "actualValues": {
+        "cyan": 0.09,
+        "black": 0.15,
+        "gloss": 0.5,
+        "white": 0.53,
+        "yellow": 0.2,
+        "magenta": 0.13
+      }
+    },
+    {
+      "testId": "e8f0674f-1ca2-4314-87c2-59fdd0e882b2",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.09276600000000002,
+        "black": 0.154138,
+        "yellow": 0.120112,
+        "magenta": 0.13481700000000002
+      },
+      "predictedValues": {
+        "cyan": 0.047234,
+        "magenta": 0.065183,
+        "yellow": 0.179888,
+        "black": 0.075862
+      },
+      "actualValues": {
+        "cyan": 0.14,
+        "black": 0.23,
+        "yellow": 0.3,
+        "magenta": 0.2
+      }
+    },
+    {
+      "testId": "b948da2c-b575-44e6-8fe3-3690a15a5051",
+      "inkMode": "WHITE_CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.04836900000000001,
+        "black": 0.07135,
+        "white": 0.43000000000000005,
+        "yellow": 0.03937499999999999,
+        "magenta": 0.075486
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.021631,
+        "magenta": 0.044514,
+        "yellow": 0.110625,
+        "black": 0.05865
+      },
+      "actualValues": {
+        "cyan": 0.07,
+        "black": 0.13,
+        "white": 0.46,
+        "yellow": 0.15,
+        "magenta": 0.12
+      }
+    },
+    {
+      "testId": "fd474f98-355a-4f65-850f-9379929eece5",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.100472,
+        "black": 0.15483000000000002,
+        "yellow": 0.10364700000000002,
+        "magenta": 0.145278
+      },
+      "predictedValues": {
+        "cyan": 0.029528,
+        "magenta": 0.064722,
+        "yellow": 0.156353,
+        "black": 0.07517
+      },
+      "actualValues": {
+        "cyan": 0.13,
+        "black": 0.23,
+        "yellow": 0.26,
+        "magenta": 0.21
+      }
+    },
+    {
+      "testId": "d8e93f27-b5ba-4168-9962-5057a78b8567",
+      "inkMode": "WHITE_CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.008771000000000001,
+        "black": 0.015096000000000005,
+        "white": 0.7899999999999999,
+        "yellow": 0.02521599999999999,
+        "magenta": 0.015179999999999999
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.031229,
+        "magenta": 0.09482,
+        "yellow": 0.124784,
+        "black": 0.034904
+      },
+      "actualValues": {
+        "cyan": 0.04,
+        "black": 0.05,
+        "white": 0.82,
+        "yellow": 0.15,
+        "magenta": 0.11
+      }
+    },
+    {
+      "testId": "dcdb8e6c-a378-49cb-a764-5084f899f556",
+      "inkMode": "CMYK",
+      "quality": "high",
+      "channelDifferences": {
+        "cyan": 0.0035219999999999974,
+        "black": 0.009144,
+        "yellow": 0.00027900000000000147,
+        "magenta": 0.008499999999999994
+      },
+      "predictedValues": {
+        "cyan": 0.043522,
+        "magenta": 0.1185,
+        "yellow": 0.149721,
+        "black": 0.050856
+      },
+      "actualValues": {
+        "cyan": 0.04,
+        "black": 0.06,
+        "yellow": 0.15,
+        "magenta": 0.11
+      }
+    },
+    {
+      "testId": "3f66187b-4e0d-4ca2-b7d6-daae703e3f59",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.008771000000000001,
+        "black": 0.015096000000000005,
+        "yellow": 0.02521599999999999,
+        "magenta": 0.015179999999999999
+      },
+      "predictedValues": {
+        "cyan": 0.031229,
+        "magenta": 0.09482,
+        "yellow": 0.124784,
+        "black": 0.034904
+      },
+      "actualValues": {
+        "cyan": 0.04,
+        "black": 0.05,
+        "yellow": 0.15,
+        "magenta": 0.11
+      }
+    },
+    {
+      "testId": "a1325c0c-6cda-40da-90b2-9f9283ab87af",
+      "inkMode": "CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.015435000000000004,
+        "black": 0.0030980000000000035,
+        "gloss": 0.5,
+        "yellow": 0.06503799999999998,
+        "magenta": 0.041370000000000004
+      },
+      "predictedValues": {
+        "cyan": 0.034565,
+        "magenta": 0.02863,
+        "yellow": 0.144962,
+        "black": 0.046902,
+        "gloss": 0.04
+      },
+      "actualValues": {
+        "cyan": 0.05,
+        "black": 0.05,
+        "gloss": 0.54,
+        "yellow": 0.21,
+        "magenta": 0.07
+      }
+    },
+    {
+      "testId": "9c382f87-f338-4b93-8a10-e078a19f9cae",
+      "inkMode": "WHITE_CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.015435000000000004,
+        "black": 0.0030980000000000035,
+        "white": 0.5399999999999999,
+        "yellow": 0.06503799999999998,
+        "magenta": 0.041370000000000004
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.034565,
+        "magenta": 0.02863,
+        "yellow": 0.144962,
+        "black": 0.046902
+      },
+      "actualValues": {
+        "cyan": 0.05,
+        "black": 0.05,
+        "white": 0.57,
+        "yellow": 0.21,
+        "magenta": 0.07
+      }
+    },
+    {
+      "testId": "caa6312c-274a-4229-af8a-739cd8e316a9",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.04495,
+        "black": 0.022784,
+        "yellow": 0.174946,
+        "magenta": 0.08038899999999999
+      },
+      "predictedValues": {
+        "cyan": 0.04505,
+        "magenta": 0.039611,
+        "yellow": 0.195054,
+        "black": 0.057216
+      },
+      "actualValues": {
+        "cyan": 0.09,
+        "black": 0.08,
+        "yellow": 0.37,
+        "magenta": 0.12
+      }
+    },
+    {
+      "testId": "2b3e4e29-5f6f-417e-a602-de1e13c48292",
+      "inkMode": "CMYK",
+      "quality": "high",
+      "channelDifferences": {
+        "cyan": 0.00004500000000000337,
+        "black": 0.018541000000000002,
+        "yellow": 0.02009500000000001,
+        "magenta": 0.026503
+      },
+      "predictedValues": {
+        "cyan": 0.069955,
+        "magenta": 0.183497,
+        "yellow": 0.049905,
+        "black": 0.058541
+      },
+      "actualValues": {
+        "cyan": 0.07,
+        "black": 0.04,
+        "yellow": 0.07,
+        "magenta": 0.21
+      }
+    },
+    {
+      "testId": "c12753c6-da53-448b-b20b-065f39a4ad8d",
+      "inkMode": "CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.019890000000000005,
+        "black": 0.000026999999999999247,
+        "yellow": 0.028396000000000005,
+        "magenta": 0.05318200000000001
+      },
+      "predictedValues": {
+        "cyan": 0.05011,
+        "magenta": 0.146818,
+        "yellow": 0.041604,
+        "black": 0.040027
+      },
+      "actualValues": {
+        "cyan": 0.07,
+        "black": 0.04,
+        "yellow": 0.07,
+        "magenta": 0.2
+      }
+    }
+  ],
+  "stats": {
+    "overall": 0.10007444154997436,
+    "channelMAE": {
+      "cyan": 0.04782759523816073,
+      "black": 0.07672965476183925,
+      "gloss": 0.2118169643745658,
+      "white": 0.282058646367554,
+      "yellow": 0.09312705952375001,
+      "magenta": 0.08170185833339284
+    },
+    "channelSampleCounts": {
+      "cyan": 56,
+      "black": 56,
+      "gloss": 18,
+      "white": 20,
+      "yellow": 56,
+      "magenta": 56
+    },
+    "sampleCount": 262,
+    "standardChannelsMAE": 0.07484654196428578,
+    "specialLayersMAE": 0.2487862706866648,
+    "standardChannelsSampleCount": 224,
+    "specialLayersSampleCount": 38,
+    "sizeMetrics": {
+      "small": {
+        "overall": 0.06583807589719383,
+        "standardChannels": 0.0692979907406389,
+        "specialLayers": 0.056256773253807485,
+        "sampleCount": 49
+      },
+      "medium": {
+        "overall": 0.08329258049801763,
+        "standardChannels": 0.07425746666670408,
+        "specialLayers": 0.2603808115917626,
+        "sampleCount": 103
+      },
+      "large": {
+        "overall": 0.13103911068940866,
+        "standardChannels": 0.07770739999999997,
+        "specialLayers": 0.3710318087917478,
+        "sampleCount": 110
+      }
+    }
+  },
+  "timestamp": "2025-05-01T13:12:06.736Z",
+  "calibrationDate": "2025-05-01T13:09:06.169+00:00"
+}

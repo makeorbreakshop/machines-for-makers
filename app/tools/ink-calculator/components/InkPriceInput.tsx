@@ -110,7 +110,7 @@ export default function InkPriceInput({
         />
         {mlError && <p className="text-xs text-destructive">{mlError}</p>}
         <p className="text-xs text-muted-foreground">
-          Typically 600ml for standard CMYK ink sets
+          Typically 700ml for a set of 7 ink cartridges
         </p>
       </div>
     </div>

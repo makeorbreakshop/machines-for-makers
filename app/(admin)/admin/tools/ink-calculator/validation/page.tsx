@@ -14,8 +14,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { BarChart, RefreshCw, Settings } from "lucide-react";
-import { validateTestBatch, calculateMAEStats } from "@/app/tools/ink-calculator/services/validation";
+import { BarChart, RefreshCw, Settings, Download } from "lucide-react";
+import { validateTestBatch, calculateMAE } from "@/app/tools/ink-calculator/services/validation";
 import { Badge } from "@/components/ui/badge";
 
 interface TestDataEntry {
@@ -45,14 +45,33 @@ interface ValidationResult {
   actualValues: Record<string, number>;
 }
 
+interface ValidationStats {
+  overall: number;
+  channelMAE: Record<string, number>;
+  channelSampleCounts: Record<string, number>;
+  sampleCount: number;
+  standardChannelsMAE: number;
+  specialLayersMAE: number;
+  standardChannelsSampleCount: number;
+  specialLayersSampleCount: number;
+  sizeMetrics?: {
+    small: { overall: number; standardChannels: number; specialLayers: number; sampleCount: number; };
+    medium: { overall: number; standardChannels: number; specialLayers: number; sampleCount: number; };
+    large: { overall: number; standardChannels: number; specialLayers: number; sampleCount: number; };
+  };
+}
+
 export default function ValidationPage() {
   const [loading, setLoading] = useState(false);
-  const [optimizing, setOptimizing] = useState(false);
+  const [optimizingCmyk, setOptimizingCmyk] = useState(false);
+  const [optimizingSpecialLayers, setOptimizingSpecialLayers] = useState(false);
   const [testData, setTestData] = useState<TestDataEntry[]>([]);
   const [results, setResults] = useState<ValidationResult[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<ValidationStats | null>(null);
   const [activeTab, setActiveTab] = useState("summary");
   const [latestCalibration, setLatestCalibration] = useState<string | null>(null);
+  const [latestCmykCalibration, setLatestCmykCalibration] = useState<string | null>(null);
+  const [latestSpecialLayerCalibration, setLatestSpecialLayerCalibration] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch test data on mount
@@ -62,18 +81,37 @@ export default function ValidationPage() {
 
   const fetchLatestCalibration = async () => {
     try {
+      // Fetch combined calibration (legacy)
       const response = await fetch(`/api/admin/ink-calculator/calibration`);
-      if (!response.ok) {
-        console.warn("Failed to fetch calibration data");
-        return;
+      if (response.ok) {
+        const data = await response.json();
+        if (data.created_at) {
+          setLatestCalibration(data.created_at);
+          console.log("[VALIDATION-DEBUG] Latest combined calibration:", data.created_at);
+        }
       }
-
-      const data = await response.json();
-      if (data.created_at) {
-        setLatestCalibration(data.created_at);
+      
+      // Fetch CMYK calibration
+      const cmykResponse = await fetch(`/api/admin/ink-calculator/calibration?type=cmyk`);
+      if (cmykResponse.ok) {
+        const cmykData = await cmykResponse.json();
+        if (cmykData.created_at) {
+          setLatestCmykCalibration(cmykData.created_at);
+          console.log("[VALIDATION-DEBUG] Latest CMYK calibration:", cmykData.created_at);
+        }
+      }
+      
+      // Fetch special layer calibration
+      const specialLayerResponse = await fetch(`/api/admin/ink-calculator/calibration?type=special_layer`);
+      if (specialLayerResponse.ok) {
+        const specialLayerData = await specialLayerResponse.json();
+        if (specialLayerData.created_at) {
+          setLatestSpecialLayerCalibration(specialLayerData.created_at);
+          console.log("[VALIDATION-DEBUG] Latest special layer calibration:", specialLayerData.created_at);
+        }
       }
     } catch (error) {
-      console.error("Error fetching calibration data:", error);
+      console.error("[VALIDATION-DEBUG] Error fetching calibration data:", error);
     }
   };
 
@@ -115,12 +153,55 @@ export default function ValidationPage() {
     try {
       setLoading(true);
       
-      // Run validation on all test entries using the static factors
+      // IMPORTANT: Force reload the calibration from the database before validating
+      // This ensures we're using the latest calibration factors
+      const { refreshCalibrationFromDatabase } = await import('@/app/tools/ink-calculator/services/calibration-loader');
+      await refreshCalibrationFromDatabase();
+      
+      // Run validation on all test entries using the freshly loaded factors
       const validationResults = await validateTestBatch(data);
       setResults(validationResults);
       
-      // Calculate overall stats using MAE
-      const accuracyStats = calculateMAEStats(validationResults);
+      // Extract predicted and actual values
+      const predictedValues: Record<string, number[]> = {};
+      const actualValues: Record<string, number[]> = {};
+      const areas: number[] = [];
+      
+      // Collect all channels and prepare data arrays
+      const allChannels = new Set<string>();
+      validationResults.forEach(result => {
+        Object.keys(result.actualValues).forEach(channel => {
+          allChannels.add(channel);
+        });
+      });
+      
+      // Initialize arrays for each channel
+      allChannels.forEach(channel => {
+        predictedValues[channel] = [];
+        actualValues[channel] = [];
+      });
+      
+      // Populate data arrays and calculate areas
+      validationResults.forEach((result, index) => {
+        const testEntry = data[index];
+        if (testEntry) {
+          // Calculate area in square inches
+          const { width, height, unit } = testEntry.dimensions;
+          const area = unit === 'mm' 
+            ? (width / 25.4) * (height / 25.4)  // Convert mm² to in²
+            : width * height;
+          
+          Object.entries(result.actualValues).forEach(([channel, actual]) => {
+            const predicted = result.predictedValues[channel] || 0;
+            predictedValues[channel].push(predicted);
+            actualValues[channel].push(actual);
+            areas.push(area);
+          });
+        }
+      });
+      
+      // Calculate enhanced statistics using the new calculateMAE function
+      const accuracyStats = calculateMAE(predictedValues, actualValues, areas);
       setStats(accuracyStats);
       console.log("[VALIDATION-DEBUG] Validation stats:", accuracyStats);
       
@@ -133,16 +214,16 @@ export default function ValidationPage() {
     }
   };
   
-  const runAutoTuning = async () => {
+  const runCmykAutoTuning = async () => {
     try {
-      setOptimizing(true);
-      const response = await fetch(`/api/admin/ink-calculator/optimize-factors`, {
+      setOptimizingCmyk(true);
+      const response = await fetch(`/api/admin/ink-calculator/optimize-cmyk-factors`, {
         method: 'POST',
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Optimization failed');
+        throw new Error(errorData.error || 'CMYK optimization failed');
       }
       
       const result = await response.json();
@@ -151,17 +232,83 @@ export default function ValidationPage() {
       const beforeError = result.accuracy?.before?.averageError || 0;
       const afterError = result.accuracy?.after?.averageError || 0;
       
-      toast.success(`Auto-tuning complete! MAE improved from ${beforeError.toFixed(4)} to ${afterError.toFixed(4)} mL`);
+      toast.success(`CMYK auto-tuning complete! MAE improved from ${beforeError.toFixed(4)} to ${afterError.toFixed(4)} mL`);
       
       // Refresh calibration timestamp
-      fetchLatestCalibration();
+      await fetchLatestCalibration();
       
-      // Re-validate with new factors
+      // IMPORTANT: Force reload the calibration from the database before re-validating
+      const { refreshCalibrationFromDatabase } = await import('@/app/tools/ink-calculator/services/calibration-loader');
+      await refreshCalibrationFromDatabase();
+      
+      // Now re-validate with the new factors
       await fetchTestData();
     } catch (error: any) {
-      toast.error(error.message || "Auto-tuning failed");
+      toast.error(error.message || "CMYK auto-tuning failed");
     } finally {
-      setOptimizing(false);
+      setOptimizingCmyk(false);
+    }
+  };
+
+  const runSpecialLayerAutoTuning = async () => {
+    try {
+      setOptimizingSpecialLayers(true);
+      const response = await fetch(`/api/admin/ink-calculator/optimize-special-layer-factors`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Special layer optimization failed');
+      }
+      
+      const result = await response.json();
+      
+      // Show improvement in accuracy
+      const beforeError = result.accuracy?.before?.averageError || 0;
+      const afterError = result.accuracy?.after?.averageError || 0;
+      
+      toast.success(`Special layer auto-tuning complete! MAE improved from ${beforeError.toFixed(4)} to ${afterError.toFixed(4)} mL`);
+      
+      // Refresh calibration timestamp
+      await fetchLatestCalibration();
+      
+      // IMPORTANT: Force reload the calibration from the database before re-validating
+      const { refreshCalibrationFromDatabase } = await import('@/app/tools/ink-calculator/services/calibration-loader');
+      await refreshCalibrationFromDatabase();
+      
+      // Now re-validate with the new factors
+      await fetchTestData();
+    } catch (error: any) {
+      toast.error(error.message || "Special layer auto-tuning failed");
+    } finally {
+      setOptimizingSpecialLayers(false);
+    }
+  };
+
+  const exportTestResults = () => {
+    if (results.length > 0) {
+      const exportData = {
+        testData: testData,
+        validationResults: results,
+        stats: stats,
+        timestamp: new Date().toISOString(),
+        calibrationDate: latestCalibration
+      };
+      
+      const dataStr = JSON.stringify(exportData, null, 2);
+      
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      const exportFileDefaultName = `ink-calculator-results-${new Date().toISOString().split('T')[0]}.json`;
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+      
+      toast.success('Results exported successfully');
+    } else {
+      toast.error('No results available to export');
     }
   };
 
@@ -215,6 +362,14 @@ export default function ValidationPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button 
+            onClick={exportTestResults} 
+            disabled={loading || results.length === 0}
+            variant="outline"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export Results
+          </Button>
+          <Button 
             onClick={() => validateData()} 
             disabled={loading || testData.length === 0}
             variant="outline"
@@ -222,129 +377,257 @@ export default function ValidationPage() {
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button 
-            onClick={runAutoTuning} 
-            disabled={optimizing || testData.length === 0}
-            variant="default"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${optimizing ? "animate-spin" : ""}`} />
-            Auto-Tune Factors
-          </Button>
         </div>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Summary Card */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Validation Summary</span>
-              <Button variant="outline" size="sm" onClick={() => fetchTestData()} disabled={loading}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            </CardTitle>
+      {/* Auto-tuning Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">CMYK Channels Calibration</CardTitle>
             <CardDescription>
-              Mean Absolute Error (MAE) measures the average absolute difference between predicted and actual values in mL.
+              Last optimized: {latestCmykCalibration ? new Date(latestCmykCalibration).toLocaleString() : "Never"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {latestCalibration && (
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
-                <p className="text-sm text-blue-700 dark:text-blue-400">
-                  <span className="font-medium">Latest calibration:</span> {formatDate(latestCalibration)}
-                </p>
-                <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">
-                  Auto-tuning optimizes factors to minimize MAE across all test data
-                </p>
-              </div>
-            )}
-            
-            {stats ? (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-semibold mb-2">Overall MAE: {stats.overallMAE.toFixed(4)} mL</h3>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Based on {stats.sampleCount} test data points across all ink channels.
-                  </p>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">MAE by Channel</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {Object.entries(stats.channelMAE).map(([channel, mae]) => (
-                      <div key={channel} className="flex items-center justify-between gap-2 p-2 rounded border">
-                        <div className="flex items-center">
-                          <div
-                            className="w-3 h-3 rounded-full mr-2"
-                            style={{ backgroundColor: getChannelColor(channel) }}
-                          ></div>
-                          <span className="font-medium capitalize">{channel}</span>
-                        </div>
-                        <div className={getDifferenceClass(mae as number)}>
-                          {(mae as number).toFixed(4)} mL
-                          <span className="text-xs ml-1 text-muted-foreground">
-                            ({stats.channelSampleCounts[channel]} samples)
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="text-sm text-muted-foreground mt-4">
-                  <p><strong>Interpretation:</strong></p>
-                  <ul className="list-disc list-inside ml-2 space-y-1">
-                    <li><span className="text-green-600 font-medium">Good:</span> MAE &lt;= 0.01 mL</li>
-                    <li><span className="text-amber-600 font-medium">Acceptable:</span> MAE &lt;= 0.05 mL</li>
-                    <li><span className="text-red-600 font-medium">Poor:</span> MAE &gt; 0.05 mL</li>
-                  </ul>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">No validation data available</p>
-              </div>
-            )}
+            <Button 
+              variant="default" 
+              onClick={runCmykAutoTuning} 
+              disabled={optimizingCmyk || loading || optimizingSpecialLayers}
+              className="w-full flex items-center justify-center gap-2">
+              {optimizingCmyk ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Optimizing CMYK...
+                </>
+              ) : (
+                <>
+                  <Settings className="h-4 w-4" />
+                  Auto-Tune CMYK Factors
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
         
-        {/* Auto-tuning Card */}
         <Card>
-          <CardHeader>
-            <CardTitle>Auto-Tuning</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Special Layers Calibration</CardTitle>
             <CardDescription>
-              Optimize calibration factors to minimize mean absolute error
+              Last optimized: {latestSpecialLayerCalibration ? new Date(latestSpecialLayerCalibration).toLocaleString() : "Never"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm mb-4">
-              The auto-tuning process applies a systematic optimization to find the best set of 
-              calibration factors that minimize the overall error across all available test data.
-            </p>
-            
-            {latestCalibration && (
-              <div className="text-sm mb-4">
-                <p><span className="font-medium">Last optimization:</span> {formatDate(latestCalibration)}</p>
-              </div>
-            )}
-            
-            <p className="text-xs text-muted-foreground mb-6">
-              This process may take several seconds to complete depending on the amount of test data.
-            </p>
-          </CardContent>
-          <CardFooter>
             <Button 
-              className="w-full"
-              onClick={runAutoTuning} 
-              disabled={optimizing || testData.length < 5}
-            >
-              <Settings className={`mr-2 h-4 w-4 ${optimizing ? "animate-spin" : ""}`} />
-              {optimizing ? "Optimizing..." : "Run Auto-Tuning"}
+              variant="default" 
+              onClick={runSpecialLayerAutoTuning} 
+              disabled={optimizingSpecialLayers || loading || optimizingCmyk}
+              className="w-full flex items-center justify-center gap-2">
+              {optimizingSpecialLayers ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Optimizing Special Layers...
+                </>
+              ) : (
+                <>
+                  <Settings className="h-4 w-4" />
+                  Auto-Tune Special Layer Factors
+                </>
+              )}
             </Button>
-          </CardFooter>
+          </CardContent>
         </Card>
       </div>
+      
+      {/* Summary Card - Now full width */}
+      <Card className="mb-8 mt-6">
+        <CardHeader>
+          <CardTitle>Validation Summary</CardTitle>
+          <CardDescription>
+            Mean Absolute Error (MAE) measures the average absolute difference between predicted and actual values in mL.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {latestCalibration && (
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-700 dark:text-blue-400">
+                <span className="font-medium">Latest calibration:</span> {formatDate(latestCalibration)}
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">
+                Auto-tuning optimizes factors to minimize MAE across all test data
+              </p>
+            </div>
+          )}
+          
+          {stats ? (
+            <div className="space-y-6">
+              {/* Overall Stats */}
+              <div className="flex items-center justify-between border-b pb-4">
+                <div>
+                  <h3 className="text-2xl font-semibold">Overall MAE: {stats.overall.toFixed(4)} mL</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Based on {stats.sampleCount} test data points across all ink channels
+                  </p>
+                </div>
+                {optimizingCmyk || optimizingSpecialLayers ? (
+                  <div className="flex items-center">
+                    <RefreshCw className="h-5 w-5 mr-2 animate-spin text-blue-500" />
+                    <span className="text-blue-500">Optimizing factors...</span>
+                  </div>
+                ) : null}
+              </div>
+              
+              {/* Channel Type Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                {/* Standard Channels */}
+                <div className="border p-4 rounded-lg">
+                  <h4 className="text-lg font-medium mb-3">Standard CMYK Channels</h4>
+                  <div className={`text-xl font-semibold ${getDifferenceClass(stats.standardChannelsMAE)}`}>
+                    MAE: {stats.standardChannelsMAE.toFixed(4)} mL
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-2">
+                    {stats.standardChannelsSampleCount} samples
+                  </div>
+                </div>
+                
+                {/* Special Layers */}
+                <div className="border p-4 rounded-lg">
+                  <h4 className="text-lg font-medium mb-3">Special Layers</h4>
+                  <div className={`text-xl font-semibold ${getDifferenceClass(stats.specialLayersMAE)}`}>
+                    MAE: {stats.specialLayersMAE.toFixed(4)} mL
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-2">
+                    {stats.specialLayersSampleCount} samples
+                  </div>
+                </div>
+              </div>
+              
+              {/* Size-Based Stats */}
+              {stats.sizeMetrics && (
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Size-Based Analysis</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Small Prints */}
+                    <div className="border p-4 rounded-lg">
+                      <h4 className="text-lg font-medium">Small Prints</h4>
+                      <p className="text-sm text-muted-foreground mb-3">{"<4 sq inches"}</p>
+                      <div className={`text-lg font-medium ${getDifferenceClass(stats.sizeMetrics.small.overall)}`}>
+                        Overall: {stats.sizeMetrics.small.overall.toFixed(4)} mL
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        <div>
+                          <div className="text-sm font-medium">CMYK:</div>
+                          <div className={`${getDifferenceClass(stats.sizeMetrics.small.standardChannels)}`}>
+                            {stats.sizeMetrics.small.standardChannels.toFixed(4)} mL
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">Special:</div>
+                          <div className={`${getDifferenceClass(stats.sizeMetrics.small.specialLayers)}`}>
+                            {stats.sizeMetrics.small.specialLayers.toFixed(4)} mL
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-3 text-right">
+                        {stats.sizeMetrics.small.sampleCount} samples
+                      </div>
+                    </div>
+                    
+                    {/* Medium Prints */}
+                    <div className="border p-4 rounded-lg">
+                      <h4 className="text-lg font-medium">Medium Prints</h4>
+                      <p className="text-sm text-muted-foreground mb-3">4-100 sq inches</p>
+                      <div className={`text-lg font-medium ${getDifferenceClass(stats.sizeMetrics.medium.overall)}`}>
+                        Overall: {stats.sizeMetrics.medium.overall.toFixed(4)} mL
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        <div>
+                          <div className="text-sm font-medium">CMYK:</div>
+                          <div className={`${getDifferenceClass(stats.sizeMetrics.medium.standardChannels)}`}>
+                            {stats.sizeMetrics.medium.standardChannels.toFixed(4)} mL
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">Special:</div>
+                          <div className={`${getDifferenceClass(stats.sizeMetrics.medium.specialLayers)}`}>
+                            {stats.sizeMetrics.medium.specialLayers.toFixed(4)} mL
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-3 text-right">
+                        {stats.sizeMetrics.medium.sampleCount} samples
+                      </div>
+                    </div>
+                    
+                    {/* Large Prints */}
+                    <div className="border p-4 rounded-lg">
+                      <h4 className="text-lg font-medium">Large Prints</h4>
+                      <p className="text-sm text-muted-foreground mb-3">{">100 sq inches"}</p>
+                      <div className={`text-lg font-medium ${getDifferenceClass(stats.sizeMetrics.large.overall)}`}>
+                        Overall: {stats.sizeMetrics.large.overall.toFixed(4)} mL
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        <div>
+                          <div className="text-sm font-medium">CMYK:</div>
+                          <div className={`${getDifferenceClass(stats.sizeMetrics.large.standardChannels)}`}>
+                            {stats.sizeMetrics.large.standardChannels.toFixed(4)} mL
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">Special:</div>
+                          <div className={`${getDifferenceClass(stats.sizeMetrics.large.specialLayers)}`}>
+                            {stats.sizeMetrics.large.specialLayers.toFixed(4)} mL
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-3 text-right">
+                        {stats.sizeMetrics.large.sampleCount} samples
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Channel-Specific Stats */}
+              <div>
+                <h3 className="text-xl font-semibold mb-4">MAE by Channel</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {Object.entries(stats.channelMAE).map(([channel, mae]) => (
+                    <div key={channel} className="flex items-center justify-between gap-2 p-3 rounded-lg border">
+                      <div className="flex items-center">
+                        <div
+                          className="w-4 h-4 rounded-full mr-2"
+                          style={{ backgroundColor: getChannelColor(channel) }}
+                        ></div>
+                        <span className="font-medium capitalize">{channel}</span>
+                      </div>
+                      <div className={getDifferenceClass(mae)}>
+                        <span className="font-medium">{mae.toFixed(4)} mL</span>
+                        <div className="text-xs text-muted-foreground">
+                          ({stats.channelSampleCounts[channel]} samples)
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="text-sm text-muted-foreground mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="font-medium mb-2">Interpretation:</p>
+                <ul className="list-disc list-inside ml-2 space-y-1">
+                  <li><span className="text-green-600 font-medium">Good:</span> MAE &lt;= 0.01 mL</li>
+                  <li><span className="text-amber-600 font-medium">Acceptable:</span> MAE &lt;= 0.05 mL</li>
+                  <li><span className="text-red-600 font-medium">Poor:</span> MAE &gt; 0.05 mL</li>
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No validation data available</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">

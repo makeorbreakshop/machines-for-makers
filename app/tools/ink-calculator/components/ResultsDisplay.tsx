@@ -125,7 +125,7 @@ ${Object.entries(costResults.channelBreakdown)
   .map(
     ([channel, cost]) => {
       const mlValue = inkUsage?.channelMl[channel] || 0;
-      return `${channel.charAt(0).toUpperCase() + channel.slice(1)}: $${formatCost(cost)} (${formatMl(mlValue)} mL)${channelCoverage && channelCoverage[channel] ? ` (Coverage: ${(channelCoverage[channel] * 100).toFixed(1)}%)` : ''}`;
+      return `${channel.charAt(0).toUpperCase() + channel.slice(1)}: $${formatCost(cost)} (${formatMl(mlValue)} mL)`;
     }
   )
   .join("\n")}
@@ -224,9 +224,6 @@ https://machinesformakers.com/tools/ink-calculator
               {Object.entries(costResults.channelBreakdown).map(
                 ([channel, cost], index) => {
                   const mlValue = inkUsage?.channelMl[channel] || 0;
-                  const coverage = channelCoverage && channelCoverage[channel] 
-                    ? `${(channelCoverage[channel] * 100).toFixed(1)}%` 
-                    : null;
                   
                   return (
                     <div key={channel} className="space-y-1.5">
@@ -239,11 +236,6 @@ https://machinesformakers.com/tools/ink-calculator
                           <span className="capitalize font-medium">{channel}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm">
-                          {coverage && (
-                            <Badge variant="secondary" className="font-normal text-xs">
-                              {coverage} coverage
-                            </Badge>
-                          )}
                           <span className="font-medium">${formatCost(cost)}</span>
                           <span className="text-xs text-muted-foreground">
                             ({formatMl(mlValue)} mL)

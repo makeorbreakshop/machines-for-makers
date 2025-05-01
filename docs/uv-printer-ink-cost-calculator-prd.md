@@ -30,7 +30,7 @@ A lightweight, web-based calculator for UV printer ink cost estimation, integrat
 - ✅ Formula implementation: costPerPrint = Σ(channel_mL × pricePerML)
 - ✅ Formula implementation: printsPerSet = totalSetML / Σ(channel_mL)
 - ✅ Support for different ink configurations and print qualities
-- ✅ Static calculation model based on test print data
+- ✅ Advanced non-linear calculation model with power functions and channel-specific behavior
 - ✅ Client-side processing for instant results
 
 ### User Interface
@@ -373,117 +373,117 @@ For each test print, collect and store:
     - [ ] Display MAE based on *loaded* factors.
     - [ ] Show the timestamp of the latest optimized factors.
     - [ ] Include a button to trigger the optimization API.
+    - [ ] **Display separate MAE metrics for standard channels vs. special layers (white and gloss).**
 - [ ] Ensure validation page uses stored `image_analysis.channelCoverage` where available for MAE calculation.
 - [ ] **Expand** test dataset with solids, gradients, and line art to improve optimization effectiveness.
+- [ ] **Add area-to-usage correlation analysis specifically for white and gloss layers.**
+
+### 5.1 Special Layer Handling Improvement Plan
+- [ ] **Modify ink-calibration.ts**:
+  - [ ] Update AREA_EXPONENTS for white to 0.95 and gloss to 0.98 (closer to linear 1.0)
+  - [ ] Add comprehensive mode-specific adjustments for special layers in INK_MODE_ADJUSTMENTS
+  - [ ] Add a new SPECIAL_LAYER_MODES constant to identify modes using white or gloss
+- [ ] **Enhance calculateSpecialLayerUsage in utils.ts**:
+  - [ ] Simplify the formula to focus more directly on area with minimal complexity
+  - [ ] Remove or reduce the area scaling multiplier effect for special layers
+  - [ ] Implement specific handling for different print modes (WHITE_CMYK vs WHITE_CMYK_GLOSS vs CMYK_GLOSS)
+  - [ ] Add direct linear calculation approach for very small prints
+- [ ] **Update auto-calibration.ts**:
+  - [ ] Modify estimateChannelUsage to use specialized calculation for white and gloss
+  - [ ] Create separate optimization strategy for special layers focused on area correlation
+  - [ ] Track and report MAE separately for color channels vs. special layers
+  - [ ] Prioritize area-based calibration for special layers
+- [ ] **Collect additional test data for special layers**:
+  - [ ] Add white layer tests with varying print sizes but consistent coverage
+  - [ ] Add gloss layer tests with varying print sizes but consistent coverage
+  - [ ] Test different print modes with white and gloss layers
+- [ ] **Validate improvements**:
+  - [ ] Compare MAE before and after special layer enhancements
+  - [ ] Verify linear relationship between area and special layer usage
+
+### 5.2 Comprehensive Special Layer Calculation Rewrite
+- [ ] **Create separate calculation pipelines**:
+  - [ ] Implement dedicated calculation function for white/gloss layers using linear area-based approach
+  - [ ] Maintain existing complex calculation for CMYK channels
+  - [ ] Add logic to route each channel to the appropriate calculation pipeline
+- [ ] **Implement two-phase calibration process**:
+  - [ ] Create separate optimization function for CMYK channels only
+  - [ ] Create separate optimization function for special layers only
+  - [ ] Store and load calibration parameters separately for each group
+- [ ] **Enhance scaling factors**:
+  - [ ] Increase base scaling factors for white/gloss by at least 100× over current values
+  - [ ] Implement substantially higher base consumption values (0.05-0.1 mL range)
+  - [ ] Add fixed minimum usage thresholds based on printer mechanics
+- [ ] **Implement size-based calculation branches**:
+  - [ ] Add specific formulas for small (<50mm), medium (50-250mm), and large (>250mm) prints
+  - [ ] Create tapering function for large prints to prevent extreme values
+  - [ ] Add steeper scaling for small prints to prevent underestimation
+- [ ] **Enhance validation system**:
+  - [ ] Track and report separate metrics for CMYK vs. special layers
+  - [ ] Validate against print size classes separately
+  - [ ] Focus on worst-case error reduction strategies
+  - [ ] Create visualization tools for error distribution analysis
+
+### 5.3 Completely Decoupled Optimization Process
+
+Based on May 2025 test results, we've determined that the fundamental issue with special layer (white/gloss) accuracy requires a complete separation of the optimization processes. The current approach, while using separate calculation models, still optimizes parameters together, causing interference between CMYK and special layer calibration.
+
+#### Required Changes for Decoupled Optimization
+
+1. **Split Calibration Storage**
+   - Store CMYK and special layer calibrations as separate records in the database
+   - Add a `calibrationType` field to the `ink_calculator_calibration` table
+   - Update loading logic to fetch and merge both parameter sets
+
+2. **Create Separate Optimization Pipelines**
+   - Implement `optimizeCmykFactors()` - focused only on cyan, magenta, yellow, black
+   - Implement `optimizeSpecialLayerFactors()` - focused only on white, gloss, etc.
+   - Each function should use a filtered dataset relevant to that channel type
+   - Use distinct parameter sets and optimization strategies for each
+
+3. **Dual-Button Admin Interface**
+   - Add separate "Auto-Tune CMYK Factors" and "Auto-Tune Special Layer Factors" buttons
+   - Display separate MAE metrics for each channel type
+   - Allow independent optimization of each calibration set
+
+4. **API Endpoints**
+   - Create `/api/admin/ink-calculator/optimize-cmyk-factors` endpoint
+   - Create `/api/admin/ink-calculator/optimize-special-layer-factors` endpoint
+   - Each endpoint should run its respective optimization pipeline and store results
+
+5. **Validation System Enhancements**
+   - Track and display accuracy metrics separately for each channel type
+   - Show when each calibration type was last optimized
+   - Provide export options for analyzing results by channel type
+
+#### Implementation Priority
+
+This decoupled approach should be implemented immediately, with focus on:
+
+1. Database structure updates to support dual calibration storage
+2. Splitting the optimization algorithm into two completely independent processes
+3. UI enhancements to support separate optimization workflows
+4. Comprehensive validation of each optimization process independently
+
+This approach recognizes the fundamentally different nature of special layer calculations and will prevent parameter interference between channel types, significantly improving the accuracy of all calculations.
 
 ### 6. API Endpoint Implementation
-- [x] Create `/api/ink-cost` API route.
-- [x] Support both image+metadata and direct channel inputs.
-- [ ] Verify/Implement how image analysis (`channelCoverage`) is generated and stored for *new* images submitted via API (if not part of test data).
-- [ ] Create `/api/admin/ink-calculator/optimize-factors` endpoint for auto-tuning.
-- [x] Add error handling and input validation.
-
-### 7. Testing & Validation
-- [ ] Unit tests for core calculation functions (using loaded factors).
-- [ ] Unit tests for the optimization logic.
-- [ ] Integration tests for UI components (including validation page triggers).
-- [ ] Test the factor loading/caching mechanism.
-- [ ] Verify the end-to-end auto-tuning process.
-- [ ] Add comprehensive test data (solids, gradients, line art, varied sizes).
-
-### 8. Refinement & Optimization
-- [x] UI polish and animations
-  - [x] Enhanced card layouts with consistent spacing
-  - [x] Improved dropzone with interactive states
-  - [x] Animated results display with progressive load
-  - [x] Interactive form elements with proper feedback
-- [x] Error message improvements
-  - [x] Clear validation feedback for numerical inputs
-  - [x] Visual error indicators with helpful messages
-  - [x] Improved form state handling
-- [ ] Performance optimizations
-- [x] Accessibility enhancements
-  - [x] Proper ARIA labels and keyboard navigation
-  - [x] Sufficient color contrast for text elements
-  - [x] Focus state management for form controls
-- [ ] Final bundle size optimization
-
-### 9. Documentation & Deployment
-- [ ] Create user documentation/help text
-- [ ] Add integration documentation for API
-- [ ] Code comments and internal documentation
-- [ ] Final review against PRD requirements
-- [ ] Production deployment preparation
-
-### 10. Launch & Monitoring
-- [ ] Soft launch with beta testers
-- [ ] Collect initial user feedback
-- [ ] Address critical issues
-- [ ] Full public launch
-- [ ] Set up simple analytics to track success metrics 
-
-## Styling Implementation
-The UV Printer Ink Cost Calculator now features:
-
-- ✅ Card-based layout using Shadcn UI components with consistent spacing and hierarchy
-- ✅ Modern interface with proper heading hierarchy and typographic scale
-- ✅ Interactive elements with proper hover, active, and focus states
-- ✅ Responsive design that works across all device sizes
-- ✅ Clear visual hierarchy with card headers and content sections
-- ✅ Animated feedback for input changes and calculation updates
-- ✅ Consistent color scheme using design token variables
-- ✅ Form controls with clear labels and validation feedback
-- ✅ Improved dropzone with visual feedback for drag states
-- ✅ Results display with animated data visualization
-- ✅ Sticky positioning for results on desktop for better UX 
-
-## Accuracy Analysis and Improvement Recommendations
-
-To ensure the calculator provides the most accurate estimates possible based on available test data, we will implement an automated calibration tuning process.
-
-### Current Challenges (Historical Context)
-
-Previous attempts faced issues, likely due to:
-
-1.  **Flawed Error Metrics**: Using percentage error was heavily skewed by small ink volume values.
-2.  **Limited/Biased Test Data**: Mainly photos, lacking diversity (solids, gradients, line art).
-
-### Next Step: Automated Calibration Tuning
-
-1.  **Optimization Goal**: The system will automatically find the set of calibration factors (`BASE_CONSUMPTION`, `CHANNEL_SCALING_FACTORS`, etc.) that **minimizes the overall Mean Absolute Error (MAE)** when comparing predictions against the full `ink_test_data` set.
-2.  **Automated Process**: An optimization algorithm (e.g., Nelder-Mead) will run server-side, systematically testing factor combinations to find the optimal set.
-3.  **Persistent Storage**: The best set of factors found by the optimizer will be stored as a JSON object in the existing `ink_calculator_calibration` Supabase table, along with a timestamp.
-4.  **Dynamic Loading**: The `calculateInkUsage` function will fetch the *latest* set of optimized factors from the `ink_calculator_calibration` table (with caching) to use for its calculations. It will fall back to static defaults in `ink-calibration.ts` if loading fails.
-5.  **Adaptation to New Data**: Adding new test data to `ink_test_data` and re-running the optimization process will naturally refine the factors based on the expanded dataset.
-6.  **Validation**: The validation page will continue to report MAE, showing the accuracy achieved with the *currently loaded* optimized factors, and display when the last optimization occurred.
-
-This approach automates the tuning process, aims for the best fit against available data using a robust metric (MAE), and allows the calculator to adapt as the test dataset improves.
-
-### Validation System Improvements
-
-The validation system's role shifts slightly to **report the accuracy achieved by the latest auto-tuned factors**:
-
-1.  **Report MAE**: Continue using MAE to accurately measure the difference (in mL) between predictions (using auto-tuned factors) and actual test data values.
-2.  **Transparent UI**: The admin validation page will display:
-    *   Overall MAE and per-channel MAE achieved with the latest factors.
-    *   Timestamp of the last successful optimization run.
-    *   Detailed table comparing `actual_ml` vs. `predicted_ml` (using latest factors) for each test case.
-3.  **Trigger Optimization**: Provide a button to manually trigger the server-side auto-tuning process.
-4.  **Focus on Data Quality**: Continue emphasizing the need for diverse test data, as the quality of the auto-tuned factors depends directly on the quality and coverage of the `ink_test_data`.
-
-These changes ensure the validation system accurately reflects real-world performance based on the stable, static calculation model, guiding effective manual calibration.
 
 ## Technical Notes
 
 ### Ink Usage Estimation Methodology
-The calculator will use a combination of:
-1. Pixel sampling to determine coverage percentage
-2. Static multipliers based on test print data
-3. Manual override capability for exact values
+The calculator uses an advanced approach combining:
+1. Pixel sampling to determine coverage percentage by channel
+2. Non-linear mathematical model with power functions for coverage-to-ink conversion
+3. Channel-specific behavior parameters derived from empirical data
+4. Continuous area scaling using logarithmic functions
+5. Special handling for different ink modes and quality settings
+6. Manual override capability for exact values
 
 ### Limitations
 - Estimates are advisory only (disclaimer required)
-- Initial version limited to one-time test data model
+- Accuracy depends on quality and coverage of test data
+- Edge cases (very small/large prints, extreme coverage values) may still have higher error
 - No dynamic adjustment based on substrate or printer-specific settings
 
 ## Mobile Considerations
@@ -528,194 +528,17 @@ These improvements are critical for achieving the PRD's stated accuracy goal of 
 
 Based on analysis of the current test data in Supabase and previous attempts at auto-calibration, we are adopting a simplified approach focusing on static calibration factors and robust validation.
 
-### Current Accuracy Issues (Historical Context)
+### Current Challenges (Historical Context)
 
-Previous iterations revealed challenges, likely due to:
+Previous attempts faced issues, likely due to:
 
-1.  **Flawed Error Metrics in Auto-Calibration**: Using percentage error for calibration was heavily skewed by small ink volume values.
-2.  **Overfitting/Instability**: Auto-calibration attempts might have produced unstable results due to limited/biased test data and flawed metrics.
-3.  **Limited Test Data**: Current data is mainly photos, lacking solids, gradients, and line art, hindering the generalizability of any model.
+1.  **Flawed Error Metrics**: Using percentage error was heavily skewed by small ink volume values.
+2.  **Limited/Biased Test Data**: Mainly photos, lacking diversity (solids, gradients, line art).
 
-### Revised Approach: Static Calibration & Manual Tuning
+### Next Step: Automated Calibration Tuning
 
-1.  **Static Calculation Model**:
-    *   The core calculation will rely *exclusively* on the static calibration factors defined in `app/tools/ink-calculator/ink-calibration.ts`. These include:
-        *   `BASE_CONSUMPTION`: Base mL per channel.
-        *   `CHANNEL_SCALING_FACTORS`: mL per % coverage per square inch.
-        *   `QUALITY_CHANNEL_MULTIPLIERS`: Adjustments per quality setting per channel.
-        *   `AREA_SCALING_MULTIPLIERS`: Adjustments based on print area.
-    *   Dynamic loading or automatic adjustment of these factors is **removed** to ensure stability.
-2.  **Robust Validation with Mean Absolute Error (MAE)**:
-    *   A dedicated validation tool/page will compare predictions (using static factors) against the `channel_ml` values in the `ink_test_data` table.
-    *   Accuracy will be measured using **Mean Absolute Error (MAE)** per channel: `MAE = Σ |predicted_ml - actual_ml| / N`. This provides a clear average mL deviation, avoiding issues with percentage error on small values.
-    *   Validation will leverage the pre-calculated `image_analysis.channelCoverage` stored in the database for consistency and performance.
-3.  **Manual Tuning Process**:
-    *   The static factors in `ink-calibration.ts` will be manually adjusted based on the MAE results from the validation tool.
-    *   The goal is to iteratively refine these static factors to minimize the MAE across the available test data, aiming for "ballpark" accuracy initially.
-4.  **Prioritized Test Data Expansion**:
-    *   Expanding the `ink_test_data` set with diverse image types (solids, gradients, line art) and sizes is **critical** for effective manual tuning and improving the model's accuracy.
-5.  **Simplified Formula Application**:
-    *   The calculation (`calculateInkUsage`) will apply the static factors directly:
-        `mL ≈ BASE + (channelCoverage% × area × CHANNEL_FACTOR × QUALITY_FACTOR × AREA_FACTOR)`
-
-This revised approach prioritizes stability and transparency, allowing for methodical improvement through manual tuning informed by clear MAE metrics and an expanding test dataset. The PRD's target of "≤ ±7% mean error" remains the *goal* for the tuned static model, achievable through careful tuning and comprehensive test data.
-
-### Validation System Improvements
-
-The focus shifts from auto-calibration to providing a clear and robust **manual validation system**:
-
-1.  **Use Mean Absolute Error (MAE)**:
-    *   ✅ Implement MAE calculation (`Math.abs(predicted - actual)`) summed and averaged per channel across all test data. This replaces problematic percentage error calculations.
-2.  **Transparent Validation UI**:
-    *   ✅ Develop an admin page/section that displays:
-        *   Overall MAE per ink channel (Cyan, Magenta, Yellow, Black, White, etc.).
-        *   A detailed table comparing `actual_ml` vs. `predicted_ml` for every test case, highlighting absolute differences.
-    *   ✅ Use stored `image_analysis.channelCoverage` for predictions to ensure consistency.
-3.  **Removal of Auto-Calibration**:
-    *   ✅ Eliminate automated optimization routines (e.g., binary search based on flawed error metrics). Calibration is now a manual process based on MAE feedback.
-4.  **Focus on Data Quality**:
-    *   ✅ Emphasize the need for adding diverse test data (solids, gradients, line art) to improve the reliability of manual tuning.
-
-These changes ensure the validation system accurately reflects real-world performance based on the stable, static calculation model, guiding effective manual calibration.
-
-## Technical Notes
-
-### Ink Usage Estimation Methodology
-The calculator will use a combination of:
-1. Pixel sampling to determine coverage percentage
-2. Static multipliers based on test print data
-3. Manual override capability for exact values
-
-### Limitations
-- Estimates are advisory only (disclaimer required)
-- Initial version limited to one-time test data model
-- No dynamic adjustment based on substrate or printer-specific settings
-
-## Mobile Considerations
-- ✅ Ensure responsive design for all viewport sizes
-- ✅ Optimize image upload for mobile browsers
-- ✅ Simplify UI on smaller screens
-- ✅ Maintain essential functionality across devices
-
-## Deployment Strategy
-- ✅ Initial rollout as standalone page in the tools section (`/tools/ink-calculator`)
-- ☐ Simple launch without complex analytics or tracking
-- ✅ Focus on core functionality over metrics
-- ✅ Create basic UI using Shadcn UI components and Tailwind CSS for consistency
-
-## Implementation Plan
-
-### 1. Project Setup (Foundation)
-- [x] Create new directory structure in `/app/tools/ink-calculator`
-- [x] Set up route and page components
-- [x] Configure basic layout with Shadcn UI and Tailwind CSS
-- [x] Add page metadata and SEO configuration
-
-### 2. UI Components Development
-- [x] Image upload dropzone with preview
-  - [x] Implement drag-and-drop functionality
-  - [x] Add file size validation (≤ 20 MB)
-  - [x] Create image preview component
-- [x] Input form components
-  - [x] Width & height inputs with unit toggle (inches/millimeters)
-  - [x] Ink package price input with persistence (default: $300 USD)
-  - [x] Ink mode selector dropdown with configuration groups
-  - [x] Print quality selector (Draft, Standard, High)
-- [x] Advanced panel with manual mL input fields
-- [x] Results display panel
-  - [x] Cost per print display
-  - [x] Prints per ink set calculation
-  - [x] Bar chart visualization for per-channel mL usage
-- [x] Copy/save results functionality
-
-### 3. Core Calculation Logic
-- [x] Image processing functions
-  - [x] Canvas-based image conversion and processing
-  - [x] Pixel sampling implementation for coverage estimation
-  - [x] Support for transparent PNG handling
-- [x] Enhanced color analysis
-  - [x] Implement proper RGB to CMYK conversion for each pixel
-  - [x] Track coverage per individual color channel
-  - [x] Apply channel-specific adjustments based on color profile
-  - [x] Optimize sampling algorithm for performance
-- [x] Ink usage calculation engine
-  - [x] Static calculation model framework
-  - [x] Ink mode configuration integration
-  - [x] Quality setting multipliers
-  - [x] Size scaling adjustments
-- [x] Cost calculation functions
-  - [x] Formula implementation for costPerPrint
-  - [x] Formula implementation for printsPerSet
-  - [x] Support for different ink configurations
-
-### 4. State Management & Data Persistence
-- [x] Set up React state for calculation inputs
-- [x] Implement localStorage persistence for user preferences
-- [x] Add debounced calculations for performance optimization
-- [x] Create state validation and error handling
-
-### 5. Test Data Collection Interface
-- [ ] Simple admin interface for test data input
-- [ ] Test case entry forms for different scenarios
-- [ ] Data validation and storage mechanisms
-
-### 6. API Endpoint Implementation
-- [x] Create `/api/ink-cost` API route.
-- [x] Support both image+metadata and direct channel inputs.
-- [ ] Verify/Implement how image analysis (`channelCoverage`) is generated and stored for *new* images submitted via API (if not part of test data).
-- [x] Add error handling and input validation.
-
-### 7. Testing & Validation
-- [ ] Unit tests for core calculation functions (using static factors).
-- [ ] Integration tests for UI components (including validation page).
-- [ ] Implement **manual validation system** against test data using MAE.
-- [ ] Performance testing with large images.
-- [x] Cross-browser compatibility testing.
-- [x] Mobile responsiveness verification.
-- [ ] Add comprehensive test data (solids, gradients, line art, varied sizes).
-
-### 8. Refinement & Optimization
-- [x] UI polish and animations
-  - [x] Enhanced card layouts with consistent spacing
-  - [x] Improved dropzone with interactive states
-  - [x] Animated results display with progressive load
-  - [x] Interactive form elements with proper feedback
-- [x] Error message improvements
-  - [x] Clear validation feedback for numerical inputs
-  - [x] Visual error indicators with helpful messages
-  - [x] Improved form state handling
-- [ ] Performance optimizations
-- [x] Accessibility enhancements
-  - [x] Proper ARIA labels and keyboard navigation
-  - [x] Sufficient color contrast for text elements
-  - [x] Focus state management for form controls
-- [ ] Final bundle size optimization
-
-### 9. Documentation & Deployment
-- [ ] Create user documentation/help text
-- [ ] Add integration documentation for API
-- [ ] Code comments and internal documentation
-- [ ] Final review against PRD requirements
-- [ ] Production deployment preparation
-
-### 10. Launch & Monitoring
-- [ ] Soft launch with beta testers
-- [ ] Collect initial user feedback
-- [ ] Address critical issues
-- [ ] Full public launch
-- [ ] Set up simple analytics to track success metrics 
-
-## Styling Implementation
-The UV Printer Ink Cost Calculator now features:
-
-- ✅ Card-based layout using Shadcn UI components with consistent spacing and hierarchy
-- ✅ Modern interface with proper heading hierarchy and typographic scale
-- ✅ Interactive elements with proper hover, active, and focus states
-- ✅ Responsive design that works across all device sizes
-- ✅ Clear visual hierarchy with card headers and content sections
-- ✅ Animated feedback for input changes and calculation updates
-- ✅ Consistent color scheme using design token variables
-- ✅ Form controls with clear labels and validation feedback
-- ✅ Improved dropzone with visual feedback for drag states
-- ✅ Results display with animated data visualization
-- ✅ Sticky positioning for results on desktop for better UX 
+1.  **Optimization Goal**: The system will automatically find the set of calibration factors (`BASE_CONSUMPTION`, `CHANNEL_SCALING_FACTORS`, etc.) that **minimizes the overall Mean Absolute Error (MAE)** when comparing predictions against the full `ink_test_data` set.
+2.  **Automated Process**: An optimization algorithm (e.g., Nelder-Mead) will run server-side, systematically testing factor combinations to find the optimal set.
+3.  **Persistent Storage**: The best set of factors found by the optimizer will be stored as a JSON object in the existing `ink_calculator_calibration` Supabase table, along with a timestamp.
+4.  **Dynamic Loading**: The `calculateInkUsage` function will fetch the *latest* set of optimized factors from the `ink_calculator_calibration` table (with caching) to use for its calculations. It will fall back to static defaults in `ink-calibration.ts` if loading fails.
+5.  **Adaptation to New Data**: Adding new test data to `ink_test_data`

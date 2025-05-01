@@ -16,7 +16,7 @@ export const CHANNEL_COLORS = {
 export const DEFAULT_INK_PACKAGE_PRICE = 300;
 
 // Default total ML per ink set (standard CMYK set)
-export const DEFAULT_ML_PER_SET = 600;
+export const DEFAULT_ML_PER_SET = 700;
 
 // File size limit in bytes (20 MB)
 export const MAX_FILE_SIZE = 20 * 1024 * 1024;
