@@ -1,19 +1,15 @@
 import { NextResponse } from 'next/server';
 import { updateAreaScalingParameters } from '@/app/tools/ink-calculator/migrations/update-area-scaling';
-import { verifyAdminAuth } from '../../auth-utils';
+import { requireAdminAuth } from '@/lib/auth-utils';
 
 export async function POST(request: Request) {
   console.log('[API-DEBUG] POST /api/admin/ink-calculator/update-area-scaling called');
   
-  // Verify admin authentication
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  
-  console.log('[API-DEBUG] Admin auth verified for update-area-scaling');
-  
   try {
+    // Verify admin authentication
+    await requireAdminAuth();
+    console.log('[API-DEBUG] Admin auth verified for update-area-scaling');
+    
     // Run the migration
     const result = await updateAreaScalingParameters();
     
