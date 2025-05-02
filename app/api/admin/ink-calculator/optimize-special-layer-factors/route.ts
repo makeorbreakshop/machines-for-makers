@@ -59,14 +59,14 @@ export async function POST(req: NextRequest) {
     
     // Run the special layer optimization algorithm
     console.log("[API-DEBUG] Starting special layer calibration optimization");
-    const optimizationResult = calibrateSpecialLayerFactors(specialLayerEntries);
+    const { factors, errors } = calibrateSpecialLayerFactors(specialLayerEntries);
     console.log("[API-DEBUG] Special layer optimization complete");
     
     // Save the optimized factors to the database with calibration_type='special_layer'
     const { data: savedData, error: saveError } = await supabase
       .from('ink_calculator_calibration')
       .insert({
-        factors: optimizationResult.factors,
+        factors: factors,
         calibration_type: 'special_layer', // Specify this is a special layer-specific calibration
         created_at: new Date().toISOString()
       })
@@ -86,19 +86,19 @@ export async function POST(req: NextRequest) {
       calibration_type: 'special_layer',
       accuracy: {
         before: {
-          averageError: optimizationResult.errors.initial.specialLayers,
+          averageError: errors.initial.specialLayers,
           byChannel: Object.fromEntries(
-            Object.entries(optimizationResult.errors.initial.byChannel)
+            Object.entries(errors.initial.byChannel)
               .filter(([key]) => ['white', 'gloss', 'clear', 'primer'].includes(key))
           )
         },
         after: {
-          averageError: optimizationResult.errors.final.specialLayers,
-          byChannel: optimizationResult.errors.final.specialLayersByChannel
+          averageError: errors.final.specialLayers,
+          byChannel: errors.final.specialLayersByChannel
         },
         improvement: {
-          absolute: optimizationResult.errors.improvement.specialLayers,
-          percent: optimizationResult.errors.improvement.percentSpecialLayers
+          absolute: errors.improvement.specialLayers,
+          percent: errors.improvement.percentSpecialLayers
         }
       },
       message: 'Special layer calibration factors optimized and saved successfully'

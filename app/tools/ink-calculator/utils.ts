@@ -305,7 +305,8 @@ export async function calculateInkUsage(
   inkMode: InkMode,
   quality: PrintQuality,
   manualValues?: ChannelMlValues,
-  channelCoverage?: ChannelCoverageValues
+  channelCoverage?: ChannelCoverageValues,
+  calibrationFactors?: any // Add parameter for direct calibration factors
 ): Promise<InkUsageResult> {
   console.log("[INK-CALCULATOR] Calculating ink usage with separate models for CMYK vs. special layers");
   
@@ -321,8 +322,8 @@ export async function calculateInkUsage(
     };
   }
   
-  // Get calibration factors from the latest calibration
-  const calibration = getCurrentCalibration();
+  // Get calibration factors - either from parameter or from current calibration
+  const calibration = calibrationFactors || getCurrentCalibration();
   
   const baseConsumption = calibration.baseConsumption;
   const channelScalingFactors = calibration.channelScalingFactors;

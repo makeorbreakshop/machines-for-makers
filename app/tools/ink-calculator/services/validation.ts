@@ -76,7 +76,10 @@ export function calculateAbsoluteDifference(predicted: number, actual: number): 
 /**
  * Validate test data against the calculator
  */
-export async function validateTestEntry(testEntry: TestDataEntry): Promise<ValidationResult> {
+export async function validateTestEntry(
+  testEntry: TestDataEntry, 
+  calibrationFactors?: any
+): Promise<ValidationResult> {
   console.log("[VALIDATION-DEBUG] Validating test entry:", testEntry.id);
   console.log("[VALIDATION-DEBUG] Using enhanced non-linear model for validation");
   
@@ -130,7 +133,7 @@ export async function validateTestEntry(testEntry: TestDataEntry): Promise<Valid
     calculationInput.unit,
     calculationInput.inkMode,
     calculationInput.quality,
-    undefined,
+    calibrationFactors,
     calculationInput.channelCoverage
   );
   
@@ -167,10 +170,16 @@ export async function validateTestEntry(testEntry: TestDataEntry): Promise<Valid
 /**
  * Validate a batch of test data
  */
-export async function validateTestBatch(testEntries: TestDataEntry[]): Promise<ValidationResult[]> {
+export async function validateTestBatch(
+  testEntries: TestDataEntry[],
+  calibrationFactors?: any
+): Promise<ValidationResult[]> {
   console.log("[VALIDATION-DEBUG] Validating batch of", testEntries.length, "test entries");
   
-  const results = await Promise.all(testEntries.map(entry => validateTestEntry(entry)));
+  // Pass calibrationFactors to each validateTestEntry call if provided
+  const results = await Promise.all(
+    testEntries.map(entry => validateTestEntry(entry, calibrationFactors))
+  );
   console.log("[VALIDATION-DEBUG] Batch validation complete");
   
   return results;

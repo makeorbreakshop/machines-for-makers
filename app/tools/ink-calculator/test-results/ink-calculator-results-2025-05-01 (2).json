@@ -1,6 +1,72 @@
 {
   "testData": [
     {
+      "id": "f7a952dd-2bd7-4450-b32d-6604334a7787",
+      "ink_mode": "WHITE_CMYK",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 298.8,
+        "height": 149
+      },
+      "channel_ml": {
+        "cyan": 0.3,
+        "black": 0.58,
+        "white": 1.23,
+        "yellow": 0.32,
+        "magenta": 0.43
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746117661843-2h2d9z74dha.png",
+      "notes": null,
+      "created_at": "2025-05-01T16:41:10.557922+00:00",
+      "updated_at": "2025-05-01T16:41:10.557922+00:00",
+      "image_analysis": {
+        "totalCoverage": 67.54133810236877,
+        "channelCoverage": {
+          "cyan": 8.91955358789891,
+          "black": 67.65714351595646,
+          "white": 92.60464931222441,
+          "yellow": 28.99982291090205,
+          "magenta": 14.20896513558384
+        }
+      }
+    },
+    {
+      "id": "26cf286c-d5ca-4aab-906a-36727ded1652",
+      "ink_mode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "image_type": "photo",
+      "dimensions": {
+        "unit": "mm",
+        "width": 300,
+        "height": 300
+      },
+      "channel_ml": {
+        "cyan": 0.3,
+        "black": 0.58,
+        "gloss": 1.17,
+        "white": 1.23,
+        "yellow": 0.32,
+        "magenta": 0.43
+      },
+      "image_url": "https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/ink-calculator/ink-test-data/1746105315856-3lsjsvquwnj.png",
+      "notes": null,
+      "created_at": "2025-05-01T13:15:19.189747+00:00",
+      "updated_at": "2025-05-01T13:15:19.189747+00:00",
+      "image_analysis": {
+        "totalCoverage": 72.42810632481854,
+        "channelCoverage": {
+          "cyan": 9.769417475728154,
+          "black": 100,
+          "gloss": 0.1,
+          "white": 100,
+          "yellow": 14.284626260722028,
+          "magenta": 31.197285323781696
+        }
+      }
+    },
+    {
       "id": "119bc77f-39fd-4016-92e4-7e250f179742",
       "ink_mode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
@@ -1759,23 +1825,78 @@
   ],
   "validationResults": [
     {
+      "testId": "f7a952dd-2bd7-4450-b32d-6604334a7787",
+      "inkMode": "WHITE_CMYK",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.297288,
+        "black": 0.575661,
+        "white": 1.2,
+        "yellow": 0.319629,
+        "magenta": 0.42907
+      },
+      "predictedValues": {
+        "white": 0.03,
+        "cyan": 0.002712,
+        "magenta": 0.00093,
+        "yellow": 0.000371,
+        "black": 0.004339
+      },
+      "actualValues": {
+        "cyan": 0.3,
+        "black": 0.58,
+        "white": 1.23,
+        "yellow": 0.32,
+        "magenta": 0.43
+      }
+    },
+    {
+      "testId": "26cf286c-d5ca-4aab-906a-36727ded1652",
+      "inkMode": "WHITE_CMYK_GLOSS",
+      "quality": "standard",
+      "channelDifferences": {
+        "cyan": 0.29612099999999997,
+        "black": 0.574533,
+        "gloss": 0.06416603146188593,
+        "white": 0.12416603146188598,
+        "yellow": 0.319726,
+        "magenta": 0.427288
+      },
+      "predictedValues": {
+        "white": 1.105833968538114,
+        "cyan": 0.003879,
+        "magenta": 0.002712,
+        "yellow": 0.000274,
+        "black": 0.005467,
+        "gloss": 1.105833968538114
+      },
+      "actualValues": {
+        "cyan": 0.3,
+        "black": 0.58,
+        "gloss": 1.17,
+        "white": 1.23,
+        "yellow": 0.32,
+        "magenta": 0.43
+      }
+    },
+    {
       "testId": "119bc77f-39fd-4016-92e4-7e250f179742",
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.0023246666670000016,
-        "black": 0.017602333333,
+        "cyan": 0.007194333332999999,
+        "black": 0.0006956666669999997,
         "gloss": 0.05666666667,
         "white": 0.0725,
-        "yellow": 0.00030733332999999946,
-        "magenta": 0.00310566667
+        "yellow": 0.01069133333,
+        "magenta": 0.015434333330000001
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.010658,
-        "magenta": 0.018939,
-        "yellow": 0.010526,
-        "black": 0.021769,
+        "cyan": 0.001139,
+        "magenta": 0.000399,
+        "yellow": 0.000142,
+        "black": 0.003471,
         "gloss": 0.04
       },
       "actualValues": {
@@ -1792,19 +1913,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.040081000000000006,
-        "black": 0.007564000000000001,
+        "cyan": 0.06764600000000001,
+        "black": 0.035881,
         "gloss": 0.031070724658812998,
         "white": 0.08107072465881304,
-        "yellow": 0.06655900000000001,
-        "magenta": 0.083371
+        "yellow": 0.09976700000000001,
+        "magenta": 0.148846
       },
       "predictedValues": {
         "white": 0.848929275341187,
-        "cyan": 0.029919,
-        "magenta": 0.066629,
-        "yellow": 0.033441,
-        "black": 0.047564,
+        "cyan": 0.002354,
+        "magenta": 0.001154,
+        "yellow": 0.000233,
+        "black": 0.004119,
         "gloss": 0.848929275341187
       },
       "actualValues": {
@@ -1821,19 +1942,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.010171666670000001,
-        "black": 0.007594333329999998,
+        "cyan": 0.020474666670000002,
+        "black": 0.03463633333,
         "gloss": 0.09166666669999998,
         "white": 0.1083333333,
-        "yellow": 0.006337000000000002,
-        "magenta": 0.0121
+        "yellow": 0.049727,
+        "magenta": 0.06406300000000001
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.011495,
-        "magenta": 0.0529,
-        "yellow": 0.043663,
-        "black": 0.030739,
+        "cyan": 0.001192,
+        "magenta": 0.000937,
+        "yellow": 0.000273,
+        "black": 0.003697,
         "gloss": 0.04
       },
       "actualValues": {
@@ -1850,19 +1971,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.012043,
-        "black": 0.032456,
+        "cyan": 0.0017720000000000001,
+        "black": 0.002109,
         "gloss": 0.0188,
         "white": 0.007599999999999999,
-        "yellow": 0.051922,
-        "magenta": 0.06396099999999999
+        "yellow": 0.007662,
+        "magenta": 0.009123
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.015243,
-        "magenta": 0.074361,
-        "yellow": 0.059922,
-        "black": 0.038456,
+        "cyan": 0.001428,
+        "magenta": 0.001277,
+        "yellow": 0.000338,
+        "black": 0.003891,
         "gloss": 0.04
       },
       "actualValues": {
@@ -1879,19 +2000,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.0010179999999999998,
-        "black": 0.007813999999999998,
+        "cyan": 0.002842,
+        "black": 0.003118,
         "gloss": 0.05470015500031001,
         "white": 0.052700155000310014,
-        "yellow": 0.013760000000000001,
-        "magenta": 0.0024859999999999995
+        "yellow": 0.014188,
+        "magenta": 0.006161000000000001
       },
       "predictedValues": {
         "white": 0.08750015500031001,
-        "cyan": 0.004618,
-        "magenta": 0.008886,
-        "yellow": 0.02816,
-        "black": 0.014214,
+        "cyan": 0.000758,
+        "magenta": 0.000239,
+        "yellow": 0.000212,
+        "black": 0.003282,
         "gloss": 0.08750015500031001
       },
       "actualValues": {
@@ -1908,19 +2029,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.07775699999999999,
-        "black": 0.135565,
+        "cyan": 0.107499,
+        "black": 0.19545700000000002,
         "gloss": 0.04033599464173443,
         "white": 0.10033599464173448,
-        "yellow": 0.173529,
-        "magenta": 0.104703
+        "yellow": 0.428879,
+        "magenta": 0.198391
       },
       "predictedValues": {
         "white": 0.9396640053582656,
-        "cyan": 0.032243,
-        "magenta": 0.095297,
-        "yellow": 0.256471,
-        "black": 0.064435,
+        "cyan": 0.002501,
+        "magenta": 0.001609,
+        "yellow": 0.001121,
+        "black": 0.004543,
         "gloss": 0.9396640053582656
       },
       "actualValues": {
@@ -1937,19 +2058,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.002059,
-        "black": 0.004352,
+        "cyan": 0.000596,
+        "black": 0.0029360000000000002,
         "gloss": 0.0316,
         "white": 0.0211,
-        "yellow": 0.007711999999999999,
-        "magenta": 0.00302
+        "yellow": 0.002559,
+        "magenta": 0.00044399999999999995
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.002059,
-        "magenta": 0.00362,
-        "yellow": 0.010412,
-        "black": 0.004452,
+        "cyan": 0.000596,
+        "magenta": 0.000156,
+        "yellow": 0.000141,
+        "black": 0.003036,
         "gloss": 0.04
       },
       "actualValues": {
@@ -1966,19 +2087,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.031997,
-        "black": 0.004007999999999998,
+        "cyan": 0.006884,
+        "black": 0.026421999999999998,
         "gloss": 0.0954030398878225,
         "white": 0.17540303988782258,
-        "yellow": 0.12481799999999998,
-        "magenta": 0.047142
+        "yellow": 0.47848599999999997,
+        "magenta": 0.107411
       },
       "predictedValues": {
         "white": 1.3445969601121774,
-        "cyan": 0.041997,
-        "magenta": 0.157142,
-        "yellow": 0.355182,
-        "black": 0.025992,
+        "cyan": 0.003116,
+        "magenta": 0.002589,
+        "yellow": 0.001514,
+        "black": 0.003578,
         "gloss": 1.3445969601121774
       },
       "actualValues": {
@@ -1995,16 +2116,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.031997,
-        "black": 0.004007999999999998,
-        "yellow": 0.12481799999999998,
-        "magenta": 0.047142
+        "cyan": 0.006884,
+        "black": 0.026421999999999998,
+        "yellow": 0.47848599999999997,
+        "magenta": 0.107411
       },
       "predictedValues": {
-        "cyan": 0.041997,
-        "magenta": 0.157142,
-        "yellow": 0.355182,
-        "black": 0.025992
+        "cyan": 0.003116,
+        "magenta": 0.002589,
+        "yellow": 0.001514,
+        "black": 0.003578
       },
       "actualValues": {
         "cyan": 0.01,
@@ -2018,19 +2139,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.000647,
-        "black": 0.004001,
+        "cyan": 0.000507,
+        "black": 0.003025,
         "gloss": 0.0315,
         "white": 0.0211,
-        "yellow": 0.005858,
-        "magenta": 0.007455999999999999
+        "yellow": 0.000123,
+        "magenta": 0.004803
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.000647,
-        "magenta": 0.012556,
-        "yellow": 0.005858,
-        "black": 0.004001,
+        "cyan": 0.000507,
+        "magenta": 0.000297,
+        "yellow": 0.000123,
+        "black": 0.003025,
         "gloss": 0.04
       },
       "actualValues": {
@@ -2047,16 +2168,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.000647,
-        "black": 0.004001,
-        "yellow": 0.005858,
-        "magenta": 0.007455999999999999
+        "cyan": 0.000507,
+        "black": 0.003025,
+        "yellow": 0.000123,
+        "magenta": 0.004803
       },
       "predictedValues": {
-        "cyan": 0.000647,
-        "magenta": 0.012556,
-        "yellow": 0.005858,
-        "black": 0.004001
+        "cyan": 0.000507,
+        "magenta": 0.000297,
+        "yellow": 0.000123,
+        "black": 0.003025
       },
       "actualValues": {
         "cyan": 0,
@@ -2070,16 +2191,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.000647,
-        "black": 0.003028,
-        "yellow": 0.012606,
-        "magenta": 0.00109
+        "cyan": 0.000507,
+        "black": 0.003001,
+        "yellow": 0.002639,
+        "magenta": 0.000116
       },
       "predictedValues": {
-        "cyan": 0.000647,
-        "magenta": 0.00109,
-        "yellow": 0.015406,
-        "black": 0.003028
+        "cyan": 0.000507,
+        "magenta": 0.000116,
+        "yellow": 0.000161,
+        "black": 0.003001
       },
       "actualValues": {
         "cyan": 0,
@@ -2093,17 +2214,17 @@
       "inkMode": "CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.003734000000000001,
-        "black": 0.030264,
+        "cyan": 0.037245,
+        "black": 0.056327999999999996,
         "gloss": 0.06784730292950969,
-        "yellow": 0.037556000000000006,
-        "magenta": 0.028266
+        "yellow": 0.049851,
+        "magenta": 0.059399
       },
       "predictedValues": {
-        "cyan": 0.036266,
-        "magenta": 0.031734,
-        "yellow": 0.012444,
-        "black": 0.029736,
+        "cyan": 0.002755,
+        "magenta": 0.000601,
+        "yellow": 0.000149,
+        "black": 0.003672,
         "gloss": 1.1021526970704902
       },
       "actualValues": {
@@ -2119,18 +2240,18 @@
       "inkMode": "WHITE_CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.003734000000000001,
-        "black": 0.030264,
+        "cyan": 0.037245,
+        "black": 0.056327999999999996,
         "white": 0.12784730292950974,
-        "yellow": 0.037556000000000006,
-        "magenta": 0.028266
+        "yellow": 0.049851,
+        "magenta": 0.059399
       },
       "predictedValues": {
         "white": 1.1021526970704902,
-        "cyan": 0.036266,
-        "magenta": 0.031734,
-        "yellow": 0.012444,
-        "black": 0.029736
+        "cyan": 0.002755,
+        "magenta": 0.000601,
+        "yellow": 0.000149,
+        "black": 0.003672
       },
       "actualValues": {
         "cyan": 0.04,
@@ -2145,16 +2266,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.003734000000000001,
-        "black": 0.030264,
-        "yellow": 0.037556000000000006,
-        "magenta": 0.028266
+        "cyan": 0.037245,
+        "black": 0.056327999999999996,
+        "yellow": 0.049851,
+        "magenta": 0.059399
       },
       "predictedValues": {
-        "cyan": 0.036266,
-        "magenta": 0.031734,
-        "yellow": 0.012444,
-        "black": 0.029736
+        "cyan": 0.002755,
+        "magenta": 0.000601,
+        "yellow": 0.000149,
+        "black": 0.003672
       },
       "actualValues": {
         "cyan": 0.04,
@@ -2168,18 +2289,18 @@
       "inkMode": "WHITE_CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.022138999999999992,
-        "black": 0.07200400000000001,
+        "cyan": 0.085252,
+        "black": 0.125619,
         "white": 0.82,
-        "yellow": 0.105788,
-        "magenta": 0.07668100000000003
+        "yellow": 0.309087,
+        "magenta": 0.276679
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.067861,
-        "magenta": 0.203319,
-        "yellow": 0.204212,
-        "black": 0.057996
+        "cyan": 0.004748,
+        "magenta": 0.003321,
+        "yellow": 0.000913,
+        "black": 0.004381
       },
       "actualValues": {
         "cyan": 0.09,
@@ -2194,16 +2315,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.07213900000000001,
-        "black": 0.132004,
-        "yellow": 0.235788,
-        "magenta": 0.19668100000000002
+        "cyan": 0.135252,
+        "black": 0.185619,
+        "yellow": 0.439087,
+        "magenta": 0.396679
       },
       "predictedValues": {
-        "cyan": 0.067861,
-        "magenta": 0.203319,
-        "yellow": 0.204212,
-        "black": 0.057996
+        "cyan": 0.004748,
+        "magenta": 0.003321,
+        "yellow": 0.000913,
+        "black": 0.004381
       },
       "actualValues": {
         "cyan": 0.14,
@@ -2217,16 +2338,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.022138999999999992,
-        "black": 0.07200400000000001,
-        "yellow": 0.105788,
-        "magenta": 0.07668100000000003
+        "cyan": 0.085252,
+        "black": 0.125619,
+        "yellow": 0.309087,
+        "magenta": 0.276679
       },
       "predictedValues": {
-        "cyan": 0.067861,
-        "magenta": 0.203319,
-        "yellow": 0.204212,
-        "black": 0.057996
+        "cyan": 0.004748,
+        "magenta": 0.003321,
+        "yellow": 0.000913,
+        "black": 0.004381
       },
       "actualValues": {
         "cyan": 0.09,
@@ -2240,16 +2361,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.20242499999999997,
-        "black": 0.48876699999999995,
-        "yellow": 0.235885,
-        "magenta": 0.24351099999999998
+        "cyan": 0.34022199999999997,
+        "black": 0.584533,
+        "yellow": 0.319566,
+        "magenta": 0.417104
       },
       "predictedValues": {
-        "cyan": 0.147575,
-        "magenta": 0.176489,
-        "yellow": 0.084115,
-        "black": 0.101233
+        "cyan": 0.009778,
+        "magenta": 0.002896,
+        "yellow": 0.000434,
+        "black": 0.005467
       },
       "actualValues": {
         "cyan": 0.35,
@@ -2263,18 +2384,18 @@
       "inkMode": "WHITE_CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.007619000000000001,
-        "black": 0.0067339999999999995,
+        "cyan": 0.0012079999999999999,
+        "black": 0.001826,
         "white": 0.0211,
-        "yellow": 0.0004850000000000001,
-        "magenta": 0.001146
+        "yellow": 0.000998,
+        "magenta": 0.001261
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.009919,
-        "magenta": 0.002546,
-        "yellow": 0.000615,
-        "black": 0.008034
+        "cyan": 0.001092,
+        "magenta": 0.000139,
+        "yellow": 0.000102,
+        "black": 0.003126
       },
       "actualValues": {
         "cyan": 0.0023,
@@ -2289,16 +2410,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.007619000000000001,
-        "black": 0.0067339999999999995,
-        "yellow": 0.0004850000000000001,
-        "magenta": 0.001146
+        "cyan": 0.0012079999999999999,
+        "black": 0.001826,
+        "yellow": 0.000998,
+        "magenta": 0.001261
       },
       "predictedValues": {
-        "cyan": 0.009919,
-        "magenta": 0.002546,
-        "yellow": 0.000615,
-        "black": 0.008034
+        "cyan": 0.001092,
+        "magenta": 0.000139,
+        "yellow": 0.000102,
+        "black": 0.003126
       },
       "actualValues": {
         "cyan": 0.0023,
@@ -2312,17 +2433,17 @@
       "inkMode": "CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.11313000000000001,
-        "black": 0.11666900000000001,
+        "cyan": 0.31585,
+        "black": 0.185233,
         "gloss": 0.06416603146188593,
-        "yellow": 0.15475,
-        "magenta": 0.117573
+        "yellow": 0.16984000000000002,
+        "magenta": 0.20843699999999998
       },
       "predictedValues": {
-        "cyan": 0.21687,
-        "magenta": 0.092427,
-        "yellow": 0.01525,
-        "black": 0.073331,
+        "cyan": 0.01415,
+        "magenta": 0.001563,
+        "yellow": 0.00016,
+        "black": 0.004767,
         "gloss": 1.105833968538114
       },
       "actualValues": {
@@ -2338,19 +2459,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.002218,
-        "black": 0.0066240000000000005,
+        "cyan": 0.0016419999999999998,
+        "black": 0.003148,
         "gloss": 0.05430015500031001,
         "white": 0.052700155000310014,
-        "yellow": 0.023391,
-        "magenta": 0.005797
+        "yellow": 0.019728,
+        "magenta": 0.004927
       },
       "predictedValues": {
         "white": 0.08750015500031001,
-        "cyan": 0.004618,
-        "magenta": 0.010997,
-        "yellow": 0.043391,
-        "black": 0.013024,
+        "cyan": 0.000758,
+        "magenta": 0.000273,
+        "yellow": 0.000272,
+        "black": 0.003252,
         "gloss": 0.08750015500031001
       },
       "actualValues": {
@@ -2367,16 +2488,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.002218,
-        "black": 0.0066240000000000005,
-        "yellow": 0.023391,
-        "magenta": 0.005797
+        "cyan": 0.0016419999999999998,
+        "black": 0.003148,
+        "yellow": 0.019728,
+        "magenta": 0.004927
       },
       "predictedValues": {
-        "cyan": 0.004618,
-        "magenta": 0.010997,
-        "yellow": 0.043391,
-        "black": 0.013024
+        "cyan": 0.000758,
+        "magenta": 0.000273,
+        "yellow": 0.000272,
+        "black": 0.003252
       },
       "actualValues": {
         "cyan": 0.0024,
@@ -2391,15 +2512,15 @@
       "quality": "standard",
       "channelDifferences": {
         "cyan": 0.000498,
-        "black": 0.003956,
-        "yellow": 0.010873,
-        "magenta": 0.0034284
+        "black": 0.003024,
+        "yellow": 0.007326999999999999,
+        "magenta": 0.0002576
       },
       "predictedValues": {
         "cyan": 0.000498,
-        "magenta": 0.003845,
-        "yellow": 0.018373,
-        "black": 0.003956
+        "magenta": 0.000159,
+        "yellow": 0.000173,
+        "black": 0.003024
       },
       "actualValues": {
         "cyan": 0,
@@ -2414,15 +2535,15 @@
       "quality": "standard",
       "channelDifferences": {
         "cyan": 0.000498,
-        "black": 0.011942,
-        "yellow": 0.034038999999999986,
-        "magenta": 0.052913
+        "black": 0.003225,
+        "yellow": 0.358603,
+        "magenta": 0.028588
       },
       "predictedValues": {
         "cyan": 0.000498,
-        "magenta": 0.082913,
-        "yellow": 0.325961,
-        "black": 0.011942
+        "magenta": 0.001412,
+        "yellow": 0.001397,
+        "black": 0.003225
       },
       "actualValues": {
         "cyan": 0,
@@ -2436,16 +2557,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.042883000000000004,
-        "black": 0.06728200000000001,
-        "yellow": 0.032167,
-        "magenta": 0.06115
+        "cyan": 0.077192,
+        "black": 0.1255,
+        "yellow": 0.169352,
+        "magenta": 0.109127
       },
       "predictedValues": {
-        "cyan": 0.037117,
-        "magenta": 0.04885,
-        "yellow": 0.137833,
-        "black": 0.062718
+        "cyan": 0.002808,
+        "magenta": 0.000873,
+        "yellow": 0.000648,
+        "black": 0.0045
       },
       "actualValues": {
         "cyan": 0.08,
@@ -2459,16 +2580,16 @@
       "inkMode": "CMYK",
       "quality": "high",
       "channelDifferences": {
-        "cyan": 0.12012999999999999,
-        "black": 0.05371100000000001,
-        "yellow": 0.206799,
-        "magenta": 0.145947
+        "cyan": 0.344399,
+        "black": 0.15440600000000002,
+        "yellow": 0.31945,
+        "magenta": 0.46476599999999996
       },
       "predictedValues": {
-        "cyan": 0.23987,
-        "magenta": 0.324053,
-        "yellow": 0.113201,
-        "black": 0.106289
+        "cyan": 0.015601,
+        "magenta": 0.005234,
+        "yellow": 0.00055,
+        "black": 0.005594
       },
       "actualValues": {
         "cyan": 0.36,
@@ -2482,16 +2603,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.14852200000000002,
-        "black": 0.088141,
-        "yellow": 0.19564899999999996,
-        "magenta": 0.170738
+        "cyan": 0.308714,
+        "black": 0.15527,
+        "yellow": 0.289525,
+        "magenta": 0.425793
       },
       "predictedValues": {
-        "cyan": 0.171478,
-        "magenta": 0.259262,
-        "yellow": 0.094351,
-        "black": 0.071859
+        "cyan": 0.011286,
+        "magenta": 0.004207,
+        "yellow": 0.000475,
+        "black": 0.00473
       },
       "actualValues": {
         "cyan": 0.32,
@@ -2505,16 +2626,16 @@
       "inkMode": "CMYK",
       "quality": "draft",
       "channelDifferences": {
-        "cyan": 0.216914,
-        "black": 0.11912700000000001,
-        "yellow": 0.22392399999999998,
-        "magenta": 0.251444
+        "cyan": 0.313029,
+        "black": 0.156049,
+        "yellow": 0.289637,
+        "magenta": 0.41723
       },
       "predictedValues": {
-        "cyan": 0.103086,
-        "magenta": 0.168556,
-        "yellow": 0.066076,
-        "black": 0.040873
+        "cyan": 0.006971,
+        "magenta": 0.00277,
+        "yellow": 0.000363,
+        "black": 0.003951
       },
       "actualValues": {
         "cyan": 0.32,
@@ -2529,15 +2650,15 @@
       "quality": "standard",
       "channelDifferences": {
         "cyan": 0.004502,
-        "black": 0.016991,
-        "yellow": 0.159655,
-        "magenta": 0.279657
+        "black": 0.003351,
+        "yellow": 0.009225,
+        "magenta": 0.742447
       },
       "predictedValues": {
         "cyan": 0.000498,
-        "magenta": 0.470343,
-        "yellow": 0.169655,
-        "black": 0.016991
+        "magenta": 0.007553,
+        "yellow": 0.000775,
+        "black": 0.003351
       },
       "actualValues": {
         "cyan": 0.005,
@@ -2552,15 +2673,15 @@
       "quality": "standard",
       "channelDifferences": {
         "cyan": 0.004502,
-        "black": 0.012876,
-        "yellow": 0.101075,
-        "magenta": 0.047667000000000015
+        "black": 0.003248,
+        "yellow": 0.004478,
+        "magenta": 0.325427
       },
       "predictedValues": {
         "cyan": 0.000498,
-        "magenta": 0.282333,
-        "yellow": 0.106075,
-        "black": 0.012876
+        "magenta": 0.004573,
+        "yellow": 0.000522,
+        "black": 0.003248
       },
       "actualValues": {
         "cyan": 0.005,
@@ -2574,16 +2695,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.03133100000000001,
-        "black": 0.01173,
+        "cyan": 0.100616,
+        "black": 0.003219,
         "yellow": 0.0049,
-        "magenta": 0.08585799999999999
+        "magenta": 0.018224
       },
       "predictedValues": {
-        "cyan": 0.141331,
-        "magenta": 0.105858,
+        "cyan": 0.009384,
+        "magenta": 0.001776,
         "yellow": 0.0001,
-        "black": 0.01173
+        "black": 0.003219
       },
       "actualValues": {
         "cyan": 0.11,
@@ -2597,16 +2718,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.023129999999999984,
-        "black": 0.015368,
+        "cyan": 0.22585,
+        "black": 0.003311,
         "yellow": 0.0099,
-        "magenta": 0.126309
+        "magenta": 0.047107
       },
       "predictedValues": {
-        "cyan": 0.21687,
-        "magenta": 0.176309,
+        "cyan": 0.01415,
+        "magenta": 0.002893,
         "yellow": 0.0001,
-        "black": 0.015368
+        "black": 0.003311
       },
       "actualValues": {
         "cyan": 0.24,
@@ -2622,13 +2743,13 @@
       "channelDifferences": {
         "cyan": 0.004502,
         "black": 0.003,
-        "yellow": 0.040773000000000004,
-        "magenta": 0.032482000000000004
+        "yellow": 0.40810599999999997,
+        "magenta": 0.004308
       },
       "predictedValues": {
         "cyan": 0.000498,
-        "magenta": 0.037482,
-        "yellow": 0.450773,
+        "magenta": 0.000692,
+        "yellow": 0.001894,
         "black": 0.003
       },
       "actualValues": {
@@ -2645,13 +2766,13 @@
       "channelDifferences": {
         "cyan": 0.000498,
         "black": 0.003,
-        "yellow": 0.10177999999999998,
-        "magenta": 0.017536
+        "yellow": 0.178779,
+        "magenta": 0.004544
       },
       "predictedValues": {
         "cyan": 0.000498,
-        "magenta": 0.022536,
-        "yellow": 0.28178,
+        "magenta": 0.000456,
+        "yellow": 0.001221,
         "black": 0.003
       },
       "actualValues": {
@@ -2667,7 +2788,7 @@
       "quality": "standard",
       "channelDifferences": {
         "cyan": 0.409502,
-        "black": 0.898767,
+        "black": 0.994533,
         "yellow": 0.5599000000000001,
         "magenta": 0.4899
       },
@@ -2675,7 +2796,7 @@
         "cyan": 0.000498,
         "magenta": 0.0001,
         "yellow": 0.0001,
-        "black": 0.101233
+        "black": 0.005467
       },
       "actualValues": {
         "cyan": 0.41,
@@ -2690,7 +2811,7 @@
       "quality": "standard",
       "channelDifferences": {
         "cyan": 0.179502,
-        "black": 0.367661,
+        "black": 0.435258,
         "yellow": 0.2499,
         "magenta": 0.2199
       },
@@ -2698,7 +2819,7 @@
         "cyan": 0.000498,
         "magenta": 0.0001,
         "yellow": 0.0001,
-        "black": 0.072339
+        "black": 0.004742
       },
       "actualValues": {
         "cyan": 0.18,
@@ -2712,19 +2833,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.07911199999999999,
-        "black": 0.238912,
+        "cyan": 0.116954,
+        "black": 0.315039,
         "gloss": 0.09328131534911166,
         "white": 0.16328131534911172,
-        "yellow": 0.29329099999999997,
-        "magenta": 0.17468799999999995
+        "yellow": 0.6982809999999999,
+        "magenta": 0.465221
       },
       "predictedValues": {
         "white": 1.2967186846508882,
-        "cyan": 0.040888,
-        "magenta": 0.295312,
-        "yellow": 0.406709,
-        "black": 0.081088,
+        "cyan": 0.003046,
+        "magenta": 0.004779,
+        "yellow": 0.001719,
+        "black": 0.004961,
         "gloss": 1.2967186846508882
       },
       "actualValues": {
@@ -2741,16 +2862,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.07911199999999999,
-        "black": 0.238912,
-        "yellow": 0.29329099999999997,
-        "magenta": 0.17468799999999995
+        "cyan": 0.116954,
+        "black": 0.315039,
+        "yellow": 0.6982809999999999,
+        "magenta": 0.465221
       },
       "predictedValues": {
-        "cyan": 0.040888,
-        "magenta": 0.295312,
-        "yellow": 0.406709,
-        "black": 0.081088
+        "cyan": 0.003046,
+        "magenta": 0.004779,
+        "yellow": 0.001719,
+        "black": 0.004961
       },
       "actualValues": {
         "cyan": 0.12,
@@ -2764,17 +2885,17 @@
       "inkMode": "CMYK_GLOSS",
       "quality": "high",
       "channelDifferences": {
-        "cyan": 0.08813700000000001,
-        "black": 0.12723700000000002,
+        "cyan": 0.126892,
+        "black": 0.224494,
         "gloss": 0.7052663998592181,
-        "yellow": 0.11888699999999999,
-        "magenta": 0.128548
+        "yellow": 0.289219,
+        "magenta": 0.208611
       },
       "predictedValues": {
-        "cyan": 0.041863,
-        "magenta": 0.081452,
-        "yellow": 0.171113,
-        "black": 0.102763,
+        "cyan": 0.003108,
+        "magenta": 0.001389,
+        "yellow": 0.000781,
+        "black": 0.005506,
         "gloss": 1.0647336001407819
       },
       "actualValues": {
@@ -2790,19 +2911,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.09995200000000001,
-        "black": 0.16048500000000002,
+        "cyan": 0.127638,
+        "black": 0.225329,
         "gloss": 0.916100906583469,
         "white": 1.016100906583469,
-        "yellow": 0.14737399999999998,
-        "magenta": 0.144811
+        "yellow": 0.289333,
+        "magenta": 0.208868
       },
       "predictedValues": {
         "white": 0.853899093416531,
-        "cyan": 0.030048,
-        "magenta": 0.065189,
-        "yellow": 0.142626,
-        "black": 0.069515,
+        "cyan": 0.002362,
+        "magenta": 0.001132,
+        "yellow": 0.000667,
+        "black": 0.004671,
         "gloss": 0.853899093416531
       },
       "actualValues": {
@@ -2819,19 +2940,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.029822000000000015,
-        "black": 0.03621799999999999,
+        "cyan": 0.132582,
+        "black": 0.085724,
         "gloss": 0.5,
         "white": 0.5399999999999999,
-        "yellow": 0.054622000000000004,
-        "magenta": 0.028251
+        "yellow": 0.10968,
+        "magenta": 0.177497
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.110178,
-        "magenta": 0.151749,
-        "yellow": 0.055378,
-        "black": 0.053782,
+        "cyan": 0.007418,
+        "magenta": 0.002503,
+        "yellow": 0.00032,
+        "black": 0.004276,
         "gloss": 0.04
       },
       "actualValues": {
@@ -2848,16 +2969,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.029833000000000012,
-        "black": 0.036223,
-        "yellow": 0.054628,
-        "magenta": 0.02826899999999999
+        "cyan": 0.132583,
+        "black": 0.085725,
+        "yellow": 0.10968,
+        "magenta": 0.177497
       },
       "predictedValues": {
-        "cyan": 0.110167,
-        "magenta": 0.151731,
-        "yellow": 0.055372,
-        "black": 0.053777
+        "cyan": 0.007417,
+        "magenta": 0.002503,
+        "yellow": 0.00032,
+        "black": 0.004275
       },
       "actualValues": {
         "cyan": 0.14,
@@ -2871,19 +2992,19 @@
       "inkMode": "WHITE_CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.0528,
-        "black": 0.08717,
+        "cyan": 0.087186,
+        "black": 0.145497,
         "gloss": 0.46,
         "white": 0.5,
-        "yellow": 0.06182700000000002,
-        "magenta": 0.08102100000000001
+        "yellow": 0.19935,
+        "magenta": 0.12912500000000002
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.0372,
-        "magenta": 0.048979,
-        "yellow": 0.138173,
-        "black": 0.06283,
+        "cyan": 0.002814,
+        "magenta": 0.000875,
+        "yellow": 0.00065,
+        "black": 0.004503,
         "gloss": 0.04
       },
       "actualValues": {
@@ -2900,16 +3021,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.09276600000000002,
-        "black": 0.154138,
-        "yellow": 0.120112,
-        "magenta": 0.13481700000000002
+        "cyan": 0.136553,
+        "black": 0.22517,
+        "yellow": 0.299184,
+        "magenta": 0.19886900000000002
       },
       "predictedValues": {
-        "cyan": 0.047234,
-        "magenta": 0.065183,
-        "yellow": 0.179888,
-        "black": 0.075862
+        "cyan": 0.003447,
+        "magenta": 0.001131,
+        "yellow": 0.000816,
+        "black": 0.00483
       },
       "actualValues": {
         "cyan": 0.14,
@@ -2923,18 +3044,18 @@
       "inkMode": "WHITE_CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.04836900000000001,
-        "black": 0.07135,
+        "cyan": 0.06816900000000001,
+        "black": 0.125602,
         "white": 0.43000000000000005,
-        "yellow": 0.03937499999999999,
-        "magenta": 0.075486
+        "yellow": 0.14945999999999998,
+        "magenta": 0.119196
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.021631,
-        "magenta": 0.044514,
-        "yellow": 0.110625,
-        "black": 0.05865
+        "cyan": 0.001831,
+        "magenta": 0.000804,
+        "yellow": 0.00054,
+        "black": 0.004398
       },
       "actualValues": {
         "cyan": 0.07,
@@ -2949,16 +3070,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.100472,
-        "black": 0.15483000000000002,
-        "yellow": 0.10364700000000002,
-        "magenta": 0.145278
+        "cyan": 0.127671,
+        "black": 0.225187,
+        "yellow": 0.259278,
+        "magenta": 0.208876
       },
       "predictedValues": {
-        "cyan": 0.029528,
-        "magenta": 0.064722,
-        "yellow": 0.156353,
-        "black": 0.07517
+        "cyan": 0.002329,
+        "magenta": 0.001124,
+        "yellow": 0.000722,
+        "black": 0.004813
       },
       "actualValues": {
         "cyan": 0.13,
@@ -2972,18 +3093,18 @@
       "inkMode": "WHITE_CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.008771000000000001,
-        "black": 0.015096000000000005,
+        "cyan": 0.037563,
+        "black": 0.046199000000000004,
         "white": 0.7899999999999999,
-        "yellow": 0.02521599999999999,
-        "magenta": 0.015179999999999999
+        "yellow": 0.14940399999999998,
+        "magenta": 0.108399
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.031229,
-        "magenta": 0.09482,
-        "yellow": 0.124784,
-        "black": 0.034904
+        "cyan": 0.002437,
+        "magenta": 0.001601,
+        "yellow": 0.000596,
+        "black": 0.003801
       },
       "actualValues": {
         "cyan": 0.04,
@@ -2998,16 +3119,16 @@
       "inkMode": "CMYK",
       "quality": "high",
       "channelDifferences": {
-        "cyan": 0.0035219999999999974,
-        "black": 0.009144,
-        "yellow": 0.00027900000000000147,
-        "magenta": 0.008499999999999994
+        "cyan": 0.036788,
+        "black": 0.055798,
+        "yellow": 0.149304,
+        "magenta": 0.108023
       },
       "predictedValues": {
-        "cyan": 0.043522,
-        "magenta": 0.1185,
-        "yellow": 0.149721,
-        "black": 0.050856
+        "cyan": 0.003212,
+        "magenta": 0.001977,
+        "yellow": 0.000696,
+        "black": 0.004202
       },
       "actualValues": {
         "cyan": 0.04,
@@ -3021,16 +3142,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.008771000000000001,
-        "black": 0.015096000000000005,
-        "yellow": 0.02521599999999999,
-        "magenta": 0.015179999999999999
+        "cyan": 0.037563,
+        "black": 0.046199000000000004,
+        "yellow": 0.14940399999999998,
+        "magenta": 0.108399
       },
       "predictedValues": {
-        "cyan": 0.031229,
-        "magenta": 0.09482,
-        "yellow": 0.124784,
-        "black": 0.034904
+        "cyan": 0.002437,
+        "magenta": 0.001601,
+        "yellow": 0.000596,
+        "black": 0.003801
       },
       "actualValues": {
         "cyan": 0.04,
@@ -3044,17 +3165,17 @@
       "inkMode": "CMYK_GLOSS",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.015435000000000004,
-        "black": 0.0030980000000000035,
+        "cyan": 0.047353000000000006,
+        "black": 0.045897,
         "gloss": 0.5,
-        "yellow": 0.06503799999999998,
-        "magenta": 0.041370000000000004
+        "yellow": 0.20932299999999998,
+        "magenta": 0.06944800000000001
       },
       "predictedValues": {
-        "cyan": 0.034565,
-        "magenta": 0.02863,
-        "yellow": 0.144962,
-        "black": 0.046902,
+        "cyan": 0.002647,
+        "magenta": 0.000552,
+        "yellow": 0.000677,
+        "black": 0.004103,
         "gloss": 0.04
       },
       "actualValues": {
@@ -3070,18 +3191,18 @@
       "inkMode": "WHITE_CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.015435000000000004,
-        "black": 0.0030980000000000035,
+        "cyan": 0.047353000000000006,
+        "black": 0.045897,
         "white": 0.5399999999999999,
-        "yellow": 0.06503799999999998,
-        "magenta": 0.041370000000000004
+        "yellow": 0.20932299999999998,
+        "magenta": 0.06944800000000001
       },
       "predictedValues": {
         "white": 0.03,
-        "cyan": 0.034565,
-        "magenta": 0.02863,
-        "yellow": 0.144962,
-        "black": 0.046902
+        "cyan": 0.002647,
+        "magenta": 0.000552,
+        "yellow": 0.000677,
+        "black": 0.004103
       },
       "actualValues": {
         "cyan": 0.05,
@@ -3096,16 +3217,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.04495,
-        "black": 0.022784,
-        "yellow": 0.174946,
-        "magenta": 0.08038899999999999
+        "cyan": 0.08669099999999999,
+        "black": 0.075638,
+        "yellow": 0.369124,
+        "magenta": 0.11927399999999999
       },
       "predictedValues": {
-        "cyan": 0.04505,
-        "magenta": 0.039611,
-        "yellow": 0.195054,
-        "black": 0.057216
+        "cyan": 0.003309,
+        "magenta": 0.000726,
+        "yellow": 0.000876,
+        "black": 0.004362
       },
       "actualValues": {
         "cyan": 0.09,
@@ -3119,16 +3240,16 @@
       "inkMode": "CMYK",
       "quality": "high",
       "channelDifferences": {
-        "cyan": 0.00004500000000000337,
-        "black": 0.018541000000000002,
-        "yellow": 0.02009500000000001,
-        "magenta": 0.026503
+        "cyan": 0.06512000000000001,
+        "black": 0.035605,
+        "yellow": 0.069702,
+        "magenta": 0.20699299999999998
       },
       "predictedValues": {
-        "cyan": 0.069955,
-        "magenta": 0.183497,
-        "yellow": 0.049905,
-        "black": 0.058541
+        "cyan": 0.00488,
+        "magenta": 0.003007,
+        "yellow": 0.000298,
+        "black": 0.004395
       },
       "actualValues": {
         "cyan": 0.07,
@@ -3142,16 +3263,16 @@
       "inkMode": "CMYK",
       "quality": "standard",
       "channelDifferences": {
-        "cyan": 0.019890000000000005,
-        "black": 0.000026999999999999247,
-        "yellow": 0.028396000000000005,
-        "magenta": 0.05318200000000001
+        "cyan": 0.066372,
+        "black": 0.03607,
+        "yellow": 0.069735,
+        "magenta": 0.197575
       },
       "predictedValues": {
-        "cyan": 0.05011,
-        "magenta": 0.146818,
-        "yellow": 0.041604,
-        "black": 0.040027
+        "cyan": 0.003628,
+        "magenta": 0.002425,
+        "yellow": 0.000265,
+        "black": 0.00393
       },
       "actualValues": {
         "cyan": 0.07,
@@ -3162,49 +3283,49 @@
     }
   ],
   "stats": {
-    "overall": 0.10007444154997436,
+    "overall": 0.16413605353727853,
     "channelMAE": {
-      "cyan": 0.04782759523816073,
-      "black": 0.07672965476183925,
-      "gloss": 0.2118169643745658,
-      "white": 0.282058646367554,
-      "yellow": 0.09312705952375001,
-      "magenta": 0.08170185833339284
+      "cyan": 0.09427196551729311,
+      "black": 0.12549965517236203,
+      "white": 0.31660631630968034,
+      "yellow": 0.19459490229879306,
+      "magenta": 0.1712702402298276,
+      "gloss": 0.2040458626423195
     },
     "channelSampleCounts": {
-      "cyan": 56,
-      "black": 56,
-      "gloss": 18,
-      "white": 20,
-      "yellow": 56,
-      "magenta": 56
+      "cyan": 58,
+      "black": 58,
+      "white": 22,
+      "yellow": 58,
+      "magenta": 58,
+      "gloss": 19
     },
-    "sampleCount": 262,
-    "standardChannelsMAE": 0.07484654196428578,
-    "specialLayersMAE": 0.2487862706866648,
-    "standardChannelsSampleCount": 224,
-    "specialLayersSampleCount": 38,
+    "sampleCount": 273,
+    "standardChannelsMAE": 0.14640919080456893,
+    "specialLayersMAE": 0.2644441548540741,
+    "standardChannelsSampleCount": 232,
+    "specialLayersSampleCount": 41,
     "sizeMetrics": {
       "small": {
-        "overall": 0.06583807589719383,
-        "standardChannels": 0.0692979907406389,
-        "specialLayers": 0.056256773253807485,
+        "overall": 0.15828211978351564,
+        "standardChannels": 0.07394573529411765,
+        "specialLayers": 0.3494445912928178,
         "sampleCount": 49
       },
       "medium": {
-        "overall": 0.08329258049801763,
-        "standardChannels": 0.07425746666670408,
-        "specialLayers": 0.2603808115917626,
-        "sampleCount": 103
+        "overall": 0.16746594604134948,
+        "standardChannels": 0.1755338211221089,
+        "specialLayers": 0.051058034161820476,
+        "sampleCount": 108
       },
       "large": {
-        "overall": 0.13103911068940866,
-        "standardChannels": 0.07770739999999997,
-        "specialLayers": 0.3710318087917478,
-        "sampleCount": 110
+        "overall": 0.16350859115361238,
+        "standardChannels": 0.14148310652914442,
+        "specialLayers": 0.27595448634168557,
+        "sampleCount": 116
       }
     }
   },
-  "timestamp": "2025-05-01T13:12:06.736Z",
-  "calibrationDate": "2025-05-01T13:09:06.169+00:00"
+  "timestamp": "2025-05-01T18:12:12.101Z",
+  "calibrationDate": "2025-05-01T18:10:23.554+00:00"
 }

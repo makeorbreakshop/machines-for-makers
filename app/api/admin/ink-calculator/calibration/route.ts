@@ -99,6 +99,15 @@ export async function POST(req: NextRequest) {
       Object.keys(factors.channelScalingFactors).length, "channel scaling factors",
       "type:", calibration_type || 'combined');
     
+    // Log CMYK scaling factors to debug the 100× issue
+    let cmykFactors: string[] = [];
+    if (factors.channelScalingFactors) {
+      cmykFactors = ['cyan', 'magenta', 'yellow', 'black'].filter(c => factors.channelScalingFactors[c] !== undefined);
+      console.log("[API-DEBUG] CMYK channel scaling factors:", 
+        cmykFactors.map(channel => `${channel}: ${factors.channelScalingFactors[channel]}`).join(', ')
+      );
+    }
+    
     // Validate the data
     if (!factors || 
         !factors.baseConsumption || 
@@ -115,6 +124,9 @@ export async function POST(req: NextRequest) {
     // Initialize Supabase client
     const supabase = await createServerClient();
     
+    // Log insertion attempt
+    console.log("[API-DEBUG] Attempting to insert new calibration record into database");
+    
     // Save the calibration factors
     const { data, error } = await supabase
       .from('ink_calculator_calibration')
@@ -130,11 +142,19 @@ export async function POST(req: NextRequest) {
       throw error;
     }
     
-    console.log("[API-DEBUG] Calibration factors saved successfully, ID:", data?.[0]?.id, "type:", calibration_type || 'combined');
+    if (!data || data.length === 0) {
+      console.error("[API-DEBUG] No data returned from insert operation");
+      throw new Error("Insert operation did not return created record");
+    }
+    
+    console.log("[API-DEBUG] Calibration factors saved successfully, ID:", data[0].id, "type:", calibration_type || 'combined');
+    console.log("[API-DEBUG] INSERT SUCCESS - Verify stored CMYK values:", 
+      cmykFactors.length > 0 ? cmykFactors.map(channel => `${channel}: ${data[0].factors.channelScalingFactors[channel]}`).join(', ') : 'No CMYK factors found'
+    );
     
     return NextResponse.json({
       success: true,
-      id: data?.[0]?.id,
+      id: data[0].id,
       calibration_type: calibration_type || 'combined',
       message: 'Calibration factors saved successfully'
     });

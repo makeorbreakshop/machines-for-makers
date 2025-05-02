@@ -14,10 +14,10 @@ import { ChannelMlValues, PrintQuality } from "./types";
  * Special layers use substantially higher base consumption (0.05-0.1 mL range)
  */
 export const BASE_CONSUMPTION: Record<string, number> = {
-  cyan: 0.005,    // Base cyan consumption in mL
-  magenta: 0.004, // Base magenta consumption in mL
-  yellow: 0.006,  // Base yellow consumption in mL
-  black: 0.003,   // Base black consumption in mL
+  cyan: 0.020,    // Base cyan consumption in mL
+  magenta: 0.018, // Base magenta consumption in mL
+  yellow: 0.022,  // Base yellow consumption in mL
+  black: 0.015,   // Base black consumption in mL
   white: 0.20,   // Base white consumption in mL - Increased from 0.075
   gloss: 0.22,    // Base gloss consumption in mL - Increased from 0.08
   clear: 0.065,   // Base clear consumption in mL - Increased to 0.065
@@ -30,10 +30,10 @@ export const BASE_CONSUMPTION: Record<string, number> = {
  * Special layers use scaling factors at least 100× larger than CMYK
  */
 export const CHANNEL_SCALING_FACTORS: Record<string, number> = {
-  cyan: 0.0002,    // mL per % coverage per square inch
-  magenta: 0.0003, // mL per % coverage per square inch
-  yellow: 0.0004,  // mL per % coverage per square inch
-  black: 0.00015,  // mL per % coverage per square inch
+  cyan: 0.002,    // mL per % coverage per square inch - Optimized value from auto-calibration
+  magenta: 0.003, // mL per % coverage per square inch - Optimized value from auto-calibration
+  yellow: 0.004,  // mL per % coverage per square inch - Optimized value from auto-calibration
+  black: 0.0015,   // mL per % coverage per square inch - Optimized value from auto-calibration
   white: 0.20,     // mL per % coverage per square inch - Increased from 0.08
   gloss: 0.25,     // mL per % coverage per square inch - Increased from 0.12
   clear: 0.05,     // mL per % coverage per square inch - Increased to 0.05 (250x higher than CMYK average)
@@ -180,7 +180,8 @@ export const QUALITY_CHANNEL_MULTIPLIERS: Record<PrintQuality, ChannelMlValues> 
  * @returns Scaling multiplier for the given area
  */
 export function calculateAreaScalingMultiplier(area: number): number {
-  return 1.2 - (0.15 * Math.log10(1 + area/100));
+  // Updated to ensure small jobs have higher multiplier and large jobs scale properly
+  return 1.05 + (0.35 * Math.log10(1 + area/50));
 }
 
 /**
@@ -220,4 +221,27 @@ export const AREA_SCALING_MULTIPLIERS: Record<string, number> = {
   medium: 1.0,  // Baseline
   large: 0.9,   // Larger prints use proportionally less ink per unit area
   xlarge: 0.85, // Very large prints use even less ink per unit area
+};
+
+/**
+ * Linear model intercepts for special layers
+ * These are used in the y = mx + b formula for special layer calculations
+ * where y is ink usage in mL, m is the slope, and b is the intercept
+ */
+export const LAYER_INTERCEPTS: Record<string, number> = {
+  white: 0.15,   // White base intercept in mL
+  gloss: 0.18,   // Gloss base intercept in mL
+  clear: 0.05,   // Clear base intercept in mL
+  primer: 0.03   // Primer base intercept in mL
+};
+
+/**
+ * Linear model slopes for special layers
+ * These determine how quickly ink usage increases with area
+ */
+export const LAYER_SLOPES: Record<string, number> = {
+  white: 0.15,   // White ink usage per square inch
+  gloss: 0.20,   // Gloss ink usage per square inch
+  clear: 0.04,   // Clear ink usage per square inch
+  primer: 0.03   // Primer ink usage per square inch
 }; 

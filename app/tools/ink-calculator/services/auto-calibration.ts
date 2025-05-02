@@ -759,7 +759,7 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
   
   // Define standard CMYK channels and special layers
   const standardChannels = ['cyan', 'magenta', 'yellow', 'black'];
-  const specialLayers = ['white', 'gloss', 'clear', 'primer'];
+  const specialLayers = new Set(['white', 'gloss', 'clear', 'primer']);
   
   // Track all unique channels in test data
   const allChannels = new Set<string>();
@@ -768,7 +768,7 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
   const channelDatasets: Record<string, TestDataEntry[]> = {};
   
   // Initialize empty arrays for each channel
-  [...standardChannels, ...specialLayers].forEach(channel => {
+  [...standardChannels, ...Array.from(specialLayers)].forEach(channel => {
     channelDatasets[channel] = [];
   });
   
@@ -816,7 +816,7 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
       initialTotalError += error;
       channelCount++;
       
-      if (specialLayers.includes(channel)) {
+      if (specialLayers.has(channel)) {
         initialSpecialLayersError += error;
         specialLayerCount++;
       } else {
@@ -1075,7 +1075,7 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
   console.log("[CALIBRATION-DEBUG] PHASE 3: SPECIAL LAYER OPTIMIZATION PHASE");
   
   // Process each special layer (white, gloss, etc.)
-  for (const layer of specialLayers) {
+  for (const layer of Array.from(specialLayers)) {
     if (!allChannels.has(layer)) {
       console.log(`[CALIBRATION-DEBUG] Skipping ${layer} optimization - no data available`);
       continue;
@@ -1156,7 +1156,7 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
     // Get all entries for this quality setting with special layers
     const specialLayerQualityEntries = testEntries.filter(entry => 
       entry.quality === quality && 
-      specialLayers.some(layer => entry.channel_ml[layer] !== undefined && entry.channel_ml[layer] > 0)
+      Array.from(specialLayers).some(layer => entry.channel_ml[layer] !== undefined && entry.channel_ml[layer] > 0)
     );
     
     if (specialLayerQualityEntries.length < 3) {
@@ -1172,7 +1172,7 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
     }
     
     // Optimize each special layer for this quality
-    for (const layer of specialLayers) {
+    for (const layer of Array.from(specialLayers)) {
       if (!allChannels.has(layer)) continue;
       
       // Skip layers that don't have test data for this quality
@@ -1208,7 +1208,7 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
   // Get all ink modes in the test data that use special layers
   const specialLayerModes = new Set<string>();
   testEntries.forEach(entry => {
-    if (specialLayers.some(layer => entry.channel_ml[layer] !== undefined && entry.channel_ml[layer] > 0)) {
+    if (Array.from(specialLayers).some(layer => entry.channel_ml[layer] !== undefined && entry.channel_ml[layer] > 0)) {
       specialLayerModes.add(entry.ink_mode);
     }
   });
@@ -1220,7 +1220,7 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
     // Get entries for this ink mode with special layers
     const modeEntries = testEntries.filter(entry => 
       entry.ink_mode === inkMode && 
-      specialLayers.some(layer => entry.channel_ml[layer] !== undefined && entry.channel_ml[layer] > 0)
+      Array.from(specialLayers).some(layer => entry.channel_ml[layer] !== undefined && entry.channel_ml[layer] > 0)
     );
     
     if (modeEntries.length < 3) {
@@ -1236,7 +1236,7 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
     }
     
     // Optimize each special layer for this ink mode
-    for (const layer of specialLayers) {
+    for (const layer of Array.from(specialLayers)) {
       if (!allChannels.has(layer)) continue;
       
       // Skip layers that don't have test data for this ink mode
@@ -1312,52 +1312,13 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
   console.log("[CALIBRATION-DEBUG] PHASE 4: VALIDATION PHASE");
   
   // Calculate final error rates with separate metrics for standard vs. special layers
-  const finalChannelErrors: Record<string, number> = {};
-  const finalSingleColorErrors: Record<string, number> = {};
-  const finalSpecialLayerErrors: Record<string, number> = {};
-  let finalTotalError = 0;
-  let finalStandardChannelsError = 0;
-  let finalSpecialLayersError = 0;
-  let finalSingleColorTotalError = 0;
-  
-  // Calculate initial error metrics
-  const stratifiedInitialChannelErrors: Record<string, number> = {};
-  let initialTotalError1 = 0;
-  let initialStandardChannelsError1 = 0;
-  let initialSpecialLayersError1 = 0;
-  
-  // Calculate initial error using the initial factors
-  testEntries.forEach(entry => {
-    Object.entries(entry.channel_ml).forEach(([channel, actualMl]) => {
-      if (actualMl <= 0) return;
-      
-      const estimatedMl = estimateChannelUsage(entry, channel, {
-        channelScalingFactor: initialFactors.channelScalingFactors[channel]
-      });
-      
-      const error = Math.abs(estimatedMl - actualMl);
-      stratifiedInitialChannelErrors[channel] = (stratifiedInitialChannelErrors[channel] || 0) + error;
-      initialTotalError1 += error;
-      
-      if (specialLayers.includes(channel)) {
-        initialSpecialLayersError1 += error;
-      } else {
-        initialStandardChannelsError1 += error;
-      }
-    });
-  });
-  
-  // Average initial errors
-  const initialChannelCount = Object.keys(stratifiedInitialChannelErrors).length;
-  if (initialChannelCount > 0) {
-    initialTotalError1 /= initialChannelCount;
-    Object.keys(stratifiedInitialChannelErrors).forEach(channel => {
-      const channelTestCount = channelDatasets[channel]?.length || 0;
-      if (channelTestCount > 0) {
-        stratifiedInitialChannelErrors[channel] /= channelTestCount;
-      }
-    });
-  }
+  const finalChannelErrorsSpecial: Record<string, number> = {};
+  const finalSingleColorErrorsSpecial: Record<string, number> = {};
+  const finalSpecialLayersErrorsSpecial: Record<string, number> = {};
+  let finalTotalErrorSpecial = 0;
+  let finalStandardChannelsErrorSpecial = 0;
+  let finalSpecialLayersErrorSpecial = 0;
+  let finalSingleColorTotalErrorSpecial = 0;
   
   // Size-stratified error metrics
   const sizeErrors = {
@@ -1405,8 +1366,8 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
       const error = Math.abs(estimatedMl - actualMl);
       
       // Update overall error metrics
-      finalChannelErrors[channel] = (finalChannelErrors[channel] || 0) + error;
-      finalTotalError += error;
+      finalChannelErrorsSpecial[channel] = (finalChannelErrorsSpecial[channel] || 0) + error;
+      finalTotalErrorSpecial += error;
       channelCount++;
       
       // Update size-stratified error metrics
@@ -1415,15 +1376,15 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
       
       // Split metrics by channel type (standard vs. special)
       if (specialLayers.has(channel)) {
-        finalSpecialLayerErrors[channel] = (finalSpecialLayerErrors[channel] || 0) + error;
-        finalSpecialLayersError += error;
+        finalSpecialLayersErrorsSpecial[channel] = (finalSpecialLayersErrorsSpecial[channel] || 0) + error;
+        finalSpecialLayersErrorSpecial += error;
         specialLayerCount++;
         
         // Size-stratified special layer errors
         sizeErrors[sizeCategory].specialLayers += error;
         sizeErrors[sizeCategory].specialCount++;
       } else {
-        finalStandardChannelsError += error;
+        finalStandardChannelsErrorSpecial += error;
         standardChannelCount++;
         
         // Size-stratified standard channel errors
@@ -1432,8 +1393,8 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
         
         // Track single-color test errors separately
         if (isSingleColorTest(entry, channel)) {
-          finalSingleColorErrors[channel] = (finalSingleColorErrors[channel] || 0) + error;
-          finalSingleColorTotalError += error;
+          finalSingleColorErrorsSpecial[channel] = (finalSingleColorErrorsSpecial[channel] || 0) + error;
+          finalSingleColorTotalErrorSpecial += error;
           singleColorChannelCount++;
         }
       }
@@ -1441,33 +1402,33 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
   });
   
   // Average error per channel
-  Object.keys(finalChannelErrors).forEach(channel => {
+  Object.keys(finalChannelErrorsSpecial).forEach(channel => {
     const channelTestCount = channelDatasets[channel]?.length || 0;
     
     if (channelTestCount > 0) {
-      finalChannelErrors[channel] /= channelTestCount;
+      finalChannelErrorsSpecial[channel] /= channelTestCount;
     }
   });
   
   // Average overall error
-  if (channelCount > 0) finalTotalError /= channelCount;
-  if (standardChannelCount > 0) finalStandardChannelsError /= standardChannelCount;
-  if (specialLayerCount > 0) finalSpecialLayersError /= specialLayerCount;
-  if (singleColorChannelCount > 0) finalSingleColorTotalError /= singleColorChannelCount;
+  if (channelCount > 0) finalTotalErrorSpecial /= channelCount;
+  if (standardChannelCount > 0) finalStandardChannelsErrorSpecial /= standardChannelCount;
+  if (specialLayerCount > 0) finalSpecialLayersErrorSpecial /= specialLayerCount;
+  if (singleColorChannelCount > 0) finalSingleColorTotalErrorSpecial /= singleColorChannelCount;
   
   // Average error for single-color tests
-  Object.keys(finalSingleColorErrors).forEach(channel => {
+  Object.keys(finalSingleColorErrorsSpecial).forEach(channel => {
     const singleColorTests = testEntries.filter(entry => isSingleColorTest(entry, channel));
     if (singleColorTests.length > 0) {
-      finalSingleColorErrors[channel] /= singleColorTests.length;
+      finalSingleColorErrorsSpecial[channel] /= singleColorTests.length;
     }
   });
   
   // Average error for special layers
-  Object.keys(finalSpecialLayerErrors).forEach(channel => {
+  Object.keys(finalSpecialLayersErrorsSpecial).forEach(channel => {
     const layerTests = channelDatasets[channel];
     if (layerTests && layerTests.length > 0) {
-      finalSpecialLayerErrors[channel] /= layerTests.length;
+      finalSpecialLayersErrorsSpecial[channel] /= layerTests.length;
     }
   });
   
@@ -1490,22 +1451,22 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
   
   // Compile improvement stats
   const improvement = {
-    overall: initialTotalError1 - finalTotalError,
-    standardChannels: initialStandardChannelsError1 - finalStandardChannelsError,
-    specialLayers: initialSpecialLayersError1 - finalSpecialLayersError,
-    percentOverall: ((initialTotalError1 - finalTotalError) / (initialTotalError1 || 1)) * 100,
-    percentStandardChannels: ((initialStandardChannelsError1 - finalStandardChannelsError) / (initialStandardChannelsError1 || 1)) * 100,
-    percentSpecialLayers: ((initialSpecialLayersError1 - finalSpecialLayersError) / (initialSpecialLayersError1 || 1)) * 100
+    overall: initialTotalError - finalTotalErrorSpecial,
+    standardChannels: initialStandardChannelsError - finalStandardChannelsErrorSpecial,
+    specialLayers: initialSpecialLayersError - finalSpecialLayersErrorSpecial,
+    percentOverall: ((initialTotalError - finalTotalErrorSpecial) / initialTotalError) * 100,
+    percentStandardChannels: ((initialStandardChannelsError - finalStandardChannelsErrorSpecial) / initialStandardChannelsError) * 100,
+    percentSpecialLayers: ((initialSpecialLayersError - finalSpecialLayersErrorSpecial) / initialSpecialLayersError) * 100
   };
   
   // Log detailed final results
   console.log("[CALIBRATION-DEBUG] Final average error rates:", {
-    overall: finalTotalError.toFixed(4) + " mL",
-    standardChannels: finalStandardChannelsError.toFixed(4) + " mL",
-    specialLayers: finalSpecialLayersError.toFixed(4) + " mL",
-    byChannel: Object.fromEntries(Object.entries(finalChannelErrors).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
-    singleColorChannels: Object.fromEntries(Object.entries(finalSingleColorErrors).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
-    specialLayersByChannel: Object.fromEntries(Object.entries(finalSpecialLayerErrors).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
+    overall: finalTotalErrorSpecial.toFixed(4) + " mL",
+    standardChannels: finalStandardChannelsErrorSpecial.toFixed(4) + " mL",
+    specialLayers: finalSpecialLayersErrorSpecial.toFixed(4) + " mL",
+    byChannel: Object.fromEntries(Object.entries(finalChannelErrorsSpecial).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
+    singleColorChannels: Object.fromEntries(Object.entries(finalSingleColorErrorsSpecial).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
+    specialLayersByChannel: Object.fromEntries(Object.entries(finalSpecialLayersErrorsSpecial).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
     bySize: {
       small: {
         overall: sizeErrors.small.total.toFixed(4) + " mL",
@@ -1538,18 +1499,18 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
     factors: optimizedFactors,
     errors: {
       initial: {
-        overall: initialTotalError1,
-        standardChannels: initialStandardChannelsError1,
-        specialLayers: initialSpecialLayersError1,
-        byChannel: stratifiedInitialChannelErrors
+        overall: initialTotalError,
+        standardChannels: initialStandardChannelsError,
+        specialLayers: initialSpecialLayersError,
+        byChannel: initialChannelErrors
       },
       final: {
-        overall: finalTotalError,
-        standardChannels: finalStandardChannelsError,
-        specialLayers: finalSpecialLayersError,
-        byChannel: finalChannelErrors,
-        singleColorChannels: finalSingleColorErrors,
-        specialLayersByChannel: finalSpecialLayerErrors
+        overall: finalTotalErrorSpecial,
+        standardChannels: finalStandardChannelsErrorSpecial,
+        specialLayers: finalSpecialLayersErrorSpecial,
+        byChannel: finalChannelErrorsSpecial,
+        singleColorChannels: finalSingleColorErrorsSpecial,
+        specialLayersByChannel: finalSpecialLayersErrorsSpecial
       },
       improvement
     }
@@ -1559,21 +1520,24 @@ export function calibrateFactors(testEntries: TestDataEntry[]): CalibrationResul
 /**
  * Save calibrated factors to database or local storage
  */
-export async function saveCalibrationFactors(factors: CalibrationFactors): Promise<boolean> {
+export async function saveCalibrationFactors(factors: CalibrationFactors, calibration_type: 'cmyk' | 'special_layer' | 'combined' = 'combined'): Promise<boolean> {
   console.log("[CALIBRATION-DEBUG] Saving calibration factors to database");
   
   try {
-    // Format data for API
-    const data = {
-      baseConsumption: factors.baseConsumption,
-      channelScalingFactors: factors.channelScalingFactors,
-      qualityChannelMultipliers: factors.qualityChannelMultipliers,
-      areaScalingMultipliers: factors.areaScalingMultipliers,
-      areaExponents: factors.areaExponents,
-      coverageExponents: factors.coverageExponents,
-      inkModeAdjustments: factors.inkModeAdjustments,
-      layerIntercepts: factors.layerIntercepts,
-      layerSlopes: factors.layerSlopes
+    // Format data for API with proper structure
+    const requestData = {
+      factors: {
+        baseConsumption: factors.baseConsumption,
+        channelScalingFactors: factors.channelScalingFactors,
+        qualityChannelMultipliers: factors.qualityChannelMultipliers,
+        areaScalingMultipliers: factors.areaScalingMultipliers,
+        areaExponents: factors.areaExponents,
+        coverageExponents: factors.coverageExponents,
+        inkModeAdjustments: factors.inkModeAdjustments,
+        layerIntercepts: factors.layerIntercepts,
+        layerSlopes: factors.layerSlopes
+      },
+      calibration_type
     };
 
     // Save to API endpoint
@@ -1582,7 +1546,7 @@ export async function saveCalibrationFactors(factors: CalibrationFactors): Promi
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(data)
+      body: JSON.stringify(requestData)
     });
     
     console.log("[CALIBRATION-DEBUG] API response status:", response.status);
@@ -1918,10 +1882,56 @@ export function calibrateSpecialLayerFactors(testEntries: TestDataEntry[]): Cali
     layerIntercepts: { ...LAYER_INTERCEPTS },
     layerSlopes: { ...LAYER_SLOPES }
   };
+  
+  // Calculate initial error metrics for special layers
+  const initialChannelErrors: Record<string, number> = {};
+  let initialOverallError = 0;
+  let initialSpecialLayersError = 0;
+  let initialStandardChannelsError = 0;
+  
+  // Calculate initial error using the initial factors
+  specialLayerEntries.forEach(entry => {
+    Object.entries(entry.channel_ml).forEach(([channel, actualMl]) => {
+      if (actualMl <= 0) return;
+      
+      const estimatedMl = estimateChannelUsage(entry, channel, {
+        channelScalingFactor: initialFactors.channelScalingFactors[channel]
+      });
+      
+      const error = Math.abs(estimatedMl - actualMl);
+      initialChannelErrors[channel] = (initialChannelErrors[channel] || 0) + error;
+      initialOverallError += error;
+      
+      if (specialLayers.has(channel)) {
+        initialSpecialLayersError += error;
+      } else {
+        initialStandardChannelsError += error;
+      }
+    });
+  });
+  
+  // Average initial errors
+  const initialChannelCount = Object.keys(initialChannelErrors).length;
+  if (initialChannelCount > 0) {
+    initialOverallError /= initialChannelCount;
+    Object.keys(initialChannelErrors).forEach(channel => {
+      const channelTestCount = channelDatasets[channel]?.length || 0;
+      if (channelTestCount > 0) {
+        initialChannelErrors[channel] /= channelTestCount;
+      }
+    });
+  }
+  
+  // Log initial errors
+  console.log("[CALIBRATION-DEBUG] Initial special layer errors:", {
+    overall: initialOverallError,
+    specialLayers: initialSpecialLayersError,
+    byChannel: initialChannelErrors
+  });
 
   // Create a copy of initialFactors for optimization
   const optimizedFactors: CalibrationFactors = JSON.parse(JSON.stringify(initialFactors));
-
+  
   // FIRST PASS: Optimize layer slopes for each special layer
   console.log("[CALIBRATION-DEBUG] First pass: Optimizing layer slopes");
   
@@ -2167,13 +2177,13 @@ export function calibrateSpecialLayerFactors(testEntries: TestDataEntry[]): Cali
   console.log("[CALIBRATION-DEBUG] PHASE 4: VALIDATION PHASE");
   
   // Calculate final error rates with separate metrics for standard vs. special layers
-  const finalChannelErrors: Record<string, number> = {};
-  const finalSingleColorErrors: Record<string, number> = {};
-  const finalSpecialLayerErrors: Record<string, number> = {};
-  let finalTotalError = 0;
-  let finalStandardChannelsError = 0;
-  let finalSpecialLayersError = 0;
-  let finalSingleColorTotalError = 0;
+  const finalChannelErrorsSpecial: Record<string, number> = {};
+  const finalSingleColorErrorsSpecial: Record<string, number> = {};
+  const finalSpecialLayersErrorsSpecial: Record<string, number> = {};
+  let finalTotalErrorSpecial = 0;
+  let finalStandardChannelsErrorSpecial = 0;
+  let finalSpecialLayersErrorSpecial = 0;
+  let finalSingleColorTotalErrorSpecial = 0;
   
   // Size-stratified error metrics
   const sizeErrors = {
@@ -2221,8 +2231,8 @@ export function calibrateSpecialLayerFactors(testEntries: TestDataEntry[]): Cali
       const error = Math.abs(estimatedMl - actualMl);
       
       // Update overall error metrics
-      finalChannelErrors[channel] = (finalChannelErrors[channel] || 0) + error;
-      finalTotalError += error;
+      finalChannelErrorsSpecial[channel] = (finalChannelErrorsSpecial[channel] || 0) + error;
+      finalTotalErrorSpecial += error;
       channelCount++;
       
       // Update size-stratified error metrics
@@ -2231,15 +2241,15 @@ export function calibrateSpecialLayerFactors(testEntries: TestDataEntry[]): Cali
       
       // Split metrics by channel type (standard vs. special)
       if (specialLayers.has(channel)) {
-        finalSpecialLayerErrors[channel] = (finalSpecialLayerErrors[channel] || 0) + error;
-        finalSpecialLayersError += error;
+        finalSpecialLayersErrorsSpecial[channel] = (finalSpecialLayersErrorsSpecial[channel] || 0) + error;
+        finalSpecialLayersErrorSpecial += error;
         specialLayerCount++;
         
         // Size-stratified special layer errors
         sizeErrors[sizeCategory].specialLayers += error;
         sizeErrors[sizeCategory].specialCount++;
       } else {
-        finalStandardChannelsError += error;
+        finalStandardChannelsErrorSpecial += error;
         standardChannelCount++;
         
         // Size-stratified standard channel errors
@@ -2248,8 +2258,8 @@ export function calibrateSpecialLayerFactors(testEntries: TestDataEntry[]): Cali
         
         // Track single-color test errors separately
         if (isSingleColorTest(entry, channel)) {
-          finalSingleColorErrors[channel] = (finalSingleColorErrors[channel] || 0) + error;
-          finalSingleColorTotalError += error;
+          finalSingleColorErrorsSpecial[channel] = (finalSingleColorErrorsSpecial[channel] || 0) + error;
+          finalSingleColorTotalErrorSpecial += error;
           singleColorChannelCount++;
         }
       }
@@ -2257,33 +2267,33 @@ export function calibrateSpecialLayerFactors(testEntries: TestDataEntry[]): Cali
   });
   
   // Average error per channel
-  Object.keys(finalChannelErrors).forEach(channel => {
+  Object.keys(finalChannelErrorsSpecial).forEach(channel => {
     const channelTestCount = channelDatasets[channel]?.length || 0;
     
     if (channelTestCount > 0) {
-      finalChannelErrors[channel] /= channelTestCount;
+      finalChannelErrorsSpecial[channel] /= channelTestCount;
     }
   });
   
   // Average overall error
-  if (channelCount > 0) finalTotalError /= channelCount;
-  if (standardChannelCount > 0) finalStandardChannelsError /= standardChannelCount;
-  if (specialLayerCount > 0) finalSpecialLayersError /= specialLayerCount;
-  if (singleColorChannelCount > 0) finalSingleColorTotalError /= singleColorChannelCount;
+  if (channelCount > 0) finalTotalErrorSpecial /= channelCount;
+  if (standardChannelCount > 0) finalStandardChannelsErrorSpecial /= standardChannelCount;
+  if (specialLayerCount > 0) finalSpecialLayersErrorSpecial /= specialLayerCount;
+  if (singleColorChannelCount > 0) finalSingleColorTotalErrorSpecial /= singleColorChannelCount;
   
   // Average error for single-color tests
-  Object.keys(finalSingleColorErrors).forEach(channel => {
+  Object.keys(finalSingleColorErrorsSpecial).forEach(channel => {
     const singleColorTests = testEntries.filter(entry => isSingleColorTest(entry, channel));
     if (singleColorTests.length > 0) {
-      finalSingleColorErrors[channel] /= singleColorTests.length;
+      finalSingleColorErrorsSpecial[channel] /= singleColorTests.length;
     }
   });
   
   // Average error for special layers
-  Object.keys(finalSpecialLayerErrors).forEach(channel => {
+  Object.keys(finalSpecialLayersErrorsSpecial).forEach(channel => {
     const layerTests = channelDatasets[channel];
     if (layerTests && layerTests.length > 0) {
-      finalSpecialLayerErrors[channel] /= layerTests.length;
+      finalSpecialLayersErrorsSpecial[channel] /= layerTests.length;
     }
   });
   
@@ -2306,22 +2316,22 @@ export function calibrateSpecialLayerFactors(testEntries: TestDataEntry[]): Cali
   
   // Compile improvement stats
   const improvement = {
-    overall: initialTotalError - finalTotalError,
-    standardChannels: initialStandardChannelsError - finalStandardChannelsError,
-    specialLayers: initialSpecialLayersError - finalSpecialLayersError,
-    percentOverall: ((initialTotalError - finalTotalError) / initialTotalError) * 100,
-    percentStandardChannels: ((initialStandardChannelsError - finalStandardChannelsError) / initialStandardChannelsError) * 100,
-    percentSpecialLayers: ((initialSpecialLayersError - finalSpecialLayersError) / initialSpecialLayersError) * 100
+    overall: initialOverallError - finalTotalErrorSpecial,
+    standardChannels: initialStandardChannelsError - finalStandardChannelsErrorSpecial,
+    specialLayers: initialSpecialLayersError - finalSpecialLayersErrorSpecial,
+    percentOverall: ((initialOverallError - finalTotalErrorSpecial) / initialOverallError) * 100,
+    percentStandardChannels: ((initialStandardChannelsError - finalStandardChannelsErrorSpecial) / initialStandardChannelsError) * 100,
+    percentSpecialLayers: ((initialSpecialLayersError - finalSpecialLayersErrorSpecial) / initialSpecialLayersError) * 100
   };
   
   // Log detailed final results
   console.log("[CALIBRATION-DEBUG] Final average error rates:", {
-    overall: finalTotalError.toFixed(4) + " mL",
-    standardChannels: finalStandardChannelsError.toFixed(4) + " mL",
-    specialLayers: finalSpecialLayersError.toFixed(4) + " mL",
-    byChannel: Object.fromEntries(Object.entries(finalChannelErrors).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
-    singleColorChannels: Object.fromEntries(Object.entries(finalSingleColorErrors).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
-    specialLayersByChannel: Object.fromEntries(Object.entries(finalSpecialLayerErrors).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
+    overall: finalTotalErrorSpecial.toFixed(4) + " mL",
+    standardChannels: finalStandardChannelsErrorSpecial.toFixed(4) + " mL",
+    specialLayers: finalSpecialLayersErrorSpecial.toFixed(4) + " mL",
+    byChannel: Object.fromEntries(Object.entries(finalChannelErrorsSpecial).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
+    singleColorChannels: Object.fromEntries(Object.entries(finalSingleColorErrorsSpecial).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
+    specialLayersByChannel: Object.fromEntries(Object.entries(finalSpecialLayersErrorsSpecial).map(([k, v]) => [k, v.toFixed(4) + " mL"])),
     bySize: {
       small: {
         overall: sizeErrors.small.total.toFixed(4) + " mL",
@@ -2349,25 +2359,59 @@ export function calibrateSpecialLayerFactors(testEntries: TestDataEntry[]): Cali
   
   console.log("[CALIBRATION-DEBUG] Calibration complete using four-phase process from PRD");
   
-  // Return the optimized factors and detailed error metrics
+  // Calculate final overall error
+  const finalOverallError = calculateOverallError(specialLayerEntries, optimizedFactors);
+  const finalSpecialLayersChannelErrors: Record<string, number> = {};
+  const finalSpecialLayersByChannel: Record<string, number> = {};
+  
+  // Calculate channel-specific errors
+  specialLayers.forEach(channel => {
+    const channelEntries = specialLayerEntries.filter(entry => 
+      entry.channel_ml[channel] !== undefined && entry.channel_ml[channel] > 0
+    );
+    
+    if (channelEntries.length > 0) {
+      finalSpecialLayersChannelErrors[channel] = calculateChannelError(channelEntries, channel, optimizedFactors);
+      finalSpecialLayersByChannel[channel] = finalSpecialLayersChannelErrors[channel];
+    }
+  });
+  
+  // Calculate final special layers error (average of all special layer channels)
+  const computedSpecialLayersError = specialLayerEntries
+    .filter(entry => finalSpecialLayersChannelErrors[Object.keys(finalSpecialLayersChannelErrors)[0]] !== undefined)
+    .reduce((sum, entry) => sum + finalSpecialLayersChannelErrors[Object.keys(finalSpecialLayersChannelErrors)[0]], 0) / 
+    specialLayerEntries.filter(entry => finalSpecialLayersChannelErrors[Object.keys(finalSpecialLayersChannelErrors)[0]] !== undefined).length;
+
+  // Calculate improvements
+  const overallImprovement = initialOverallError - finalOverallError;
+  const specialLayersImprovement = initialSpecialLayersError - computedSpecialLayersError;
+  
+  // Return the final result object
   return {
     factors: optimizedFactors,
     errors: {
       initial: {
-        overall: initialTotalError,
-        standardChannels: initialStandardChannelsError,
+        overall: initialOverallError,
+        standardChannels: 0, // Not relevant for special layer optimization
         specialLayers: initialSpecialLayersError,
         byChannel: initialChannelErrors
       },
       final: {
-        overall: finalTotalError,
-        standardChannels: finalStandardChannelsError,
-        specialLayers: finalSpecialLayersError,
-        byChannel: finalChannelErrors,
-        singleColorChannels: finalSingleColorErrors,
-        specialLayersByChannel: finalSpecialLayerErrors
+        overall: finalOverallError,
+        standardChannels: 0, // Not relevant for special layer optimization
+        specialLayers: computedSpecialLayersError,
+        byChannel: finalSpecialLayersChannelErrors,
+        singleColorChannels: {},
+        specialLayersByChannel: finalSpecialLayersByChannel
       },
-      improvement
+      improvement: {
+        overall: overallImprovement,
+        standardChannels: 0,
+        specialLayers: specialLayersImprovement,
+        percentOverall: (overallImprovement / initialOverallError) * 100,
+        percentStandardChannels: 0,
+        percentSpecialLayers: (specialLayersImprovement / initialSpecialLayersError) * 100
+      }
     }
   };
 }
