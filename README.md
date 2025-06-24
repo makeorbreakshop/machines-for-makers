@@ -108,11 +108,24 @@ Machines for Makers is a web application designed to help makers, hobbyists, and
   - `/(admin)` - Admin panel routes with authentication
   - `api` - API endpoints
 - `/components` - Reusable UI components
+- `/docs` - Project documentation
 - `/hooks` - Custom React hooks
 - `/lib` - Utility functions, types, and services
 - `/public` - Static assets
 - `/types` - TypeScript type definitions
 - `/database` - Database schemas and types
+
+## Documentation
+
+### Technical Documentation
+- **[Database Schema Guide](docs/DATABASE_SCHEMA.md)** - Comprehensive database structure, relationships, and conventions
+- **[Development Guidelines](docs/DEVELOPMENT_GUIDELINES.md)** - Development setup, coding standards, and best practices
+- **[Project Roadmap](docs/ROADMAP.md)** - Planned features and development priorities
+- **[CLAUDE.md](CLAUDE.md)** - AI assistant instructions and project context
+
+### Additional Resources
+- **[Price Tracker PRD](docs/price-tracker-prd.md)** - Price tracking system requirements
+- **[Ink Calculator Documentation](app/tools/ink-calculator/README.md)** - UV printer ink cost calculator guide
 
 ## Admin Access
 
