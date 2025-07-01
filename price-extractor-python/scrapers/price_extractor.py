@@ -6,6 +6,7 @@ import anthropic
 from decimal import Decimal, InvalidOperation
 
 from config import ANTHROPIC_API_KEY, CLAUDE_MODEL
+from scrapers.site_specific_extractors import SiteSpecificExtractor
 
 class PriceExtractor:
     """Class for extracting prices from web pages using multiple methods."""
@@ -17,7 +18,8 @@ class PriceExtractor:
             api_key=ANTHROPIC_API_KEY,
             default_headers={"anthropic-version": "2023-06-01"} # Recommended version
         )
-        logger.info("Price extractor initialized with Anthropic version header")
+        self.site_extractor = SiteSpecificExtractor()
+        logger.info("Price extractor initialized with Anthropic version header and site-specific rules")
     
     def extract_price(self, soup, html_content, url):
         """
@@ -31,6 +33,12 @@ class PriceExtractor:
         Returns:
             tuple: (price as float, method used) or (None, None) if extraction failed.
         """
+        # Method 0: Try site-specific extraction first (NEW - highest priority)
+        price, method = self.site_extractor.extract_price_with_rules(soup, html_content, url)
+        if price is not None:
+            logger.info(f"Extracted price {price} using site-specific method: {method}")
+            return price, method
+        
         # Method 1: Try structured data (JSON-LD, microdata)
         price, method = self._extract_from_structured_data(soup)
         if price is not None:

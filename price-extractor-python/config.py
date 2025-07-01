@@ -2,13 +2,15 @@ import os
 from dotenv import load_dotenv
 from loguru import logger
 import sys
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
 
 # API and Database Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Use service role key for database updates, fallback to regular key
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
@@ -28,8 +30,17 @@ USER_AGENT = os.getenv(
 MACHINES_TABLE = "machines"
 PRICE_HISTORY_TABLE = "price_history"
 
+# Price Validation Configuration
+MAX_PRICE_INCREASE_PERCENT = float(os.getenv("MAX_PRICE_INCREASE_PERCENT", "15"))  # 15% increase triggers review
+MAX_PRICE_DECREASE_PERCENT = float(os.getenv("MAX_PRICE_DECREASE_PERCENT", "15"))  # 15% decrease triggers review
+MIN_PRICE_THRESHOLD = float(os.getenv("MIN_PRICE_THRESHOLD", "10"))  # Minimum price to consider valid
+
 # Configure logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+# Create timestamped log filename
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+LOG_FILENAME = f"logs/price_extractor_{timestamp}.log"
 
 # Setup logger configuration
 logger.remove()
@@ -39,9 +50,7 @@ logger.add(
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
 )
 logger.add(
-    "logs/price_extractor.log",
-    rotation="10 MB",
-    retention="1 week",
+    LOG_FILENAME,
     level=LOG_LEVEL,
     format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}"
 )

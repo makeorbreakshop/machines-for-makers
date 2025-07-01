@@ -21,7 +21,7 @@ import {
 import { PriceHistoryChart } from "@/components/product/price-history-chart"
 import { format, formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
-import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink } from "lucide-react"
+import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink, CheckCircle, X, Search, Eye, Code, TestTube, Zap } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 // Add type definitions for the window object with priceTrackerAPI
 declare global {
@@ -63,13 +65,13 @@ export default function PriceTrackerAdmin() {
   const [machines, setMachines] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [priceHistory, setPriceHistory] = useState<any[]>([])
-  const [selectedMachine, setSelectedMachine] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [recentlyUpdated, setRecentlyUpdated] = useState<any[]>([])
   const [filterFeatured, setFilterFeatured] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [debugDialogOpen, setDebugDialogOpen] = useState(false)
+  const [priceHistoryModalOpen, setPriceHistoryModalOpen] = useState(false)
+  const [priceHistoryMachine, setPriceHistoryMachine] = useState<any>(null)
   const [pythonApiReady, setPythonApiReady] = useState(false)
   const [batchUpdateDialogOpen, setBatchUpdateDialogOpen] = useState(false)
   const [daysThreshold, setDaysThreshold] = useState(7)
@@ -79,6 +81,19 @@ export default function PriceTrackerAdmin() {
   const [previewMachineIds, setPreviewMachineIds] = useState<string[]>([])
   const [batches, setBatches] = useState<any[]>([])
   const [loadingBatches, setLoadingBatches] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  
+  // Debug tab state
+  const [debugUrl, setDebugUrl] = useState("")
+  const [debugMachineId, setDebugMachineId] = useState("")
+  const [debugResults, setDebugResults] = useState<any>(null)
+  const [debugLoading, setDebugLoading] = useState(false)
+  const [debugMethodResults, setDebugMethodResults] = useState<any>(null)
+  const [debugHtmlContent, setDebugHtmlContent] = useState("")
+  const [customSelectors, setCustomSelectors] = useState("")
+  const [manualPrice, setManualPrice] = useState("")
+  const [extractionFailures, setExtractionFailures] = useState<any[]>([])
+  const [failuresLoading, setFailuresLoading] = useState(false)
   
   // Fetch machines
   useEffect(() => {
@@ -122,9 +137,9 @@ export default function PriceTrackerAdmin() {
         // Get the most recent price history entries
         const { data: recentEntries, error } = await supabase
           .from("price_history")
-          .select("id, machine_id, price, date, is_all_time_low, is_all_time_high")
+          .select("id, machine_id, price, previous_price, date, is_all_time_low, is_all_time_high, status, failure_reason, review_result, reviewed_by")
           .order("date", { ascending: false })
-          .limit(10)
+          .limit(50)
         
         if (error) throw error
         
@@ -133,32 +148,38 @@ export default function PriceTrackerAdmin() {
           const machineIds = [...new Set(recentEntries.map(item => item.machine_id))]
           const { data: machineData, error: machineError } = await supabase
             .from("machines")
-            .select("id, \"Machine Name\", \"Company\", Price")
+            .select("id, \"Machine Name\", \"Company\", Price, product_link, \"Affiliate Link\"")
             .in("id", machineIds)
           
           if (machineError) throw machineError
           
-          // For each recent entry, find the previous entry
+          // For each recent entry, process the data
           const combinedData = await Promise.all(recentEntries.map(async (entry) => {
-            // Get previous price history entry for this machine
-            const { data: prevEntries, error: prevError } = await supabase
-              .from("price_history")
-              .select("price")
-              .eq("machine_id", entry.machine_id)
-              .lt("date", entry.date)  // Entries before the current one
-              .order("date", { ascending: false })
-              .limit(1)
-              
-            const previousPrice = prevEntries && prevEntries.length > 0 
-              ? prevEntries[0].price 
-              : entry.price // If no previous entry, use current price
-              
             const machine = machineData?.find(m => m.id === entry.machine_id)
             
-            // Calculate price change
-            const priceChange = prevEntries && prevEntries.length > 0 
-              ? entry.price - previousPrice
-              : 0
+            // Use previous_price from the entry if available, otherwise calculate
+            let previousPrice = entry.previous_price
+            let priceChange = 0
+            
+            if (previousPrice !== null && previousPrice !== undefined) {
+              priceChange = entry.price - previousPrice
+            } else {
+              // Fallback: Get previous price history entry for this machine
+              const { data: prevEntries } = await supabase
+                .from("price_history")
+                .select("price")
+                .eq("machine_id", entry.machine_id)
+                .lt("date", entry.date)  // Entries before the current one
+                .order("date", { ascending: false })
+                .limit(1)
+                
+              previousPrice = prevEntries && prevEntries.length > 0 
+                ? prevEntries[0].price 
+                : entry.price
+              priceChange = prevEntries && prevEntries.length > 0 
+                ? entry.price - previousPrice
+                : 0
+            }
             
             // Format price change for display
             const priceChangeClass = priceChange > 0 
@@ -176,8 +197,13 @@ export default function PriceTrackerAdmin() {
               date: entry.date,
               is_all_time_low: entry.is_all_time_low,
               is_all_time_high: entry.is_all_time_high,
+              status: entry.status,
+              failure_reason: entry.failure_reason,
+              review_result: entry.review_result,
+              reviewed_by: entry.reviewed_by,
               machineName: machine ? machine["Machine Name"] : "Unknown",
               company: machine ? machine["Company"] : "Unknown",
+              productUrl: machine ? (machine.product_link || machine["Affiliate Link"]) : null,
               priceChange,
               priceChangeClass
             }
@@ -202,24 +228,11 @@ export default function PriceTrackerAdmin() {
     }
   }, [pythonApiReady, daysThreshold, machineLimit])
   
-  // Handle machine selection
-  const selectMachine = async (machine: any) => {
-    setSelectedMachine(machine)
-    
-    try {
-      const { data, error } = await supabase
-        .from("price_history")
-        .select("*")
-        .eq("machine_id", machine.id)
-        .order("date", { ascending: false })
-      
-      if (error) throw error
-      
-      setPriceHistory(data || [])
-    } catch (error) {
-      console.error("Error fetching price history:", error)
-      toast.error("Failed to load price history")
-    }
+  
+  // Handle price history modal
+  const openPriceHistoryModal = (machine: any) => {
+    setPriceHistoryMachine(machine)
+    setPriceHistoryModalOpen(true)
   }
   
   // Function to trigger manual price update for a machine
@@ -277,11 +290,6 @@ export default function PriceTrackerAdmin() {
           // Update the machine in the list
           setMachines(prev => prev.map(m => m.id === data.id ? data : m))
           
-          // Update selected machine if it's the current one
-          if (selectedMachine?.id === machine.id) {
-            setSelectedMachine(data)
-            selectMachine(data)
-          }
         }
         
         setRefreshing(prev => !prev)
@@ -436,9 +444,6 @@ export default function PriceTrackerAdmin() {
         setTimeout(() => {
           fetchBatchJobs()
           // Also refresh other data
-          if (selectedMachine) {
-            selectMachine(selectedMachine)
-          }
           setRefreshing(prev => !prev)
         }, 3000)
       } else {
@@ -454,6 +459,69 @@ export default function PriceTrackerAdmin() {
     }
   }
   
+  // Function to approve a price change
+  const approvePrice = async (recordId: string) => {
+    try {
+      const response = await fetch(`/api/price-history/approve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recordId: recordId,
+          action: "approve"
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to approve price change")
+      }
+      
+      toast.success(`Price change approved: ${formatPrice(result.newPrice)}`)
+      
+      // Refresh data
+      setRefreshing(prev => !prev)
+      
+    } catch (error) {
+      console.error("Error approving price change:", error)
+      toast.error(`Failed to approve price change: ${error instanceof Error ? error.message : "Unknown error"}`)
+    }
+  }
+  
+  // Function to reject a price change
+  const rejectPrice = async (recordId: string, reason?: string) => {
+    try {
+      const response = await fetch(`/api/price-history/approve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recordId: recordId,
+          action: "reject",
+          reviewReason: reason || "Manually rejected by admin"
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to reject price change")
+      }
+      
+      toast.success("Price change rejected")
+      
+      // Refresh data
+      setRefreshing(prev => !prev)
+      
+    } catch (error) {
+      console.error("Error rejecting price change:", error)
+      toast.error(`Failed to reject price change: ${error instanceof Error ? error.message : "Unknown error"}`)
+    }
+  }
+
   // Function to delete a price record
   const deletePrice = async (recordId: string) => {
     try {
@@ -475,10 +543,6 @@ export default function PriceTrackerAdmin() {
       // Refresh data
       setRefreshing(prev => !prev)
       
-      // If this is part of the selected machine's history, refresh that too
-      if (selectedMachine) {
-        selectMachine(selectedMachine)
-      }
     } catch (error) {
       console.error("Error deleting price record:", error)
       toast.error(`Failed to delete price record: ${error instanceof Error ? error.message : "Unknown error"}`)
@@ -516,7 +580,7 @@ export default function PriceTrackerAdmin() {
       
       // If we have a selected machine, refresh that too
       if (selectedMachine) {
-        selectMachine(selectedMachine)
+        // Machine data will be refreshed via the refreshing state
       }
     } catch (error) {
       console.error("Error cleaning up price records:", error)
@@ -526,7 +590,10 @@ export default function PriceTrackerAdmin() {
   
   // Format date for display
   const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "MMM d, yyyy h:mm a")
+    // Parse the UTC timestamp and display in local timezone
+    const date = new Date(dateString)
+    console.log('Date parsing:', dateString, '->', date.toString(), 'Local:', date.toLocaleString())
+    return format(date, "MMM d, yyyy h:mm a")
   }
   
   // Format price for display
@@ -842,6 +909,30 @@ export default function PriceTrackerAdmin() {
         </DialogContent>
       </Dialog>
       
+      {/* Price History Modal */}
+      <Dialog open={priceHistoryModalOpen} onOpenChange={setPriceHistoryModalOpen}>
+        <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>
+              {priceHistoryMachine ? `${priceHistoryMachine["Machine Name"]} - Price History` : "Price History"}
+            </DialogTitle>
+            <DialogDescription>
+              {priceHistoryMachine ? `Current price: ${formatPrice(priceHistoryMachine["Price"])}` : "View price history and trends"}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {priceHistoryMachine && (
+            <div className="overflow-y-auto">
+              <PriceHistoryChart 
+                machineId={priceHistoryMachine.id}
+                currentPrice={priceHistoryMachine["Price"] || 0}
+                compact={true}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Price Tracker Admin</h1>
         <Button onClick={updateAllPrices}>
@@ -931,7 +1022,7 @@ export default function PriceTrackerAdmin() {
                               <Button 
                                 size="sm" 
                                 variant="outline"
-                                onClick={() => selectMachine(machine)}
+                                onClick={() => openPriceHistoryModal(machine)}
                               >
                                 <LineChart className="w-4 h-4 mr-1" /> 
                                 History
@@ -961,90 +1052,6 @@ export default function PriceTrackerAdmin() {
               </div>
             </CardContent>
           </Card>
-          
-          {selectedMachine && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{selectedMachine["Machine Name"]} - Price History</CardTitle>
-                <CardDescription>
-                  Current price: {formatPrice(selectedMachine["Price"])}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {priceHistory.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No price history available. Use the "Update" button to record the current price.
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <PriceHistoryChart 
-                      machineId={selectedMachine.id}
-                      currentPrice={selectedMachine["Price"] || 0}
-                    />
-                    
-                    <Separator />
-                    
-                    <div className="rounded-md border max-h-96 overflow-y-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Price</TableHead>
-                            <TableHead>Source</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {priceHistory.map((record) => (
-                            <TableRow key={record.id}>
-                              <TableCell>{formatDate(record.date)}</TableCell>
-                              <TableCell>{formatPrice(record.price)}</TableCell>
-                              <TableCell className="max-w-xs truncate">{record.source}</TableCell>
-                              <TableCell>
-                                {record.is_all_time_low && (
-                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                    All-time Low
-                                  </Badge>
-                                )}
-                                {record.is_all_time_high && (
-                                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                    All-time High
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button 
-                                  size="sm" 
-                                  variant="destructive"
-                                  onClick={() => {
-                                    if (window.confirm("Are you sure you want to delete this price record?")) {
-                                      deletePrice(record.id)
-                                    }
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="justify-between">
-                <Button variant="outline" onClick={() => setSelectedMachine(null)}>
-                  Back to Machines
-                </Button>
-                <Button onClick={() => updatePrice(selectedMachine)}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Update Price
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
         </TabsContent>
         
         <TabsContent value="recent">
@@ -1052,8 +1059,27 @@ export default function PriceTrackerAdmin() {
             <CardHeader>
               <CardTitle>Recent Price Updates</CardTitle>
               <CardDescription>
-                The 10 most recent price updates across all machines.
+                The 50 most recent price updates across all machines.
               </CardDescription>
+              <div className="flex gap-4 mt-4">
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="status-filter">Filter by Status:</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses ({recentlyUpdated.length})</SelectItem>
+                      <SelectItem value="PENDING_REVIEW">Pending Review ({recentlyUpdated.filter(r => r.status === 'PENDING_REVIEW').length})</SelectItem>
+                      <SelectItem value="AUTO_APPLIED">Auto-Applied ({recentlyUpdated.filter(r => r.status === 'AUTO_APPLIED').length})</SelectItem>
+                      <SelectItem value="SUCCESS">Manually Approved ({recentlyUpdated.filter(r => r.status === 'SUCCESS').length})</SelectItem>
+                      <SelectItem value="REVIEWED_APPROVED">Approved & Applied ({recentlyUpdated.filter(r => r.status === 'REVIEWED' && r.review_result === 'approved').length})</SelectItem>
+                      <SelectItem value="REVIEWED_REJECTED">Rejected ({recentlyUpdated.filter(r => r.status === 'REVIEWED' && r.review_result === 'rejected').length})</SelectItem>
+                      <SelectItem value="FAILED">Failed ({recentlyUpdated.filter(r => r.status === 'FAILED' && r.failure_reason && !r.failure_reason.includes('Pending review')).length})</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
@@ -1065,18 +1091,41 @@ export default function PriceTrackerAdmin() {
                       <TableHead>New Price</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Product URL</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentlyUpdated.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8">
-                          No recent updates found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      recentlyUpdated.map((record, index) => (
+                    {(() => {
+                      const filteredRecords = statusFilter === "all" 
+                        ? recentlyUpdated 
+                        : recentlyUpdated.filter(record => {
+                            switch(statusFilter) {
+                              case 'PENDING_REVIEW':
+                                return record.status === 'PENDING_REVIEW';
+                              case 'AUTO_APPLIED':
+                                return record.status === 'AUTO_APPLIED';
+                              case 'SUCCESS':
+                                return record.status === 'SUCCESS';
+                              case 'REVIEWED_APPROVED':
+                                return record.status === 'REVIEWED' && record.review_result === 'approved';
+                              case 'REVIEWED_REJECTED':
+                                return record.status === 'REVIEWED' && record.review_result === 'rejected';
+                              case 'FAILED':
+                                return record.status === 'FAILED' && record.failure_reason && !record.failure_reason.includes('Pending review');
+                              default:
+                                return true;
+                            }
+                          });
+                      
+                      return filteredRecords.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8">
+                            {statusFilter === "all" ? "No recent updates found." : `No updates found with status: ${statusFilter}`}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredRecords.map((record, index) => (
                         <TableRow key={`${record.machine_id}-${index}`}>
                           <TableCell className="font-medium">
                             <div className="flex flex-col">
@@ -1096,33 +1145,122 @@ export default function PriceTrackerAdmin() {
                           </TableCell>
                           <TableCell>{formatDate(record.date)}</TableCell>
                           <TableCell>
-                            {record.is_all_time_low && (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                All-time Low
-                              </Badge>
-                            )}
-                            {record.is_all_time_high && (
-                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                All-time High
-                              </Badge>
+                            <div className="flex flex-col gap-1">
+                              {/* Status badge */}
+                              {record.status === 'PENDING_REVIEW' && (
+                                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                                  Pending Review
+                                </Badge>
+                              )}
+                              {record.status === 'AUTO_APPLIED' && (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                  Auto-Applied
+                                </Badge>
+                              )}
+                              {record.status === 'SUCCESS' && (
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                  Manually Approved
+                                </Badge>
+                              )}
+                              {record.status === 'REVIEWED' && record.review_result === 'approved' && (
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                  Approved & Applied
+                                </Badge>
+                              )}
+                              {record.status === 'REVIEWED' && record.review_result === 'rejected' && (
+                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                  Rejected
+                                </Badge>
+                              )}
+                              {record.status === 'REVIEWED' && !record.review_result && (
+                                <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                                  Reviewed (Unknown)
+                                </Badge>
+                              )}
+                              {record.status === 'FAILED' && record.failure_reason && !record.failure_reason.includes('Pending review') && (
+                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                  Failed
+                                </Badge>
+                              )}
+                              
+                              {/* Price achievement badges */}
+                              {record.is_all_time_low && (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                  All-time Low
+                                </Badge>
+                              )}
+                              {record.is_all_time_high && (
+                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                  All-time High
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {record.productUrl ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-2"
+                                onClick={() => window.open(record.productUrl, '_blank')}
+                              >
+                                <ExternalLink className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                            ) : (
+                              <span className="text-gray-400 text-sm">No URL</span>
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button 
-                              size="sm" 
-                              variant="destructive"
-                              onClick={() => {
-                                if (window.confirm("Are you sure you want to delete this price record?")) {
-                                  deletePrice(record.id)
-                                }
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              {/* Show approve/reject buttons for records pending review */}
+                              {record.status === 'PENDING_REVIEW' && (
+                                <>
+                                  <Button 
+                                    size="sm" 
+                                    variant="default"
+                                    className="bg-green-600 hover:bg-green-700"
+                                    onClick={() => {
+                                      if (window.confirm(`Approve price change: ${formatPrice(record.recordedPrice)} → ${formatPrice(record.price)}?`)) {
+                                        approvePrice(record.id)
+                                      }
+                                    }}
+                                  >
+                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                    Approve
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => {
+                                      if (window.confirm("Reject this price change?")) {
+                                        rejectPrice(record.id)
+                                      }
+                                    }}
+                                  >
+                                    <X className="w-4 h-4 mr-1" />
+                                    Reject
+                                  </Button>
+                                </>
+                              )}
+                              {/* Always show delete button */}
+                              <Button 
+                                size="sm" 
+                                variant="destructive"
+                                onClick={() => {
+                                  if (window.confirm("Are you sure you want to delete this price record?")) {
+                                    deletePrice(record.id)
+                                  }
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                        ))
+                      );
+                    })()}
                   </TableBody>
                 </Table>
               </div>
@@ -1246,22 +1384,22 @@ export default function PriceTrackerAdmin() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {selectedMachine ? (
+              {priceHistoryMachine ? (
                 <div className="max-w-xl mx-auto">
                   <PriceHistoryChart 
-                    machineId={selectedMachine.id}
-                    currentPrice={selectedMachine["Price"] || 0}
+                    machineId={priceHistoryMachine.id}
+                    currentPrice={priceHistoryMachine["Price"] || 0}
                   />
                 </div>
               ) : (
                 <div className="text-center py-16 text-gray-500">
                   <LineChart className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                  <p className="mb-4">Select a machine to preview its price history chart.</p>
+                  <p className="mb-4">Click "History" on any machine to preview its price history chart.</p>
                   <Button variant="outline" onClick={() => {
                     const tabsElement = document.querySelector('[data-value="machines"]') as HTMLElement;
                     if (tabsElement) tabsElement.click();
                   }}>
-                    Select a Machine
+                    Go to Machines
                   </Button>
                 </div>
               )}

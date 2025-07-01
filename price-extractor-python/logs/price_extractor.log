@@ -4297,3 +4297,141 @@ TypeError: object tuple can't be used in 'await' expression
 2025-04-16 16:18:10 | INFO     | api.routes:get_batches:281 - Fetching list of batch jobs
 2025-04-16 16:18:10 | INFO     | api.routes:get_batches:298 - Found 1 batch jobs
 2025-04-16 16:18:10 | INFO     | api.routes:get_batches:302 - Most recent batch: {'id': '2e001700-5ff3-4f7f-a8da-59e2dd133d43', 'status': 'completed', 'start_time': '2025-04-16T15:44:08.309528+00:00', 'end_time': '2025-04-16T15:45:15.526586+00:00', 'total_machines': 50, 'days_threshold': 0}
+2025-07-01 07:07:28 | INFO     | services.database:__init__:21 - Database service initialized
+2025-07-01 07:07:28 | INFO     | scrapers.price_extractor:__init__:20 - Price extractor initialized with Anthropic version header
+2025-07-01 07:07:28 | INFO     | services.price_service:__init__:16 - Price service initialized
+2025-07-01 07:07:28 | INFO     | __main__:start:54 - Starting Price Extractor API on 0.0.0.0:8000
+2025-07-01 09:54:05 | INFO     | api.routes:get_batches:281 - Fetching list of batch jobs
+2025-07-01 09:54:05 | INFO     | api.routes:get_batches:298 - Found 20 batch jobs
+2025-07-01 09:54:05 | INFO     | api.routes:get_batches:302 - Most recent batch: {'id': 'b9c38bf1-bd67-4ae6-a99e-da097438bea1', 'status': 'completed', 'start_time': '2025-04-28T17:57:37.360364+00:00', 'end_time': '2025-04-28T18:05:00.869302+00:00', 'total_machines': 148, 'days_threshold': 0}
+2025-07-01 09:54:05 | INFO     | api.routes:configure_batch_update:244 - Configuring batch update with days_threshold=7, limit=10
+2025-07-01 09:54:05 | INFO     | services.database:get_machines_needing_update:264 - Found 149 machines for price update
+2025-07-01 09:56:42 | INFO     | api.routes:get_batch_results:191 - Fetching batch results for batch_id: b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 09:56:42 | INFO     | services.price_service:get_batch_results:285 - Retrieving batch results for batch_id: b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 09:56:42 | WARNING  | services.database:get_batch_results:512 - No results found for batch b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 09:56:42 | WARNING  | services.price_service:get_batch_results:292 - No batch data found for batch_id: b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 09:56:42 | WARNING  | api.routes:get_batch_results:198 - No batch results found for batch_id: b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 09:56:42 | INFO     | api.routes:get_batch_results:191 - Fetching batch results for batch_id: b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 09:56:42 | INFO     | services.price_service:get_batch_results:285 - Retrieving batch results for batch_id: b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 09:56:42 | WARNING  | services.database:get_batch_results:512 - No results found for batch b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 09:56:42 | WARNING  | services.price_service:get_batch_results:292 - No batch data found for batch_id: b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 09:56:42 | WARNING  | api.routes:get_batch_results:198 - No batch results found for batch_id: b9c38bf1-bd67-4ae6-a99e-da097438bea1
+2025-07-01 10:11:07 | INFO     | api.routes:get_batches:281 - Fetching list of batch jobs
+2025-07-01 10:11:07 | INFO     | api.routes:get_batches:298 - Found 20 batch jobs
+2025-07-01 10:11:07 | INFO     | api.routes:get_batches:302 - Most recent batch: {'id': 'b9c38bf1-bd67-4ae6-a99e-da097438bea1', 'status': 'completed', 'start_time': '2025-04-28T17:57:37.360364+00:00', 'end_time': '2025-04-28T18:05:00.869302+00:00', 'total_machines': 148, 'days_threshold': 0}
+2025-07-01 10:11:07 | INFO     | api.routes:configure_batch_update:244 - Configuring batch update with days_threshold=7, limit=10
+2025-07-01 10:11:07 | INFO     | services.database:get_machines_needing_update:264 - Found 149 machines for price update
+2025-07-01 10:14:13 | INFO     | api.routes:configure_batch_update:244 - Configuring batch update with days_threshold=7, limit=10
+2025-07-01 10:14:14 | INFO     | services.database:get_machines_needing_update:264 - Found 149 machines for price update
+2025-07-01 10:14:14 | INFO     | api.routes:get_batches:281 - Fetching list of batch jobs
+2025-07-01 10:14:14 | INFO     | api.routes:get_batches:298 - Found 20 batch jobs
+2025-07-01 10:14:14 | INFO     | api.routes:get_batches:302 - Most recent batch: {'id': 'b9c38bf1-bd67-4ae6-a99e-da097438bea1', 'status': 'completed', 'start_time': '2025-04-28T17:57:37.360364+00:00', 'end_time': '2025-04-28T18:05:00.869302+00:00', 'total_machines': 148, 'days_threshold': 0}
+2025-07-01 10:14:25 | INFO     | api.routes:get_batches:281 - Fetching list of batch jobs
+2025-07-01 10:14:25 | INFO     | api.routes:get_batches:298 - Found 20 batch jobs
+2025-07-01 10:14:25 | INFO     | api.routes:get_batches:302 - Most recent batch: {'id': 'b9c38bf1-bd67-4ae6-a99e-da097438bea1', 'status': 'completed', 'start_time': '2025-04-28T17:57:37.360364+00:00', 'end_time': '2025-04-28T18:05:00.869302+00:00', 'total_machines': 148, 'days_threshold': 0}
+2025-07-01 10:14:38 | INFO     | api.routes:get_batches:281 - Fetching list of batch jobs
+2025-07-01 10:14:38 | INFO     | api.routes:get_batches:298 - Found 20 batch jobs
+2025-07-01 10:14:38 | INFO     | api.routes:get_batches:302 - Most recent batch: {'id': 'b9c38bf1-bd67-4ae6-a99e-da097438bea1', 'status': 'completed', 'start_time': '2025-04-28T17:57:37.360364+00:00', 'end_time': '2025-04-28T18:05:00.869302+00:00', 'total_machines': 148, 'days_threshold': 0}
+2025-07-01 10:15:56 | INFO     | api.routes:get_batches:281 - Fetching list of batch jobs
+2025-07-01 10:15:57 | INFO     | api.routes:get_batches:298 - Found 20 batch jobs
+2025-07-01 10:15:57 | INFO     | api.routes:get_batches:302 - Most recent batch: {'id': 'b9c38bf1-bd67-4ae6-a99e-da097438bea1', 'status': 'completed', 'start_time': '2025-04-28T17:57:37.360364+00:00', 'end_time': '2025-04-28T18:05:00.869302+00:00', 'total_machines': 148, 'days_threshold': 0}
+2025-07-01 10:19:21 | INFO     | services.database:__init__:21 - Database service initialized
+2025-07-01 10:19:21 | INFO     | scrapers.price_extractor:__init__:20 - Price extractor initialized with Anthropic version header
+2025-07-01 10:19:21 | INFO     | services.price_service:__init__:16 - Price service initialized
+2025-07-01 10:19:21 | INFO     | __main__:start:54 - Starting Price Extractor API on 0.0.0.0:8000
+2025-07-01 10:20:06 | INFO     | services.database:__init__:21 - Database service initialized
+2025-07-01 10:20:06 | INFO     | scrapers.price_extractor:__init__:20 - Price extractor initialized with Anthropic version header
+2025-07-01 10:20:06 | INFO     | services.price_service:__init__:16 - Price service initialized
+2025-07-01 10:20:06 | INFO     | __main__:start:54 - Starting Price Extractor API on 0.0.0.0:8000
+2025-07-01 10:22:29 | INFO     | api.routes:configure_batch_update:244 - Configuring batch update with days_threshold=7, limit=10
+2025-07-01 10:22:29 | INFO     | services.database:get_machines_needing_update:264 - Found 149 machines for price update
+2025-07-01 10:22:41 | INFO     | api.routes:batch_update_machines:115 - Batch update request with days=7, limit=10, machine_ids=['c23808f6-1760-4cad-b031-3c5eb3556d98', 'ef4f7a07-a068-4afc-b550-22d101c6e68b', 'e4093bf6-7a1c-4325-9094-8c572a307459', 'b2956e47-a9da-4359-8c88-42ca9a8740e7', 'fad976a4-4bb9-4c91-92c3-ff774f02ec16']
+2025-07-01 10:22:41 | INFO     | services.price_service:batch_update_machines:202 - Starting batch update with days_threshold=7, limit=10, machine_ids=10
+2025-07-01 10:22:41 | INFO     | services.price_service:batch_update_machines:206 - Using 10 provided machine IDs for batch update
+2025-07-01 10:22:41 | INFO     | services.database:get_machines_needing_update:288 - Found 10 machines for price update
+2025-07-01 10:22:41 | INFO     | services.price_service:batch_update_machines:217 - Starting batch update for 10 machines
+2025-07-01 10:22:41 | INFO     | services.database:create_batch:339 - Creating new batch with ID da915577-2593-4d43-8ea0-328bf814a24e for 10 machines
+2025-07-01 10:22:41 | INFO     | services.database:create_batch:369 - Successfully created batch record with ID da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:41 | INFO     | services.database:create_batch:379 - Verified batch da915577-2593-4d43-8ea0-328bf814a24e exists in database
+2025-07-01 10:22:41 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine 103db02f-7852-41f8-b297-162d479eaa39
+2025-07-01 10:22:41 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://commarker.com/product/b4-laser-engraver/?ref=snlyaljc
+2025-07-01 10:22:41 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://commarker.com/product/b4-laser-engraver/?ref=snlyaljc in 0.26 seconds
+2025-07-01 10:22:41 | INFO     | scrapers.price_extractor:_extract_from_common_selectors:244 - Extracted price 2399.0 using selector '.price'
+2025-07-01 10:22:42 | WARNING  | services.database:update_machine_price:135 - No machine found with ID 103db02f-7852-41f8-b297-162d479eaa39 to update
+2025-07-01 10:22:42 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine 103db02f-7852-41f8-b297-162d479eaa39
+2025-07-01 10:22:42 | INFO     | services.database:add_batch_result:484 - Added result for machine 103db02f-7852-41f8-b297-162d479eaa39 to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:42 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine 1f4a6f8d-5f34-4190-a1f3-2c33c42e7e93
+2025-07-01 10:22:43 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://commarker.com/product/b4-100w-jpt-mopa/?ref=snlyaljc
+2025-07-01 10:22:43 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://commarker.com/product/b4-100w-jpt-mopa/?ref=snlyaljc in 0.73 seconds
+2025-07-01 10:22:43 | INFO     | scrapers.price_extractor:_extract_from_common_selectors:244 - Extracted price 1999.0 using selector '.price'
+2025-07-01 10:22:44 | WARNING  | services.database:update_machine_price:135 - No machine found with ID 1f4a6f8d-5f34-4190-a1f3-2c33c42e7e93 to update
+2025-07-01 10:22:44 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine 1f4a6f8d-5f34-4190-a1f3-2c33c42e7e93
+2025-07-01 10:22:44 | INFO     | services.database:add_batch_result:484 - Added result for machine 1f4a6f8d-5f34-4190-a1f3-2c33c42e7e93 to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:44 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine 47b8dc18-5daa-4a2b-8ff8-9b48b176db9c
+2025-07-01 10:22:45 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://algolaser.com/products/algolaser-diy-kit-mini-laser-engraver?variant=48598666674483&z_code=p12712591847425122453&z_pid=135742
+2025-07-01 10:22:45 | INFO     | api.routes:get_batches:281 - Fetching list of batch jobs
+2025-07-01 10:22:45 | INFO     | api.routes:get_batches:298 - Found 20 batch jobs
+2025-07-01 10:22:45 | INFO     | api.routes:get_batches:302 - Most recent batch: {'id': 'da915577-2593-4d43-8ea0-328bf814a24e', 'status': 'started', 'start_time': '2025-07-01T10:22:41.288182+00:00', 'end_time': None, 'total_machines': 10, 'days_threshold': 7}
+2025-07-01 10:22:45 | INFO     | api.routes:get_batches:281 - Fetching list of batch jobs
+2025-07-01 10:22:45 | INFO     | api.routes:get_batches:298 - Found 20 batch jobs
+2025-07-01 10:22:45 | INFO     | api.routes:get_batches:302 - Most recent batch: {'id': 'da915577-2593-4d43-8ea0-328bf814a24e', 'status': 'started', 'start_time': '2025-07-01T10:22:41.288182+00:00', 'end_time': None, 'total_machines': 10, 'days_threshold': 7}
+2025-07-01 10:22:45 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://algolaser.com/products/algolaser-diy-kit-mini-laser-engraver?variant=48598666674483&z_code=p12712591847425122453&z_pid=135742 in 0.85 seconds
+2025-07-01 10:22:45 | INFO     | scrapers.price_extractor:_extract_from_structured_data:125 - Extracted numeric price 139.0 using JSON-LD
+2025-07-01 10:22:47 | WARNING  | services.database:update_machine_price:135 - No machine found with ID 47b8dc18-5daa-4a2b-8ff8-9b48b176db9c to update
+2025-07-01 10:22:47 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine 47b8dc18-5daa-4a2b-8ff8-9b48b176db9c
+2025-07-01 10:22:47 | INFO     | services.database:add_batch_result:484 - Added result for machine 47b8dc18-5daa-4a2b-8ff8-9b48b176db9c to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:47 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine 8a0ad4b4-b616-4e5d-85a3-5631ab388836
+2025-07-01 10:22:47 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://aeonlaser.us/mira-s
+2025-07-01 10:22:47 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://aeonlaser.us/mira-s in 0.24 seconds
+2025-07-01 10:22:47 | INFO     | scrapers.price_extractor:_extract_from_structured_data:135 - Extracted parsed price 699.0 using JSON-LD
+2025-07-01 10:22:48 | WARNING  | services.database:update_machine_price:135 - No machine found with ID 8a0ad4b4-b616-4e5d-85a3-5631ab388836 to update
+2025-07-01 10:22:48 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine 8a0ad4b4-b616-4e5d-85a3-5631ab388836
+2025-07-01 10:22:48 | INFO     | services.database:add_batch_result:484 - Added result for machine 8a0ad4b4-b616-4e5d-85a3-5631ab388836 to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:48 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine b2956e47-a9da-4359-8c88-42ca9a8740e7
+2025-07-01 10:22:48 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://omtechlaser.com/products/galvo-fiber-30-30w-integrated-fiber-laser-marker-engraving-machine-with-5-9x-5-9-working-area-for-metal?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum
+2025-07-01 10:22:48 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://omtechlaser.com/products/galvo-fiber-30-30w-integrated-fiber-laser-marker-engraving-machine-with-5-9x-5-9-working-area-for-metal?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum in 0.65 seconds
+2025-07-01 10:22:49 | INFO     | scrapers.price_extractor:_extract_from_structured_data:171 - Extracted price 2099.99 using JSON-LD offers array
+2025-07-01 10:22:50 | WARNING  | services.database:update_machine_price:135 - No machine found with ID b2956e47-a9da-4359-8c88-42ca9a8740e7 to update
+2025-07-01 10:22:50 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine b2956e47-a9da-4359-8c88-42ca9a8740e7
+2025-07-01 10:22:50 | INFO     | services.database:add_batch_result:484 - Added result for machine b2956e47-a9da-4359-8c88-42ca9a8740e7 to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:50 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine c23808f6-1760-4cad-b031-3c5eb3556d98
+2025-07-01 10:22:50 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://algolaser.com/products/algolaser-delta-40w-diode-laser-engraver?variant=48652379029811&z_code=p12712591847425122453&z_pid=135743
+2025-07-01 10:22:51 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://algolaser.com/products/algolaser-delta-40w-diode-laser-engraver?variant=48652379029811&z_code=p12712591847425122453&z_pid=135743 in 0.68 seconds
+2025-07-01 10:22:51 | INFO     | scrapers.price_extractor:_extract_from_structured_data:125 - Extracted numeric price 1099.0 using JSON-LD
+2025-07-01 10:22:52 | WARNING  | services.database:update_machine_price:135 - No machine found with ID c23808f6-1760-4cad-b031-3c5eb3556d98 to update
+2025-07-01 10:22:52 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine c23808f6-1760-4cad-b031-3c5eb3556d98
+2025-07-01 10:22:53 | INFO     | services.database:add_batch_result:484 - Added result for machine c23808f6-1760-4cad-b031-3c5eb3556d98 to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:53 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine dbf8b0cf-e699-4b6f-bb68-f30c0d163c0f
+2025-07-01 10:22:53 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://aeonlaser.us/nova-s
+2025-07-01 10:22:53 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://aeonlaser.us/nova-s in 0.29 seconds
+2025-07-01 10:22:53 | INFO     | scrapers.price_extractor:_extract_from_structured_data:135 - Extracted parsed price 179.0 using JSON-LD
+2025-07-01 10:22:53 | WARNING  | services.database:update_machine_price:135 - No machine found with ID dbf8b0cf-e699-4b6f-bb68-f30c0d163c0f to update
+2025-07-01 10:22:53 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine dbf8b0cf-e699-4b6f-bb68-f30c0d163c0f
+2025-07-01 10:22:53 | INFO     | services.database:add_batch_result:484 - Added result for machine dbf8b0cf-e699-4b6f-bb68-f30c0d163c0f to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:53 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine e4093bf6-7a1c-4325-9094-8c572a307459
+2025-07-01 10:22:54 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://algolaser.com/products/algolaser-diy-kit-mk2-diode-laser-engraver?variant=50120360231219&z_code=p12712591847425122453&z_pid=135739
+2025-07-01 10:22:54 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://algolaser.com/products/algolaser-diy-kit-mk2-diode-laser-engraver?variant=50120360231219&z_code=p12712591847425122453&z_pid=135739 in 0.66 seconds
+2025-07-01 10:22:54 | INFO     | scrapers.price_extractor:_extract_from_structured_data:125 - Extracted numeric price 299.0 using JSON-LD
+2025-07-01 10:22:56 | WARNING  | services.database:update_machine_price:135 - No machine found with ID e4093bf6-7a1c-4325-9094-8c572a307459 to update
+2025-07-01 10:22:56 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine e4093bf6-7a1c-4325-9094-8c572a307459
+2025-07-01 10:22:56 | INFO     | services.database:add_batch_result:484 - Added result for machine e4093bf6-7a1c-4325-9094-8c572a307459 to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:56 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine ef4f7a07-a068-4afc-b550-22d101c6e68b
+2025-07-01 10:22:56 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://aeonlaser.us/supernova-s
+2025-07-01 10:22:56 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://aeonlaser.us/supernova-s in 0.13 seconds
+2025-07-01 10:22:56 | INFO     | scrapers.price_extractor:_extract_from_structured_data:135 - Extracted parsed price 254.0 using JSON-LD
+2025-07-01 10:22:57 | WARNING  | services.database:update_machine_price:135 - No machine found with ID ef4f7a07-a068-4afc-b550-22d101c6e68b to update
+2025-07-01 10:22:57 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine ef4f7a07-a068-4afc-b550-22d101c6e68b
+2025-07-01 10:22:57 | INFO     | services.database:add_batch_result:484 - Added result for machine ef4f7a07-a068-4afc-b550-22d101c6e68b to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:57 | INFO     | services.price_service:update_machine_price:29 - Processing price update for machine fad976a4-4bb9-4c91-92c3-ff774f02ec16
+2025-07-01 10:22:57 | INFO     | scrapers.web_scraper:get_page_content:36 - Fetching content from https://algolaser.com/products/algolaser-alpha-mk2-diode-laser-engraver-algolaser
+2025-07-01 10:22:58 | INFO     | scrapers.web_scraper:get_page_content:48 - Fetched https://algolaser.com/products/algolaser-alpha-mk2-diode-laser-engraver-algolaser in 0.69 seconds
+2025-07-01 10:22:58 | INFO     | scrapers.price_extractor:_extract_from_structured_data:125 - Extracted numeric price 629.0 using JSON-LD
+2025-07-01 10:22:59 | WARNING  | services.database:update_machine_price:135 - No machine found with ID fad976a4-4bb9-4c91-92c3-ff774f02ec16 to update
+2025-07-01 10:22:59 | ERROR    | services.price_service:update_machine_price:142 - Failed to update price in database for machine fad976a4-4bb9-4c91-92c3-ff774f02ec16
+2025-07-01 10:22:59 | INFO     | services.database:add_batch_result:484 - Added result for machine fad976a4-4bb9-4c91-92c3-ff774f02ec16 to batch da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:22:59 | INFO     | services.database:complete_batch:413 - Marked batch da915577-2593-4d43-8ea0-328bf814a24e as completed
+2025-07-01 10:22:59 | INFO     | services.price_service:batch_update_machines:266 - Batch update completed. Results: 0 successful, 10 failed
+2025-07-01 10:28:36 | INFO     | api.routes:get_batch_results:191 - Fetching batch results for batch_id: da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:28:36 | INFO     | services.price_service:get_batch_results:285 - Retrieving batch results for batch_id: da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:28:37 | INFO     | api.routes:get_batch_results:191 - Fetching batch results for batch_id: da915577-2593-4d43-8ea0-328bf814a24e
+2025-07-01 10:28:37 | INFO     | services.price_service:get_batch_results:285 - Retrieving batch results for batch_id: da915577-2593-4d43-8ea0-328bf814a24e

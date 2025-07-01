@@ -108,7 +108,7 @@ class DatabaseService:
             
             update_data = {
                 "Price": new_price,
-                "html_timestamp": datetime.now().isoformat(),
+                "html_timestamp": datetime.utcnow().isoformat() + "Z",
             }
             
             if html_content:
@@ -174,10 +174,18 @@ class DatabaseService:
                 "machine_id": machine_id,
                 "price": new_price,  # This is the current price
                 "previous_price": old_price,  # This is the old price
-                "date": datetime.now().isoformat(),
+                "date": datetime.utcnow().isoformat() + "Z",  # Use UTC time with Z suffix
                 "source": "auto-scraper",
                 "currency": "USD"
             }
+            
+            # Set status based on success parameter and error message
+            if success:
+                entry_data["status"] = "AUTO_APPLIED"
+            else:
+                entry_data["status"] = "PENDING_REVIEW"
+                if error_message:
+                    entry_data["failure_reason"] = error_message
             
             # Add price change data if calculated
             if price_change is not None:
@@ -348,7 +356,7 @@ class DatabaseService:
             # Prepare batch data
             batch_data = {
                 "id": batch_id,
-                "start_time": datetime.now().isoformat(),
+                "start_time": datetime.utcnow().isoformat() + "Z",
                 "total_machines": count,
                 "days_threshold": days_threshold,
                 "batch_type": "price_update",
@@ -400,7 +408,7 @@ class DatabaseService:
         """
         try:
             update_data = {
-                "end_time": datetime.now().isoformat(),
+                "end_time": datetime.utcnow().isoformat() + "Z",
                 "status": "completed"
             }
             
@@ -457,7 +465,7 @@ class DatabaseService:
                         break
             
             # Ensure start_time is set if not provided
-            current_time = datetime.now().isoformat()
+            current_time = datetime.utcnow().isoformat() + "Z"
             
             # Create a batch_results entry
             entry_data = {
@@ -654,7 +662,7 @@ class DatabaseService:
             
             # If status is "completed", also update the end_time
             if status == "completed":
-                update_data["end_time"] = datetime.now().isoformat()
+                update_data["end_time"] = datetime.utcnow().isoformat() + "Z"
             
             response = self.supabase.table("batches") \
                 .update(update_data) \

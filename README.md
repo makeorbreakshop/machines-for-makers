@@ -38,13 +38,14 @@ Machines for Makers is a web application designed to help makers, hobbyists, and
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (React)
+- **Framework**: Next.js 15 (React)
 - **Styling**: Tailwind CSS with Shadcn UI components
 - **Database**: Supabase (PostgreSQL)
 - **Search**: Fuse.js for fuzzy searching
 - **State Management**: React Context API
 - **Authentication**: Supabase Auth
 - **Routing**: Next.js App Router with route groups for admin section
+- **Price Extraction**: Python FastAPI service with Claude AI integration
 
 ## Current Site Sections
 
@@ -74,32 +75,65 @@ Machines for Makers is a web application designed to help makers, hobbyists, and
 ### Prerequisites
 
 - Node.js 18+ and npm
+- Python 3.8+ (for price extraction service)
 
 ### Installation
 
 1. Clone the repository
-   ```
+   ```bash
    git clone https://github.com/makeorbreakshop/machines-for-makers.git
    cd machines-for-makers
    ```
 
-2. Install dependencies
-   ```
+2. Install Node.js dependencies
+   ```bash
    npm install
    ```
 
-3. Create a `.env.local` file in the root directory and add your Supabase credentials
+3. Set up Python price extractor service
+   ```bash
+   cd price-extractor-python
+   pip install -r requirements.txt
+   cd ..
    ```
+
+4. Create environment files with your credentials:
+   
+   **Main application** (`.env`):
+   ```env
    NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ANTHROPIC_API_KEY=your-anthropic-api-key
+   ADMIN_PASSWORD=your-admin-password
+   ```
+   
+   **Price extractor** (`price-extractor-python/.env`):
+   ```env
+   SUPABASE_URL=your-supabase-url
+   SUPABASE_KEY=your-supabase-anon-key
+   ANTHROPIC_API_KEY=your-anthropic-api-key
+   API_HOST=0.0.0.0
+   API_PORT=8000
    ```
 
-4. Start the development server
-   ```
-   npm run dev
-   ```
+### Running the Application
 
-5. Open your browser and navigate to `http://localhost:3000`
+The application consists of two services that should be run in separate terminals:
+
+**Terminal 1 - Main Website:**
+```bash
+npm run dev
+```
+This starts the Next.js application on http://localhost:3000
+
+**Terminal 2 - Price Extractor Service:**
+```bash
+cd price-extractor-python
+python main.py
+```
+This starts the Python FastAPI service on http://localhost:8000
+
+Both services communicate with each other and share the same Supabase database.
 
 ## Project Structure
 
@@ -114,6 +148,10 @@ Machines for Makers is a web application designed to help makers, hobbyists, and
 - `/public` - Static assets
 - `/types` - TypeScript type definitions
 - `/database` - Database schemas and types
+- `/price-extractor-python` - Python FastAPI service for price extraction
+  - `scrapers/` - Web scraping and price extraction logic
+  - `services/` - Database and API service modules
+  - `api/` - FastAPI route handlers
 
 ## Documentation
 

@@ -4,6 +4,11 @@ from datetime import datetime
 from services.database import DatabaseService
 from scrapers.web_scraper import WebScraper
 from scrapers.price_extractor import PriceExtractor
+from config import (
+    MAX_PRICE_INCREASE_PERCENT,
+    MAX_PRICE_DECREASE_PERCENT,
+    MIN_PRICE_THRESHOLD
+)
 
 class PriceService:
     """Service to coordinate price extraction and database updates."""
@@ -14,6 +19,37 @@ class PriceService:
         self.web_scraper = WebScraper()
         self.price_extractor = PriceExtractor()
         logger.info("Price service initialized")
+    
+    def _should_require_manual_approval(self, old_price, new_price):
+        """
+        Determine if a price change requires manual approval based on thresholds.
+        
+        Args:
+            old_price (float): Previous price
+            new_price (float): New price
+            
+        Returns:
+            tuple: (requires_approval, reason)
+        """
+        if old_price is None or new_price is None:
+            return False, None
+            
+        # Skip validation for very low prices (likely test data)
+        if new_price < MIN_PRICE_THRESHOLD:
+            return True, f"New price ${new_price} below minimum threshold ${MIN_PRICE_THRESHOLD}"
+        
+        # Calculate percentage change
+        percentage_change = ((new_price - old_price) / old_price) * 100
+        
+        # Check for large increases
+        if percentage_change > MAX_PRICE_INCREASE_PERCENT:
+            return True, f"Price increase of {percentage_change:.1f}% exceeds threshold of {MAX_PRICE_INCREASE_PERCENT}%"
+        
+        # Check for large decreases
+        if percentage_change < -MAX_PRICE_DECREASE_PERCENT:
+            return True, f"Price decrease of {abs(percentage_change):.1f}% exceeds threshold of {MAX_PRICE_DECREASE_PERCENT}%"
+        
+        return False, None
     
     async def update_machine_price(self, machine_id, url=None):
         """
@@ -130,7 +166,40 @@ class PriceService:
                     "url": product_url
                 }
             
-            # Update the price in the database
+            # Check if price change requires manual approval
+            requires_approval, approval_reason = self._should_require_manual_approval(old_price, new_price)
+            
+            if requires_approval:
+                # Log price change for manual review - don't update machines table
+                logger.warning(f"Price change for machine {machine_id} flagged for manual review: {approval_reason}")
+                
+                # Add to price history with PENDING_REVIEW status for manual review
+                history_added = await self.db_service.add_price_history(
+                    machine_id=machine_id,
+                    old_price=old_price,
+                    new_price=new_price,
+                    success=False,  # Mark as pending review
+                    error_message=f"Pending review: {approval_reason}"
+                )
+                
+                price_change = new_price - old_price if old_price is not None else None
+                percentage_change = ((new_price - old_price) / old_price) * 100 if old_price is not None and old_price > 0 else None
+                
+                return {
+                    "success": False,
+                    "error": f"Price change requires manual approval: {approval_reason}",
+                    "requires_approval": True,
+                    "approval_reason": approval_reason,
+                    "old_price": old_price,
+                    "new_price": new_price,
+                    "method": method,
+                    "price_change": price_change,
+                    "percentage_change": percentage_change,
+                    "machine_id": machine_id,
+                    "url": product_url
+                }
+            
+            # Update the price in the database (only if auto-approved)
             update_success = await self.db_service.update_machine_price(
                 machine_id=machine_id,
                 new_price=new_price,
@@ -300,7 +369,7 @@ class PriceService:
                 "batch_id": batch_id,
                 "entries": batch_data,
                 "stats": stats,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat() + "Z"
             }
             
             return result
