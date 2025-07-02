@@ -57,6 +57,7 @@ export function PriceHistoryChart({
     maxPrice: 0,
     currentDiscount: 0,
   })
+  const [hasLimitedData, setHasLimitedData] = useState(false)
   
   // Load price history data
   useEffect(() => {
@@ -86,11 +87,12 @@ export function PriceHistoryChart({
             fromDate = subMonths(new Date(), 6)
         }
         
-        // Fetch price history from Supabase
+        // Fetch price history from Supabase - only approved/applied prices
         let query = supabase
           .from('price_history')
           .select('*')
           .eq('machine_id', machineId)
+          .in('status', ['AUTO_APPLIED', 'APPROVED', 'SUCCESS']) // Only show approved prices
           .order('date', { ascending: true })
         
         if (fromDate) {
@@ -103,34 +105,56 @@ export function PriceHistoryChart({
           throw error
         }
         
+        // Debug logging
+        console.log('Price history data for machine:', machineId)
+        console.log('Raw data from Supabase:', data)
+        console.log('Data length:', data?.length)
+        
         if (!data || data.length === 0) {
-          // If no historical data, create a single point with current price
-          const today = new Date().toISOString()
-          setPriceHistory([{
-            date: today,
-            price: currentPrice,
-          }])
+          // If no historical data, create data points for the last 30 days to show a trend
+          const dataPoints = []
+          const today = new Date()
+          for (let i = 29; i >= 0; i--) {
+            const date = new Date(today)
+            date.setDate(date.getDate() - i)
+            dataPoints.push({
+              date: date.toISOString(),
+              price: Number(currentPrice),
+            })
+          }
+          setPriceHistory(dataPoints)
           setStatsData({
             avgPrice: currentPrice,
             minPrice: currentPrice,
             maxPrice: currentPrice,
             currentDiscount: 0,
           })
+          setHasLimitedData(true)
         } else {
+          // Group data by date to handle multiple prices per day
+          const groupedByDate = data.reduce((acc, item) => {
+            const dateStr = new Date(item.date).toDateString()
+            if (!acc[dateStr] || new Date(item.date) > new Date(acc[dateStr].date)) {
+              // Keep the latest entry for each date
+              acc[dateStr] = item
+            }
+            return acc
+          }, {} as Record<string, any>)
+          
           // Format the data
-          const formattedData: PricePoint[] = data.map(item => ({
+          const formattedData: PricePoint[] = Object.values(groupedByDate).map((item: any) => ({
             date: item.date,
-            price: item.price,
+            price: typeof item.price === 'string' ? parseFloat(item.price) : Number(item.price),
             isAllTimeLow: item.is_all_time_low,
             isAllTimeHigh: item.is_all_time_high,
-          }))
+          })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
           
           // Calculate stats
-          const prices = formattedData.map(item => item.price)
-          const minPrice = Math.min(...prices)
-          const maxPrice = Math.max(...prices)
-          const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length
-          const currentDiscount = avgPrice > 0 ? ((avgPrice - currentPrice) / avgPrice) * 100 : 0
+          const prices = formattedData.map(item => item.price).filter(price => !isNaN(price) && price > 0)
+          const minPrice = prices.length > 0 ? Math.min(...prices) : currentPrice
+          const maxPrice = prices.length > 0 ? Math.max(...prices) : currentPrice  
+          const avgPrice = prices.length > 0 ? prices.reduce((sum, price) => sum + price, 0) / prices.length : currentPrice
+          const currentDiscount = avgPrice > 0 ? ((avgPrice - Number(currentPrice)) / avgPrice) * 100 : 0
           
           setStatsData({
             avgPrice,
@@ -138,6 +162,34 @@ export function PriceHistoryChart({
             maxPrice,
             currentDiscount,
           })
+          
+          // Check if we have limited historical data
+          const originalDataCount = data.length
+          setHasLimitedData(originalDataCount <= 2)
+          
+          // If we have very few data points (less than 3), pad with current price to show a trend
+          if (formattedData.length < 3) {
+            const lastDate = formattedData.length > 0 ? new Date(formattedData[formattedData.length - 1].date) : new Date()
+            const today = new Date()
+            
+            // Add points up to today if we don't have recent data
+            const daysDiff = Math.floor((today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+            if (daysDiff > 1) {
+              for (let i = 1; i <= Math.min(daysDiff, 7); i++) {
+                const date = new Date(lastDate)
+                date.setDate(date.getDate() + i)
+                if (date <= today) {
+                  formattedData.push({
+                    date: date.toISOString(),
+                    price: Number(currentPrice),
+                  })
+                }
+              }
+            }
+          }
+          
+          // Debug final formatted data
+          console.log('Final formatted price history data:', formattedData)
           
           setPriceHistory(formattedData)
         }
@@ -212,96 +264,98 @@ export function PriceHistoryChart({
         <div className="flex gap-1">
           <button
             onClick={() => setTimeRange('1m')}
-            className={`px-1.5 py-0.5 text-[10px] rounded ${timeRange === '1m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+            className={`px-1.5 py-0.5 text-xs rounded ${timeRange === '1m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
           >
             1M
           </button>
           <button
             onClick={() => setTimeRange('3m')}
-            className={`px-1.5 py-0.5 text-[10px] rounded ${timeRange === '3m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+            className={`px-1.5 py-0.5 text-xs rounded ${timeRange === '3m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
           >
             3M
           </button>
           <button
             onClick={() => setTimeRange('6m')}
-            className={`px-1.5 py-0.5 text-[10px] rounded ${timeRange === '6m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+            className={`px-1.5 py-0.5 text-xs rounded ${timeRange === '6m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
           >
             6M
           </button>
         </div>
         
-        {statsData.currentDiscount > 5 && (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0.5">
-            {statsData.currentDiscount.toFixed(0)}% below avg
-          </Badge>
-        )}
+        <div className="flex gap-1">
+          {statsData.currentDiscount > 5 && (
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs px-1.5 py-0.5">
+              {statsData.currentDiscount.toFixed(0)}% below avg
+            </Badge>
+          )}
+          {hasLimitedData && (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-1.5 py-0.5">
+              Limited data
+            </Badge>
+          )}
+        </div>
       </div>
       
       <div className="grid grid-cols-3 gap-2 mb-2 text-center">
         <div>
-          <p className="text-[10px] text-muted-foreground">Current</p>
+          <p className="text-xs text-muted-foreground">Current</p>
           <p className="text-xs font-medium">{formatPrice(currentPrice)}</p>
         </div>
         <div>
-          <p className="text-[10px] text-muted-foreground">Average</p>
+          <p className="text-xs text-muted-foreground">Average</p>
           <p className="text-xs font-medium">{formatPrice(statsData.avgPrice)}</p>
         </div>
         <div>
-          <p className="text-[10px] text-muted-foreground">Low</p>
+          <p className="text-xs text-muted-foreground">Low</p>
           <p className="text-xs font-medium">{formatPrice(statsData.minPrice)}</p>
         </div>
       </div>
       
-      <div className="h-[120px] w-full">
-        <ChartContainer
-          config={{
-            price: {
-              label: "Price",
-              theme: {
-                light: "#2563eb",
-                dark: "#3b82f6",
-              },
-            },
-          }}
-        >
+      <div className="h-32 sm:h-36 w-full">
+        <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={priceHistory}
-            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+            margin={{ top: 5, right: 15, left: 15, bottom: 5 }}
           >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
             <XAxis 
               dataKey="date" 
               tickFormatter={(date) => format(new Date(date), 'MMM d')}
-              tick={{ fontSize: 9 }}
+              tick={{ fontSize: 9, fill: '#6b7280' }}
+              axisLine={{ stroke: '#d1d5db' }}
+              tickLine={{ stroke: '#d1d5db' }}
             />
             <YAxis 
-              domain={['auto', 'auto']}
-              tickFormatter={(price) => formatPrice(price)}
-              tick={{ fontSize: 9 }}
+              domain={['dataMin - 50', 'dataMax + 50']}
+              tickFormatter={(price) => `$${Math.round(price)}`}
+              tick={{ fontSize: 9, fill: '#6b7280' }}
+              axisLine={{ stroke: '#d1d5db' }}
+              tickLine={{ stroke: '#d1d5db' }}
             />
             <Tooltip content={<CustomTooltip />} />
             <Line
               type="monotone"
               dataKey="price"
-              stroke="var(--theme-primary)"
+              stroke="#2563eb"
               strokeWidth={2}
-              dot={{ r: 2 }}
-              activeDot={{ r: 4 }}
+              dot={{ r: 3, fill: '#2563eb', strokeWidth: 2, stroke: '#ffffff' }}
+              activeDot={{ r: 5, fill: '#2563eb', strokeWidth: 2, stroke: '#ffffff' }}
+              connectNulls={false}
             />
             {statsData.avgPrice > 0 && (
               <ReferenceLine 
                 y={statsData.avgPrice} 
-                stroke="rgba(107, 114, 128, 0.5)" 
+                stroke="#6b7280" 
                 strokeDasharray="3 3" 
                 label={{ 
-                  value: 'Avg', 
-                  position: 'right',
-                  style: { fill: 'rgba(107, 114, 128, 0.8)', fontSize: 9 }
+                  value: `Avg $${Math.round(statsData.avgPrice)}`, 
+                  position: 'topRight',
+                  style: { fill: '#6b7280', fontSize: 9 }
                 }} 
               />
             )}
           </LineChart>
-        </ChartContainer>
+        </ResponsiveContainer>
       </div>
     </div>
   ) : (
@@ -343,13 +397,18 @@ export function PriceHistoryChart({
           </div>
         </div>
         
-        {statsData.currentDiscount > 5 && (
-          <div className="mt-1">
+        <div className="mt-1 flex gap-2">
+          {statsData.currentDiscount > 5 && (
             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
               {statsData.currentDiscount.toFixed(0)}% below average price
             </Badge>
-          </div>
-        )}
+          )}
+          {hasLimitedData && (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              Limited price history - price tracking may be new for this product
+            </Badge>
+          )}
+        </div>
         
         <div className="grid grid-cols-3 gap-4 pt-4">
           <div className="text-center">
@@ -368,56 +427,51 @@ export function PriceHistoryChart({
       </CardHeader>
       
       <CardContent>
-        <div className="h-[200px] w-full">
-          <ChartContainer
-            config={{
-              price: {
-                label: "Price",
-                theme: {
-                  light: "#2563eb",
-                  dark: "#3b82f6",
-                },
-              },
-            }}
-          >
+        <div className="h-48 sm:h-56 lg:h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={priceHistory}
-              margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+              margin={{ top: 10, right: 20, left: 20, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
               <XAxis 
                 dataKey="date" 
                 tickFormatter={(date) => format(new Date(date), 'MMM d')}
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: 10, fill: '#6b7280' }}
+                axisLine={{ stroke: '#d1d5db' }}
+                tickLine={{ stroke: '#d1d5db' }}
               />
               <YAxis 
-                domain={['auto', 'auto']}
+                domain={['dataMin - 100', 'dataMax + 100']}
                 tickFormatter={(price) => formatPrice(price)}
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: 10, fill: '#6b7280' }}
+                axisLine={{ stroke: '#d1d5db' }}
+                tickLine={{ stroke: '#d1d5db' }}
               />
               <Tooltip content={<CustomTooltip />} />
               <Line
                 type="monotone"
                 dataKey="price"
-                stroke="var(--theme-primary)"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
+                stroke="#2563eb"
+                strokeWidth={3}
+                dot={{ r: 4, fill: '#2563eb', strokeWidth: 2, stroke: '#ffffff' }}
+                activeDot={{ r: 6, fill: '#2563eb', strokeWidth: 3, stroke: '#ffffff' }}
+                connectNulls={false}
               />
               {statsData.avgPrice > 0 && (
                 <ReferenceLine 
                   y={statsData.avgPrice} 
-                  stroke="rgba(107, 114, 128, 0.5)" 
+                  stroke="#6b7280" 
                   strokeDasharray="3 3" 
                   label={{ 
-                    value: 'Avg', 
-                    position: 'right',
-                    style: { fill: 'rgba(107, 114, 128, 0.8)', fontSize: 10 }
+                    value: `Average ${formatPrice(statsData.avgPrice)}`, 
+                    position: 'topRight',
+                    style: { fill: '#6b7280', fontSize: 10 }
                   }} 
                 />
               )}
             </LineChart>
-          </ChartContainer>
+          </ResponsiveContainer>
         </div>
       </CardContent>
     </Card>

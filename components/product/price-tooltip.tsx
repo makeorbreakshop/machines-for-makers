@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { 
   Dialog, 
   DialogContent, 
+  DialogHeader,
+  DialogTitle,
   DialogTrigger 
 } from "@/components/ui/dialog"
 import { PriceHistoryChart } from "@/components/product/price-history-chart"
@@ -61,9 +63,11 @@ export function PriceTooltip({
             View Price History
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Price History</DialogTitle>
+          </DialogHeader>
           <div className="pt-2">
-            <h3 className="font-semibold mb-1">Price History</h3>
             <p className="text-sm text-muted-foreground mb-4">Track price changes over time</p>
             <PriceHistoryChart 
               machineId={machineId} 
