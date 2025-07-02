@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 
 from config import ANTHROPIC_API_KEY, CLAUDE_MODEL
 from scrapers.site_specific_extractors import SiteSpecificExtractor
+from scrapers.dynamic_scraper import DynamicScraper
 
 class PriceExtractor:
     """Class for extracting prices from web pages using multiple methods."""
@@ -21,36 +22,48 @@ class PriceExtractor:
         self.site_extractor = SiteSpecificExtractor()
         logger.info("Price extractor initialized with Anthropic version header and site-specific rules")
     
-    def extract_price(self, soup, html_content, url):
+    async def extract_price(self, soup, html_content, url, old_price=None, machine_name=None):
         """
         Extract price using multiple methods in order of preference.
         
         Args:
             soup (BeautifulSoup): Parsed HTML content.
             html_content (str): Raw HTML content.
-            url (str): URL of the page.
+            url (str): Page URL.
+            old_price (float, optional): Previous price for context.
+            machine_name (str, optional): Machine name for variant selection.
             
         Returns:
             tuple: (price as float, method used) or (None, None) if extraction failed.
         """
-        # Method 0: Try site-specific extraction first (NEW - highest priority)
+        # Method 0: Try dynamic extraction for sites requiring variant selection
+        if machine_name and self._requires_dynamic_extraction(url):
+            try:
+                price, method = await self._extract_with_dynamic_scraper(url, machine_name)
+                if price is not None:
+                    logger.info(f"Extracted price {price} using dynamic method: {method}")
+                    return price, method
+            except Exception as e:
+                logger.warning(f"Dynamic extraction failed, falling back to static: {str(e)}")
+        
+        # Method 1: Try site-specific extraction (static)
         price, method = self.site_extractor.extract_price_with_rules(soup, html_content, url)
         if price is not None:
             logger.info(f"Extracted price {price} using site-specific method: {method}")
             return price, method
         
-        # Method 1: Try structured data (JSON-LD, microdata)
+        # Method 2: Try structured data (JSON-LD, microdata)
         price, method = self._extract_from_structured_data(soup)
         if price is not None:
             return price, method
         
-        # Method 2: Try common price selectors
+        # Method 3: Try common price selectors
         price, method = self._extract_from_common_selectors(soup)
         if price is not None:
             return price, method
         
-        # Method 3: Use Claude AI as fallback
-        price, method = self._extract_using_claude(html_content, url)
+        # Method 4: Use Claude AI as fallback
+        price, method = await self._extract_using_claude(html_content, url, old_price)
         if price is not None:
             return price, method
         
@@ -257,7 +270,7 @@ class PriceExtractor:
         
         return None, None
     
-    def _extract_using_claude(self, html_content, url):
+    async def _extract_using_claude(self, html_content, url, old_price=None):
         """
         Extract price using Claude AI as a fallback.
         
@@ -272,16 +285,27 @@ class PriceExtractor:
             # Prepare a truncated version of the HTML for Claude
             truncated_html = html_content[:15000] if len(html_content) > 15000 else html_content
             
+            # Create context about previous price
+            price_context = ""
+            if old_price is not None:
+                price_context = f"""
+IMPORTANT CONTEXT: The previous price for this product was ${old_price:,.2f}
+- If you see multiple prices on the page, choose the main product price (usually the highest)
+- If prices seem unreasonable compared to the previous price, double-check your selection
+- Avoid selecting addon prices, financing amounts, or promotional bundle prices
+
+"""
+
             # Create prompt for Claude
             prompt = f"""I need to extract the current price of a product from this webpage. 
 URL: {url}
-
-Here is the HTML content of the page (truncated if too long):
+{price_context}Here is the HTML content of the page (truncated if too long):
 {truncated_html}
 
 Please extract ONLY the product's current price. 
 - Return ONLY the numeric price value without currency symbols, in the format: 399.99
 - If there are multiple prices (like regular and sale price), return the current selling price.
+- Choose the main product price, not addon/bundle/financing prices.
 - Do not include shipping costs or taxes in the price.
 - If you can't find a clear price, respond with "No price found".
 - Do not explain your reasoning, just return the price or "No price found".
@@ -460,3 +484,112 @@ Please extract ONLY the product's current price.
                 return None
         
         return value 
+    
+    def _requires_dynamic_extraction(self, url):
+        """
+        Determine if a URL requires dynamic extraction with JavaScript.
+        
+        Args:
+            url (str): The URL to check.
+            
+        Returns:
+            bool: True if dynamic extraction is needed.
+        """
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.lower()
+        
+        # Remove 'www.' prefix
+        if domain.startswith('www.'):
+            domain = domain[4:]
+            
+        # Sites that require dynamic extraction for variant selection
+        dynamic_sites = [
+            'commarker.com',
+            'cloudraylaser.com'
+        ]
+        
+        return any(site in domain for site in dynamic_sites)
+    
+    async def _extract_with_dynamic_scraper(self, url, machine_name):
+        """
+        Extract price using dynamic scraper with variant selection.
+        
+        Args:
+            url (str): Product page URL.
+            machine_name (str): Machine name for variant matching.
+            
+        Returns:
+            tuple: (price, method) or (None, None) if extraction failed.
+        """
+        try:
+            # Get variant rules for this site
+            variant_rules = self._get_variant_rules(url)
+            
+            async with DynamicScraper() as scraper:
+                price, method = await scraper.extract_price_with_variants(
+                    url, machine_name, variant_rules
+                )
+                
+                if price:
+                    return price, method
+                else:
+                    return None, None
+                    
+        except Exception as e:
+            logger.error(f"Error in dynamic extraction: {str(e)}")
+            return None, None
+    
+    def _get_variant_rules(self, url):
+        """
+        Get variant selection rules for a specific URL.
+        
+        Args:
+            url (str): The URL to get rules for.
+            
+        Returns:
+            dict: Variant selection rules.
+        """
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.lower()
+        
+        if domain.startswith('www.'):
+            domain = domain[4:]
+            
+        # Define variant selection rules for each site
+        variant_rules = {
+            'commarker.com': {
+                'price_selectors': [
+                    '.product-image-summary-inner .price .amount:nth-of-type(2)',
+                    '.entry-summary .price .amount:nth-of-type(2)',
+                    '.product-summary .price .amount:nth-of-type(2)',
+                    '.price .woocommerce-Price-amount:last-child'
+                ],
+                'power_selectors': [
+                    'button[data-power="{value}"]',
+                    'input[value*="{value}W"]',
+                    'option[value*="{value}"]',
+                    '[data-variant*="{value}"]'
+                ],
+                'min_expected_price': 500,
+                'max_expected_price': 15000
+            },
+            
+            'cloudraylaser.com': {
+                'price_selectors': [
+                    '.product-price .price',
+                    '.price-current',
+                    '.product__price',
+                    '[data-price]'
+                ],
+                'model_selectors': [
+                    'option[value*="{value}"]',
+                    'button[data-model="{value}"]',
+                    'input[value*="{value}"]',
+                    '[data-variant*="{value}"]'
+                ],
+                'min_expected_price': 200,
+                'max_expected_price': 25000
+            }
+        }
+        
+        return variant_rules.get(domain, {})

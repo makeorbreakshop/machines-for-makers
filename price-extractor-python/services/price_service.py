@@ -87,8 +87,12 @@ class PriceService:
                 logger.error(f"Failed to fetch content from {product_url}")
                 return {"success": False, "error": "Failed to fetch product page", "machine_id": machine_id, "url": product_url}
             
+            # Get machine name for variant selection
+            machine_name = machine.get("Machine Name")
+            logger.info(f"Using machine name for variant selection: '{machine_name}'")
+            
             # Extract price
-            new_price, method = self.price_extractor.extract_price(soup, html_content, product_url)
+            new_price, method = await self.price_extractor.extract_price(soup, html_content, product_url, current_price, machine_name)
             
             # Validate the extracted price - must be a reasonable value
             if new_price is not None:
@@ -109,7 +113,7 @@ class PriceService:
                     # Try Claude if common selectors also failed
                     if new_price is None:
                         logger.info(f"Falling back to Claude AI for machine {machine_id}")
-                        new_price, claude_method = self.price_extractor._extract_using_claude(html_content, product_url)
+                        new_price, claude_method = await self.price_extractor._extract_using_claude(html_content, product_url, current_price)
                         if new_price is not None:
                             if 10 <= new_price <= 100000:
                                 logger.info(f"Found better price ${new_price} using {claude_method}")
