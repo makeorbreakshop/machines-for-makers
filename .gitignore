@@ -44,3 +44,17 @@ browser-tools-mcp/
 /downloads/
 /screenshots/
 screenshot.png
+
+# Python virtual environment
+price-extractor-python/venv/
+
+# Node.js dependencies in price-extractor-python
+price-extractor-python/node_modules/
+
+# Python cache files
+price-extractor-python/__pycache__/
+price-extractor-python/**/__pycache__/
+price-extractor-python/**/*.pyc
+
+# Price extractor logs
+price-extractor-python/logs/
