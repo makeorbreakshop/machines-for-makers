@@ -1022,6 +1022,22 @@ export default function PriceTrackerAdmin() {
                               <Button 
                                 size="sm" 
                                 variant="outline"
+                                onClick={() => {
+                                  const url = machine.product_link || machine["Affiliate Link"];
+                                  if (url) {
+                                    window.open(url, '_blank');
+                                  } else {
+                                    toast.error("No URL available for this machine");
+                                  }
+                                }}
+                                disabled={!machine.product_link && !machine["Affiliate Link"]}
+                              >
+                                <ExternalLink className="w-4 h-4 mr-1" /> 
+                                URL
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
                                 onClick={() => openPriceHistoryModal(machine)}
                               >
                                 <LineChart className="w-4 h-4 mr-1" /> 
