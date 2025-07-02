@@ -33,18 +33,28 @@ class DynamicScraper:
         """Start Playwright browser."""
         try:
             self.playwright = await async_playwright().start()
-            self.browser = await self.playwright.chromium.launch(
-                headless=True,
-                args=[
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--no-first-run',
-                    '--no-default-browser-check',
-                    '--disable-default-apps'
-                ]
-            )
+            
+            # Try to use any installed Chromium browser
+            try:
+                self.browser = await self.playwright.chromium.launch(
+                    headless=True,
+                    args=[
+                        '--no-sandbox',
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-gpu',
+                        '--no-first-run',
+                        '--no-default-browser-check',
+                        '--disable-default-apps'
+                    ]
+                )
+            except Exception as e:
+                logger.warning(f"Chromium launch failed, trying Firefox: {str(e)}")
+                # Fall back to Firefox if Chromium isn't available
+                self.browser = await self.playwright.firefox.launch(
+                    headless=True,
+                    args=['--no-sandbox']
+                )
             self.page = await self.browser.new_page()
             
             # Set a realistic user agent
@@ -191,10 +201,15 @@ class DynamicScraper:
             
             # First try to select power/wattage  
             if power:
-                # Use the working selector first - simple and effective
+                # Updated selectors based on current ComMarker page structure
                 power_selectors = [
-                    f'text=B6 MOPA {power}W',  # This works - move to front
-                    f'text={power}W'
+                    f'text=B6 {power}W',  # For non-MOPA variants
+                    f'text=B6 MOPA {power}W',  # For MOPA variants
+                    f'text={power}W',
+                    f'[data-value*="{power}"]',  # Data attribute approach
+                    f'button:has-text("{power}W")',  # Playwright has-text approach
+                    f'input[value*="{power}"]',  # Input elements
+                    f'option[value*="{power}"]'  # Select options
                 ]
                 
                 selected_power = False
@@ -214,13 +229,40 @@ class DynamicScraper:
                 
                 if not selected_power:
                     logger.warning(f"Failed to find any power selector for {power}W on ComMarker page")
-                    # Log available buttons for debugging
+                    # Enhanced debugging - look for all interactive elements
+                    
+                    # Check buttons
                     buttons = await self.page.query_selector_all('button')
                     logger.info(f"Available buttons on page: {len(buttons)}")
-                    for i, button in enumerate(buttons[:10]):  # Log first 10 buttons
+                    for i, button in enumerate(buttons[:15]):  # Check more buttons
                         try:
                             text = await button.text_content()
-                            logger.debug(f"Button {i}: '{text}'")
+                            if text and text.strip():
+                                logger.info(f"Button {i}: '{text.strip()}'")
+                        except:
+                            pass
+                    
+                    # Check inputs
+                    inputs = await self.page.query_selector_all('input')
+                    logger.info(f"Available inputs on page: {len(inputs)}")
+                    for i, input_elem in enumerate(inputs[:10]):
+                        try:
+                            value = await input_elem.get_attribute('value')
+                            input_type = await input_elem.get_attribute('type')
+                            name = await input_elem.get_attribute('name')
+                            if value or input_type:
+                                logger.info(f"Input {i}: type='{input_type}', name='{name}', value='{value}'")
+                        except:
+                            pass
+                    
+                    # Check for any text containing power values
+                    power_texts = await self.page.query_selector_all('*:has-text("30W"), *:has-text("20W"), *:has-text("60W")')
+                    logger.info(f"Elements with power text: {len(power_texts)}")
+                    for i, elem in enumerate(power_texts[:5]):
+                        try:
+                            text = await elem.text_content()
+                            tag = await elem.evaluate('el => el.tagName')
+                            logger.info(f"Power element {i}: <{tag}> '{text.strip()}'")
                         except:
                             pass
             
@@ -444,6 +486,45 @@ class DynamicScraper:
             return float(price_clean)
         except ValueError:
             return None
+    
+    async def get_html_after_variant_selection(self, url, machine_name):
+        """
+        Get HTML content after selecting the appropriate variant.
+        This is used by Claude fallback to analyze the post-interaction page.
+        
+        Args:
+            url (str): Product page URL
+            machine_name (str): Machine name for variant selection
+            
+        Returns:
+            str: HTML content after variant selection
+        """
+        try:
+            logger.info(f"Getting post-interaction HTML for Claude analysis: {url}")
+            
+            # Navigate to the page
+            await self.page.goto(url, wait_until="networkidle", timeout=30000)
+            
+            # Apply variant selection
+            domain = urlparse(url).netloc.lower()
+            if 'commarker.com' in domain:
+                await self._select_commarker_variant(machine_name)
+            elif 'cloudraylaser.com' in domain:
+                await self._select_cloudray_variant(machine_name)
+            
+            # Wait for any price updates
+            await self.page.wait_for_timeout(2000)
+            
+            # Get the updated HTML content
+            html_content = await self.page.content()
+            logger.info("Successfully captured post-interaction HTML for Claude")
+            
+            return html_content
+            
+        except Exception as e:
+            logger.error(f"Error getting post-interaction HTML: {str(e)}")
+            # Return empty string to trigger fallback to original HTML
+            return ""
 
 
 # Example usage and integration

@@ -678,4 +678,55 @@ class DatabaseService:
             
         except Exception as e:
             logger.error(f"Error updating batch status for batch {batch_id}: {str(e)}")
+            return False
+
+    async def get_machines_by_url(self, url):
+        """
+        Get machines that have the specified URL.
+        
+        Args:
+            url (str): The URL to search for.
+            
+        Returns:
+            list: List of machine records that match the URL.
+        """
+        try:
+            # Search for machines with matching product_link or Affiliate Link
+            response = self.supabase.table("machines") \
+                .select("*") \
+                .or_(f'product_link.eq.{url},"Affiliate Link".eq.{url}') \
+                .execute()
+                
+            return response.data or []
+            
+        except Exception as e:
+            logger.error(f"Error getting machines by URL {url}: {str(e)}")
+            return []
+
+    async def update_machine_learned_selectors(self, machine_id, learned_selectors):
+        """
+        Update the learned_selectors field for a machine.
+        
+        Args:
+            machine_id (str): The ID of the machine to update.
+            learned_selectors (dict): The learned selectors data.
+            
+        Returns:
+            bool: True if updated successfully, False otherwise.
+        """
+        try:
+            response = self.supabase.table("machines") \
+                .update({"learned_selectors": learned_selectors}) \
+                .eq("id", machine_id) \
+                .execute()
+                
+            if response.data and len(response.data) > 0:
+                logger.info(f"Updated learned selectors for machine {machine_id}")
+                return True
+                
+            logger.warning(f"Failed to update learned selectors for machine {machine_id}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error updating learned selectors for machine {machine_id}: {str(e)}")
             return False 

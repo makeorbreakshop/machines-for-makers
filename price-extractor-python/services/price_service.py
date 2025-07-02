@@ -91,8 +91,8 @@ class PriceService:
             machine_name = machine.get("Machine Name")
             logger.info(f"Using machine name for variant selection: '{machine_name}'")
             
-            # Extract price
-            new_price, method = await self.price_extractor.extract_price(soup, html_content, product_url, current_price, machine_name)
+            # Extract price - now passing machine data for learned selectors
+            new_price, method = await self.price_extractor.extract_price(soup, html_content, product_url, current_price, machine_name, machine)
             
             # Validate the extracted price - must be a reasonable value
             if new_price is not None:

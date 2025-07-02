@@ -18,6 +18,9 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
+import { DataTable } from "@/components/admin/data-table"
+import type { ColumnDef } from "@tanstack/react-table"
+import { ArrowUpDown } from "lucide-react"
 import { PriceHistoryChart } from "@/components/product/price-history-chart"
 import { format, formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
@@ -61,11 +64,177 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
+// Define machine interface for table
+interface TableMachine {
+  id: string
+  "Machine Name": string
+  "Company": string | null
+  "Price": number | null
+  "Is A Featured Resource?": string | null
+  product_link: string | null
+  "Affiliate Link": string | null
+}
+
+// Format price for display
+const formatPrice = (price: number | null) => {
+  if (price === null) return "N/A"
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD"
+  }).format(price)
+}
+
+// Define base columns for the machines table (functions will be added in component)
+const createMachineColumns = (
+  openPriceHistoryModal: (machine: TableMachine) => void,
+  updatePrice: (machine: TableMachine, debug?: boolean) => void
+): ColumnDef<TableMachine>[] => [
+  {
+    accessorKey: "Machine Name",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="pl-0"
+        >
+          Machine
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const machine = row.original
+      return (
+        <div className="flex flex-col">
+          <span className="font-medium">{machine["Machine Name"]}</span>
+          <span className="text-sm text-gray-500">{machine["Company"]}</span>
+        </div>
+      )
+    },
+  },
+  {
+    accessorKey: "Price",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Current Price
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const price = row.getValue("Price") as number
+      return formatPrice(price)
+    },
+  },
+  {
+    accessorKey: "Company",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Brand
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id))
+    },
+  },
+  {
+    id: "source_url",
+    header: "Source URL",
+    cell: ({ row }) => {
+      const machine = row.original
+      const url = machine.product_link || machine["Affiliate Link"]
+      return (
+        <div className="max-w-xs truncate">
+          {url || "N/A"}
+        </div>
+      )
+    },
+  },
+  {
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => {
+      const machine = row.original
+      return (
+        <div className="flex justify-end gap-2">
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={() => {
+              const url = machine.product_link || machine["Affiliate Link"];
+              if (url) {
+                window.open(url, '_blank');
+              } else {
+                toast.error("No URL available for this machine");
+              }
+            }}
+            disabled={!machine.product_link && !machine["Affiliate Link"]}
+          >
+            <ExternalLink className="w-4 h-4 mr-1" /> 
+            URL
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={() => openPriceHistoryModal(machine)}
+          >
+            <LineChart className="w-4 h-4 mr-1" /> 
+            History
+          </Button>
+          <Button 
+            size="sm"
+            variant="outline"
+            onClick={() => updatePrice(machine, true)}
+          >
+            <Bug className="w-4 h-4 mr-1" /> 
+            Debug
+          </Button>
+          <Button 
+            size="sm" 
+            onClick={() => updatePrice(machine)}
+          >
+            <RefreshCw className="w-4 h-4 mr-1" /> 
+            Update
+          </Button>
+        </div>
+      )
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+]
+
+// Generate brand filter options
+const getBrandFilterOptions = (data: TableMachine[]) => {
+  const brands = new Set<string>()
+  
+  data.forEach(machine => {
+    if (machine["Company"]) {
+      brands.add(machine["Company"])
+    }
+  })
+  
+  return Array.from(brands).map(brand => ({
+    label: brand,
+    value: brand,
+  }))
+}
+
 export default function PriceTrackerAdmin() {
-  const [machines, setMachines] = useState<any[]>([])
+  const [machines, setMachines] = useState<TableMachine[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
   const [recentlyUpdated, setRecentlyUpdated] = useState<any[]>([])
   const [filterFeatured, setFilterFeatured] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
@@ -109,10 +278,6 @@ export default function PriceTrackerAdmin() {
         if (filterFeatured) {
           query = query.eq("Is A Featured Resource?", "true")
         }
-        
-        if (searchTerm) {
-          query = query.ilike("\"Machine Name\"", `%${searchTerm}%`)
-        }
           
         const { data, error } = await query
         
@@ -128,7 +293,7 @@ export default function PriceTrackerAdmin() {
     }
     
     fetchMachines()
-  }, [searchTerm, filterFeatured])
+  }, [filterFeatured])
   
   // Fetch recently updated machines
   useEffect(() => {
@@ -596,14 +761,6 @@ export default function PriceTrackerAdmin() {
     return format(date, "MMM d, yyyy h:mm a")
   }
   
-  // Format price for display
-  const formatPrice = (price: number | null) => {
-    if (price === null) return "N/A"
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD"
-    }).format(price)
-  }
   
   // Handle API script loaded
   const handleScriptLoad = () => {
@@ -958,114 +1115,42 @@ export default function PriceTrackerAdmin() {
             <CardHeader className="space-y-4">
               <CardTitle>Machines</CardTitle>
               <CardDescription>
-                View and manage price history for machines.
+                View and manage price history for machines. {machines.length} machines in database.
               </CardDescription>
               
-              <div className="flex flex-col sm:flex-row gap-4 justify-between">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="featured-filter"
-                    checked={filterFeatured}
-                    onCheckedChange={setFilterFeatured}
-                  />
-                  <Label htmlFor="featured-filter">Show featured machines only</Label>
-                </div>
-                
-                <div className="flex-1 max-w-sm">
-                  <Input
-                    placeholder="Search machines..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                  />
-                </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="featured-filter"
+                  checked={filterFeatured}
+                  onCheckedChange={setFilterFeatured}
+                />
+                <Label htmlFor="featured-filter">Show featured machines only</Label>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Machine</TableHead>
-                      <TableHead>Current Price</TableHead>
-                      <TableHead>Source URL</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8">
-                          Loading machines...
-                        </TableCell>
-                      </TableRow>
-                    ) : machines.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8">
-                          No machines found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      machines.map(machine => (
-                        <TableRow key={machine.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex flex-col">
-                              <span className="font-medium">{machine["Machine Name"]}</span>
-                              <span className="text-sm text-gray-500">{machine["Company"]}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{formatPrice(machine["Price"])}</TableCell>
-                          <TableCell className="max-w-xs truncate">
-                            {machine.product_link || machine["Affiliate Link"] || "N/A"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => {
-                                  const url = machine.product_link || machine["Affiliate Link"];
-                                  if (url) {
-                                    window.open(url, '_blank');
-                                  } else {
-                                    toast.error("No URL available for this machine");
-                                  }
-                                }}
-                                disabled={!machine.product_link && !machine["Affiliate Link"]}
-                              >
-                                <ExternalLink className="w-4 h-4 mr-1" /> 
-                                URL
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => openPriceHistoryModal(machine)}
-                              >
-                                <LineChart className="w-4 h-4 mr-1" /> 
-                                History
-                              </Button>
-                              <Button 
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updatePrice(machine, true)}
-                              >
-                                <Bug className="w-4 h-4 mr-1" /> 
-                                Debug
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                onClick={() => updatePrice(machine)}
-                              >
-                                <RefreshCw className="w-4 h-4 mr-1" /> 
-                                Update
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+              {loading ? (
+                <div className="flex justify-center p-8">
+                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <DataTable 
+                  columns={createMachineColumns(openPriceHistoryModal, updatePrice)} 
+                  data={machines}
+                  filterableColumns={[
+                    {
+                      id: "Company",
+                      title: "Brand",
+                      options: getBrandFilterOptions(machines),
+                    },
+                  ]}
+                  searchableColumns={[
+                    {
+                      id: "Machine Name",
+                      title: "machine name",
+                    },
+                  ]}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>

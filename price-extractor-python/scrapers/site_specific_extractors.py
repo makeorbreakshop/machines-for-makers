@@ -69,14 +69,15 @@ class SiteSpecificExtractor:
             }
         }
     
-    def extract_price_with_rules(self, soup, html_content, url):
+    def extract_price_with_rules(self, soup, html_content, url, machine_data=None):
         """
-        Extract price using site-specific rules.
+        Extract price using learned selectors first, then site-specific rules.
         
         Args:
             soup: BeautifulSoup object
             html_content: Raw HTML content
             url: Page URL
+            machine_data: Machine record containing learned_selectors
             
         Returns:
             tuple: (price, method) or (None, None)
@@ -86,8 +87,24 @@ class SiteSpecificExtractor:
         # Remove 'www.' prefix for rule matching
         if domain.startswith('www.'):
             domain = domain[4:]
+        
+        # METHOD 0: Try learned selectors first (fastest and free!)
+        if machine_data:
+            learned_selectors = machine_data.get('learned_selectors', {})
+            if domain in learned_selectors:
+                selector_data = learned_selectors[domain]
+                selector = selector_data.get('selector', '')
+                
+                if selector:
+                    logger.info(f"Trying learned selector for {domain}: {selector}")
+                    price = self._extract_with_learned_selector(soup, selector)
+                    if price is not None:
+                        logger.info(f"Successfully used learned selector: {selector}")
+                        return price, f"Learned selector ({selector})"
+                    else:
+                        logger.warning(f"Learned selector failed: {selector}")
             
-        # Check if we have specific rules for this domain
+        # METHOD 1: Check if we have specific rules for this domain
         if domain in self.site_rules:
             rules = self.site_rules[domain]
             logger.info(f"Applying site-specific rules for {domain}")
@@ -99,6 +116,88 @@ class SiteSpecificExtractor:
         
         # Fallback to generic extraction
         return None, None
+    
+    def _extract_with_learned_selector(self, soup, selector):
+        """
+        Extract price using a learned CSS selector.
+        
+        Args:
+            soup: BeautifulSoup object
+            selector: CSS selector to try
+            
+        Returns:
+            float or None: Extracted price or None if failed
+        """
+        try:
+            elements = soup.select(selector)
+            for element in elements:
+                # Try to get price from various attributes first
+                price_attrs = ['data-price', 'data-product-price', 'content']
+                for attr in price_attrs:
+                    if element.has_attr(attr):
+                        price = self._parse_price_text(element[attr])
+                        if price is not None:
+                            return price
+                
+                # Try text content
+                price = self._parse_price_text(element.get_text())
+                if price is not None:
+                    return price
+                    
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting with learned selector '{selector}': {str(e)}")
+            return None
+    
+    def _parse_price_text(self, text):
+        """Simple price parser for learned selectors."""
+        if not text:
+            return None
+            
+        try:
+            import re
+            # Remove currency symbols and extra whitespace
+            text_clean = re.sub(r'[$€£¥]', '', str(text))
+            text_clean = re.sub(r'\s+', '', text_clean)
+            
+            # Find numeric pattern - simple and effective
+            # This will match numbers like: 1234.56, 1,234.56, 1234, etc.
+            match = re.search(r'\d+(?:[,.]?\d+)*', text_clean)
+            if match:
+                price_str = match.group(0)
+                
+                # Handle thousand separators and decimal points
+                if ',' in price_str and '.' in price_str:
+                    # Both separators present
+                    last_comma = price_str.rfind(',')
+                    last_dot = price_str.rfind('.')
+                    
+                    if last_comma > last_dot:
+                        # Comma is decimal (European style): 1.234,56
+                        price_str = price_str.replace('.', '').replace(',', '.')
+                    else:
+                        # Dot is decimal (US style): 1,234.56
+                        price_str = price_str.replace(',', '')
+                elif ',' in price_str:
+                    # Only comma - check if it's decimal or thousands
+                    comma_parts = price_str.split(',')
+                    if len(comma_parts) == 2 and len(comma_parts[1]) <= 2:
+                        # Likely decimal separator (e.g., "123,45")
+                        price_str = price_str.replace(',', '.')
+                    else:
+                        # Likely thousands separator (e.g., "1,234" or "1,234,567")
+                        price_str = price_str.replace(',', '')
+                
+                price = float(price_str)
+                # Basic validation
+                if 1 <= price <= 100000:
+                    return price
+                    
+        except (ValueError, AttributeError):
+            pass
+            
+        return None
     
     def _extract_with_site_rules(self, soup, html_content, url, rules):
         """Extract price using specific site rules."""
@@ -272,7 +371,7 @@ class SiteSpecificExtractor:
         
         # Extract first price (handle cases with multiple prices like "$8,888 $6,666")
         # Look for price patterns: 1,234.56 or 1234.56 or 1234
-        matches = re.findall(r'\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+\.\d{1,2}|\d{4,}', price_str)
+        matches = re.findall(r'\d+(?:[,.]?\d+)*', price_str)
         if not matches:
             # Fallback to any number
             match = re.search(r'\d+', price_str)

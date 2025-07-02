@@ -31,8 +31,8 @@ MACHINES_TABLE = "machines"
 PRICE_HISTORY_TABLE = "price_history"
 
 # Price Validation Configuration
-MAX_PRICE_INCREASE_PERCENT = float(os.getenv("MAX_PRICE_INCREASE_PERCENT", "15"))  # 15% increase triggers review
-MAX_PRICE_DECREASE_PERCENT = float(os.getenv("MAX_PRICE_DECREASE_PERCENT", "15"))  # 15% decrease triggers review
+MAX_PRICE_INCREASE_PERCENT = float(os.getenv("MAX_PRICE_INCREASE_PERCENT", "50"))  # 50% increase triggers review
+MAX_PRICE_DECREASE_PERCENT = float(os.getenv("MAX_PRICE_DECREASE_PERCENT", "50"))  # 50% decrease triggers review
 MIN_PRICE_THRESHOLD = float(os.getenv("MIN_PRICE_THRESHOLD", "10"))  # Minimum price to consider valid
 
 # Configure logging
