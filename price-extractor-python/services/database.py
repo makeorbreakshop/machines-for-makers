@@ -729,4 +729,60 @@ class DatabaseService:
             
         except Exception as e:
             logger.error(f"Error updating learned selectors for machine {machine_id}: {str(e)}")
-            return False 
+            return False
+    
+    async def get_batch_results_since(self, cutoff_date):
+        """
+        Get all batch results since a specific date for learning analysis.
+        
+        Args:
+            cutoff_date: datetime to get results since
+            
+        Returns:
+            List of batch result records
+        """
+        try:
+            # Get batch results with machine and pricing data
+            response = self.supabase.table("batch_results") \
+                .select("""
+                    *,
+                    machines!inner(
+                        Machine Name,
+                        Company,
+                        product_link,
+                        Price
+                    )
+                """) \
+                .gte("created_at", cutoff_date.isoformat()) \
+                .order("created_at", desc=True) \
+                .execute()
+            
+            if response.data:
+                # Flatten the data for easier analysis
+                results = []
+                for record in response.data:
+                    machine = record.get("machines", {})
+                    result = {
+                        "id": record.get("id"),
+                        "machine_id": record.get("machine_id"),
+                        "machine_name": machine.get("Machine Name"),
+                        "company": machine.get("Company"),
+                        "url": machine.get("product_link"),
+                        "old_price": record.get("old_price"),
+                        "new_price": record.get("new_price"),
+                        "success": record.get("success"),
+                        "error": record.get("error_message"),
+                        "method": record.get("extraction_method"),
+                        "date": record.get("created_at"),
+                        "batch_id": record.get("batch_id")
+                    }
+                    results.append(result)
+                
+                logger.info(f"Retrieved {len(results)} batch results since {cutoff_date}")
+                return results
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Error getting batch results since {cutoff_date}: {str(e)}")
+            return [] 

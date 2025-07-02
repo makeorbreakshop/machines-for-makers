@@ -38,82 +38,153 @@ class PriceExtractor:
         Returns:
             tuple: (price as float, method used) or (None, None) if extraction failed.
         """
+        
+        # Enhanced logging for batch analysis
+        logger.info(f"=== PRICE EXTRACTION START ===")
+        logger.info(f"Machine: {machine_name}")
+        logger.info(f"URL: {url}")
+        logger.info(f"Old Price: ${old_price}")
+        logger.info(f"Page Title: {soup.title.string if soup.title else 'No title'}")
+        logger.info(f"HTML Size: {len(html_content)} chars")
+        
+        # Log page characteristics for debugging
+        price_elements = soup.find_all(string=re.compile(r'\$[\d,]+'))
+        logger.info(f"Price-like elements found: {len(price_elements)}")
+        if len(price_elements) <= 10:  # Only log if reasonable number
+            logger.info(f"Price candidates: {[p.strip() for p in price_elements[:5]]}")
+        
+        # Check for common error indicators
+        error_indicators = ['404', 'not found', 'error', 'temporarily unavailable', 'out of stock']
+        page_text = html_content.lower()
+        found_errors = [err for err in error_indicators if err in page_text]
+        if found_errors:
+            logger.warning(f"Error indicators found: {found_errors}")
+        
+        # Check for bot detection
+        bot_indicators = ['captcha', 'robot', 'automated', 'suspicious activity']
+        found_bot_signs = [bot for bot in bot_indicators if bot in page_text]
+        if found_bot_signs:
+            logger.warning(f"Bot detection indicators: {found_bot_signs}")
         # Method 0: Try MCP Learning System for intelligent extraction
         if machine_name and self._requires_intelligent_extraction(url):
             try:
-                logger.info(f"Attempting MCP learning extraction for {machine_name} at {url}")
+                logger.info(f"🤖 METHOD 0: Attempting MCP learning extraction for {machine_name} at {url}")
                 price, method = await learn_and_extract_price(url, machine_name, machine_data)
                 if price is not None:
                     # Validate the price against expected ranges and old price
                     if self._validate_extracted_price(price, url, old_price):
-                        logger.info(f"Extracted price {price} using MCP learning: {method}")
+                        logger.info(f"✅ METHOD 0 SUCCESS: Extracted price ${price} using MCP learning: {method}")
+                        logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                         return price, method
                     else:
-                        logger.warning(f"MCP learning price {price} failed validation, falling back to dynamic scraper")
+                        logger.warning(f"❌ METHOD 0 VALIDATION FAILED: MCP learning price ${price} failed validation, falling back to dynamic scraper")
+                else:
+                    logger.info(f"❌ METHOD 0 FAILED: No price found with MCP learning")
             except Exception as e:
-                logger.warning(f"MCP learning extraction failed, falling back to dynamic scraper: {str(e)}")
+                logger.error(f"❌ METHOD 0 ERROR: MCP learning extraction failed: {str(e)}")
+        else:
+            logger.info(f"⏭️ METHOD 0 SKIPPED: Not required for this URL or no machine name")
 
         # Method 1: Try dynamic extraction for sites requiring variant selection
         if machine_name and self._requires_dynamic_extraction(url):
             try:
+                logger.info(f"🌐 METHOD 1: Attempting dynamic extraction with browser automation")
                 price, method = await self._extract_with_dynamic_scraper(url, machine_name)
                 if price is not None:
                     # Validate the price against expected ranges and old price
                     if self._validate_extracted_price(price, url, old_price):
-                        logger.info(f"Extracted price {price} using dynamic method: {method}")
+                        logger.info(f"✅ METHOD 1 SUCCESS: Extracted price ${price} using dynamic method: {method}")
+                        logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                         return price, method
                     else:
-                        logger.warning(f"Dynamic extraction price {price} failed validation, falling back to static methods")
+                        logger.warning(f"❌ METHOD 1 VALIDATION FAILED: Dynamic extraction price ${price} failed validation, falling back to static methods")
+                else:
+                    logger.info(f"❌ METHOD 1 FAILED: No price found with dynamic extraction")
             except Exception as e:
-                logger.warning(f"Dynamic extraction failed, falling back to static: {str(e)}")
+                logger.error(f"❌ METHOD 1 ERROR: Dynamic extraction failed: {str(e)}")
+        else:
+            logger.info(f"⏭️ METHOD 1 SKIPPED: Dynamic extraction not required for this URL")
         
         # Method 2: Try site-specific extraction (static) - now includes learned selectors!
+        logger.info(f"🎯 METHOD 2: Attempting site-specific extraction with rules and learned selectors")
         price, method = self.site_extractor.extract_price_with_rules(soup, html_content, url, machine_data)
         if price is not None:
             # Validate the price against expected ranges and old price
             if self._validate_extracted_price(price, url, old_price):
-                logger.info(f"Extracted price {price} using site-specific method: {method}")
+                logger.info(f"✅ METHOD 2 SUCCESS: Extracted price ${price} using site-specific method: {method}")
+                logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                 return price, method
             else:
-                logger.warning(f"Site-specific extraction price {price} failed validation, continuing to next method")
+                logger.warning(f"❌ METHOD 2 VALIDATION FAILED: Site-specific extraction price ${price} failed validation, continuing to next method")
+        else:
+            logger.info(f"❌ METHOD 2 FAILED: No price found with site-specific extraction")
         
         # Method 3: Try structured data (JSON-LD, microdata)
+        logger.info(f"📊 METHOD 3: Attempting structured data extraction")
         price, method = self._extract_from_structured_data(soup)
         if price is not None:
             # Validate the price against expected ranges and old price
             if self._validate_extracted_price(price, url, old_price):
-                logger.info(f"Extracted price {price} using structured data method: {method}")
+                logger.info(f"✅ METHOD 3 SUCCESS: Extracted price ${price} using structured data method: {method}")
+                logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                 return price, method
             else:
-                logger.warning(f"Structured data extraction price {price} failed validation, continuing to next method")
+                logger.warning(f"❌ METHOD 3 VALIDATION FAILED: Structured data extraction price ${price} failed validation, continuing to next method")
+        else:
+            logger.info(f"❌ METHOD 3 FAILED: No price found in structured data")
         
         # Method 4: Try common price selectors
+        logger.info(f"🔍 METHOD 4: Attempting common CSS selectors")
         price, method = self._extract_from_common_selectors(soup)
         if price is not None:
             # Validate the price against expected ranges and old price
             if self._validate_extracted_price(price, url, old_price):
-                logger.info(f"Extracted price {price} using common selectors method: {method}")
+                logger.info(f"✅ METHOD 4 SUCCESS: Extracted price ${price} using common selectors method: {method}")
+                logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                 return price, method
             else:
-                logger.warning(f"Common selectors extraction price {price} failed validation, continuing to next method")
+                logger.warning(f"❌ METHOD 4 VALIDATION FAILED: Common selectors extraction price ${price} failed validation, continuing to next method")
+        else:
+            logger.info(f"❌ METHOD 4 FAILED: No price found with common selectors")
         
         # Method 5: Use Claude MCP as fallback (with full browser automation)
+        logger.info(f"🤖 METHOD 5: Attempting Claude MCP as fallback")
         try:
             from scrapers.claude_mcp_client import extract_price_with_claude_mcp
             price, method = await extract_price_with_claude_mcp(url, machine_name, old_price, machine_data)
             if price is not None:
-                logger.info(f"Extracted price {price} using Claude MCP: {method}")
+                logger.info(f"✅ METHOD 5 SUCCESS: Extracted price ${price} using Claude MCP: {method}")
+                logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                 return price, method
+            else:
+                logger.info(f"❌ METHOD 5 FAILED: No price found with Claude MCP")
         except Exception as e:
-            logger.warning(f"Claude MCP extraction failed: {str(e)}")
+            logger.error(f"❌ METHOD 5 ERROR: Claude MCP extraction failed: {str(e)}")
             
-        # Method 5: Fallback to original Claude API (without automation)
+        # Method 6: Fallback to original Claude API (without automation)
+        logger.info(f"🧠 METHOD 6: Attempting original Claude API as final fallback")
         price, method = await self._extract_using_claude(html_content, url, old_price)
         if price is not None:
+            logger.info(f"✅ METHOD 6 SUCCESS: Extracted price ${price} using Claude API: {method}")
+            logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
             return price, method
+        else:
+            logger.info(f"❌ METHOD 6 FAILED: No price found with Claude API")
         
         # No price found with any method
-        logger.warning(f"Failed to extract price from {url} using any method")
+        logger.error(f"=== PRICE EXTRACTION FAILED ===")
+        logger.error(f"Machine: {machine_name}")
+        logger.error(f"URL: {url}")
+        logger.error(f"All methods exhausted, no price found")
+        logger.error(f"Page length: {len(html_content)} chars")
+        logger.error(f"Page contains '$': {'$' in html_content}")
+        logger.error(f"Page contains 'price': {'price' in html_content.lower()}")
+        
+        # Log a small sample of the page for manual inspection
+        if html_content:
+            sample = html_content[:500] + "..." if len(html_content) > 500 else html_content
+            logger.error(f"Page sample: {sample}")
+        
         return None, None
     
     def _extract_from_structured_data(self, soup):

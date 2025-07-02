@@ -4,9 +4,11 @@ from loguru import logger
 from typing import Optional, List
 
 from services.price_service import PriceService
+from services.learning_service import DailyLearningService
 
 router = APIRouter()
 price_service = PriceService()
+learning_service = DailyLearningService()
 
 class MachineUpdateRequest(BaseModel):
     """Request model for updating a machine's price."""
@@ -310,4 +312,65 @@ async def get_batches():
         return {
             "success": False,
             "error": f"Error fetching batch jobs: {str(e)}"
-        } 
+        }
+
+@router.get("/api/v1/learning-report")
+async def get_learning_report(days_back: int = 7):
+    """
+    Generate and return a daily learning report analyzing recent batch results.
+    
+    Args:
+        days_back: Number of days to analyze (default: 7)
+        
+    Returns:
+        Learning report with analysis and recommendations
+    """
+    try:
+        logger.info(f"Generating learning report for last {days_back} days")
+        
+        report = await learning_service.generate_daily_learning_report(days_back)
+        
+        return {
+            "success": True,
+            "report": report
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error generating learning report: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Error generating learning report: {str(e)}"
+        }
+
+@router.post("/api/v1/apply-learning-improvements")
+async def apply_learning_improvements(days_back: int = 7):
+    """
+    Apply automatic improvements based on recent learning analysis.
+    
+    Args:
+        days_back: Number of days to analyze for improvements
+        
+    Returns:
+        List of improvements applied
+    """
+    try:
+        logger.info(f"Applying learning improvements based on last {days_back} days")
+        
+        # Generate report first to get analysis
+        report = await learning_service.generate_daily_learning_report(days_back)
+        
+        improvements = report.get("auto_improvements", [])
+        
+        return {
+            "success": True,
+            "improvements_applied": len(improvements),
+            "improvements": improvements,
+            "recommendations": report.get("recommendations", [])
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error applying learning improvements: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Error applying learning improvements: {str(e)}"
+        }
