@@ -35,13 +35,22 @@ python main.py  # Run the FastAPI server on port 8000
 
 ## Critical Development Rules
 
-### 1. Server Management
+### 1. Git and Version Control - ABSOLUTELY CRITICAL
+- **NEVER EVER use `git reset --hard` or any destructive git commands**
+- **NEVER rollback, revert, or undo local work without EXPLICIT user permission**
+- **NEVER use commands like `git reset`, `git checkout --`, `git clean -fd`**  
+- **The user's local work is SACRED - do not touch it**
+- Only use safe git commands like `git status`, `git add`, `git commit`, `git push`
+- If git issues arise, ask the user how they want to proceed
+- **VIOLATION OF THIS RULE IS UNACCEPTABLE AND WILL CAUSE DATA LOSS**
+
+### 2. Server Management
 - **NEVER restart the development server** - always ask the user
 - Always use port 3000, don't allow automatic port switching
 - The user manages all server processes
 - When code changes are made, ask user to refresh browser instead
 
-### 2. Supabase Database
+### 3. Supabase Database
 - **STOP immediately** when Supabase infrastructure changes are needed (tables, RLS policies, storage)
 - Cannot make changes to Supabase directly - must ask user to make changes in Supabase dashboard
 - When referencing database operations, use MCP access to verify structure
