@@ -24,6 +24,9 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 | 2025-07-01 | Status filtering and timezone fixes | Enhanced admin interface with proper UTC handling |
 | 2025-07-01 | Site-specific extraction system | Fix multi-price configuration issues with vendor-specific rules |
 | 2025-07-02 | Intelligent price extraction with Claude MCP | AI sub-agent system with browser automation for complex sites |
+| 2025-07-02 | Systematic batch analysis & MCP investigation | Comprehensive failure analysis revealing 50% false positives |
+| 2025-07-02 | Hybrid MCP learning system | Cost-effective two-phase approach: learning + fast automation |
+| 2025-07-02 | Enhanced logging & batch analysis tools | Method-by-method tracking with automated investigation workflows |
 
 ## 🔎 Key Technical Insights
 - MCP integration provides direct Supabase access through Claude Code interface
@@ -41,6 +44,11 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Real-time progress tracking essential for batch processing operations
 - Claude MCP sub-agent architecture enables autonomous browser interactions
 - Dynamic scraper with variant selection handles complex product configurations
+- Systematic batch analysis reveals many "failures" are actually false positives due to network issues
+- Hybrid learning approach: expensive MCP learning once, then fast Playwright automation
+- Method-by-method logging essential for debugging complex extraction pipelines
+- Configurator sites (Aeon) require multi-step browser interaction for accurate pricing
+- Price_history table workflow maintains proper audit trail for price discoveries
 
 ## 💡 Current Features
 - Advanced filtering system with 10+ filter types for machines
@@ -54,6 +62,9 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Price history visualization with interactive charts and statistics
 - Review moderation system with approval/rejection workflow
 - Claude MCP integration for autonomous price extraction
+- Systematic batch analysis tools with failure categorization
+- Hybrid MCP learning system for cost-effective complex site handling
+- Enhanced logging with method-by-method tracking and investigation workflows
 
 ## 🕒 Development Log
 
@@ -129,6 +140,24 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Claude acts as full sub-agent, navigating pages, clicking variants, finding correct prices
 - **Technical**: Playwright integration, variant selection logic, post-interaction HTML analysis
 
+### 2025-07-02: Systematic Batch Analysis & MCP Investigation System
+- **Issue**: 194 batch failures needed investigation to distinguish real issues from false positives
+- **Solution**: Comprehensive MCP browser investigation revealed ~50% false positives, created systematic analysis tools
+- **Impact**: Found real prices (Aeon MIRA 5 S: $6,995, ComMarker B4 30W: $2,266), enhanced extraction rules
+- **Technical**: MCP automation, failure categorization, SQL corrections with price_history workflow
+
+### 2025-07-02: Hybrid MCP Learning System Implementation
+- **Issue**: Need scalable approach for complex sites without high costs for every extraction
+- **Solution**: Two-phase system: MCP learning (one-time $0.05-0.15) → fast Playwright automation ($0.001)
+- **Impact**: Self-improving system that learns site patterns once, then uses fast automation
+- **Technical**: MCPLearningSystem class, intelligent site detection, learned selector storage
+
+### 2025-07-02: Enhanced Logging & Batch Analysis Tools
+- **Issue**: Needed comprehensive failure analysis tools for batch operations
+- **Solution**: Enhanced logging with method-by-method tracking, automated failure categorization tools
+- **Impact**: Clear visibility into extraction pipeline, automated MCP investigation script generation
+- **Technical**: Emoji indicators for log parsing, failure categorization, investigation workflow automation
+
 ## 🐞 Known Issues & Future Work
 - Playwright browser installation required for dynamic scraping functionality
 - Test Claude MCP client with broader range of problematic e-commerce sites
@@ -146,6 +175,9 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Price validation: 99% reduction in false positive price changes (17,995→179 prevented)
 - Site-specific rules: Commarker 270% error → <5% accuracy, Cloudray 92% error → <5% accuracy
 - Claude MCP integration: Autonomous browser automation for complex extraction scenarios
+- Batch analysis: 194 failures investigated, 50% false positives identified and corrected
+- Hybrid learning: One-time MCP learning costs vs. ongoing fast automation (1000x cost reduction)
+- Logging enhancement: Method-by-method tracking enables precise failure diagnosis
 
 ## 🔗 Key Architecture Components
 - **Database Schema**: 24+ tables with sophisticated machine specifications and price tracking

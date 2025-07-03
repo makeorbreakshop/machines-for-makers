@@ -237,6 +237,9 @@ export default function PriceTrackerAdmin() {
   const [refreshing, setRefreshing] = useState(false)
   const [recentlyUpdated, setRecentlyUpdated] = useState<any[]>([])
   const [filterFeatured, setFilterFeatured] = useState(false)
+  const [hasMoreRecords, setHasMoreRecords] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [recordsPerPage] = useState(50)
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [debugDialogOpen, setDebugDialogOpen] = useState(false)
   const [priceHistoryModalOpen, setPriceHistoryModalOpen] = useState(false)
@@ -251,6 +254,13 @@ export default function PriceTrackerAdmin() {
   const [batches, setBatches] = useState<any[]>([])
   const [loadingBatches, setLoadingBatches] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [batchFilter, setBatchFilter] = useState<string>("all")
+  
+  // Price correction dialog state
+  const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false)
+  const [correctionRecord, setCorrectionRecord] = useState<any>(null)
+  const [correctPrice, setCorrectPrice] = useState("")
+  const [correctionReason, setCorrectionReason] = useState("")
   
   // Debug tab state
   const [debugUrl, setDebugUrl] = useState("")
@@ -296,19 +306,61 @@ export default function PriceTrackerAdmin() {
   }, [filterFeatured])
   
   // Fetch recently updated machines
-  useEffect(() => {
-    const fetchRecentlyUpdated = async () => {
-      try {
-        // Get the most recent price history entries
-        const { data: recentEntries, error } = await supabase
-          .from("price_history")
-          .select("id, machine_id, price, previous_price, date, is_all_time_low, is_all_time_high, status, failure_reason, review_result, reviewed_by")
-          .order("date", { ascending: false })
-          .limit(50)
+  const fetchRecentlyUpdated = async (offset = 0, append = false) => {
+    try {
+      if (!append) {
+        setRecentlyUpdated([])
+        setHasMoreRecords(true)
+      }
+      
+      // Build query with status filter
+      let query = supabase
+        .from("price_history")
+        .select("id, machine_id, price, previous_price, date, is_all_time_low, is_all_time_high, status, failure_reason, review_result, reviewed_by, batch_id")
+        .order("date", { ascending: false })
+      
+      // Apply database-level filtering based on status
+      if (statusFilter !== "all") {
+        switch(statusFilter) {
+          case 'PENDING_REVIEW':
+            query = query.eq('status', 'PENDING_REVIEW')
+            break
+          case 'AUTO_APPLIED':
+            query = query.eq('status', 'AUTO_APPLIED')
+            break
+          case 'SUCCESS':
+            query = query.eq('status', 'SUCCESS')
+            break
+          case 'REVIEWED_APPROVED':
+            query = query.eq('status', 'REVIEWED').eq('review_result', 'approved')
+            break
+          case 'REVIEWED_REJECTED':
+            query = query.eq('status', 'REVIEWED').eq('review_result', 'rejected')
+            break
+          case 'FAILED':
+            query = query.eq('status', 'FAILED').not('failure_reason', 'like', '%Pending review%')
+            break
+        }
+      }
+      
+      // Apply batch filtering
+      if (batchFilter !== "all") {
+        if (batchFilter === "no-batch") {
+          query = query.is('batch_id', null)
+        } else {
+          query = query.eq('batch_id', batchFilter)
+        }
+      }
+      
+      // Apply pagination
+      const { data: recentEntries, error } = await query.range(offset, offset + recordsPerPage - 1)
         
-        if (error) throw error
-        
-        if (recentEntries && recentEntries.length > 0) {
+      if (error) throw error
+      
+      // Check if we have more records
+      setHasMoreRecords(recentEntries && recentEntries.length === recordsPerPage)
+      
+      if (recentEntries && recentEntries.length > 0) {
           // Get machine names and current prices
           const machineIds = [...new Set(recentEntries.map(item => item.machine_id))]
           const { data: machineData, error: machineError } = await supabase
@@ -366,6 +418,7 @@ export default function PriceTrackerAdmin() {
               failure_reason: entry.failure_reason,
               review_result: entry.review_result,
               reviewed_by: entry.reviewed_by,
+              batch_id: entry.batch_id,
               machineName: machine ? machine["Machine Name"] : "Unknown",
               company: machine ? machine["Company"] : "Unknown",
               productUrl: machine ? (machine.product_link || machine["Affiliate Link"]) : null,
@@ -374,16 +427,82 @@ export default function PriceTrackerAdmin() {
             }
           }))
           
-          setRecentlyUpdated(combinedData)
+        // Combine and set the data
+        if (append) {
+          setRecentlyUpdated(prev => [...prev, ...combinedData])
         } else {
+          setRecentlyUpdated(combinedData)
+        }
+      } else {
+        if (!append) {
           setRecentlyUpdated([])
         }
+        setHasMoreRecords(false)
+      }
+    } catch (error) {
+      console.error("Error fetching recent updates:", error)
+      if (!append) {
+        setRecentlyUpdated([])
+      }
+    }
+  }
+  
+  // Load more records
+  const loadMoreRecords = async () => {
+    if (loadingMore || !hasMoreRecords) return
+    
+    setLoadingMore(true)
+    try {
+      await fetchRecentlyUpdated(recentlyUpdated.length, true)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+  
+  useEffect(() => {
+    fetchRecentlyUpdated()
+  }, [refreshing, statusFilter, batchFilter])
+  
+  // Fetch batches with price history counts
+  useEffect(() => {
+    const fetchBatchesWithCounts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('batches')
+          .select(`
+            id,
+            start_time,
+            end_time,
+            total_machines,
+            status
+          `)
+          .order('start_time', { ascending: false })
+          .limit(20)
+        
+        if (error) throw error
+        
+        // Get price history counts for each batch
+        const batchesWithCounts = await Promise.all(
+          (data || []).map(async (batch) => {
+            const { count } = await supabase
+              .from('price_history')
+              .select('*', { count: 'exact', head: true })
+              .eq('batch_id', batch.id)
+            
+            return {
+              ...batch,
+              price_history_count: count || 0
+            }
+          })
+        )
+        
+        setBatches(batchesWithCounts)
       } catch (error) {
-        console.error("Error fetching recent updates:", error)
+        console.error('Error fetching batches:', error)
       }
     }
     
-    fetchRecentlyUpdated()
+    fetchBatchesWithCounts()
   }, [refreshing])
   
   // Initial setup
@@ -684,6 +803,61 @@ export default function PriceTrackerAdmin() {
     } catch (error) {
       console.error("Error rejecting price change:", error)
       toast.error(`Failed to reject price change: ${error instanceof Error ? error.message : "Unknown error"}`)
+    }
+  }
+
+  // Function to open price correction dialog
+  const openCorrectionDialog = (record: any) => {
+    setCorrectionRecord(record)
+    setCorrectPrice("") // Start with empty price for user input
+    setCorrectionReason("")
+    setCorrectionDialogOpen(true)
+  }
+
+  // Function to correct a price
+  const submitPriceCorrection = async () => {
+    if (!correctionRecord || !correctPrice) {
+      toast.error("Please provide a correct price")
+      return
+    }
+
+    const priceValue = parseFloat(correctPrice)
+    if (isNaN(priceValue) || priceValue <= 0) {
+      toast.error("Please provide a valid price")
+      return
+    }
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'
+      
+      const response = await fetch(`${apiUrl}/api/v1/correct-price`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          price_history_id: correctionRecord.id,
+          correct_price: priceValue,
+          corrected_by: "admin",
+          reason: correctionReason || `User corrected price from ${formatPrice(correctionRecord.price)} to ${formatPrice(priceValue)}`
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.detail || result.error || "Failed to correct price")
+      }
+      
+      toast.success(`Price corrected: ${formatPrice(result.original_price)} → ${formatPrice(result.corrected_price)}`)
+      
+      // Close dialog and refresh data
+      setCorrectionDialogOpen(false)
+      setRefreshing(prev => !prev)
+      
+    } catch (error) {
+      console.error("Error correcting price:", error)
+      toast.error(`Failed to correct price: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
@@ -1170,13 +1344,32 @@ export default function PriceTrackerAdmin() {
                       <SelectValue placeholder="All statuses" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Statuses ({recentlyUpdated.length})</SelectItem>
-                      <SelectItem value="PENDING_REVIEW">Pending Review ({recentlyUpdated.filter(r => r.status === 'PENDING_REVIEW').length})</SelectItem>
-                      <SelectItem value="AUTO_APPLIED">Auto-Applied ({recentlyUpdated.filter(r => r.status === 'AUTO_APPLIED').length})</SelectItem>
-                      <SelectItem value="SUCCESS">Manually Approved ({recentlyUpdated.filter(r => r.status === 'SUCCESS').length})</SelectItem>
-                      <SelectItem value="REVIEWED_APPROVED">Approved & Applied ({recentlyUpdated.filter(r => r.status === 'REVIEWED' && r.review_result === 'approved').length})</SelectItem>
-                      <SelectItem value="REVIEWED_REJECTED">Rejected ({recentlyUpdated.filter(r => r.status === 'REVIEWED' && r.review_result === 'rejected').length})</SelectItem>
-                      <SelectItem value="FAILED">Failed ({recentlyUpdated.filter(r => r.status === 'FAILED' && r.failure_reason && !r.failure_reason.includes('Pending review')).length})</SelectItem>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="PENDING_REVIEW">Pending Review</SelectItem>
+                      <SelectItem value="AUTO_APPLIED">Auto-Applied</SelectItem>
+                      <SelectItem value="SUCCESS">Manually Approved</SelectItem>
+                      <SelectItem value="MANUAL_CORRECTION">Manually Corrected</SelectItem>
+                      <SelectItem value="REVIEWED_APPROVED">Approved & Applied</SelectItem>
+                      <SelectItem value="REVIEWED_REJECTED">Rejected</SelectItem>
+                      <SelectItem value="FAILED">Failed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="batch-filter">Filter by Batch:</Label>
+                  <Select value={batchFilter} onValueChange={setBatchFilter}>
+                    <SelectTrigger className="w-64">
+                      <SelectValue placeholder="All batches" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Batches</SelectItem>
+                      <SelectItem value="no-batch">No Batch ID</SelectItem>
+                      {batches.filter(batch => batch.price_history_count > 0).map((batch) => (
+                        <SelectItem key={batch.id} value={batch.id}>
+                          {batch.id.slice(0, 8)}... ({format(new Date(batch.start_time), "MMM d, h:mm a")}) - {batch.price_history_count} records
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1197,36 +1390,14 @@ export default function PriceTrackerAdmin() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(() => {
-                      const filteredRecords = statusFilter === "all" 
-                        ? recentlyUpdated 
-                        : recentlyUpdated.filter(record => {
-                            switch(statusFilter) {
-                              case 'PENDING_REVIEW':
-                                return record.status === 'PENDING_REVIEW';
-                              case 'AUTO_APPLIED':
-                                return record.status === 'AUTO_APPLIED';
-                              case 'SUCCESS':
-                                return record.status === 'SUCCESS';
-                              case 'REVIEWED_APPROVED':
-                                return record.status === 'REVIEWED' && record.review_result === 'approved';
-                              case 'REVIEWED_REJECTED':
-                                return record.status === 'REVIEWED' && record.review_result === 'rejected';
-                              case 'FAILED':
-                                return record.status === 'FAILED' && record.failure_reason && !record.failure_reason.includes('Pending review');
-                              default:
-                                return true;
-                            }
-                          });
-                      
-                      return filteredRecords.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8">
-                            {statusFilter === "all" ? "No recent updates found." : `No updates found with status: ${statusFilter}`}
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredRecords.map((record, index) => (
+                    {recentlyUpdated.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8">
+                          {statusFilter === "all" ? "No recent updates found." : `No updates found with status: ${statusFilter}`}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      recentlyUpdated.map((record, index) => (
                         <TableRow key={`${record.machine_id}-${index}`}>
                           <TableCell className="font-medium">
                             <div className="flex flex-col">
@@ -1261,6 +1432,11 @@ export default function PriceTrackerAdmin() {
                               {record.status === 'SUCCESS' && (
                                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                                   Manually Approved
+                                </Badge>
+                              )}
+                              {record.status === 'MANUAL_CORRECTION' && (
+                                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                  Manually Corrected
                                 </Badge>
                               )}
                               {record.status === 'REVIEWED' && record.review_result === 'approved' && (
@@ -1333,14 +1509,11 @@ export default function PriceTrackerAdmin() {
                                   <Button 
                                     size="sm" 
                                     variant="outline"
-                                    onClick={() => {
-                                      if (window.confirm("Reject this price change?")) {
-                                        rejectPrice(record.id)
-                                      }
-                                    }}
+                                    className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                                    onClick={() => openCorrectionDialog(record)}
                                   >
-                                    <X className="w-4 h-4 mr-1" />
-                                    Reject
+                                    <AlertCircle className="w-4 h-4 mr-1" />
+                                    Correct Price
                                   </Button>
                                 </>
                               )}
@@ -1359,29 +1532,53 @@ export default function PriceTrackerAdmin() {
                             </div>
                           </TableCell>
                         </TableRow>
-                        ))
-                      );
-                    })()}
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
             </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button
-                variant="outline" 
-                onClick={() => setRefreshing(prev => !prev)}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </Button>
+            <CardFooter className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline" 
+                  onClick={() => setRefreshing(prev => !prev)}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh
+                </Button>
+                
+                {hasMoreRecords && (
+                  <Button
+                    variant="outline"
+                    onClick={loadMoreRecords}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>Load More Records</>
+                    )}
+                  </Button>
+                )}
+              </div>
               
-              <Button
-                variant="secondary"
-                onClick={cleanupInvalidPrices}
-              >
-                <AlertCircle className="w-4 h-4 mr-2" />
-                Clean Invalid Records
-              </Button>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">
+                  Showing {recentlyUpdated.length} records{hasMoreRecords ? ' (more available)' : ''}
+                </span>
+                
+                <Button
+                  variant="secondary"
+                  onClick={cleanupInvalidPrices}
+                >
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Clean Invalid Records
+                </Button>
+              </div>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -1508,6 +1705,121 @@ export default function PriceTrackerAdmin() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* COMPLETELY REBUILT PRICE CORRECTION DIALOG */}
+      {correctionDialogOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '24px',
+            borderRadius: '8px',
+            width: '500px',
+            maxWidth: '90vw',
+            maxHeight: '90vh',
+            overflow: 'auto'
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
+              Correct Price
+            </h2>
+            
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '16px' }}>
+              The extracted price appears to be incorrect. Please provide the correct price.
+            </p>
+            
+            {correctionRecord && (
+              <div style={{ backgroundColor: '#f8f9fa', padding: '16px', borderRadius: '6px', marginBottom: '16px' }}>
+                <div style={{ fontWeight: '500', marginBottom: '8px', fontSize: '14px' }}>Current Record:</div>
+                <div style={{ fontSize: '14px', color: '#666' }}>
+                  <div>Machine: {correctionRecord.machineName}</div>
+                  <div>Extracted Price: {formatPrice(correctionRecord.price)}</div>
+                  <div>Method: {correctionRecord.extractionMethod || 'Unknown'}</div>
+                </div>
+              </div>
+            )}
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                Correct Price
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Enter correct price"
+                value={correctPrice}
+                onChange={(e) => setCorrectPrice(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                Reason (optional)
+              </label>
+              <textarea
+                placeholder="Why was the extracted price wrong?"
+                value={correctionReason}
+                onChange={(e) => setCorrectionReason(e.target.value)}
+                rows={2}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setCorrectionDialogOpen(false)}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #ccc',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitPriceCorrection}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#ea580c',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Submit Correction
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
