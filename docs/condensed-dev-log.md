@@ -27,6 +27,8 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 | 2025-07-02 | Systematic batch analysis & MCP investigation | Comprehensive failure analysis revealing 50% false positives |
 | 2025-07-02 | Hybrid MCP learning system | Cost-effective two-phase approach: learning + fast automation |
 | 2025-07-02 | Enhanced logging & batch analysis tools | Method-by-method tracking with automated investigation workflows |
+| 2025-07-03 | Systematic manual correction fixes | Root cause analysis & comprehensive error type resolution |
+| 2025-07-03 | Critical retest failure diagnosis | Fixed unpacking bug, enhanced anti-detection, URL mapping |
 
 ## 🔎 Key Technical Insights
 - MCP integration provides direct Supabase access through Claude Code interface
@@ -65,6 +67,9 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Systematic batch analysis tools with failure categorization
 - Hybrid MCP learning system for cost-effective complex site handling
 - Enhanced logging with method-by-method tracking and investigation workflows
+- Systematic manual correction analysis with 3 error type identification and targeted fixes
+- Enhanced web scraper with Thunder Laser anti-detection and Atomstack URL corrections
+- Retest functionality for failed + manually corrected machines from specific batches
 
 ## 🕒 Development Log
 
@@ -158,6 +163,18 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Clear visibility into extraction pipeline, automated MCP investigation script generation
 - **Technical**: Emoji indicators for log parsing, failure categorization, investigation workflow automation
 
+### 2025-07-03: Systematic Manual Correction Analysis & Comprehensive Fixes
+- **Issue**: Batch 4ff7c3c6 had 9 manual corrections requiring investigation to prevent future systematic errors
+- **Solution**: Complete root cause analysis identifying 3 distinct error types with targeted technical fixes
+- **Impact**: Bundle-price selector contamination (7 machines), Monport decimal parsing (1), variant selection (1) all resolved
+- **Technical**: Enhanced site-specific extractors, Thunder Laser anti-detection, Atomstack URL corrections, retest functionality
+
+### 2025-07-03: Critical Retest Failure Diagnosis & Emergency Fixes
+- **Issue**: Retest batch failed completely (0/34 successful) due to critical web scraper bug and enhanced blocking
+- **Solution**: Fixed "unpacking" exception bug, enhanced Thunder Laser anti-detection, mapped correct AtomStack URLs
+- **Impact**: Critical bug causing all extractions to fail, enhanced anti-bot measures, accurate URL corrections
+- **Technical**: Fixed return statement in exception handler, Googlebot headers for Thunder Laser, AtomStack URL mapping
+
 ## 🐞 Known Issues & Future Work
 - Playwright browser installation required for dynamic scraping functionality
 - Test Claude MCP client with broader range of problematic e-commerce sites
@@ -178,6 +195,10 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Batch analysis: 194 failures investigated, 50% false positives identified and corrected
 - Hybrid learning: One-time MCP learning costs vs. ongoing fast automation (1000x cost reduction)
 - Logging enhancement: Method-by-method tracking enables precise failure diagnosis
+- Manual correction analysis: 9 corrections → 3 error types identified → systematic fixes implemented
+- Enhanced extraction: Thunder Laser anti-detection, Monport decimal parsing, variant selection fixes
+- Critical bug fix: Web scraper unpacking exception causing 100% extraction failures resolved
+- AtomStack URL research: Identified 3 correctable URL patterns, 2 discontinued products
 
 ## 🔗 Key Architecture Components
 - **Database Schema**: 24+ tables with sophisticated machine specifications and price tracking

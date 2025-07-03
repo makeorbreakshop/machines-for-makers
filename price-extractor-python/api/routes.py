@@ -406,6 +406,206 @@ async def fix_bad_selectors():
             "error": f"Error fixing bad learned selectors: {str(e)}"
         }
 
+@router.get("/batch-failures/{batch_id}")
+async def get_batch_failures(batch_id: str):
+    """
+    Get failed machines from batch logs (backward compatibility endpoint).
+    
+    Args:
+        batch_id: The batch ID to get failures for
+        
+    Returns:
+        List of failed machine IDs from batch logs
+    """
+    try:
+        logger.info(f"Getting batch failures for batch ID: {batch_id}")
+        
+        # Debug current working directory
+        import os
+        logger.info(f"🔧 DEBUG: Current working directory: {os.getcwd()}")
+        logger.info(f"🔧 DEBUG: Directory contents: {os.listdir('.')}")
+        
+        # Get failed machines from batch logs
+        failed_machine_ids = await price_service.get_batch_failures(batch_id)
+        
+        return {
+            "success": True,
+            "batch_id": batch_id,
+            "failed_machine_ids": failed_machine_ids,
+            "total_failures": len(failed_machine_ids)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting batch failures for {batch_id}: {str(e)}")
+        raise HTTPException(status_code=404, detail=f"Could not get failures for batch {batch_id}: {str(e)}")
+
+@router.get("/batch-failures-and-corrections/{batch_id}")
+async def get_batch_failures_and_corrections(batch_id: str):
+    """
+    Get comprehensive list of failed AND manually corrected machines from a specific batch.
+    
+    Args:
+        batch_id: The batch ID to get failures and corrections for
+        
+    Returns:
+        Combined list of failed and manually corrected machine IDs
+    """
+    try:
+        logger.info(f"Getting failures and corrections for batch ID: {batch_id}")
+        
+        # Get failed machines from batch logs
+        failed_machine_ids = await price_service.get_batch_failures(batch_id)
+        
+        # Get manually corrected machines from database
+        corrected_machine_ids = await price_service.get_batch_manual_corrections(batch_id)
+        
+        # Combine both lists and remove duplicates
+        all_machine_ids = list(set(failed_machine_ids + corrected_machine_ids))
+        
+        logger.info(f"Found {len(failed_machine_ids)} failed + {len(corrected_machine_ids)} corrected = {len(all_machine_ids)} total machines to retest")
+        
+        return {
+            "success": True,
+            "batch_id": batch_id,
+            "failed_machine_ids": failed_machine_ids,
+            "corrected_machine_ids": corrected_machine_ids,
+            "all_machine_ids": all_machine_ids,
+            "total_failed": len(failed_machine_ids),
+            "total_corrected": len(corrected_machine_ids),
+            "total_for_retest": len(all_machine_ids)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting batch failures and corrections for {batch_id}: {str(e)}")
+        raise HTTPException(status_code=404, detail=f"Could not get data for batch {batch_id}: {str(e)}")
+
+@router.post("/batch-retest")
+async def batch_retest(request: dict, background_tasks: BackgroundTasks):
+    """
+    Start a retest for failed machines from a specific batch (backward compatibility endpoint).
+    
+    Args:
+        request: Contains batch_id for the original batch to retest
+    """
+    try:
+        logger.info(f"🔧 DEBUG: Received batch retest request: {request}")
+        
+        # Handle both old and new request formats
+        batch_id = request.get("batch_id") or request.get("original_batch_id")
+        machine_ids = request.get("machine_ids", [])
+        description = request.get("description", "")
+        
+        logger.info(f"🔧 DEBUG: Extracted batch_id: {batch_id}")
+        logger.info(f"🔧 DEBUG: Machine IDs provided: {len(machine_ids)}")
+        
+        if not batch_id:
+            logger.error(f"🔧 DEBUG: No batch_id or original_batch_id in request: {request}")
+            raise HTTPException(status_code=400, detail="batch_id or original_batch_id is required")
+        
+        logger.info(f"Starting batch retest for batch {batch_id} with {len(machine_ids)} machines")
+        
+        # Use provided machine IDs if available, otherwise get from batch log
+        if machine_ids:
+            all_machine_ids = machine_ids
+            failed_machine_count = "provided"
+            corrected_machine_count = "in list"
+            logger.info(f"Using provided machine IDs: {len(all_machine_ids)} machines")
+        else:
+            # Fallback: Get both failed and manually corrected machine IDs
+            failed_machine_ids = await price_service.get_batch_failures(batch_id)
+            corrected_machine_ids = await price_service.get_batch_manual_corrections(batch_id)
+            all_machine_ids = list(set(failed_machine_ids + corrected_machine_ids))
+            failed_machine_count = len(failed_machine_ids)
+            corrected_machine_count = len(corrected_machine_ids)
+            logger.info(f"Retrieved from logs: {len(all_machine_ids)} machines")
+        
+        if not all_machine_ids:
+            return {
+                "success": True,
+                "message": f"No machines found for retest in batch {batch_id}",
+                "batch_id": batch_id,
+                "total_machines": 0
+            }
+        
+        logger.info(f"Starting retest for {len(all_machine_ids)} machines ({failed_machine_count} failed + {corrected_machine_count} corrected)")
+        
+        # Start the retest batch in background
+        background_tasks.add_task(
+            _process_batch_update,
+            0,  # days_threshold: 0 to force update regardless of last update time
+            None,  # limit: None to process all provided machines
+            all_machine_ids  # comprehensive machine IDs to retest
+        )
+        
+        return {
+            "success": True,
+            "message": f"Batch retest started for {len(all_machine_ids)} machines from batch {batch_id}",
+            "batch_id": batch_id,
+            "original_batch_id": batch_id,
+            "total_machines": len(all_machine_ids),
+            "machines_to_retest": len(all_machine_ids),
+            "description": description or f"Retest of machines from batch {batch_id[:8]}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error starting batch retest: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start retest: {str(e)}")
+
+@router.post("/comprehensive-retest")
+async def comprehensive_retest(request: dict, background_tasks: BackgroundTasks):
+    """
+    Start a comprehensive retest for both failed and manually corrected machines from a specific batch.
+    
+    Args:
+        request: Contains batch_id for the original batch to retest
+    """
+    try:
+        batch_id = request.get("batch_id")
+        if not batch_id:
+            raise HTTPException(status_code=400, detail="batch_id is required")
+        
+        logger.info(f"Starting comprehensive retest for batch {batch_id}")
+        
+        # Get both failed and manually corrected machine IDs
+        failed_machine_ids = await price_service.get_batch_failures(batch_id)
+        corrected_machine_ids = await price_service.get_batch_manual_corrections(batch_id)
+        
+        # Combine and deduplicate
+        all_machine_ids = list(set(failed_machine_ids + corrected_machine_ids))
+        
+        if not all_machine_ids:
+            return {
+                "success": True,
+                "message": f"No machines found for retest in batch {batch_id}",
+                "batch_id": batch_id,
+                "total_machines": 0
+            }
+        
+        logger.info(f"Starting retest for {len(all_machine_ids)} machines ({len(failed_machine_ids)} failed + {len(corrected_machine_ids)} corrected)")
+        
+        # Start the retest batch in background
+        background_tasks.add_task(
+            _process_batch_update,
+            0,  # days_threshold: 0 to force update regardless of last update time
+            None,  # limit: None to process all provided machines
+            all_machine_ids  # comprehensive machine IDs to retest
+        )
+        
+        return {
+            "success": True,
+            "message": f"Comprehensive retest started for {len(all_machine_ids)} machines from batch {batch_id}",
+            "batch_id": batch_id,
+            "total_machines": len(all_machine_ids),
+            "failed_machines": len(failed_machine_ids),
+            "corrected_machines": len(corrected_machine_ids)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error starting comprehensive retest: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start retest: {str(e)}")
+
 @router.post("/correct-price")
 async def correct_price(request: PriceCorrectionRequest):
     """

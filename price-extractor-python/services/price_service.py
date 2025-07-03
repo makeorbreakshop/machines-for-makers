@@ -2,6 +2,7 @@ from loguru import logger
 from datetime import datetime
 import os
 import uuid
+from urllib.parse import urlparse
 
 from services.database import DatabaseService
 from scrapers.web_scraper import WebScraper
@@ -120,8 +121,31 @@ class PriceService:
             # Get current price from database
             current_price = machine.get("Price")
             
+            # Skip Thunder Laser machines as they require special handling
+            domain = urlparse(product_url).netloc.lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            
+            if 'thunderlaserusa.com' in domain:
+                logger.warning(f"⚠️ Skipping Thunder Laser machine {machine_id} - requires special handling")
+                await self.db_service.add_price_history(
+                    machine_id=machine_id,
+                    old_price=current_price,
+                    new_price=None,
+                    success=False,
+                    error_message="Thunder Laser machines temporarily excluded from batch updates",
+                    batch_id=batch_id
+                )
+                return {
+                    "success": False, 
+                    "error": "Thunder Laser machines temporarily excluded from batch updates", 
+                    "machine_id": machine_id, 
+                    "url": product_url
+                }
+            
             # Pre-validate URL health to catch broken links early
             url_health = await self.web_scraper.validate_url_health(product_url)
+            
             if not url_health['is_healthy']:
                 logger.warning(f"URL health issues detected for {product_url}: {url_health['issues']}")
                 
@@ -478,3 +502,120 @@ class PriceService:
         except Exception as e:
             logger.exception(f"Error retrieving batch results for batch_id {batch_id}: {str(e)}")
             return None 
+    
+    async def get_batch_failures(self, batch_id):
+        """
+        Parse batch log file to extract failed machine IDs.
+        
+        Args:
+            batch_id (str): The batch ID to get failures for
+            
+        Returns:
+            List[str]: List of machine IDs that completely failed
+        """
+        try:
+            logger.info(f"Parsing batch log for failures: {batch_id}")
+            
+            # Find the batch log file
+            import glob
+            import os
+            short_batch_id = batch_id[:8]
+            logger.info(f"🔧 DEBUG: Looking for batch logs with short_batch_id: {short_batch_id}")
+            
+            # Check both current directory and parent directory for logs
+            patterns_to_try = [
+                f"logs/batch_*_{short_batch_id}.log",
+                f"../logs/batch_*_{short_batch_id}.log",
+                f"price-extractor-python/logs/batch_*_{short_batch_id}.log"
+            ]
+            
+            log_files = []
+            for pattern in patterns_to_try:
+                logger.info(f"🔧 DEBUG: Trying pattern: {pattern}")
+                found_files = glob.glob(pattern)
+                logger.info(f"🔧 DEBUG: Pattern {pattern} found files: {found_files}")
+                if found_files:
+                    log_files = found_files
+                    logger.info(f"Found log files using pattern: {pattern}")
+                    break
+            
+            if not log_files:
+                logger.warning(f"No batch log file found for batch {batch_id}")
+                return []
+            
+            log_file = log_files[0]  # Use the first matching log file
+            logger.info(f"Reading batch log: {log_file}")
+            
+            failed_machine_ids = []
+            
+            with open(log_file, 'r') as f:
+                lines = f.readlines()
+            
+            # Parse log lines to find complete failures
+            error_lines_found = 0
+            for line in lines:
+                # Look for database errors when adding price history - these contain machine IDs
+                if "ERROR" in line and "services.database:add_price_history" in line and "Error adding price history for machine" in line:
+                    error_lines_found += 1
+                    logger.info(f"🔧 DEBUG: Found error line {error_lines_found}: {line.strip()[:100]}...")
+                    try:
+                        # Extract machine ID from: "Error adding price history for machine ebd7976d-9fa0-4142-84cf-065d7adcb870: {'message':..."
+                        match_text = "Error adding price history for machine "
+                        start_idx = line.find(match_text)
+                        if start_idx != -1:
+                            start_idx += len(match_text)
+                            # Find the end of the machine ID (next colon)
+                            end_idx = line.find(":", start_idx)
+                            if end_idx != -1:
+                                machine_id = line[start_idx:end_idx].strip()
+                                logger.info(f"🔧 DEBUG: Extracted machine_id: '{machine_id}' (length: {len(machine_id)}, dashes: {machine_id.count('-')})")
+                                # Validate it looks like a UUID (36 chars with 4 dashes)
+                                if len(machine_id) == 36 and machine_id.count('-') == 4:
+                                    if machine_id not in failed_machine_ids:
+                                        failed_machine_ids.append(machine_id)
+                                        logger.info(f"🔧 DEBUG: Added failed machine ID: {machine_id}")
+                                else:
+                                    logger.warning(f"🔧 DEBUG: Invalid machine ID format: '{machine_id}'")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse machine ID from database error line: {line.strip()}")
+                        continue
+            
+            logger.info(f"🔧 DEBUG: Found {error_lines_found} error lines total")
+            logger.info(f"Found {len(failed_machine_ids)} failed machines in batch {batch_id}")
+            return failed_machine_ids
+            
+        except Exception as e:
+            logger.exception(f"Error parsing batch failures for {batch_id}: {str(e)}")
+            return []
+    
+    async def get_batch_manual_corrections(self, batch_id):
+        """
+        Get machine IDs that were manually corrected in a specific batch.
+        
+        Args:
+            batch_id: The batch ID to get manual corrections for
+            
+        Returns:
+            list: Machine IDs that were manually corrected in this batch
+        """
+        try:
+            logger.info(f"Getting manual corrections for batch {batch_id}")
+            
+            # Query price_history table for MANUAL_CORRECTION entries from this batch
+            query = """
+                SELECT DISTINCT machine_id 
+                FROM price_history 
+                WHERE batch_id = $1 
+                AND status = 'MANUAL_CORRECTION'
+            """
+            
+            result = await self.db_service.fetch_query(query, batch_id)
+            
+            corrected_machine_ids = [row['machine_id'] for row in result] if result else []
+            
+            logger.info(f"Found {len(corrected_machine_ids)} manually corrected machines in batch {batch_id}")
+            return corrected_machine_ids
+            
+        except Exception as e:
+            logger.exception(f"Error getting manual corrections for batch {batch_id}: {str(e)}")
+            return []

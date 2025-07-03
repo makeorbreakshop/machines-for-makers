@@ -13,6 +13,7 @@ class WebScraper:
     
     def __init__(self):
         """Initialize the web scraper with default headers."""
+        logger.info("🔧 LOADING WebScraper v2025-07-03-14:00 - FIXED exception + comprehensive debugging")
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': USER_AGENT,
@@ -22,6 +23,63 @@ class WebScraper:
             'Upgrade-Insecure-Requests': '1',
             'Cache-Control': 'max-age=0',
         })
+        
+        # Enhanced user agents for anti-detection
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0'
+        ]
+    
+    def _get_enhanced_headers(self, url):
+        """
+        Get enhanced headers for anti-detection based on domain.
+        
+        Args:
+            url (str): Target URL
+            
+        Returns:
+            dict: Enhanced headers for the request
+        """
+        domain = urlparse(url).netloc.lower()
+        
+        # Random user agent selection
+        user_agent = random.choice(self.user_agents)
+        
+        # Base headers for realistic browser behavior
+        headers = {
+            'User-Agent': user_agent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0'
+        }
+        
+        # Amazon specific headers 
+        if 'amazon.com' in domain:
+            headers.update({
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            })
+            # Remove bot-like headers for Amazon
+            if 'Sec-Fetch-' in str(headers):
+                headers = {k: v for k, v in headers.items() if not k.startswith('Sec-')}
+            logger.info("🔒 Applied Amazon anti-detection headers")
+        
+        return headers
     
     async def get_page_content(self, url, max_retries=3):
         """
@@ -46,7 +104,20 @@ class WebScraper:
                 else:
                     logger.info(f"Fetching content from {url}")
                 
+                # Apply domain-specific delays for anti-detection
+                if attempt > 0:
+                    # Standard delay for retries
+                    delay = random.uniform(0.5, 1.5)
+                    await asyncio.sleep(delay)
+                
                 start_time = time.time()
+                
+                # Get enhanced headers for this domain
+                enhanced_headers = self._get_enhanced_headers(url)
+                
+                # Update session headers for this request
+                original_headers = self.session.headers.copy()
+                self.session.headers.update(enhanced_headers)
                 
                 # Run the HTTP request in a thread pool to avoid blocking the event loop
                 loop = asyncio.get_event_loop()
@@ -54,6 +125,9 @@ class WebScraper:
                     None, 
                     lambda: self.session.get(url, timeout=REQUEST_TIMEOUT)
                 )
+                
+                # Restore original headers
+                self.session.headers = original_headers
                 response.raise_for_status()  # Raise exception for 4XX/5XX responses
                 
                 duration = time.time() - start_time
@@ -62,10 +136,49 @@ class WebScraper:
                 else:
                     logger.info(f"Fetched {url} in {duration:.2f} seconds")
                 
-                # Create BeautifulSoup object
-                html_content = response.text
-                soup = BeautifulSoup(html_content, 'lxml')
-                return html_content, soup
+                # Handle content with proper encoding detection
+                logger.debug(f"🔧 DEBUG: Response encoding: {response.encoding}, apparent_encoding: {response.apparent_encoding}")
+                logger.debug(f"🔧 DEBUG: Content-Type header: {response.headers.get('content-type', 'Not set')}")
+                logger.debug(f"🔧 DEBUG: Content-Encoding header: {response.headers.get('content-encoding', 'Not set')}")
+                
+                # Try to get clean text content
+                try:
+                    # First try response.text (should handle gzip automatically)
+                    html_content = response.text
+                    logger.debug(f"🔧 DEBUG: HTML content length: {len(html_content)} chars")
+                    
+                    # Check if content looks like binary/corrupted
+                    if html_content and len(html_content) > 100:
+                        # Count non-printable characters in first 500 chars
+                        sample = html_content[:500]
+                        non_printable = sum(1 for c in sample if ord(c) < 32 and c not in '\n\r\t')
+                        non_printable_ratio = non_printable / len(sample)
+                        
+                        if non_printable_ratio > 0.1:  # More than 10% non-printable
+                            logger.warning(f"🔧 Content appears corrupted (non-printable ratio: {non_printable_ratio:.2f}), trying content decode")
+                            # Try decoding raw content
+                            if response.content:
+                                html_content = response.content.decode('utf-8', errors='ignore')
+                                logger.info(f"✅ Successfully decoded raw content for {url}")
+                
+                except Exception as content_error:
+                    logger.warning(f"🔧 Content handling error for {url}: {str(content_error)}")
+                    return None, None
+                
+                logger.debug(f"🔧 DEBUG: About to create BeautifulSoup object for {url}")
+                try:
+                    soup = BeautifulSoup(html_content, 'lxml')
+                    logger.debug(f"🔧 DEBUG: Successfully created BeautifulSoup object, returning tuple")
+                    return html_content, soup
+                except Exception as bs_error:
+                    logger.warning(f"🔧 BeautifulSoup lxml parsing failed for {url}, trying html.parser fallback: {str(bs_error)}")
+                    try:
+                        soup = BeautifulSoup(html_content, 'html.parser')
+                        logger.info(f"✅ Successfully parsed {url} using html.parser fallback")
+                        return html_content, soup
+                    except Exception as fallback_error:
+                        logger.error(f"❌ Both lxml and html.parser failed for {url}: {str(fallback_error)}")
+                        return None, None
                 
             except requests.exceptions.Timeout as e:
                 last_error = e
@@ -74,7 +187,7 @@ class WebScraper:
                     continue
                 else:
                     logger.error(f"❌ Non-retryable timeout error when fetching {url}")
-                    break
+                    return None, None
                     
             except requests.exceptions.TooManyRedirects as e:
                 logger.error(f"❌ Too many redirects when fetching {url} (permanent error)")
@@ -98,12 +211,17 @@ class WebScraper:
                     continue
                 else:
                     logger.error(f"❌ Connection error when fetching {url}: {str(e)}")
-                    break
+                    return None, None
                     
             except Exception as e:
                 last_error = e
                 logger.error(f"❌ Unexpected error when fetching {url}: {str(e)}")
-                break
+                logger.error(f"🔧 DEBUG: Exception type: {type(e).__name__}")
+                logger.error(f"🔧 DEBUG: Exception args: {e.args}")
+                import traceback
+                logger.error(f"🔧 DEBUG: Full traceback:\n{traceback.format_exc()}")
+                logger.info("🔧 USING FIXED exception handler - returning None, None tuple")
+                return None, None
         
         # All retry attempts exhausted
         logger.error(f"💥 Failed to fetch {url} after {max_retries + 1} attempts. Last error: {str(last_error)}")
@@ -208,6 +326,20 @@ class WebScraper:
                 health_info['issues'].append('Invalid URL format')
                 return health_info
             
+            # Check if this domain should skip health checks (known to block HEAD requests)
+            domain = urlparse(url).netloc.lower()
+            skip_health_check_domains = [
+                'amazon.com', 'www.amazon.com',  # Amazon blocks HEAD requests (405)
+                'rendyr.com', 'www.rendyr.com'  # Rendyr site issues (402)
+            ]
+            
+            if any(skip_domain in domain for skip_domain in skip_health_check_domains):
+                logger.info(f"🔄 Skipping URL health check for {domain} (known access restrictions)")
+                health_info['is_healthy'] = True  # Assume healthy, try extraction
+                health_info['status_code'] = 200  # Assumed
+                health_info['issues'] = ['Health check bypassed - known problematic domain']
+                return health_info
+            
             logger.info(f"🔍 Validating URL health: {url}")
             start_time = time.time()
             
@@ -292,13 +424,35 @@ class WebScraper:
         parsed = urlparse(url)
         domain = parsed.netloc.lower()
         
-        # AtomStack domain migration (.com → .net)
+        # AtomStack URL fixes - common patterns
         if 'atomstack.com' in domain:
+            # First try .net domain 
             new_url = url.replace('atomstack.com', 'atomstack.net')
             suggestions.append({
                 'url': new_url,
                 'reason': 'Try .net domain (AtomStack migration)'
             })
+            
+            # AtomStack specific URL pattern fixes
+            path = parsed.path
+            if 'atomstack-x70-max-360w-laser-engraver' in path:
+                corrected_url = url.replace('atomstack-x70-max-360w-laser-engraver', 'atomstack-a70-max')
+                suggestions.append({
+                    'url': corrected_url,
+                    'reason': 'X70 Max renamed to A70 Max'
+                })
+            elif 'ikier-k1-pro-1064nm-20w-fiber-laser-engraver-for-metal' in path:
+                corrected_url = url.replace(path, '/products/atomstack-a20-pro-1064nm')
+                suggestions.append({
+                    'url': corrected_url, 
+                    'reason': 'iKier K1 Pro consolidated to A20 Pro'
+                })
+            elif 'atomstack-m4-fiber-laser-marking-machine' in path:
+                corrected_url = url.replace('atomstack-m4-fiber-laser-marking-machine', 'atomstack-m4-infrared-laser-marking-machine')
+                suggestions.append({
+                    'url': corrected_url,
+                    'reason': 'M4 URL includes infrared specification'
+                })
         
         # HTTPS upgrade
         if parsed.scheme == 'http':

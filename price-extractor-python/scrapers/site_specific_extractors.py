@@ -88,7 +88,50 @@ class SiteSpecificExtractor:
                 ],
                 'min_expected_price': 1000,
                 'max_expected_price': 50000
-            }
+            },
+            
+            'monportlaser.com': {
+                'type': 'shopify_variants',
+                'base_machine_preference': True,  # Prefer base machine over bundles
+                'price_selectors': [
+                    '.product-price .price',
+                    '.price--current',
+                    '.money',
+                    '[data-price]'
+                ],
+                'avoid_selectors': [
+                    '.bundle-price',  # Avoid bundle pricing
+                    '.addon-price',   # Avoid addon prices
+                    '.variant-price[data-variant*="bundle"]',  # Avoid bundle variants
+                    '.variant-price[data-variant*="lightburn"]',  # Avoid LightBurn bundles
+                    '.variant-price[data-variant*="rotary"]'  # Avoid rotary bundles
+                ],
+                'prefer_contexts': [
+                    'product-form-wrapper',
+                    'product-price-container', 
+                    'price-container',
+                    'product-details'
+                ],
+                'variant_selection_rules': {
+                    'prefer_base_machine': True,
+                    'avoid_bundles': ['lightburn', 'rotary', 'bundle', 'combo'],
+                    'base_keywords': ['base', 'machine', 'standalone', 'only'],
+                    'selector_base_machine': 'input[value*="base"], input[value*="machine"], select option[value*="base"]'
+                },
+                'decimal_parsing': {
+                    'fix_comma_decimal_confusion': True,
+                    'expected_decimal_places': 2,
+                    'common_price_patterns': [
+                        r'\$(\d{1,2},?\d{3}\.\d{2})',  # $1,399.99 or $1399.99
+                        r'(\d{1,2},?\d{3}\.\d{2})',   # 1,399.99 or 1399.99  
+                        r'\$(\d{1,2},?\d{3})',        # $1,399 or $1399
+                        r'(\d{1,2},?\d{3})'           # 1,399 or 1399
+                    ]
+                },
+                'min_expected_price': 400,
+                'max_expected_price': 8000
+            },
+            
         }
     
     def extract_price_with_rules(self, soup, html_content, url, machine_data=None):
@@ -105,26 +148,52 @@ class SiteSpecificExtractor:
             tuple: (price, method) or (None, None)
         """
         domain = urlparse(url).netloc.lower()
+        original_domain = domain
         
         # Remove 'www.' prefix for rule matching
         if domain.startswith('www.'):
             domain = domain[4:]
         
-        # METHOD 0: Try learned selectors first (fastest and free!)
+        # Check for domain replacements (e.g., Thunder Laser USA -> Thunder Laser CN)
+        if domain in self.site_rules:
+            rules = self.site_rules[domain]
+            if 'url_replacement' in rules:
+                url_replacements = rules['url_replacement']
+                # Check if current domain needs replacement
+                for old_domain, new_domain in url_replacements.items():
+                    if old_domain in original_domain:
+                        logger.info(f"🔄 Thunder Laser domain replacement: {old_domain} → {new_domain}")
+                        # Note: URL replacement should have been done during fetching
+                        # This is just for logging and rule selection
+                        break
+        
+        # METHOD 0: Try learned selectors first (fastest and free!) - BUT AVOID BAD SELECTORS
         if machine_data:
             learned_selectors = machine_data.get('learned_selectors', {})
             if domain in learned_selectors:
                 selector_data = learned_selectors[domain]
                 selector = selector_data.get('selector', '')
                 
-                if selector:
+                # BLACKLIST: Skip known bad selectors that extract bundle/addon prices
+                bad_selector_patterns = [
+                    '.bundle-price', '.addon-price', '.variant-price[data-variant*="bundle"]',
+                    '.variant-price[data-variant*="lightburn"]', '.variant-price[data-variant*="rotary"]',
+                    '.bundle', '.combo-price', '.package-price'
+                ]
+                
+                is_bad_selector = any(bad_pattern in selector.lower() for bad_pattern in bad_selector_patterns)
+                
+                if selector and not is_bad_selector:
                     logger.info(f"Trying learned selector for {domain}: {selector}")
-                    price = self._extract_with_learned_selector(soup, selector)
+                    price = self._extract_with_learned_selector(soup, selector, domain)
                     if price is not None:
                         logger.info(f"Successfully used learned selector: {selector}")
                         return price, f"Learned selector ({selector})"
                     else:
                         logger.warning(f"Learned selector failed: {selector}")
+                elif is_bad_selector:
+                    logger.warning(f"🚫 BLOCKED bad learned selector: {selector} (contains bundle/addon pricing pattern)")
+                    # Continue to site-specific rules instead
             
         # METHOD 1: Check if we have specific rules for this domain
         if domain in self.site_rules:
@@ -139,13 +208,14 @@ class SiteSpecificExtractor:
         # Fallback to generic extraction
         return None, None
     
-    def _extract_with_learned_selector(self, soup, selector):
+    def _extract_with_learned_selector(self, soup, selector, domain=None):
         """
         Extract price using a learned CSS selector.
         
         Args:
             soup: BeautifulSoup object
             selector: CSS selector to try
+            domain: Domain for parsing rules
             
         Returns:
             float or None: Extracted price or None if failed
@@ -157,12 +227,12 @@ class SiteSpecificExtractor:
                 price_attrs = ['data-price', 'data-product-price', 'content']
                 for attr in price_attrs:
                     if element.has_attr(attr):
-                        price = self._parse_price_text(element[attr])
+                        price = self._parse_price_text(element[attr], domain)
                         if price is not None:
                             return price
                 
                 # Try text content
-                price = self._parse_price_text(element.get_text())
+                price = self._parse_price_text(element.get_text(), domain)
                 if price is not None:
                     return price
                     
@@ -172,44 +242,84 @@ class SiteSpecificExtractor:
             logger.error(f"Error extracting with learned selector '{selector}': {str(e)}")
             return None
     
-    def _parse_price_text(self, text):
-        """Simple price parser for learned selectors."""
+    def _parse_price_text(self, text, domain=None):
+        """Enhanced price parser with domain-specific logic."""
         if not text:
             return None
             
         try:
             import re
+            
+            # Get domain-specific parsing rules
+            parsing_rules = None
+            if domain and domain in self.site_rules:
+                parsing_rules = self.site_rules[domain].get('decimal_parsing', {})
+            
+            # Use domain-specific patterns first
+            if parsing_rules and 'common_price_patterns' in parsing_rules:
+                for pattern in parsing_rules['common_price_patterns']:
+                    match = re.search(pattern, str(text))
+                    if match:
+                        price_str = match.group(1)
+                        # Remove thousand separators, keep decimal
+                        price_str = price_str.replace(',', '')
+                        try:
+                            price = float(price_str)
+                            if 1 <= price <= 100000:
+                                return price
+                        except ValueError:
+                            continue
+            
+            # Fallback to original logic
             # Remove currency symbols and extra whitespace
             text_clean = re.sub(r'[$€£¥]', '', str(text))
             text_clean = re.sub(r'\s+', '', text_clean)
             
-            # Find numeric pattern - simple and effective
-            # This will match numbers like: 1234.56, 1,234.56, 1234, etc.
+            # Find numeric pattern - enhanced for Monport issues
             match = re.search(r'\d+(?:[,.]?\d+)*', text_clean)
             if match:
                 price_str = match.group(0)
                 
-                # Handle thousand separators and decimal points
-                if ',' in price_str and '.' in price_str:
-                    # Both separators present
-                    last_comma = price_str.rfind(',')
-                    last_dot = price_str.rfind('.')
-                    
-                    if last_comma > last_dot:
-                        # Comma is decimal (European style): 1.234,56
-                        price_str = price_str.replace('.', '').replace(',', '.')
-                    else:
-                        # Dot is decimal (US style): 1,234.56
+                # Enhanced decimal/comma handling for Monport
+                if domain == 'monportlaser.com':
+                    # Monport uses US format: 1,399.99
+                    if ',' in price_str and '.' in price_str:
+                        # Remove thousand separators, keep decimal
                         price_str = price_str.replace(',', '')
-                elif ',' in price_str:
-                    # Only comma - check if it's decimal or thousands
-                    comma_parts = price_str.split(',')
-                    if len(comma_parts) == 2 and len(comma_parts[1]) <= 2:
-                        # Likely decimal separator (e.g., "123,45")
-                        price_str = price_str.replace(',', '.')
-                    else:
-                        # Likely thousands separator (e.g., "1,234" or "1,234,567")
-                        price_str = price_str.replace(',', '')
+                    elif ',' in price_str and not '.' in price_str:
+                        # Check if comma is thousands (e.g., "1,399") or decimal (e.g., "39,99")
+                        comma_parts = price_str.split(',')
+                        if len(comma_parts) == 2:
+                            if len(comma_parts[0]) >= 2 and len(comma_parts[1]) == 3:
+                                # Thousands separator: "1,399" -> "1399"
+                                price_str = price_str.replace(',', '')
+                            elif len(comma_parts[1]) <= 2:
+                                # Decimal separator: "39,99" -> "39.99"
+                                price_str = price_str.replace(',', '.')
+                        else:
+                            # Multiple commas - remove all (thousands)
+                            price_str = price_str.replace(',', '')
+                else:
+                    # Original logic for other domains
+                    if ',' in price_str and '.' in price_str:
+                        last_comma = price_str.rfind(',')
+                        last_dot = price_str.rfind('.')
+                        
+                        if last_comma > last_dot:
+                            # Comma is decimal (European style): 1.234,56
+                            price_str = price_str.replace('.', '').replace(',', '.')
+                        else:
+                            # Dot is decimal (US style): 1,234.56
+                            price_str = price_str.replace(',', '')
+                    elif ',' in price_str:
+                        # Only comma - check if it's decimal or thousands
+                        comma_parts = price_str.split(',')
+                        if len(comma_parts) == 2 and len(comma_parts[1]) <= 2:
+                            # Likely decimal separator (e.g., "123,45")
+                            price_str = price_str.replace(',', '.')
+                        else:
+                            # Likely thousands separator (e.g., "1,234" or "1,234,567")
+                            price_str = price_str.replace(',', '')
                 
                 price = float(price_str)
                 # Basic validation
@@ -223,6 +333,15 @@ class SiteSpecificExtractor:
     
     def _extract_with_site_rules(self, soup, html_content, url, rules):
         """Extract price using specific site rules."""
+        domain = urlparse(url).netloc.lower()
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        
+        # Monport-specific variant selection logic
+        if domain == 'monportlaser.com' and rules.get('base_machine_preference'):
+            price, method = self._extract_monport_base_machine_price(soup, rules)
+            if price and self._validate_price(price, rules):
+                return price, f"Monport base machine ({method})"
         
         # Method 1: JSON-LD (for Shopify sites)
         if rules.get('prefer_json_ld', False):
@@ -240,6 +359,86 @@ class SiteSpecificExtractor:
         if price and self._validate_price(price, rules):
             return price, f"Site-specific fallback ({method})"
             
+        return None, None
+    
+    def _extract_monport_base_machine_price(self, soup, rules):
+        """Extract base machine price for Monport, avoiding bundle variants."""
+        variant_rules = rules.get('variant_selection_rules', {})
+        avoid_bundles = variant_rules.get('avoid_bundles', [])
+        
+        # Strategy 1: Look for the first/default price (usually base machine)
+        price_selectors = rules.get('price_selectors', ['.price--current', '.money'])
+        
+        for selector in price_selectors:
+            elements = soup.select(selector)
+            for element in elements:
+                # Check if this price is in a bundle context (avoid it)
+                element_text = element.get_text().lower()
+                parent_text = ''
+                
+                # Check parent elements for bundle indicators
+                parent = element.parent
+                for _ in range(3):  # Check up to 3 levels up
+                    if parent:
+                        parent_text += parent.get_text().lower()
+                        parent = parent.parent
+                    
+                # Skip if contains bundle keywords
+                bundle_detected = any(bundle_word in element_text or bundle_word in parent_text 
+                                    for bundle_word in avoid_bundles)
+                
+                if bundle_detected:
+                    logger.debug(f"Skipping bundle price: {element_text[:50]}...")
+                    continue
+                    
+                # Extract price
+                price = self._parse_price_text(element.get_text(), 'monportlaser.com')
+                if price is not None:
+                    logger.info(f"Found base machine price: ${price}")
+                    return price, f"base_machine:{selector}"
+        
+        # Strategy 2: Look for first variant option (usually base machine)
+        variant_selectors = [
+            'input[type="radio"]:first-child + label',
+            'select option:first-child',
+            '.variant-option:first-child'
+        ]
+        
+        for selector in variant_selectors:
+            elements = soup.select(selector)
+            for element in elements:
+                # Look for price in or near this element
+                price_text = element.get_text()
+                price = self._parse_price_text(price_text, 'monportlaser.com')
+                if price is not None:
+                    return price, f"first_variant:{selector}"
+                    
+                # Check sibling elements for price
+                for sibling in element.next_siblings:
+                    if hasattr(sibling, 'get_text'):
+                        price = self._parse_price_text(sibling.get_text(), 'monportlaser.com')
+                        if price is not None:
+                            return price, f"variant_sibling:{selector}"
+        
+        # Strategy 3: JSON-LD data with variant preference
+        json_scripts = soup.find_all('script', type='application/ld+json')
+        for script in json_scripts:
+            try:
+                data = json.loads(script.string)
+                if isinstance(data, dict) and 'offers' in data:
+                    offers = data['offers']
+                    if isinstance(offers, list) and len(offers) > 0:
+                        # Take first offer (usually base machine)
+                        first_offer = offers[0]
+                        if 'price' in first_offer:
+                            price = float(first_offer['price'])
+                            return price, "json_ld_first_offer"
+                    elif isinstance(offers, dict) and 'price' in offers:
+                        price = float(offers['price'])
+                        return price, "json_ld_offers"
+            except (json.JSONDecodeError, ValueError, KeyError):
+                continue
+        
         return None, None
     
     def _extract_json_ld_with_paths(self, soup, json_ld_paths):

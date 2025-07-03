@@ -861,6 +861,89 @@ export default function PriceTrackerAdmin() {
     }
   }
 
+  // Function to retest failed and manually corrected machines from a specific batch
+  const retestFailedAndCorrectedMachines = async (batchId: string) => {
+    try {
+      if (!pythonApiReady || !window.priceTrackerAPI) {
+        toast.error("Python Price Extractor API is not connected")
+        return
+      }
+
+      // Get manually corrected machines from this batch
+      const { data: correctedMachines, error: correctedError } = await supabase
+        .from("price_history")
+        .select("machine_id")
+        .eq("batch_id", batchId)
+        .eq("status", "MANUAL_CORRECTION")
+
+      if (correctedError) throw correctedError
+
+      const correctedMachineIds = [...new Set(correctedMachines?.map(m => m.machine_id) || [])]
+
+      // Get failed machines by parsing the batch log
+      let failedMachineIds: string[] = []
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'
+        const response = await fetch(`${apiUrl}/api/v1/batch-failures/${batchId}`)
+        
+        if (response.ok) {
+          const data = await response.json()
+          failedMachineIds = data.failed_machine_ids || []
+        }
+      } catch (error) {
+        console.warn("Could not fetch failed machines from log, continuing with corrected machines only")
+      }
+
+      // Combine both lists and remove duplicates
+      const allMachineIds = [...new Set([...correctedMachineIds, ...failedMachineIds])]
+
+      if (allMachineIds.length === 0) {
+        toast.info("No failed or manually corrected machines found in this batch")
+        return
+      }
+
+      // Confirm with user
+      const confirmed = window.confirm(
+        `This will re-test ${allMachineIds.length} machines:\n` +
+        `• ${correctedMachineIds.length} manually corrected machines\n` +
+        `• ${failedMachineIds.length} completely failed machines\n\n` +
+        `This will validate our systematic fixes work correctly. Continue?`
+      )
+
+      if (!confirmed) return
+
+      // Start the batch retest
+      toast.info(`Starting retest of ${allMachineIds.length} machines from batch ${batchId.slice(0, 8)}...`)
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PRICE_TRACKER_API_URL || 'http://localhost:8000'}/api/v1/batch-retest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          original_batch_id: batchId,
+          machine_ids: allMachineIds,
+          description: `Retest of failed and manually corrected machines from batch ${batchId.slice(0, 8)}`
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast.success(`Retest batch started successfully! New batch ID: ${result.batch_id.slice(0, 8)}`)
+        
+        // Refresh data
+        setRefreshing(prev => !prev)
+      } else {
+        throw new Error(result.error || "Failed to start retest batch")
+      }
+
+    } catch (error) {
+      console.error("Error starting retest:", error)
+      toast.error(`Failed to start retest: ${error instanceof Error ? error.message : "Unknown error"}`)
+    }
+  }
+
   // Function to delete a price record
   const deletePrice = async (recordId: string) => {
     try {
@@ -1373,6 +1456,19 @@ export default function PriceTrackerAdmin() {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                {/* Retest Failed & Corrected Button - only show when specific batch is selected */}
+                {batchFilter !== "all" && batchFilter !== "no-batch" && (
+                  <Button
+                    variant="outline"
+                    className="bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100"
+                    onClick={() => retestFailedAndCorrectedMachines(batchFilter)}
+                    disabled={!pythonApiReady}
+                  >
+                    <TestTube className="w-4 h-4 mr-2" />
+                    Re-test Failed & Corrected Machines
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent>

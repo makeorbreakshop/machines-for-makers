@@ -424,9 +424,27 @@ Focus on creating reliable, reusable patterns that can be converted to fast Play
                 machine_id = machine.get('id')
                 current_selectors = machine.get('learned_selectors', {})
                 
+                # Validate learned selectors to prevent bad bundle/addon selectors
+                learned_selectors = learnings.get('learned_selectors', {})
+                
+                # Skip if contains bad selector patterns
+                bad_selector_patterns = [
+                    '.bundle-price', '.addon-price', '.variant-price[data-variant*="bundle"]',
+                    '.variant-price[data-variant*="lightburn"]', '.variant-price[data-variant*="rotary"]',
+                    '.bundle', '.combo-price', '.package-price'
+                ]
+                
+                # Check main selector
+                main_selector = learned_selectors.get('selector', '')
+                is_bad_selector = any(bad_pattern in main_selector.lower() for bad_pattern in bad_selector_patterns)
+                
+                if is_bad_selector:
+                    logger.warning(f"🚫 BLOCKED saving bad learned selector: {main_selector} (contains bundle/addon pricing pattern)")
+                    continue  # Skip this machine, don't save bad selector
+                
                 # Add MCP learnings to machine's learned selectors
                 current_selectors[domain] = {
-                    'selectors': learnings.get('learned_selectors', {}),
+                    'selectors': learned_selectors,
                     'extraction_steps': learnings.get('extraction_steps', []),
                     'variant_selection': learnings.get('variant_selection', {}),
                     'price_extraction': learnings.get('price_extraction', {}),
