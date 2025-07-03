@@ -70,11 +70,39 @@ export async function POST(request: NextRequest) {
     // Set user agent to avoid detection
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
     
-    // Navigate to the URL with a timeout
-    await page.goto(url, { 
-      waitUntil: 'networkidle2',
-      timeout: 30000
-    });
+    // Navigate to the URL with retry logic
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        await page.goto(url, { 
+          waitUntil: 'domcontentloaded',
+          timeout: 60000
+        });
+        break; // Success, exit retry loop
+      } catch (error) {
+        retryCount++;
+        console.log(`Navigation attempt ${retryCount} failed:`, error instanceof Error ? error.message : error);
+        
+        if (retryCount > maxRetries) {
+          // Try one more time with even more lenient settings
+          console.log('Trying with minimal wait conditions...');
+          try {
+            await page.goto(url, { 
+              waitUntil: 'load',
+              timeout: 45000
+            });
+            break;
+          } catch (finalError) {
+            throw new Error(`Failed to load page after ${maxRetries + 1} attempts. Last error: ${finalError instanceof Error ? finalError.message : finalError}`);
+          }
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
     
     // First pass: extract basic page data
     const pageTitle = await page.title();
