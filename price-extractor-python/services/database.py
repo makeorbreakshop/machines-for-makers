@@ -138,7 +138,7 @@ class DatabaseService:
             logger.error(f"Error updating price for machine {machine_id}: {str(e)}")
             return False
     
-    async def add_price_history(self, machine_id, old_price, new_price, success=True, error_message=None):
+    async def add_price_history(self, machine_id, old_price, new_price, success=True, error_message=None, batch_id=None, status=None):
         """
         Add an entry to the price history for a machine.
         
@@ -148,6 +148,8 @@ class DatabaseService:
             new_price (float): The new price value.
             success (bool): Whether the price update was successful.
             error_message (str, optional): Error message if the update failed.
+            batch_id (str, optional): The batch ID if this update is part of a batch.
+            status (str, optional): Override status (e.g., 'MANUAL_CORRECTION').
             
         Returns:
             bool: True if the history entry was added successfully, False otherwise.
@@ -179,8 +181,14 @@ class DatabaseService:
                 "currency": "USD"
             }
             
-            # Set status based on success parameter and error message
-            if success:
+            # Add batch_id if provided
+            if batch_id:
+                entry_data["batch_id"] = batch_id
+            
+            # Set status based on status parameter or success/error_message
+            if status:
+                entry_data["status"] = status
+            elif success:
                 entry_data["status"] = "AUTO_APPLIED"
             else:
                 entry_data["status"] = "PENDING_REVIEW"
@@ -785,4 +793,208 @@ class DatabaseService:
             
         except Exception as e:
             logger.error(f"Error getting batch results since {cutoff_date}: {str(e)}")
-            return [] 
+            return []
+
+    async def update_price_history_entry(self, price_history_id, new_price, status="MANUAL_CORRECTION", correction_reason=None):
+        """
+        Update an existing price history entry with corrected price.
+        
+        Args:
+            price_history_id (str): The ID of the price history entry to update.
+            new_price (float): The corrected price.
+            status (str): New status for the entry.
+            correction_reason (str, optional): Reason for the correction.
+            
+        Returns:
+            dict or None: Updated price history entry or None if failed.
+        """
+        try:
+            update_data = {
+                "price": new_price,
+                "status": status
+            }
+            
+            if correction_reason:
+                update_data["failure_reason"] = correction_reason
+                
+            response = self.supabase.table(PRICE_HISTORY_TABLE) \
+                .update(update_data) \
+                .eq("id", price_history_id) \
+                .execute()
+                
+            if response.data and len(response.data) > 0:
+                logger.info(f"Updated price history entry {price_history_id} with corrected price {new_price}")
+                return response.data[0]
+                
+            logger.warning(f"Failed to update price history entry {price_history_id}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error updating price history entry {price_history_id}: {str(e)}")
+            return None
+
+    async def add_price_correction(self, machine_id, batch_id, extracted_price, correct_price, 
+                                 extraction_method, url, corrected_by, html_content=None, reason=None):
+        """
+        Add a price correction entry for analysis.
+        
+        Args:
+            machine_id (str): The ID of the machine.
+            batch_id (str): The batch ID where the mistake occurred.
+            extracted_price (float): The incorrectly extracted price.
+            correct_price (float): The correct price provided by user.
+            extraction_method (str): Method that was used for extraction.
+            url (str): URL that was scraped.
+            corrected_by (str): Who made the correction.
+            html_content (str, optional): HTML content for analysis.
+            reason (str, optional): Additional reason/notes.
+            
+        Returns:
+            bool: True if correction was logged successfully, False otherwise.
+        """
+        try:
+            correction_data = {
+                "machine_id": machine_id,
+                "batch_id": batch_id,
+                "extracted_price": extracted_price,
+                "correct_price": correct_price,
+                "extraction_method": extraction_method,
+                "url": url,
+                "corrected_by": corrected_by,
+                "corrected_at": datetime.utcnow().isoformat() + "Z"
+            }
+            
+            if html_content:
+                correction_data["html_content"] = html_content
+                
+            if reason:
+                correction_data["reason"] = reason
+                
+            response = self.supabase.table("price_corrections") \
+                .insert(correction_data) \
+                .execute()
+                
+            if response.data and len(response.data) > 0:
+                logger.info(f"Added price correction for machine {machine_id}: {extracted_price} -> {correct_price}")
+                return True
+                
+            logger.warning(f"Failed to add price correction for machine {machine_id}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error adding price correction for machine {machine_id}: {str(e)}")
+            return False
+
+    async def get_price_corrections_by_batch(self, batch_id):
+        """
+        Get all price corrections for a specific batch.
+        
+        Args:
+            batch_id (str): The batch ID to get corrections for.
+            
+        Returns:
+            list: List of price correction records.
+        """
+        try:
+            response = self.supabase.table("price_corrections") \
+                .select("*") \
+                .eq("batch_id", batch_id) \
+                .order("corrected_at", desc=True) \
+                .execute()
+                
+            return response.data or []
+            
+        except Exception as e:
+            logger.error(f"Error getting price corrections for batch {batch_id}: {str(e)}")
+            return []
+    
+    async def fix_bad_learned_selectors(self):
+        """
+        Remove bad learned selectors that are causing incorrect price extractions.
+        Specifically targets .bundle-price selectors that extract bundle pricing instead of product pricing.
+        """
+        try:
+            logger.info("🔧 Starting fix for bad learned selectors...")
+            
+            # Get all machines with learned selectors
+            response = self.supabase.table(MACHINES_TABLE) \
+                .select("id, Machine Name, learned_selectors") \
+                .execute()
+            
+            if not response.data:
+                logger.info("No machines found with learned selectors")
+                return 0
+            
+            affected_machines = []
+            
+            # Identify machines with bad bundle-price selectors
+            for machine in response.data:
+                learned = machine.get('learned_selectors', {})
+                machine_name = machine.get('Machine Name', 'Unknown')
+                machine_id = machine['id']
+                
+                needs_fix = False
+                domains_to_fix = []
+                
+                # Check ComMarker domain
+                if 'commarker.com' in learned:
+                    selector = learned['commarker.com'].get('selector', '')
+                    if 'bundle-price' in selector:
+                        domains_to_fix.append(('commarker.com', selector))
+                        needs_fix = True
+                
+                # Check Glowforge domain
+                if 'glowforge.com' in learned:
+                    selector = learned['glowforge.com'].get('selector', '')
+                    if 'bundle-price' in selector:
+                        domains_to_fix.append(('glowforge.com', selector))
+                        needs_fix = True
+                
+                if needs_fix:
+                    affected_machines.append((machine_id, machine_name, domains_to_fix, learned))
+            
+            if not affected_machines:
+                logger.info("✅ No bad learned selectors found!")
+                return 0
+            
+            logger.info(f"Found {len(affected_machines)} machines with bad selectors:")
+            for machine_id, name, domains, _ in affected_machines:
+                for domain, selector in domains:
+                    logger.info(f"  - {name}: {domain} → {selector}")
+            
+            # Fix each machine
+            fixed_count = 0
+            for machine_id, name, domains_to_fix, current_selectors in affected_machines:
+                try:
+                    # Remove bad domains from learned_selectors
+                    updated_selectors = current_selectors.copy()
+                    for domain, selector in domains_to_fix:
+                        if domain in updated_selectors:
+                            del updated_selectors[domain]
+                            logger.info(f"🗑️  Removing bad selector for {name}: {domain} → {selector}")
+                    
+                    # Update the machine
+                    update_response = self.supabase.table(MACHINES_TABLE) \
+                        .update({"learned_selectors": updated_selectors}) \
+                        .eq("id", machine_id) \
+                        .execute()
+                    
+                    if update_response.data:
+                        logger.info(f"✅ Fixed: {name}")
+                        fixed_count += 1
+                    else:
+                        logger.error(f"❌ Failed to update: {name}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error fixing {name}: {str(e)}")
+            
+            logger.info(f"🎯 FIXED {fixed_count} machines!")
+            logger.info("The bad .bundle-price .main-amount selectors have been removed.")
+            logger.info("These selectors were causing machines to extract $4,589 from bundle pricing instead of actual product prices.")
+            logger.info("Next batch run should now extract correct prices!")
+            
+            return fixed_count
+            
+        except Exception as e:
+            logger.error(f"Error fixing learned selectors: {str(e)}")
+            return 0 

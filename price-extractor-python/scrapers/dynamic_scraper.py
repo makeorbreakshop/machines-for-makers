@@ -121,6 +121,8 @@ class DynamicScraper:
                 await self._select_commarker_variant(machine_name)
             elif 'cloudraylaser.com' in domain:
                 await self._select_cloudray_variant(machine_name)
+            elif 'aeonlaser.us' in domain or 'aeonlaser.com' in domain:
+                await self._navigate_aeon_configurator(machine_name)
             else:
                 logger.warning(f"No variant selection rules for domain: {domain}")
             
@@ -332,6 +334,154 @@ class DynamicScraper:
         except Exception as e:
             logger.error(f"Error selecting Cloudray variant: {str(e)}")
     
+    async def _navigate_aeon_configurator(self, machine_name):
+        """Navigate Aeon's multi-step configurator to get accurate pricing."""
+        try:
+            logger.info(f"🔧 Starting Aeon configurator navigation for: {machine_name}")
+            
+            # Parse machine name for model details
+            model_match = re.search(r'(MIRA\s*\d+\s*[A-Z]*)', machine_name, re.IGNORECASE)
+            model = model_match.group(1).strip() if model_match else None
+            
+            logger.info(f"Detected Aeon model: {model}")
+            
+            # Step 1: Wait for configurator to load
+            await self.page.wait_for_timeout(3000)
+            
+            # Step 2: Look for model selection (e.g., "Mira S" vs other models)
+            if model:
+                # Try to find and click the specific model
+                model_selectors = [
+                    f'text={model}',
+                    f'button:has-text("{model}")',
+                    f'li:has-text("{model}")',
+                    f'[data-model*="{model}"]',
+                    f'[value*="{model}"]'
+                ]
+                
+                model_selected = False
+                for selector in model_selectors:
+                    try:
+                        element = await self.page.query_selector(selector)
+                        if element:
+                            await element.click()
+                            logger.info(f"✅ Selected model: {model}")
+                            await self.page.wait_for_timeout(2000)
+                            model_selected = True
+                            break
+                    except Exception as e:
+                        logger.debug(f"Model selector {selector} failed: {str(e)}")
+                        continue
+                
+                if not model_selected:
+                    # Look for more generic patterns
+                    logger.warning(f"Specific model not found, looking for options containing: {model}")
+                    all_clickable = await self.page.query_selector_all('button, li.js-option, .option')
+                    for element in all_clickable:
+                        try:
+                            text = await element.text_content()
+                            if text and model.lower() in text.lower():
+                                await element.click()
+                                logger.info(f"✅ Selected model option: {text.strip()}")
+                                await self.page.wait_for_timeout(2000)
+                                model_selected = True
+                                break
+                        except:
+                            continue
+            
+            # Step 3: Navigate through configurator steps
+            # Aeon typically has multiple steps, look for "Next" or step progression
+            configurator_steps = [
+                'Next',
+                'Continue',
+                'Proceed',
+                'Step 2',
+                'Step 3'
+            ]
+            
+            for step_text in configurator_steps:
+                try:
+                    # Look for next button
+                    next_button = await self.page.query_selector(f'button:has-text("{step_text}"), input[value*="{step_text}"], .btn:has-text("{step_text}")')
+                    if next_button:
+                        # Check if button is enabled and visible
+                        is_enabled = await next_button.is_enabled()
+                        is_visible = await next_button.is_visible()
+                        
+                        if is_enabled and is_visible:
+                            await next_button.click()
+                            logger.info(f"✅ Clicked configurator step: {step_text}")
+                            await self.page.wait_for_timeout(2000)
+                            break
+                except Exception as e:
+                    logger.debug(f"Configurator step {step_text} failed: {str(e)}")
+                    continue
+            
+            # Step 4: Look for variant selection within configurator
+            # For MIRA 5 S, we need to find the specific variant option
+            if 'MIRA' in machine_name.upper():
+                variant_selectors = [
+                    'li.js-option.js-radio',  # Aeon's specific selector
+                    '.option-label',
+                    'text=Mira5 S',
+                    'text=MIRA 5 S',
+                    '[data-option*="mira5"]',
+                    '[data-option*="MIRA5"]'
+                ]
+                
+                for selector in variant_selectors:
+                    try:
+                        elements = await self.page.query_selector_all(selector)
+                        for element in elements:
+                            text = await element.text_content()
+                            if text and ('mira5' in text.lower() or 'mira 5' in text.lower()):
+                                await element.click()
+                                logger.info(f"✅ Selected MIRA variant: {text.strip()}")
+                                await self.page.wait_for_timeout(2000)
+                                break
+                        else:
+                            continue
+                        break
+                    except Exception as e:
+                        logger.debug(f"MIRA variant selector {selector} failed: {str(e)}")
+                        continue
+            
+            # Step 5: Complete configurator by clicking through remaining steps
+            # Look for "Add to Cart", "Get Quote", or final pricing
+            final_selectors = [
+                'button:has-text("Add to Cart")',
+                'button:has-text("Get Quote")',
+                'button:has-text("Configure")',
+                'button:has-text("Complete")',
+                '.total b',  # Final total display
+                '.tot-price .total'
+            ]
+            
+            for selector in final_selectors:
+                try:
+                    element = await self.page.query_selector(selector)
+                    if element:
+                        # If it's a button, click it
+                        if 'button' in selector:
+                            await element.click()
+                            logger.info(f"✅ Clicked final configurator step")
+                            await self.page.wait_for_timeout(3000)
+                        else:
+                            # If it's a price display, we're done
+                            logger.info(f"✅ Found final pricing display")
+                        break
+                except Exception as e:
+                    logger.debug(f"Final selector {selector} failed: {str(e)}")
+                    continue
+            
+            # Step 6: Final wait for all price updates
+            await self.page.wait_for_timeout(2000)
+            
+            logger.info("🎯 Aeon configurator navigation completed")
+            
+        except Exception as e:
+            logger.error(f"❌ Error navigating Aeon configurator: {str(e)}")
+    
     async def _extract_price_from_page(self):
         """Extract price from the current page after variant selection."""
         try:
@@ -339,9 +489,17 @@ class DynamicScraper:
             content = await self.page.content()
             soup = BeautifulSoup(content, 'lxml')
             
-            # Try multiple price extraction methods - ComMarker specific first
+            # Try multiple price extraction methods - site-specific patterns first
             price_selectors = [
-                # Look for package pricing containers
+                # Aeon configurator specific selectors
+                '.total b',  # Final configurator total
+                '.tot-price .total',  # Alternative total selector
+                '.price strong',  # Starting price display
+                '.selected .price',  # Selected option price
+                '.configurator-total',
+                '.final-price',
+                
+                # ComMarker package pricing containers
                 '[class*="package"] .price .amount',
                 '[class*="bundle"] .price .amount',
                 '.package-price .amount',
@@ -386,13 +544,22 @@ class DynamicScraper:
                 except:
                     continue
             
-            # Try JavaScript evaluation for dynamic prices - ComMarker specific
+            # Try JavaScript evaluation for dynamic prices - site-specific strategies
             try:
                 js_price = await self.page.evaluate('''() => {
-                    // ComMarker strategy: Look for the first package in the 4000+ range (Basic Bundle)
-                    // After 60W selection, the Basic Bundle should show $4,589
+                    // Strategy 1: Aeon configurator - look for final total
+                    const aeonSelectors = ['.total b', '.tot-price .total', '.configurator-total'];
+                    for (let selector of aeonSelectors) {
+                        const element = document.querySelector(selector);
+                        if (element) {
+                            const priceMatch = element.textContent.match(/\\$([\\d,]+(?:\\.\\d{2})?)/);
+                            if (priceMatch) {
+                                return parseFloat(priceMatch[1].replace(',', ''));
+                            }
+                        }
+                    }
                     
-                    // First, look specifically for Basic Bundle
+                    // Strategy 2: ComMarker - Look for Basic Bundle in 4000+ range
                     const allElements = document.querySelectorAll('*');
                     for (let el of allElements) {
                         if (el.textContent && el.textContent.includes('Basic Bundle')) {
@@ -408,11 +575,18 @@ class DynamicScraper:
                         }
                     }
                     
-                    // Fallback: Look for the lowest price in 4000+ range (should be Basic Bundle)
+                    // Strategy 3: Generic high-value price detection (6000-8000 range for Aeon)
                     const text = document.body.textContent || '';
-                    const priceMatches = text.match(/\\$4,[\\d]{3}/g);
+                    let priceMatches = text.match(/\\$([6-7],[\\d]{3})/g);
                     if (priceMatches && priceMatches.length > 0) {
-                        // Convert to numbers and find the minimum (Basic Bundle is cheapest)
+                        // For Aeon, typically $6,995 range
+                        const prices = priceMatches.map(p => parseFloat(p.replace(/[$,]/g, '')));
+                        return Math.min(...prices);
+                    }
+                    
+                    // Strategy 4: ComMarker fallback - Look for 4000+ range
+                    priceMatches = text.match(/\\$4,[\\d]{3}/g);
+                    if (priceMatches && priceMatches.length > 0) {
                         const prices = priceMatches.map(p => parseFloat(p.replace(/[$,]/g, '')));
                         return Math.min(...prices);
                     }
@@ -511,6 +685,8 @@ class DynamicScraper:
                 await self._select_commarker_variant(machine_name)
             elif 'cloudraylaser.com' in domain:
                 await self._select_cloudray_variant(machine_name)
+            elif 'aeonlaser.us' in domain or 'aeonlaser.com' in domain:
+                await self._navigate_aeon_configurator(machine_name)
             
             # Wait for any price updates
             await self.page.wait_for_timeout(2000)

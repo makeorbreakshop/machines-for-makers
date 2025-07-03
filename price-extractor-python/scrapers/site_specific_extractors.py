@@ -66,6 +66,28 @@ class SiteSpecificExtractor:
                 'avoid_contexts': ['recommended', 'related'],
                 'min_expected_price': 300,
                 'max_expected_price': 20000
+            },
+            
+            'aeonlaser.us': {
+                'type': 'configurator',
+                'requires_interaction': True,
+                'price_selectors': [
+                    '.total b',  # Final configurator total
+                    '.tot-price .total',  # Alternative total selector
+                    '.price strong',  # Starting price display
+                    '.selected .price'  # Selected option price
+                ],
+                'configurator_selectors': {
+                    'model_step': 'li.js-option.js-radio',
+                    'model_options': '.option-label',
+                    'total_display': '.total, .tot-price'
+                },
+                'fallback_patterns': [
+                    r'starting at \$?([\d,]+)',  # "starting at $6995"
+                    r'total[\s\n]*\$?([\d,]+)'   # "Total $6995"
+                ],
+                'min_expected_price': 1000,
+                'max_expected_price': 50000
             }
         }
     

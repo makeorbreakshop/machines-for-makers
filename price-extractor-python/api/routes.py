@@ -28,6 +28,13 @@ class UpdateResponse(BaseModel):
     old_price: Optional[float] = None
     new_price: Optional[float] = None
     method: Optional[str] = None
+
+class PriceCorrectionRequest(BaseModel):
+    """Request model for correcting a price."""
+    price_history_id: str
+    correct_price: float
+    corrected_by: str = "admin"
+    reason: Optional[str] = None
     price_change: Optional[float] = None
     percentage_change: Optional[float] = None
 
@@ -374,3 +381,108 @@ async def apply_learning_improvements(days_back: int = 7):
             "success": False,
             "error": f"Error applying learning improvements: {str(e)}"
         }
+
+@router.post("/fix-bad-selectors")
+async def fix_bad_selectors():
+    """
+    Fix bad learned selectors that are causing incorrect price extractions.
+    Removes .bundle-price selectors from machines.
+    """
+    try:
+        logger.info("🔧 Starting fix for bad learned selectors...")
+        
+        fixed_count = await price_service.db_service.fix_bad_learned_selectors()
+        
+        return {
+            "success": True,
+            "message": f"Fixed {fixed_count} machines with bad learned selectors",
+            "fixed_count": fixed_count
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error fixing bad learned selectors: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Error fixing bad learned selectors: {str(e)}"
+        }
+
+@router.post("/correct-price")
+async def correct_price(request: PriceCorrectionRequest):
+    """
+    Correct an extracted price by updating the price_history entry and logging the correction.
+    
+    This endpoint allows users to reject an incorrectly extracted price and provide the correct one.
+    The price_history entry is updated with the correct price and marked as MANUAL_CORRECTION.
+    The original extraction mistake is logged to price_corrections table for analysis.
+    """
+    try:
+        logger.info(f"Processing price correction for price_history ID: {request.price_history_id}")
+        
+        # First, get the original price_history entry to extract correction data
+        response = price_service.db_service.supabase.table("price_history") \
+            .select("*") \
+            .eq("id", request.price_history_id) \
+            .single() \
+            .execute()
+            
+        if not response.data:
+            logger.error(f"Price history entry not found: {request.price_history_id}")
+            raise HTTPException(status_code=404, detail="Price history entry not found")
+            
+        original_entry = response.data
+        
+        # Extract data for correction logging
+        machine_id = original_entry.get("machine_id")
+        batch_id = original_entry.get("batch_id")
+        extracted_price = original_entry.get("price")
+        extraction_method = original_entry.get("extraction_method")
+        
+        # Get machine data for URL
+        machine = await price_service.db_service.get_machine_by_id(machine_id)
+        url = machine.get("product_link") if machine else None
+        html_content = machine.get("html_content") if machine else None
+        
+        # Update the price_history entry with corrected price
+        updated_entry = await price_service.db_service.update_price_history_entry(
+            price_history_id=request.price_history_id,
+            new_price=request.correct_price,
+            status="MANUAL_CORRECTION",
+            correction_reason=f"User corrected price from ${extracted_price} to ${request.correct_price}"
+        )
+        
+        if not updated_entry:
+            logger.error(f"Failed to update price history entry: {request.price_history_id}")
+            raise HTTPException(status_code=500, detail="Failed to update price history entry")
+        
+        # Log the correction for analysis
+        correction_logged = await price_service.db_service.add_price_correction(
+            machine_id=machine_id,
+            batch_id=batch_id,
+            extracted_price=extracted_price,
+            correct_price=request.correct_price,
+            extraction_method=extraction_method,
+            url=url,
+            corrected_by=request.corrected_by,
+            html_content=html_content,
+            reason=request.reason
+        )
+        
+        if not correction_logged:
+            logger.warning(f"Failed to log price correction for machine {machine_id}")
+        
+        logger.info(f"Price correction completed: {extracted_price} -> {request.correct_price} for machine {machine_id}")
+        
+        return {
+            "success": True,
+            "message": f"Price corrected from ${extracted_price} to ${request.correct_price}",
+            "original_price": extracted_price,
+            "corrected_price": request.correct_price,
+            "machine_id": machine_id,
+            "correction_logged": correction_logged
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error processing price correction: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing price correction: {str(e)}")

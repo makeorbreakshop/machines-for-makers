@@ -1,5 +1,7 @@
 from loguru import logger
 from datetime import datetime
+import os
+import uuid
 
 from services.database import DatabaseService
 from scrapers.web_scraper import WebScraper
@@ -19,6 +21,42 @@ class PriceService:
         self.web_scraper = WebScraper()
         self.price_extractor = PriceExtractor()
         logger.info("Price service initialized")
+    
+    def _setup_batch_logging(self, batch_id):
+        """
+        Set up batch-specific logging for a batch run.
+        
+        Args:
+            batch_id (str): The batch ID to use for the log filename
+            
+        Returns:
+            str: The log file path
+        """
+        # Ensure logs directory exists
+        os.makedirs("logs", exist_ok=True)
+        
+        # Create batch-specific log filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        short_batch_id = batch_id[:8]  # Use first 8 characters for readability
+        log_filename = f"batch_{timestamp}_{short_batch_id}.log"
+        log_path = os.path.join("logs", log_filename)
+        
+        # Add new log handler for this batch
+        logger.add(
+            log_path,
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {name}:{function}:{line} - {message}",
+            level="INFO",
+            enqueue=True,
+            catch=True
+        )
+        
+        logger.info(f"=== BATCH LOG START ===")
+        logger.info(f"Batch ID: {batch_id}")
+        logger.info(f"Log file: {log_filename}")
+        logger.info(f"Started at: {datetime.now().isoformat()}")
+        logger.info(f"======================")
+        
+        return log_path
     
     def _should_require_manual_approval(self, old_price, new_price):
         """
@@ -51,13 +89,14 @@ class PriceService:
         
         return False, None
     
-    async def update_machine_price(self, machine_id, url=None):
+    async def update_machine_price(self, machine_id, url=None, batch_id=None):
         """
         Update the price for a specific machine by scraping its URL.
         
         Args:
             machine_id (str): The ID of the machine to update.
             url (str, optional): URL to override the one in the database.
+            batch_id (str, optional): The batch ID if this update is part of a batch.
             
         Returns:
             dict: Update result with new price, old price, and status.
@@ -81,11 +120,51 @@ class PriceService:
             # Get current price from database
             current_price = machine.get("Price")
             
-            # Scrape the product page
+            # Pre-validate URL health to catch broken links early
+            url_health = await self.web_scraper.validate_url_health(product_url)
+            if not url_health['is_healthy']:
+                logger.warning(f"URL health issues detected for {product_url}: {url_health['issues']}")
+                
+                # Try suggested URL fixes
+                url_suggestions = self.web_scraper.suggest_url_fixes(url_health)
+                for suggestion in url_suggestions[:2]:  # Try first 2 suggestions
+                    logger.info(f"Trying suggested URL: {suggestion['url']} ({suggestion['reason']})")
+                    alt_health = await self.web_scraper.validate_url_health(suggestion['url'])
+                    if alt_health['is_healthy']:
+                        logger.info(f"✅ Alternative URL is healthy, using: {suggestion['url']}")
+                        product_url = suggestion['url']
+                        break
+                else:
+                    # No healthy alternatives found
+                    if url_health['status_code'] == 404:
+                        error_msg = f"URL not found (404): {product_url}. Tried {len(url_suggestions)} alternatives."
+                    else:
+                        error_msg = f"URL health check failed: {', '.join(url_health['issues'])}"
+                    
+                    logger.error(error_msg)
+                    await self.db_service.add_price_history(
+                        machine_id=machine_id,
+                        old_price=current_price,
+                        new_price=None,
+                        success=False,
+                        error_message=error_msg,
+                        batch_id=batch_id
+                    )
+                    return {"success": False, "error": error_msg, "machine_id": machine_id, "url": product_url}
+
+            # Scrape the product page with retry logic
             html_content, soup = await self.web_scraper.get_page_content(product_url)
             if not html_content or not soup:
-                logger.error(f"Failed to fetch content from {product_url}")
-                return {"success": False, "error": "Failed to fetch product page", "machine_id": machine_id, "url": product_url}
+                logger.error(f"Failed to fetch content from {product_url} after retries")
+                await self.db_service.add_price_history(
+                    machine_id=machine_id,
+                    old_price=current_price,
+                    new_price=None,
+                    success=False,
+                    error_message="Failed to fetch product page after retries",
+                    batch_id=batch_id
+                )
+                return {"success": False, "error": "Failed to fetch product page after retries", "machine_id": machine_id, "url": product_url}
             
             # Get machine name for variant selection
             machine_name = machine.get("Machine Name")
@@ -129,7 +208,8 @@ class PriceService:
                     old_price=current_price,
                     new_price=None,
                     success=False,
-                    error_message="Failed to extract price"
+                    error_message="Failed to extract price",
+                    batch_id=batch_id
                 )
                 return {
                     "success": False,
@@ -152,7 +232,8 @@ class PriceService:
                     old_price=old_price,
                     new_price=new_price,
                     success=True,
-                    error_message=None
+                    error_message=None,
+                    batch_id=batch_id
                 )
                 
                 price_change = new_price - old_price if old_price is not None else None
@@ -183,7 +264,8 @@ class PriceService:
                     old_price=old_price,
                     new_price=new_price,
                     success=False,  # Mark as pending review
-                    error_message=f"Pending review: {approval_reason}"
+                    error_message=f"Pending review: {approval_reason}",
+                    batch_id=batch_id
                 )
                 
                 price_change = new_price - old_price if old_price is not None else None
@@ -226,7 +308,8 @@ class PriceService:
                 old_price=old_price,
                 new_price=new_price,
                 success=True,
-                error_message=None
+                error_message=None,
+                batch_id=batch_id
             )
             
             if not history_added:
@@ -302,6 +385,9 @@ class PriceService:
             logger.error("Failed to create batch record")
             return {"success": False, "error": "Failed to create batch record"}
         
+        # Set up batch-specific logging
+        batch_log_path = self._setup_batch_logging(batch_id)
+        
         # Update each machine and track in batch_results
         results = {
             "batch_id": batch_id,
@@ -315,7 +401,7 @@ class PriceService:
         
         for machine in machines:
             machine_id = machine.get("id")
-            result = await self.update_machine_price(machine_id)
+            result = await self.update_machine_price(machine_id, batch_id=batch_id)
             
             # Track the result in batch_results table
             await self.db_service.add_batch_result(batch_id, machine_id, result)
@@ -338,11 +424,23 @@ class PriceService:
         
         logger.info(f"Batch update completed. Results: {results['successful']} successful, {results['failed']} failed")
         
+        # Log batch completion details
+        logger.info(f"======================")
+        logger.info(f"=== BATCH LOG END ===")
+        logger.info(f"Batch ID: {batch_id}")
+        logger.info(f"Total machines: {results['total']}")
+        logger.info(f"Successful: {results['successful']}")
+        logger.info(f"Failed: {results['failed']}")
+        logger.info(f"Completed at: {datetime.now().isoformat()}")
+        logger.info(f"Log file: {batch_log_path}")
+        logger.info(f"======================")
+        
         return {
             "success": True,
             "message": "Batch update completed",
             "batch_id": batch_id,
-            "results": results
+            "results": results,
+            "log_file": batch_log_path
         }
         
     async def get_batch_results(self, batch_id):
