@@ -25,6 +25,7 @@ import { PriceHistoryChart } from "@/components/product/price-history-chart"
 import { format, formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
 import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink, CheckCircle, X, Search, Eye, Code, TestTube, Zap } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -87,7 +88,8 @@ const formatPrice = (price: number | null) => {
 // Define base columns for the machines table (functions will be added in component)
 const createMachineColumns = (
   openPriceHistoryModal: (machine: TableMachine) => void,
-  updatePrice: (machine: TableMachine, debug?: boolean) => void
+  updatePrice: (machine: TableMachine, debug?: boolean) => void,
+  openMachineHistoryModal: (machineId: string, machineName: string) => void
 ): ColumnDef<TableMachine>[] => [
   {
     accessorKey: "Machine Name",
@@ -190,6 +192,15 @@ const createMachineColumns = (
             onClick={() => openPriceHistoryModal(machine)}
           >
             <LineChart className="w-4 h-4 mr-1" /> 
+            Graph
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline"
+            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+            onClick={() => openMachineHistoryModal(machine.id, machine["Machine Name"])}
+          >
+            <LineChart className="w-4 h-4 mr-1" /> 
             History
           </Button>
           <Button 
@@ -256,6 +267,11 @@ export default function PriceTrackerAdmin() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [batchFilter, setBatchFilter] = useState<string>("all")
   
+  // Bulk selection state
+  const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set())
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
+  const [batchActionLoading, setBatchActionLoading] = useState(false)
+  
   // Price correction dialog state
   const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false)
   const [correctionRecord, setCorrectionRecord] = useState<any>(null)
@@ -273,6 +289,11 @@ export default function PriceTrackerAdmin() {
   const [manualPrice, setManualPrice] = useState("")
   const [extractionFailures, setExtractionFailures] = useState<any[]>([])
   const [failuresLoading, setFailuresLoading] = useState(false)
+  
+  // Machine price history modal state
+  const [machineHistoryModalOpen, setMachineHistoryModalOpen] = useState(false)
+  const [machineHistoryData, setMachineHistoryData] = useState<any>(null)
+  const [machineHistoryLoading, setMachineHistoryLoading] = useState(false)
   
   // Fetch machines
   useEffect(() => {
@@ -463,6 +484,11 @@ export default function PriceTrackerAdmin() {
     fetchRecentlyUpdated()
   }, [refreshing, statusFilter, batchFilter])
   
+  // Clear selection when data changes
+  useEffect(() => {
+    clearSelection()
+  }, [recentlyUpdated])
+  
   // Fetch batches with price history counts
   useEffect(() => {
     const fetchBatchesWithCounts = async () => {
@@ -517,6 +543,29 @@ export default function PriceTrackerAdmin() {
   const openPriceHistoryModal = (machine: any) => {
     setPriceHistoryMachine(machine)
     setPriceHistoryModalOpen(true)
+  }
+  
+  // Handle machine price history modal
+  const openMachineHistoryModal = async (machineId: string, machineName: string) => {
+    setMachineHistoryLoading(true)
+    setMachineHistoryModalOpen(true)
+    
+    try {
+      const response = await fetch(`/api/price-history/machine/${machineId}`)
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch price history')
+      }
+      
+      setMachineHistoryData(result)
+    } catch (error) {
+      console.error('Error fetching machine price history:', error)
+      toast.error(`Failed to fetch price history: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      setMachineHistoryModalOpen(false)
+    } finally {
+      setMachineHistoryLoading(false)
+    }
   }
   
   // Function to trigger manual price update for a machine
@@ -971,6 +1020,38 @@ export default function PriceTrackerAdmin() {
     }
   }
   
+  // Function to delete individual price history entry from the modal
+  const deletePriceHistoryEntry = async (recordId: string) => {
+    try {
+      const response = await fetch(`/api/price-history/delete?id=${recordId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to delete price record")
+      }
+      
+      toast.success("Price record deleted")
+      
+      // Refresh the modal data
+      if (machineHistoryData && machineHistoryData.machine) {
+        await openMachineHistoryModal(machineHistoryData.machine.id, machineHistoryData.machine["Machine Name"])
+      }
+      
+      // Also refresh the main data
+      setRefreshing(prev => !prev)
+      
+    } catch (error) {
+      console.error("Error deleting price record:", error)
+      toast.error(`Failed to delete price record: ${error instanceof Error ? error.message : "Unknown error"}`)
+    }
+  }
+  
   // Function to clean up invalid price records
   const cleanupInvalidPrices = async () => {
     if (!window.confirm("This will remove all price records with values less than $10. Continue?")) {
@@ -1007,6 +1088,148 @@ export default function PriceTrackerAdmin() {
     } catch (error) {
       console.error("Error cleaning up price records:", error)
       toast.error(`Failed to clean up price records: ${error instanceof Error ? error.message : "Unknown error"}`)
+    }
+  }
+  
+  // Bulk selection functions
+  const handleRecordSelection = (recordId: string, index: number, event: React.MouseEvent) => {
+    const newSelected = new Set(selectedRecords)
+    
+    if (event.shiftKey && lastSelectedIndex !== null) {
+      // Shift-click: select range
+      const start = Math.min(lastSelectedIndex, index)
+      const end = Math.max(lastSelectedIndex, index)
+      
+      for (let i = start; i <= end; i++) {
+        if (recentlyUpdated[i]) {
+          newSelected.add(recentlyUpdated[i].id)
+        }
+      }
+    } else {
+      // Regular click: toggle single selection
+      if (newSelected.has(recordId)) {
+        newSelected.delete(recordId)
+      } else {
+        newSelected.add(recordId)
+      }
+    }
+    
+    setSelectedRecords(newSelected)
+    setLastSelectedIndex(index)
+  }
+  
+  const selectAllRecords = () => {
+    const newSelected = new Set(recentlyUpdated.map(record => record.id))
+    setSelectedRecords(newSelected)
+  }
+  
+  const clearSelection = () => {
+    setSelectedRecords(new Set())
+    setLastSelectedIndex(null)
+  }
+  
+  const batchApprove = async () => {
+    if (selectedRecords.size === 0) return
+    
+    const recordsToApprove = recentlyUpdated.filter(record => 
+      selectedRecords.has(record.id) && record.status === 'PENDING_REVIEW'
+    )
+    
+    if (recordsToApprove.length === 0) {
+      toast.error("No pending review records selected")
+      return
+    }
+    
+    const confirmed = window.confirm(
+      `Approve ${recordsToApprove.length} price changes?\n\n` +
+      recordsToApprove.slice(0, 5).map(r => 
+        `• ${r.machineName}: ${formatPrice(r.recordedPrice)} → ${formatPrice(r.price)}`
+      ).join('\n') +
+      (recordsToApprove.length > 5 ? `\n...and ${recordsToApprove.length - 5} more` : '')
+    )
+    
+    if (!confirmed) return
+    
+    setBatchActionLoading(true)
+    
+    try {
+      const response = await fetch('/api/price-history/batch-approve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recordIds: recordsToApprove.map(r => r.id)
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to process batch approval')
+      }
+      
+      // Show detailed results
+      const { results } = result
+      if (results.successful.length > 0) {
+        toast.success(`Successfully approved ${results.successful.length} price changes`)
+      }
+      if (results.failed.length > 0) {
+        toast.error(`Failed to approve ${results.failed.length} price changes`)
+      }
+      if (results.skipped.length > 0) {
+        toast.info(`Skipped ${results.skipped.length} records (not pending review)`)
+      }
+      
+      clearSelection()
+      // Single refresh after all operations complete
+      setRefreshing(prev => !prev)
+    } catch (error) {
+      console.error("Batch approve error:", error)
+      toast.error(`Failed to process batch approval: ${error instanceof Error ? error.message : "Unknown error"}`)
+    } finally {
+      setBatchActionLoading(false)
+    }
+  }
+  
+  const batchDelete = async () => {
+    if (selectedRecords.size === 0) return
+    
+    const confirmed = window.confirm(
+      `Delete ${selectedRecords.size} price records?\n\nThis action cannot be undone.`
+    )
+    
+    if (!confirmed) return
+    
+    setBatchActionLoading(true)
+    
+    try {
+      const response = await fetch('/api/price-history/batch-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recordIds: Array.from(selectedRecords)
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to process batch deletion')
+      }
+      
+      toast.success(`Successfully deleted ${result.deletedCount} price records`)
+      
+      clearSelection()
+      // Single refresh after all operations complete
+      setRefreshing(prev => !prev)
+    } catch (error) {
+      console.error("Batch delete error:", error)
+      toast.error(`Failed to process batch deletion: ${error instanceof Error ? error.message : "Unknown error"}`)
+    } finally {
+      setBatchActionLoading(false)
     }
   }
   
@@ -1347,6 +1570,155 @@ export default function PriceTrackerAdmin() {
         </DialogContent>
       </Dialog>
       
+      {/* Machine Price History Management Modal */}
+      <Dialog open={machineHistoryModalOpen} onOpenChange={setMachineHistoryModalOpen}>
+        <DialogContent className="max-w-7xl w-full max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>
+              {machineHistoryData?.machine ? `${machineHistoryData.machine["Machine Name"]} - All Price History` : "Price History Management"}
+            </DialogTitle>
+            <DialogDescription>
+              {machineHistoryData?.machine ? 
+                `Current price: ${formatPrice(machineHistoryData.machine["Price"])} • Company: ${machineHistoryData.machine["Company"]} • Total records: ${machineHistoryData?.totalRecords || 0}` :
+                "View and manage all price history entries for this machine"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="overflow-y-auto max-h-[60vh]">
+            {machineHistoryLoading ? (
+              <div className="flex justify-center p-8">
+                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : machineHistoryData?.priceHistory?.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No price history found for this machine</p>
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-32">Date</TableHead>
+                      <TableHead className="w-24">Price</TableHead>
+                      <TableHead className="w-36">Status</TableHead>
+                      <TableHead className="w-24">Batch ID</TableHead>
+                      <TableHead className="min-w-0 flex-1">Notes</TableHead>
+                      <TableHead className="w-20 text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {machineHistoryData?.priceHistory?.map((record: any) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{format(new Date(record.date), "MMM d, yyyy")}</span>
+                            <span className="text-sm text-gray-500">{format(new Date(record.date), "h:mm a")}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {formatPrice(record.price)}
+                            {record.is_all_time_low && (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                                ATL
+                              </Badge>
+                            )}
+                            {record.is_all_time_high && (
+                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">
+                                ATH
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            {record.status === 'PENDING_REVIEW' && (
+                              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                                Pending Review
+                              </Badge>
+                            )}
+                            {record.status === 'AUTO_APPLIED' && (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                Auto-Applied
+                              </Badge>
+                            )}
+                            {record.status === 'SUCCESS' && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                Manually Approved
+                              </Badge>
+                            )}
+                            {record.status === 'MANUAL_CORRECTION' && (
+                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                Manually Corrected
+                              </Badge>
+                            )}
+                            {record.status === 'REVIEWED' && record.review_result === 'approved' && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                Approved & Applied
+                              </Badge>
+                            )}
+                            {record.status === 'REVIEWED' && record.review_result === 'rejected' && (
+                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                Rejected
+                              </Badge>
+                            )}
+                            {record.status === 'FAILED' && (
+                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                Failed
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="w-24">
+                          {record.batch_id ? (
+                            <span className="font-mono text-xs">{record.batch_id.slice(0, 8)}...</span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">No batch</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="min-w-0 flex-1">
+                          <div className="text-sm space-y-1 break-words">
+                            {record.failure_reason && (
+                              <div className="text-red-600">
+                                <span className="font-medium">Error:</span> {record.failure_reason}
+                              </div>
+                            )}
+                            {record.review_reason && (
+                              <div className="text-gray-600">
+                                <span className="font-medium">Review:</span> {record.review_reason}
+                              </div>
+                            )}
+                            {record.reviewed_by && (
+                              <div className="text-gray-500">
+                                Reviewed by {record.reviewed_by} on {format(new Date(record.reviewed_at), "MMM d, h:mm a")}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to delete this price record?\n\nPrice: ${formatPrice(record.price)}\nDate: ${format(new Date(record.date), "MMM d, yyyy h:mm a")}\nStatus: ${record.status}`)) {
+                                deletePriceHistoryEntry(record.id)
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Price Tracker Admin</h1>
         <Button onClick={updateAllPrices}>
@@ -1391,7 +1763,7 @@ export default function PriceTrackerAdmin() {
                 </div>
               ) : (
                 <DataTable 
-                  columns={createMachineColumns(openPriceHistoryModal, updatePrice)} 
+                  columns={createMachineColumns(openPriceHistoryModal, updatePrice, openMachineHistoryModal)} 
                   data={machines}
                   filterableColumns={[
                     {
@@ -1470,12 +1842,73 @@ export default function PriceTrackerAdmin() {
                   </Button>
                 )}
               </div>
+              
+              {/* Bulk action controls */}
+              {selectedRecords.size > 0 && (
+                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-blue-900">
+                      {selectedRecords.size} record{selectedRecords.size !== 1 ? 's' : ''} selected
+                    </span>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={clearSelection}
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="default"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={batchApprove}
+                      disabled={batchActionLoading}
+                    >
+                      {batchActionLoading ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                      )}
+                      Batch Approve
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="destructive"
+                      onClick={batchDelete}
+                      disabled={batchActionLoading}
+                    >
+                      {batchActionLoading ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4 mr-2" />
+                      )}
+                      Batch Delete
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={selectedRecords.size === recentlyUpdated.length && recentlyUpdated.length > 0}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                selectAllRecords()
+                              } else {
+                                clearSelection()
+                              }
+                            }}
+                          />
+                        </div>
+                      </TableHead>
                       <TableHead>Machine</TableHead>
                       <TableHead>Previous Price</TableHead>
                       <TableHead>New Price</TableHead>
@@ -1488,13 +1921,37 @@ export default function PriceTrackerAdmin() {
                   <TableBody>
                     {recentlyUpdated.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8">
+                        <TableCell colSpan={8} className="text-center py-8">
                           {statusFilter === "all" ? "No recent updates found." : `No updates found with status: ${statusFilter}`}
                         </TableCell>
                       </TableRow>
                     ) : (
                       recentlyUpdated.map((record, index) => (
-                        <TableRow key={`${record.machine_id}-${index}`}>
+                        <TableRow 
+                          key={`${record.machine_id}-${index}`}
+                          className={`cursor-pointer ${selectedRecords.has(record.id) ? 'bg-blue-50' : ''}`}
+                          onClick={(e) => {
+                            // Don't trigger selection if clicking on buttons or links
+                            if (e.target instanceof HTMLElement && 
+                                (e.target.closest('button') || e.target.closest('a'))) {
+                              return
+                            }
+                            handleRecordSelection(record.id, index, e)
+                          }}
+                        >
+                          <TableCell className="w-12">
+                            <Checkbox
+                              checked={selectedRecords.has(record.id)}
+                              onCheckedChange={(checked) => {
+                                // Create a synthetic event to maintain compatibility
+                                const syntheticEvent = {
+                                  shiftKey: false,
+                                  stopPropagation: () => {}
+                                } as React.MouseEvent
+                                handleRecordSelection(record.id, index, syntheticEvent)
+                              }}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">
                             <div className="flex flex-col">
                               <span className="font-medium">{record.machineName}</span>
@@ -1586,6 +2043,17 @@ export default function PriceTrackerAdmin() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
+                              {/* View Price History button */}
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                                onClick={() => openMachineHistoryModal(record.machine_id, record.machineName)}
+                              >
+                                <LineChart className="w-4 h-4 mr-1" />
+                                History
+                              </Button>
+                              
                               {/* Show approve/reject buttons for records pending review */}
                               {record.status === 'PENDING_REVIEW' && (
                                 <>
