@@ -8,7 +8,6 @@ from decimal import Decimal, InvalidOperation
 from config import ANTHROPIC_API_KEY, CLAUDE_MODEL
 from scrapers.site_specific_extractors import SiteSpecificExtractor
 from scrapers.dynamic_scraper import DynamicScraper
-from scrapers.mcp_learning_system import learn_and_extract_price
 from scrapers.selector_blacklist import is_selector_blacklisted, get_blacklist_reason
 
 class PriceExtractor:
@@ -66,31 +65,14 @@ class PriceExtractor:
         found_bot_signs = [bot for bot in bot_indicators if bot in page_text]
         if found_bot_signs:
             logger.warning(f"Bot detection indicators: {found_bot_signs}")
-        # Method 0: Try MCP Learning System for intelligent extraction
-        if machine_name and self._requires_intelligent_extraction(url):
-            try:
-                logger.info(f"🤖 METHOD 0: Attempting MCP learning extraction for {machine_name} at {url}")
-                price, method = await learn_and_extract_price(url, machine_name, machine_data)
-                if price is not None:
-                    # Validate the price against expected ranges and old price
-                    if self._validate_extracted_price(price, url, old_price):
-                        logger.info(f"✅ METHOD 0 SUCCESS: Extracted price ${price} using MCP learning: {method}")
-                        logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
-                        return price, method
-                    else:
-                        logger.warning(f"❌ METHOD 0 VALIDATION FAILED: MCP learning price ${price} failed validation, falling back to dynamic scraper")
-                else:
-                    logger.info(f"❌ METHOD 0 FAILED: No price found with MCP learning")
-            except Exception as e:
-                logger.error(f"❌ METHOD 0 ERROR: MCP learning extraction failed: {str(e)}")
-        else:
-            logger.info(f"⏭️ METHOD 0 SKIPPED: Not required for this URL or no machine name")
+        # Method 0: MCP Learning System removed - was redundant with dynamic scraper
+        # The MCP system was just another layer of Playwright automation on top of our existing dynamic scraper
 
         # Method 1: Try dynamic extraction for sites requiring variant selection
         if machine_name and self._requires_dynamic_extraction(url):
             try:
                 logger.info(f"🌐 METHOD 1: Attempting dynamic extraction with browser automation")
-                price, method = await self._extract_with_dynamic_scraper(url, machine_name)
+                price, method = await self._extract_with_dynamic_scraper(url, machine_name, machine_data)
                 if price is not None:
                     # Validate the price against expected ranges and old price
                     if self._validate_extracted_price(price, url, old_price):
@@ -749,34 +731,6 @@ Format your response as JSON with the EXACT price you find and the CSS selector:
         
         return value 
     
-    def _requires_intelligent_extraction(self, url):
-        """
-        Determine if a URL should use MCP learning system for intelligent extraction.
-        
-        Args:
-            url (str): The URL to check.
-            
-        Returns:
-            bool: True if intelligent extraction is preferred.
-        """
-        from urllib.parse import urlparse
-        domain = urlparse(url).netloc.lower()
-        
-        # Remove 'www.' prefix
-        if domain.startswith('www.'):
-            domain = domain[4:]
-            
-        # Sites that benefit from intelligent MCP learning
-        # Start with complex sites that have variants and multiple price tiers
-        intelligent_sites = [
-            'commarker.com',        # Complex variant selection with bundle pricing
-            'cloudraylaser.com',    # Multiple model variants
-            'epiloglaser.com',      # Enterprise pricing structures
-            'trotec.com',           # Complex configuration options
-            'universal.com'         # Multi-tier pricing
-        ]
-        
-        return any(site in domain for site in intelligent_sites)
     
     def _requires_dynamic_extraction(self, url):
         """
@@ -797,18 +751,20 @@ Format your response as JSON with the EXACT price you find and the CSS selector:
             
         # Sites that require dynamic extraction for variant selection
         dynamic_sites = [
-            'cloudraylaser.com'
+            'cloudraylaser.com',
+            'commarker.com'  # Complex variant selection with bundle pricing
         ]
         
         return any(site in domain for site in dynamic_sites)
     
-    async def _extract_with_dynamic_scraper(self, url, machine_name):
+    async def _extract_with_dynamic_scraper(self, url, machine_name, machine_data=None):
         """
         Extract price using dynamic scraper with variant selection.
         
         Args:
             url (str): Product page URL.
             machine_name (str): Machine name for variant matching.
+            machine_data (dict): Full machine data including old_price
             
         Returns:
             tuple: (price, method) or (None, None) if extraction failed.
@@ -819,7 +775,7 @@ Format your response as JSON with the EXACT price you find and the CSS selector:
             
             async with DynamicScraper() as scraper:
                 price, method = await scraper.extract_price_with_variants(
-                    url, machine_name, variant_rules
+                    url, machine_name, variant_rules, machine_data
                 )
                 
                 if price:

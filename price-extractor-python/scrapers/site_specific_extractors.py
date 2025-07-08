@@ -19,32 +19,38 @@ class SiteSpecificExtractor:
                 'avoid_contexts': [
                     'related-products', 'cross-sells', 'up-sells', 
                     'product-recommendations', 'comparison', 'bundle', 'package',
-                    'accessories', 'addons', 'extras'
+                    'accessories', 'addons', 'extras', 'upsell-products',
+                    'related_products', 'cross-sell-products'
                 ],
                 'avoid_selectors': [
                     '.bundle-price', '.bundle-price *', '.package-price', '.package-price *',
                     '.addon-price', '.extra-price', '.accessories-price',
-                    '.cross-sell', '.up-sell', '.related', '.recommendation'
+                    '.cross-sell', '.up-sell', '.related', '.recommendation',
+                    '.upsell-products', '.related_products', '.cross-sell-products',
+                    'section.related', 'section.upsell', '.woocommerce-Tabs-panel'
                 ],
                 'prefer_contexts': [
                     'product-summary', 'single-product', 'product-main',
                     'woocommerce-product-details', 'entry-summary', 'product-price-wrapper'
                 ],
                 'price_selectors': [
-                    '.product-summary .price .woocommerce-Price-amount:not(.bundle-price *)',
-                    '.single-product .price .amount:not(.bundle-price *)', 
-                    '.entry-summary .price:not(.bundle-price *)',
-                    '.product-price-wrapper .price:not(.bundle-price *)',
-                    '.woocommerce-product-details .price:not(.bundle-price *)',
-                    '.product-main .price:not(.bundle-price *)'
+                    # Prioritize sale price selectors
+                    '.product-summary .price ins .amount',  # Sale price in <ins> tag
+                    '.entry-summary .price ins .amount',
+                    '.single-product-content .price ins .amount',
+                    'form.cart .price ins .amount',
+                    # Fallback to last-child (but this might get regular price)
+                    '.product-summary .price .amount:last-child',
+                    '.entry-summary .price .amount:last-child',
+                    # Avoid generic selectors that grab from anywhere
                 ],
                 'blacklist_selectors': [
                     '.bundle-price', '.bundle-price .main-amount', '.bundle-price *',
-                    '.package-price', '.package-price *', '.combo-price', '.combo-price *'
+                    '.package-price', '.package-price *', '.combo-price', '.combo-price *',
+                    '.upsell-products .price', '.related_products .price'
                 ],
-                'min_expected_price': 500,  # Commarker products typically > $500
-                'max_expected_price': 15000,
-                'strict_validation': True  # Enable strict price validation
+                'strict_validation': True,  # Enable strict price validation
+                'requires_dynamic': True  # Force dynamic extraction for variant selection
             },
             
             'cloudraylaser.com': {
@@ -65,9 +71,7 @@ class SiteSpecificExtractor:
                     '.product-price .price',
                     '.price-current', 
                     '.product__price'
-                ],
-                'min_expected_price': 200,
-                'max_expected_price': 25000
+                ]
             },
             
             'acmerlaser.com': {
@@ -77,9 +81,7 @@ class SiteSpecificExtractor:
                     '.current-price',
                     '.sale-price'
                 ],
-                'avoid_contexts': ['recommended', 'related'],
-                'min_expected_price': 300,
-                'max_expected_price': 20000
+                'avoid_contexts': ['recommended', 'related']
             },
             
             'aeonlaser.us': {
@@ -99,9 +101,7 @@ class SiteSpecificExtractor:
                 'fallback_patterns': [
                     r'starting at \$?([\d,]+)',  # "starting at $6995"
                     r'total[\s\n]*\$?([\d,]+)'   # "Total $6995"
-                ],
-                'min_expected_price': 1000,
-                'max_expected_price': 50000
+                ]
             },
             
             'monportlaser.com': {
@@ -141,9 +141,7 @@ class SiteSpecificExtractor:
                         r'\$(\d{1,2},?\d{3})',        # $1,399 or $1399
                         r'(\d{1,2},?\d{3})'           # 1,399 or 1399
                     ]
-                },
-                'min_expected_price': 400,
-                'max_expected_price': 8000
+                }
             },
             
             'glowforge.com': {
@@ -201,9 +199,7 @@ class SiteSpecificExtractor:
                     r'(?i)glowforge\s+(pro|plus)\s*(hd)?',
                     r'(?i)(pro|plus)(?:\s+hd)?',
                     r'(?i)\$(\d{1,2},?\d{3})'
-                ],
-                'min_expected_price': 1000,
-                'max_expected_price': 8000
+                ]
             },
             
         }
@@ -414,35 +410,35 @@ class SiteSpecificExtractor:
         # Monport-specific variant selection logic
         if domain == 'monportlaser.com' and rules.get('base_machine_preference'):
             price, method = self._extract_monport_base_machine_price(soup, rules)
-            if price and self._validate_price(price, rules):
+            if price and self._validate_price(price, rules, machine_data):
                 return price, f"Monport base machine ({method})"
         
         # ComMarker-specific price extraction logic
         if domain == 'commarker.com':
             price, method = self._extract_commarker_main_price(soup, rules)
-            if price and self._validate_price(price, rules):
+            if price and self._validate_price(price, rules, machine_data):
                 return price, f"ComMarker main price ({method})"
         
         # Glowforge-specific variant detection logic
         if domain == 'glowforge.com' and rules.get('requires_variant_detection'):
             price, method = self._extract_glowforge_variant_price(soup, html_content, url, rules, machine_data)
-            if price and self._validate_price(price, rules):
+            if price and self._validate_price(price, rules, machine_data):
                 return price, f"Glowforge variant ({method})"
         
         # Method 1: JSON-LD (for Shopify sites)
         if rules.get('prefer_json_ld', False):
             price, method = self._extract_json_ld_with_paths(soup, rules.get('json_ld_paths', []))
-            if price and self._validate_price(price, rules):
+            if price and self._validate_price(price, rules, machine_data):
                 return price, f"Site-specific JSON-LD ({method})"
         
         # Method 2: Context-aware CSS selector extraction
         price, method = self._extract_with_context_filtering(soup, rules)
-        if price and self._validate_price(price, rules):
+        if price and self._validate_price(price, rules, machine_data):
             return price, f"Site-specific CSS ({method})"
         
         # Method 3: Fallback with avoided selectors
         price, method = self._extract_avoiding_selectors(soup, rules)
-        if price and self._validate_price(price, rules):
+        if price and self._validate_price(price, rules, machine_data):
             return price, f"Site-specific fallback ({method})"
             
         return None, None
@@ -1047,20 +1043,29 @@ class SiteSpecificExtractor:
         except ValueError:
             return None
     
-    def _validate_price(self, price, rules):
-        """Validate price against site-specific rules."""
+    def _validate_price(self, price, rules, machine_data=None):
+        """Validate price against machine-specific data."""
         if not price:
             return False
         
-        min_price = rules.get('min_expected_price', 10)
-        max_price = rules.get('max_expected_price', 100000)
+        # Use machine data if available, otherwise use wide defaults
+        if machine_data and machine_data.get('old_price'):
+            old_price = float(machine_data['old_price'])
+            # Allow 60% variance from old price
+            min_price = old_price * 0.4
+            max_price = old_price * 1.6
+            logger.debug(f"Using machine-based range: ${min_price:.2f} - ${max_price:.2f} (old: ${old_price:.2f})")
+        else:
+            # Wide defaults when no machine data
+            min_price = 10
+            max_price = 100000
         
         if price < min_price:
-            logger.warning(f"Price {price} below minimum expected {min_price}")
+            logger.warning(f"Price ${price} below expected range (min: ${min_price:.2f})")
             return False
         
         if price > max_price:
-            logger.warning(f"Price {price} above maximum expected {max_price}")
+            logger.warning(f"Price ${price} above expected range (max: ${max_price:.2f})")
             return False
         
         return True

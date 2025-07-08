@@ -66,7 +66,13 @@ async def update_machine_price(request: MachineUpdateRequest):
             error_msg = result.get("error", "Price update failed")
             logger.error(f"Price update failed for machine {request.machine_id}: {error_msg}")
             
-            # Include more details in the response for debugging
+            # If it requires approval, return the FULL result with prices
+            if result.get("requires_approval"):
+                logger.info(f"Price requires approval - Old: ${result.get('old_price')}, New: ${result.get('new_price')}")
+                # Return the full result so we can see the prices!
+                return result
+            
+            # For other failures, still raise exception
             raise HTTPException(
                 status_code=400, 
                 detail=error_msg

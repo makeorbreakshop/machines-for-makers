@@ -81,7 +81,7 @@ class DynamicScraper:
         except Exception as e:
             logger.error(f"Error closing Playwright browser: {str(e)}")
     
-    async def extract_price_with_variants(self, url, machine_name, variant_rules):
+    async def extract_price_with_variants(self, url, machine_name, variant_rules, machine_data=None):
         """
         Extract price from a page that requires variant selection.
         
@@ -89,6 +89,7 @@ class DynamicScraper:
             url: Product page URL
             machine_name: Name of the machine to find correct variant
             variant_rules: Site-specific rules for variant selection
+            machine_data: Full machine data including old_price for validation
             
         Returns:
             tuple: (price, method) or (None, None)
@@ -130,7 +131,7 @@ class DynamicScraper:
             await self.page.wait_for_timeout(1000)
             
             # Extract updated price
-            price, method = await self._extract_price_from_page()
+            price, method = await self._extract_price_from_page(machine_data)
             
             if price:
                 logger.info(f"Successfully extracted price ${price} using method: {method}")
@@ -193,26 +194,37 @@ class DynamicScraper:
         try:
             logger.info(f"Selecting ComMarker variant for: {machine_name}")
             
-            # Parse machine name for power and type
+            # Parse machine name for model, power and type
+            model_match = re.search(r'(B\d+)', machine_name, re.IGNORECASE)
+            model = model_match.group(1) if model_match else None
+            
             power_match = re.search(r'(\d+)W', machine_name, re.IGNORECASE)
             power = power_match.group(1) if power_match else None
             
             is_mopa = 'MOPA' in machine_name.upper()
             
-            logger.info(f"Detected power: {power}W, MOPA: {is_mopa}")
+            logger.info(f"Detected model: {model}, power: {power}W, MOPA: {is_mopa}")
             
             # First try to select power/wattage  
             if power:
                 # Updated selectors based on current ComMarker page structure
-                power_selectors = [
-                    f'text=B6 {power}W',  # For non-MOPA variants
-                    f'text=B6 MOPA {power}W',  # For MOPA variants
+                power_selectors = []
+                
+                # Add model-specific selectors if we have a model
+                if model:
+                    power_selectors.extend([
+                        f'text={model} {power}W',  # e.g., "B4 30W"
+                        f'text={model} MOPA {power}W',  # e.g., "B6 MOPA 60W"
+                    ])
+                
+                # Add generic power selectors
+                power_selectors.extend([
                     f'text={power}W',
                     f'[data-value*="{power}"]',  # Data attribute approach
                     f'button:has-text("{power}W")',  # Playwright has-text approach
                     f'input[value*="{power}"]',  # Input elements
                     f'option[value*="{power}"]'  # Select options
-                ]
+                ])
                 
                 selected_power = False
                 for selector in power_selectors:
@@ -482,43 +494,70 @@ class DynamicScraper:
         except Exception as e:
             logger.error(f"❌ Error navigating Aeon configurator: {str(e)}")
     
-    async def _extract_price_from_page(self):
+    async def _extract_price_from_page(self, machine_data=None):
         """Extract price from the current page after variant selection."""
         try:
             # Get the updated page content
             content = await self.page.content()
             soup = BeautifulSoup(content, 'lxml')
             
-            # Try multiple price extraction methods - site-specific patterns first
-            price_selectors = [
-                # Aeon configurator specific selectors
-                '.total b',  # Final configurator total
-                '.tot-price .total',  # Alternative total selector
-                '.price strong',  # Starting price display
-                '.selected .price',  # Selected option price
-                '.configurator-total',
-                '.final-price',
-                
-                # ComMarker package pricing containers
-                '[class*="package"] .price .amount',
-                '[class*="bundle"] .price .amount',
-                '.package-price .amount',
-                '.bundle-price .amount',
-                
-                # Try to find price near "Basic Bundle" text
-                'text=Basic Bundle',
-                
-                # Common price selectors (fallback)
-                '.price .amount:last-child',
-                '.product-price .amount',
-                '.price-current',
-                '.current-price',
-                '.sale-price',
-                '.product-price',
-                '.price',
-                '[data-price]',
-                '.woocommerce-Price-amount'
-            ]
+            # Get current URL domain
+            current_url = self.page.url
+            domain = urlparse(current_url).netloc.lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            
+            # Use site-specific selectors for ComMarker
+            if 'commarker.com' in domain:
+                price_selectors = [
+                    # Prioritize sale price in <ins> tags
+                    '.product-summary .price ins .amount',
+                    '.entry-summary .price ins .amount',
+                    '.single-product-content .price ins .amount',
+                    'form.cart .price ins .amount',
+                    '.product_title ~ .price ins .amount',
+                    # Fallback to last-child
+                    '.product-summary .price .amount:last-child',
+                    '.entry-summary .price .amount:last-child',
+                    # Fallback to data attributes in main area only
+                    '.product-summary [data-price]',
+                    '.entry-summary [data-price]'
+                ]
+            else:
+                # Default selectors for other sites
+                price_selectors = [
+                    # WooCommerce selectors
+                    '.price .amount:last-child',
+                    '.price-current .amount',
+                    '.woocommerce-Price-amount:last-child',
+                    
+                    # Shopify selectors
+                    '.product__price .price__current',
+                    '.price__current',
+                    '[data-price]',
+                    
+                    # General selectors
+                    '.price',
+                    '.product-price',
+                    '.sale-price',
+                    
+                    # Aeon configurator specific selectors
+                    '.total b',  # Final configurator total
+                    '.tot-price .total',  # Alternative total selector
+                    '.configurator-total',
+                    '.final-price'
+                ]
+            
+            # Calculate expected price range from machine data
+            min_price = 10  # Default minimum
+            max_price = 100000  # Default maximum
+            
+            if machine_data and machine_data.get('old_price'):
+                old_price = float(machine_data['old_price'])
+                # Allow 50% variance from old price
+                min_price = old_price * 0.5
+                max_price = old_price * 1.5
+                logger.info(f"Using price range ${min_price:.2f} - ${max_price:.2f} based on old price ${old_price:.2f}")
             
             for selector in price_selectors:
                 try:
@@ -527,77 +566,33 @@ class DynamicScraper:
                         price_text = element.get_text(strip=True)
                         if price_text:
                             price = self._parse_price_string(price_text)
-                            if price and price > 10:  # Basic validation
-                                return price, f"CSS selector: {selector}"
+                            if price:
+                                logger.debug(f"Parsed price ${price} from text '{price_text}' - checking range ${min_price:.2f} - ${max_price:.2f}")
+                                if min_price <= price <= max_price:
+                                    logger.info(f"Found price ${price} within expected range using selector: {selector}")
+                                    return price, f"CSS selector: {selector}"
+                                else:
+                                    logger.debug(f"Price ${price} outside range ${min_price:.2f} - ${max_price:.2f}, skipping")
                 except Exception as e:
                     logger.debug(f"Price selector {selector} failed: {str(e)}")
                     continue
             
-            # Try data attributes
-            for element in soup.find_all(attrs={'data-price': True}):
-                try:
-                    price_value = element.get('data-price')
-                    if price_value:
-                        price = self._parse_price_string(price_value)
-                        if price and price > 10:
-                            return price, "data-price attribute"
-                except:
-                    continue
+            # Try data attributes - but only in main product area
+            main_product_area = soup.select_one('.product-summary, .entry-summary, .single-product-content, .product-main')
+            if main_product_area:
+                for element in main_product_area.find_all(attrs={'data-price': True}):
+                    try:
+                        price_value = element.get('data-price')
+                        if price_value:
+                            price = self._parse_price_string(price_value)
+                            if price and min_price <= price <= max_price:
+                                logger.info(f"Found price ${price} within expected range using data-price attribute")
+                                return price, "data-price attribute"
+                    except:
+                        continue
             
-            # Try JavaScript evaluation for dynamic prices - site-specific strategies
-            try:
-                js_price = await self.page.evaluate('''() => {
-                    // Strategy 1: Aeon configurator - look for final total
-                    const aeonSelectors = ['.total b', '.tot-price .total', '.configurator-total'];
-                    for (let selector of aeonSelectors) {
-                        const element = document.querySelector(selector);
-                        if (element) {
-                            const priceMatch = element.textContent.match(/\\$([\\d,]+(?:\\.\\d{2})?)/);
-                            if (priceMatch) {
-                                return parseFloat(priceMatch[1].replace(',', ''));
-                            }
-                        }
-                    }
-                    
-                    // Strategy 2: ComMarker - Look for Basic Bundle in 4000+ range
-                    const allElements = document.querySelectorAll('*');
-                    for (let el of allElements) {
-                        if (el.textContent && el.textContent.includes('Basic Bundle')) {
-                            // Found Basic Bundle text, now find price in same container
-                            let parent = el.parentElement;
-                            for (let i = 0; i < 5 && parent; i++) {
-                                const priceMatch = parent.textContent.match(/\\$([4-5],[\\d]{3})/);
-                                if (priceMatch) {
-                                    return parseFloat(priceMatch[1].replace(',', ''));
-                                }
-                                parent = parent.parentElement;
-                            }
-                        }
-                    }
-                    
-                    // Strategy 3: Generic high-value price detection (6000-8000 range for Aeon)
-                    const text = document.body.textContent || '';
-                    let priceMatches = text.match(/\\$([6-7],[\\d]{3})/g);
-                    if (priceMatches && priceMatches.length > 0) {
-                        // For Aeon, typically $6,995 range
-                        const prices = priceMatches.map(p => parseFloat(p.replace(/[$,]/g, '')));
-                        return Math.min(...prices);
-                    }
-                    
-                    // Strategy 4: ComMarker fallback - Look for 4000+ range
-                    priceMatches = text.match(/\\$4,[\\d]{3}/g);
-                    if (priceMatches && priceMatches.length > 0) {
-                        const prices = priceMatches.map(p => parseFloat(p.replace(/[$,]/g, '')));
-                        return Math.min(...prices);
-                    }
-                    
-                    return null;
-                }''')
-                
-                if js_price:
-                    return js_price, "JavaScript evaluation"
-            except Exception as e:
-                logger.debug(f"JavaScript price extraction failed: {str(e)}")
+            # Skip JavaScript evaluation - we'll use Python-based extraction instead
+            # JavaScript evaluation removed to eliminate hardcoded price patterns
             
             return None, None
             
@@ -613,10 +608,9 @@ class DynamicScraper:
         # Handle numeric values in cents (common in data attributes)
         if isinstance(price_text, str) and price_text.isdigit() and len(price_text) >= 5:
             cents_value = int(price_text)
-            if cents_value >= 10000:  # Minimum $100.00 in cents
-                dollars = cents_value / 100
-                if dollars <= 50000:  # Maximum $50,000
-                    return dollars
+            # Convert cents to dollars - no hardcoded limits
+            dollars = cents_value / 100
+            return dollars
         
         # Standard price parsing
         price_str = str(price_text).strip()
