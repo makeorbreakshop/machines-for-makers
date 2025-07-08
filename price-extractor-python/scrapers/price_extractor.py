@@ -130,29 +130,18 @@ class PriceExtractor:
         else:
             logger.info(f"❌ METHOD 4 FAILED: No price found with common selectors")
         
-        # Method 5: Use Claude MCP as fallback (with full browser automation)
-        logger.info(f"🤖 METHOD 5: Attempting Claude MCP as fallback")
-        try:
-            from scrapers.claude_mcp_client import extract_price_with_claude_mcp
-            price, method = await extract_price_with_claude_mcp(url, machine_name, old_price, machine_data)
-            if price is not None:
-                logger.info(f"✅ METHOD 5 SUCCESS: Extracted price ${price} using Claude MCP: {method}")
-                logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
-                return price, method
-            else:
-                logger.info(f"❌ METHOD 5 FAILED: No price found with Claude MCP")
-        except Exception as e:
-            logger.error(f"❌ METHOD 5 ERROR: Claude MCP extraction failed: {str(e)}")
+        # Method 5: Claude MCP removed - was redundant with dynamic scraper
+        # The MCP system was just another layer of Playwright automation on top of our existing dynamic scraper
             
-        # Method 6: Fallback to original Claude API (without automation)
-        logger.info(f"🧠 METHOD 6: Attempting original Claude API as final fallback")
+        # Method 5: Fallback to original Claude API (without automation)
+        logger.info(f"🧠 METHOD 5: Attempting original Claude API as final fallback")
         price, method = await self._extract_using_claude(html_content, url, old_price, machine_data)
         if price is not None:
-            logger.info(f"✅ METHOD 6 SUCCESS: Extracted price ${price} using Claude API: {method}")
+            logger.info(f"✅ METHOD 5 SUCCESS: Extracted price ${price} using Claude API: {method}")
             logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
             return price, method
         else:
-            logger.info(f"❌ METHOD 6 FAILED: No price found with Claude API")
+            logger.info(f"❌ METHOD 5 FAILED: No price found with Claude API")
         
         # No price found with any method
         logger.error(f"=== PRICE EXTRACTION FAILED ===")
