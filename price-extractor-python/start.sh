@@ -10,6 +10,15 @@ if [ ! -f "main.py" ]; then
     exit 1
 fi
 
+# Kill any existing processes on port 8000
+echo "Checking for existing processes on port 8000..."
+EXISTING_PID=$(lsof -ti:8000)
+if [ ! -z "$EXISTING_PID" ]; then
+    echo "Killing existing process on port 8000 (PID: $EXISTING_PID)..."
+    kill -9 $EXISTING_PID
+    sleep 1
+fi
+
 # Activate virtual environment if it exists
 if [ -d "venv" ]; then
     echo "Activating virtual environment..."

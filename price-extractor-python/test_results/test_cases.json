@@ -1,0 +1,532 @@
+[
+  {
+    "machine_id": "432333d0-5c5b-41f0-82ec-4a13ca619fa5",
+    "machine_name": "Monport Onyx 55W Laser",
+    "company": "monport",
+    "url": "https://monportlaser.com/products/monport-onyx-55w-desktop-co2-laser-cutter-with-upgraded-rotary-axis?sca_ref=4770620.meSplPc0Pq",
+    "previous_price": 1599.99,
+    "expected_price": 1599.99,
+    "issue_description": "Variant selection issue",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "c48d2e36-a190-4131-8704-6962fd029e48",
+    "machine_name": "OMTech AF2028-60",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/collections/mid-range-co2-laser-engravers/products/af2028-60-60w-co2-laser-engraver-cutting-machine-with-20-x-28-working-area",
+    "previous_price": 2599.99,
+    "expected_price": 2499.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "023fd0f0-6063-4568-9229-a19678b5b06c",
+    "machine_name": "OMTech MOPA 20W",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/mopa-20-20w-integrated-mopa-fiber-laser-marker-engraving-machine-for-metal?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum",
+    "previous_price": 2199.99,
+    "expected_price": 2199.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "20788bba-05b8-4cbb-9ad4-040e563669a3",
+    "machine_name": "WeCreat Vision 40W",
+    "company": "wecreat",
+    "url": "https://wecreat.com/products/wecreat-vision?variant=48335286108457",
+    "previous_price": 1399.99,
+    "expected_price": 1849.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "0f5f7679-e975-4286-b655-9799e24931b9",
+    "machine_name": "xTool S1",
+    "company": "xtool",
+    "url": "https://www.xtool.com/products/xtool-s1-laser-cutter",
+    "previous_price": 999.0,
+    "expected_price": 1899.0,
+    "issue_description": "Getting contaminated $4589 price",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "bed60c08-18c7-4e8f-bcc6-8541dfa816a4",
+    "machine_name": "OMTech MOPA 60W",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/mopa-60-60w-integrated-mopa-fiber-laser-marker-engraving-machine-for-metal?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum",
+    "previous_price": 3999.99,
+    "expected_price": 3999.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "4c1cda3e-d6c2-418a-963c-4d9beb34f41d",
+    "machine_name": "OMTech AF2440-100",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/100w-co2-laser-engraver-cutter-with-20-x-28-working-area",
+    "previous_price": 3299.99,
+    "expected_price": 3299.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "c8be5bd7-e7ea-41a1-98be-8f19470a0add",
+    "machine_name": "OMTech Pro 3655",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/omtech-pro3655-150w-hybrid-laser-machine-with-autofocus?sca_ref=2167975.eUaAiFuxut",
+    "previous_price": 13299.99,
+    "expected_price": 13299.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "af105a48-7aee-4c6a-a16c-b375b602de15",
+    "machine_name": "Sculpfun S30 Ultra",
+    "company": "sculpfun",
+    "url": "https://www.sculpfun.com/products/sculpfun-s30-ultra-33w-laser-engraving-machine",
+    "previous_price": 880.0,
+    "expected_price": 769.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "b2956e47-a9da-4359-8c88-42ca9a8740e7",
+    "machine_name": "OMTech Galvo 30W",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/galvo-fiber-30-30w-integrated-fiber-laser-marker-engraving-machine-with-5-9x-5-9-working-area-for-metal?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum",
+    "previous_price": 2099.99,
+    "expected_price": 2099.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "294a7080-34bb-444c-bb37-d25b2a6fc30d",
+    "machine_name": "Atomstack X30 Pro",
+    "company": "atomstack",
+    "url": "https://atomstack.com/products/atomstack-x30-pro-laser-engraver",
+    "previous_price": 799.0,
+    "expected_price": 749.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "8a90b7a6-c8f6-4a0b-8ed6-c731d007557d",
+    "machine_name": "Longer Nano",
+    "company": "longer",
+    "url": "https://www.longer3d.com/products/longer-nano-6w-12w-laser-engraving-machine",
+    "previous_price": 549.99,
+    "expected_price": 549.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "74c627bc-aaf4-405d-b414-1028f91a3124",
+    "machine_name": "Creality Falcon A1 10W",
+    "company": "creality",
+    "url": "https://www.crealityfalcon.com/products/falcon-a1-10w-enclosed-laser-engraver-and-cutter",
+    "previous_price": 466.0,
+    "expected_price": 466.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "10647614-ac13-4ff1-ac1e-ac4760f9f7a0",
+    "machine_name": "xTool F1 Ultra",
+    "company": "xtool",
+    "url": "https://www.xtool.com/products/xtool-f1-ultra-20w-fiber-diode-dual-laser-engraver",
+    "previous_price": 3999.0,
+    "expected_price": 3599.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "ecd966e7-4b98-4d11-976f-5af6cb56ca7e",
+    "machine_name": "Longer B1",
+    "company": "longer",
+    "url": "https://www.longer3d.com/products/longer-laser-b1-20w-laser-engraver",
+    "previous_price": 669.99,
+    "expected_price": 699.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "839e1b00-8496-478a-96c4-6248ce74ce74",
+    "machine_name": "ComMarker B4 30W",
+    "company": "commarker",
+    "url": "https://commarker.com/product/b4-30w-laser-engraver-machine/",
+    "previous_price": 2399.0,
+    "expected_price": 1799.0,
+    "issue_description": "MCP automation extracting $50",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "3809e3cd-9d7b-473a-9d68-2beea84c3da5",
+    "machine_name": "OMTech Maker MF1624-60W",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/60w-co2-laser-engraver-with-16-x-24-working-area",
+    "previous_price": 2399.99,
+    "expected_price": 2099.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "5b2ccb74-d042-4832-a22a-c45b5cb62db7",
+    "machine_name": "Gweike G6 Split MOPA",
+    "company": "gweike",
+    "url": "https://www.gweikecloud.com/products/g6-split-mopa-30w-60w-100w-fiber-laser-marking-engraving-machine?ref=NMV3sU0i&variant=44194643378393",
+    "previous_price": 4299.0,
+    "expected_price": 4099.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "58673ae1-b44e-4bc0-8d01-ce4878a44c86",
+    "machine_name": "Gweike G6 Split",
+    "company": "gweike",
+    "url": "https://www.gweikecloud.com/products/g6-split-30w-60w-100w-fiber-laser-marking-engraving-machine-1?ref=NMV3sU0i",
+    "previous_price": 2399.0,
+    "expected_price": 3899.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "4b43a361-d4c3-4708-b64a-a8d2d71114da",
+    "machine_name": "OMTech Pronto 45 100W",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/pronto-45-100w-co2-laser-engraver-and-cutter-upgraded-version?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum",
+    "previous_price": 5399.99,
+    "expected_price": 5399.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "1868ea18-4e44-4955-891f-acf1499e0381",
+    "machine_name": "xTool F1",
+    "company": "xtool",
+    "url": "https://www.xtool.com/products/xtool-f1",
+    "previous_price": 1499.0,
+    "expected_price": 1169.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "c6ca468e-50dd-42d4-aa52-1c85a78c72e2",
+    "machine_name": "EM Smart Dual Desktop",
+    "company": "em-smart",
+    "url": "https://em-smart.com/products/em-smart-dual-laser-engraver-final-payment",
+    "previous_price": 4199.0,
+    "expected_price": 4199.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "a911e1a8-8e65-4e57-a366-c694cc7deeb8",
+    "machine_name": "Glowforge Aura",
+    "company": "glowforge",
+    "url": "https://shop.glowforge.com/collections/printers/products/glowforge-aura",
+    "previous_price": 1199.0,
+    "expected_price": 999.0,
+    "issue_description": "Extracting bundle price $2495",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "e94cc9b6-dc09-4b60-adcd-52b0a3f718e1",
+    "machine_name": "OMTech Galvo 20W",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/20w-integrated-fiber-laser-marker-engraving-machine-with-4-3x-4-3-working-area-for-metal?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum",
+    "previous_price": 1699.99,
+    "expected_price": 1699.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "c23808f6-1760-4cad-b031-3c5eb3556d98",
+    "machine_name": "AlgoLaser Delta 40W Laser",
+    "company": "algolaser",
+    "url": "https://algolaser.com/products/algolaser-delta-40w-diode-laser-engraver?variant=48652379029811&z_code=p12712591847425122453&z_pid=135743",
+    "previous_price": 1299.0,
+    "expected_price": 1299.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "275e4234-8bd2-4c96-90e3-b04c27949520",
+    "machine_name": "Mr Carve M4",
+    "company": "mr-carve",
+    "url": "https://mr-carve.com/products/mr-carve-m4-dual-laser-fiber-marking-machine-all-material-engraver",
+    "previous_price": 1399.0,
+    "expected_price": 1399.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "13b5ba00-cb9b-4fa9-bac5-5208743cd7fe",
+    "machine_name": "OMTech MF2028-100",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/100w-co2-laser-engraver-cutter-with-20-x-28-working-area?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum",
+    "previous_price": 3299.99,
+    "expected_price": 3299.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "2dff352f-d660-4210-afda-1d7bbea3611e",
+    "machine_name": "Longer Ray5",
+    "company": "longer",
+    "url": "https://www.longer3d.com/products/longer-ray5-laser-engraver",
+    "previous_price": 199.99,
+    "expected_price": 199.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "ca98f78c-4f83-4125-b8c6-dfce57b1c789",
+    "machine_name": "Monport GP 20",
+    "company": "monport",
+    "url": "https://monportlaser.com/products/monport-gp20-integrated-fiber-laser-engraver-marking-machine-with-electric-lifting",
+    "previous_price": 1399.99,
+    "expected_price": 1399.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "4a59d933-86b3-474e-a05c-2445653455ac",
+    "machine_name": "OneLaser Hydra 9",
+    "company": "onelaser",
+    "url": "https://www.1laser.com/products/onelaser-hydra-9-laser-engraving-machine",
+    "previous_price": 6549.0,
+    "expected_price": 6995.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "0b5f958f-5b8b-4881-96d3-15924ea095e8",
+    "machine_name": "xTool F1 Lite",
+    "company": "xtool",
+    "url": "https://www.xtool.com/products/xtool-f1",
+    "previous_price": 1499.0,
+    "expected_price": 799.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "d910f7fc-a8e0-48ad-8a62-78c9e4259b8b",
+    "machine_name": "ComMarker B6 30W",
+    "company": "commarker",
+    "url": "https://commarker.com/product/commarker-b6",
+    "previous_price": 2399.0,
+    "expected_price": 2399.0,
+    "issue_description": "MCP automation extracting $50",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "a34f9e91-791e-45a8-b26c-6d4149e5b9f5",
+    "machine_name": "WeCreat Vision 20W",
+    "company": "wecreat",
+    "url": "https://wecreat.com/products/wecreat-vision",
+    "previous_price": 1399.99,
+    "expected_price": 1399.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "1dc5bc6d-25f0-4ae8-b727-1662149295b9",
+    "machine_name": "OMTech MOPA 20W Split ",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/mp6969-20-20w-mopa-fiber-laser-marking-engraving-machine-with-6-9-x-6-9-working-area?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum",
+    "previous_price": 2599.99,
+    "expected_price": 2599.99,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "103db02f-7852-41f8-b297-162d479eaa39",
+    "machine_name": "ComMarker B4 20W",
+    "company": "commarker",
+    "url": "https://commarker.com/product/b4-laser-engraver/",
+    "previous_price": 1499.0,
+    "expected_price": 1499.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "47b8dc18-5daa-4a2b-8ff8-9b48b176db9c",
+    "machine_name": "Algolaser DIY KIT Mini",
+    "company": "algolaser",
+    "url": "https://algolaser.com/products/algolaser-diy-kit-mini-laser-engraver?variant=48598666674483&z_code=p12712591847425122453&z_pid=135742",
+    "previous_price": 139.0,
+    "expected_price": 139.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "0fd2df78-fba8-4d27-a2df-9b7b487b8d94",
+    "machine_name": "xTool P2S",
+    "company": "xtool",
+    "url": "https://www.xtool.com/products/xtool-p2-55w-co2-laser-cutter?variant=45865559359727",
+    "previous_price": 4499.0,
+    "expected_price": 3899.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "32f53f00-446f-4ea1-b638-ce4ab9d0b49b",
+    "machine_name": "ComMarker Omni 1 UV laser",
+    "company": "commarker",
+    "url": "https://commarker.com/product/commarker-omni1-laser-engraver",
+    "previous_price": 3325.0,
+    "expected_price": 3888.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "b78b8088-9577-4047-a975-32472998e3e4",
+    "machine_name": "Glowforge Pro HD",
+    "company": "glowforge",
+    "url": "https://shop.glowforge.com/collections/printers/products/glowforge-pro-hd",
+    "previous_price": 6999.0,
+    "expected_price": 6999.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "20064f02-1e62-4880-8e96-12b637bba1ca",
+    "machine_name": "Atomstack X40 Max",
+    "company": "atomstack",
+    "url": "https://atomstack.com/products/atomstack-a40-max",
+    "previous_price": 969.0,
+    "expected_price": 969.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "e4093bf6-7a1c-4325-9094-8c572a307459",
+    "machine_name": "Algolaser DIY Kit MK2",
+    "company": "algolaser",
+    "url": "https://algolaser.com/products/algolaser-diy-kit-mk2-diode-laser-engraver?variant=50120360231219&z_code=p12712591847425122453&z_pid=135739",
+    "previous_price": 299.0,
+    "expected_price": 299.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "3b2a82b6-7496-43b8-ad2d-dc663c7b5a04",
+    "machine_name": "ComMarker B4 50W",
+    "company": "commarker",
+    "url": "https://commarker.com/product/b4-50w-fiber-laser-engraver/",
+    "previous_price": 2399.0,
+    "expected_price": 2399.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "0bf9db37-3c5c-4539-8103-95ce1b4fdc8c",
+    "machine_name": "Snapmaker Ray 40",
+    "company": "snapmaker",
+    "url": "https://www.robotshop.com/products/snapmaker-ray-40w-laser-engraver-cutter-w-air-assist?qd=e01094971b090663af25d9fb8486932d",
+    "previous_price": 1299.0,
+    "expected_price": 1299.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "2d679131-1151-4d52-a892-63ff85823eb2",
+    "machine_name": "Laguna Smartshop Laser EX-C",
+    "company": "laguna",
+    "url": "https://lagunatools.com/cnc/co2-lasers/smartshop-laser-exc/",
+    "previous_price": 19500.0,
+    "expected_price": 19500.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "e0d6a69c-69d2-4348-9115-e08437109c6d",
+    "machine_name": "WeCreat Vista",
+    "company": "wecreat",
+    "url": "https://wecreat.com/products/wecreat-vista-the-better-crafter-laser",
+    "previous_price": 699.99,
+    "expected_price": 699.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "785d8c3b-3d74-4755-b78b-98345c443b63",
+    "machine_name": "LaserMATIC Mk2",
+    "company": "roly-automation",
+    "url": "https://rolyautomation.com/products/lasermatic-mk2-diode-laser-engraver?bg_ref=rZxaOxidn5",
+    "previous_price": 1049.0,
+    "expected_price": 1049.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "7ea60e49-3d56-403d-af5b-b9d6bf84faa3",
+    "machine_name": "xTool M1 Ultra",
+    "company": "xtool",
+    "url": "https://www.xtool.com/products/xtool-m1-ultra-the-worlds-first-4-in-1-craft-machine?ref=rw0h_cdiytm5&utm_medium=5306&utm_source=influencer",
+    "previous_price": 1099.0,
+    "expected_price": 999.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "f4370877-a40c-459d-ab83-e93a32d102fb",
+    "machine_name": "Genmitsu L8",
+    "company": "atomstack",
+    "url": "https://www.sainsmart.com/products/l8-laser-engraver",
+    "previous_price": 799.0,
+    "expected_price": 999.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "44ebc645-893d-4f25-a25a-03e3079a2454",
+    "machine_name": "Mr Carve M1 Pro",
+    "company": "mr-carve",
+    "url": "https://dajastores.com/products/mr-carve-m1-pro-protable-fiber-laser-marking-machine",
+    "previous_price": 799.99,
+    "expected_price": 979.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "ebd7976d-9fa0-4142-84cf-065d7adcb870",
+    "machine_name": "Atomstack X70 Max",
+    "company": "atomstack",
+    "url": "https://atomstack.com/products/atomstack-a70-max",
+    "previous_price": 1849.0,
+    "expected_price": 1869.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "5ffa07fc-279f-4a2d-ad86-f935203df15e",
+    "machine_name": "Monport GA 30W MOPA",
+    "company": "monport",
+    "url": "https://monportlaser.com/collections/ga-series-mopa-fiber-laser/products/monport-30m7-integrated-175af-mopa-fiber-laser-engraver-marking-machine-1?sca_ref=4770620.meSplPc0Pq",
+    "previous_price": 3499.99,
+    "expected_price": 3499.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "c611e4fd-ee69-4001-82ac-2c2af6c2ac3c",
+    "machine_name": "OMTech Polar+",
+    "company": "omtech",
+    "url": "https://omtechlaser.com/products/polar-55w-desktop-laser-cutter-engraver-with-rotary?sca_ref=2167975.eUaAiFuxut&utm_source=affiliate&utm_medium=kols&utm_campaign=brandon-cullum",
+    "previous_price": 2999.99,
+    "expected_price": 2999.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  },
+  {
+    "machine_id": "6f02d540-d04a-4873-905e-450ec42615f7",
+    "machine_name": "Gweike G2 Max",
+    "company": "gweike",
+    "url": "https://www.gweikecloud.com/products/g2-50w-fiber-laser-engraver?ref=eXZYQTHYc7dy_6",
+    "previous_price": 2599.0,
+    "expected_price": 2279.0,
+    "issue_description": "Price extraction error",
+    "extraction_method": null
+  }
+]

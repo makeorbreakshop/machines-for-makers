@@ -589,21 +589,9 @@ async def learn_and_extract_price(url: str, machine_name: str, machine_data: dic
     try:
         logger.info(f"MCP Direct Automation: Starting intelligent extraction for {machine_name} at {url}")
         
-        # For ComMarker B6 30W specifically, we know the exact steps
-        if "commarker.com" in url and "30W" in machine_name:
-            logger.info("Using learned ComMarker B6 30W automation pattern")
-            
-            # This should eventually use REAL MCP Puppeteer automation:
-            # 1. Navigate to URL
-            # 2. Close popup if present  
-            # 3. Click "B6 30W" button
-            # 4. Extract Basic Bundle price
-            # 5. Return $2,399
-            
-            # For now, return the known correct price
-            # TODO: Replace with actual MCP Puppeteer calls when integrated with Claude Code environment
-            logger.info("Applied learned pattern: ComMarker B6 30W → $2,399 (Basic Bundle)")
-            return 2399.0, "MCP Direct Automation (Learned Pattern)"
+        # Check if we have any learned patterns for this site/machine
+        # This is where real MCP automation would be implemented
+        # Currently returning None to fall back to other extraction methods
         
         # For other sites, attempt basic extraction
         logger.warning(f"No learned pattern for {machine_name} at {url}")

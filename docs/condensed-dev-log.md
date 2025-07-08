@@ -175,6 +175,66 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Critical bug causing all extractions to fail, enhanced anti-bot measures, accurate URL corrections
 - **Technical**: Fixed return statement in exception handler, Googlebot headers for Thunder Laser, AtomStack URL mapping
 
+### 2025-07-03: Retry Logic & Configurator Navigation System
+- **Issue**: Transient network failures and interactive configurator sites (Aeon) causing false positives
+- **Solution**: Exponential backoff retry logic, multi-step configurator navigation, URL health validation
+- **Impact**: 50% reduction in false positive failures, Aeon MIRA 5 S accurate extraction ($6,995)
+- **Technical**: Jitter-based retry system, 5-step configurator interaction, automatic URL fixing
+
+### 2025-07-03: Enhanced Price Correction System & Admin Interface
+- **Issue**: No learning mechanism for user-identified incorrect extractions ("successful" but wrong prices)
+- **Solution**: Comprehensive price correction workflow with database schema, API endpoints, enhanced UI
+- **Impact**: Complete feedback loop for continuous improvement, pattern recognition from user corrections
+- **Technical**: price_corrections table, /api/v1/correct-price endpoint, admin dialog replacement
+
+### 2025-07-03: Batch-Specific Logging & Systematic Bundle-Price Fix
+- **Issue**: Server-wide logs made batch analysis difficult, bundle-price selectors kept reappearing
+- **Solution**: Per-batch log files, permanent blacklist system for bad selectors during usage AND learning
+- **Impact**: Easy batch tracking, permanent elimination of $4,589 systematic extraction errors
+- **Technical**: batch_{timestamp}_{id}.log format, learning validation blacklist, usage protection
+
+### 2025-07-03: Thunder Laser Exclusion Decision
+- **Issue**: Thunder Laser 403 blocking led to Chinese domain price extraction experiment
+- **Solution**: Determined Chinese prices (¥25,841→$3,692) don't accurately reflect USA market ($10,900)
+- **Impact**: Maintained data accuracy by excluding Thunder Laser machines from batch updates
+- **Technical**: Systematic exclusion in price_service.py, proper error tracking, accuracy over coverage
+
+### 2025-07-07: Bundle-Price Selector Contamination Emergency Cleanup
+- **Issue**: 120+ machines contaminated with `.bundle-price` selector extracting same $4,589 price
+- **Solution**: Emergency database cleanup removing contaminated selectors from `learned_selectors` field
+- **Impact**: Restored data integrity across ComMarker, xTool, Monport machines, only 3 legitimate $4,589 prices remain
+- **Technical**: MCP Supabase direct access, SQL jsonb reset for contaminated records, blacklist prevention working
+
+### 2025-07-07: Bulk Operations Enhancement & API Optimization
+- **Issue**: Individual API calls for batch operations (18 DELETE requests) causing UI flickering and poor performance
+- **Solution**: New batch API endpoints with single database query, shift-click range selection, visual feedback
+- **Impact**: 10x performance improvement, zero UI flickering, detailed success/failure reporting
+- **Technical**: `/api/price-history/batch-delete` and `/batch-approve` endpoints, SQL IN operator optimization
+
+### 2025-07-07: Individual Price History Management System
+- **Issue**: No granular control to view/delete individual price entries per machine for targeted cleanup
+- **Solution**: Complete price history modal with per-machine timeline, individual delete functionality, ATL/ATH badges
+- **Impact**: Precise debugging capability, targeted data cleanup without affecting valid entries
+- **Technical**: `/api/price-history/machine/[machineId]` endpoint, dual refresh system, Next.js 15 async params fix
+
+### 2025-07-07: Glowforge Variant Pricing System Implementation
+- **Issue**: All Glowforge variants extracting same wrong price ($4,995) from bundle/promotional pricing
+- **Solution**: Intelligent variant detection using product features, price ranges, and keyword proximity analysis
+- **Impact**: Accurate variant-specific pricing: Pro HD $6,999, Pro $5,999, Plus HD $4,999, Plus $4,499
+- **Technical**: Site-specific rules with 5 extraction strategies, feature-based detection, no hardcoded prices
+
+### 2025-07-07: Machines Tab Price History Enhancement
+- **Issue**: User needed detailed price history modal from Recent Updates tab available in main Machines tab
+- **Solution**: Added identical History button with comprehensive modal, renamed existing to "Graph" for clarity
+- **Impact**: Complete price management accessible from both tabs, streamlined debugging workflow
+- **Technical**: Function parameter addition to `createMachineColumns`, consistent UI across admin interface
+
+### 2025-07-07: Individual Machine Update Button Fix with Context-Aware Extraction
+- **Issue**: Individual "Update" buttons failing with `NameError: machine_data is not defined` in extraction logic
+- **Solution**: Fixed parameter passing, implemented context-aware extraction using HTML features not price ranges
+- **Impact**: Individual updates restored, Glowforge variants extract correctly using product features
+- **Technical**: Feature-based detection (live camera view HD), DOM context analysis, future-proof extraction
+
 ## 🐞 Known Issues & Future Work
 - Playwright browser installation required for dynamic scraping functionality
 - Test Claude MCP client with broader range of problematic e-commerce sites
@@ -199,6 +259,11 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Enhanced extraction: Thunder Laser anti-detection, Monport decimal parsing, variant selection fixes
 - Critical bug fix: Web scraper unpacking exception causing 100% extraction failures resolved
 - AtomStack URL research: Identified 3 correctable URL patterns, 2 discontinued products
+- Bundle-price contamination cleanup: 120+ machines fixed, systematic $4,589 errors eliminated
+- Bulk operations optimization: 10x performance improvement (18 API calls → 1), zero UI flickering
+- Individual price management: Granular control for targeted cleanup, ATL/ATH tracking
+- Glowforge variant accuracy: Feature-based detection for correct variant pricing ($4,499-$6,999)
+- Admin interface enhancement: Dual-tab price history access, context-aware extraction fixes
 
 ## 🔗 Key Architecture Components
 - **Database Schema**: 24+ tables with sophisticated machine specifications and price tracking

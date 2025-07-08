@@ -83,24 +83,16 @@ class ClaudeMCPClient:
             # We need to call the MCP tools through the app context
             # For now, let's implement the browser automation directly
             
-            if "commarker.com" in url and "30W" in machine_name:
-                # ComMarker B6 30W specific automation
-                logger.info("Executing ComMarker B6 30W automation")
-                price = await self._commarker_b6_30w_automation(url)
+            if "commarker.com" in url:
+                # ComMarker machines need variant selection
+                logger.info(f"Executing ComMarker automation for {machine_name}")
+                price = await self._commarker_variant_automation(url, machine_name, machine_data)
                 if price:
-                    return price, "MCP Browser Automation (ComMarker B6 30W)"
+                    return price, f"MCP Browser Automation ({machine_name})"
                 else:
-                    # Fallback to known correct value
-                    logger.warning("Browser automation failed, using known correct price")
-                    return 2399.0, "MCP Browser Automation (ComMarker B6 30W - Fallback)"
-            
-            elif "commarker.com" in url and "60W" in machine_name:
-                # ComMarker B6 60W specific automation
-                logger.info("Executing ComMarker B6 60W automation")
-                # For ComMarker B6 60W, we need to implement the automation
-                # Based on your screenshot, this should be around $4,589
-                logger.info("ComMarker B6 60W Basic Bundle price: $4,589")
-                return 4589.0, "MCP Browser Automation (ComMarker B6 60W)"
+                    # Browser automation failed
+                    logger.warning("Browser automation failed to extract price")
+                    return None, None
                 
             else:
                 logger.warning(f"No specific automation implemented for {machine_name} at {url}")
@@ -110,13 +102,13 @@ class ClaudeMCPClient:
             logger.error(f"Error in MCP browser automation: {str(e)}")
             return None, None
     
-    async def _commarker_b6_30w_automation(self, url: str) -> Optional[float]:
+    async def _commarker_variant_automation(self, url: str, machine_name: str, machine_data: dict = None) -> Optional[float]:
         """
-        Execute ComMarker B6 30W automation using Playwright.
-        This replicates the exact steps we performed manually with MCP tools.
+        Execute ComMarker variant selection automation using Playwright.
+        This works for all ComMarker machines that need variant selection.
         """
         try:
-            logger.info("Starting ComMarker B6 30W Playwright automation")
+            logger.info(f"Starting ComMarker Playwright automation for {machine_name}")
             
             # Import Playwright for automation
             from playwright.async_api import async_playwright
@@ -134,15 +126,32 @@ class ClaudeMCPClient:
                 # Step 2: Wait for page to load and scroll to variant selection
                 await page.wait_for_timeout(2000)
                 
-                # Step 3: Find and click B6 30W button
-                logger.info("Looking for B6 30W button")
+                # Step 3: Find and click the appropriate variant button
+                # Extract power/variant from machine name
+                variant_text = None
+                if machine_data and machine_data.get('Laser Power A'):
+                    variant_text = machine_data.get('Laser Power A')
+                else:
+                    # Try to extract from machine name
+                    import re
+                    power_match = re.search(r'(\d+W)', machine_name)
+                    if power_match:
+                        variant_text = power_match.group(1)
+                
+                if not variant_text:
+                    logger.warning(f"Could not determine variant from machine name: {machine_name}")
+                    variant_text = machine_name.split()[-1]  # Use last word as fallback
+                
+                logger.info(f"Looking for variant button: {variant_text}")
                 try:
-                    # Try different selectors for the 30W button
+                    # Try different selectors for the variant button
                     selectors_to_try = [
-                        'text=B6 30W',
-                        'button:has-text("30W")',
-                        '[data-variant*="30W"]',
-                        'button:has-text("B6 30W")'
+                        f'text={variant_text}',
+                        f'button:has-text("{variant_text}")',
+                        f'[data-variant*="{variant_text}"]',
+                        f'button:has-text("{machine_name}")',
+                        f'.variant-selector:has-text("{variant_text}")',
+                        f'[class*="variant"]:has-text("{variant_text}")'
                     ]
                     
                     clicked = False
@@ -165,20 +174,66 @@ class ClaudeMCPClient:
                     # Step 4: Extract Basic Bundle price
                     logger.info("Extracting Basic Bundle price")
                     
-                    # Look for $2,399 specifically
-                    price_text = await page.text_content('body')
-                    if '$2,399' in price_text:
-                        logger.info("Found $2,399 price for ComMarker B6 30W Basic Bundle")
+                    # Extract price from Basic Bundle section specifically
+                    # Look for price in the bundle/package area that contains the selected variant
+                    import re
+                    
+                    # Try multiple strategies to find the correct price
+                    price = None
+                    
+                    # Strategy 1: Look for price near "Basic Bundle" text
+                    try:
+                        # Find all price elements on the page
+                        price_elements = await page.query_selector_all('[class*="price"], [class*="amount"], span:has-text("$")')
+                        
+                        for element in price_elements:
+                            text = await element.text_content()
+                            if '$' in text:
+                                # Check if this is in a bundle context
+                                parent = await element.evaluate_handle('el => el.closest(".bundle-item, .product-bundle, [class*=bundle]")')
+                                if parent:
+                                    # Extract price from this element
+                                    price_match = re.search(r'\$([0-9,]+(?:\.[0-9]{2})?)', text)
+                                    if price_match:
+                                        price_str = price_match.group(1).replace(',', '')
+                                        try:
+                                            extracted_price = float(price_str)
+                                            # ComMarker prices typically range from $1000-$5000
+                                            # Don't be too restrictive on price range
+                                            if 500 <= extracted_price <= 10000:
+                                                price = extracted_price
+                                                logger.info(f"Found bundle price: ${price}")
+                                                break
+                                        except ValueError:
+                                            continue
+                    except Exception as e:
+                        logger.debug(f"Strategy 1 failed: {e}")
+                    
+                    # Strategy 2: If no bundle price found, look for main product price
+                    if not price:
+                        try:
+                            # Look for price in product summary area
+                            summary_price = await page.query_selector('.product-summary .price .woocommerce-Price-amount, .entry-summary .price .amount')
+                            if summary_price:
+                                text = await summary_price.text_content()
+                                price_match = re.search(r'\$([0-9,]+(?:\.[0-9]{2})?)', text)
+                                if price_match:
+                                    price_str = price_match.group(1).replace(',', '')
+                                    price = float(price_str)
+                                    logger.info(f"Found product summary price: ${price}")
+                        except Exception as e:
+                            logger.debug(f"Strategy 2 failed: {e}")
+                    
+                    if price and price > 50:  # Sanity check - price should be more than $50
+                        logger.info(f"Successfully extracted price ${price} for {machine_name}")
                         await browser.close()
-                        return 2399.0
-                    elif '$2399' in price_text:
-                        logger.info("Found $2399 price for ComMarker B6 30W Basic Bundle")
-                        await browser.close()
-                        return 2399.0
+                        return price
                     else:
-                        logger.warning("Could not find expected $2,399 price in page content")
-                        await browser.close()
-                        return None
+                        logger.warning(f"Could not extract valid price for {machine_name} (found: ${price if price else 'None'})")
+                    
+                    logger.warning("Could not extract price from page content")
+                    await browser.close()
+                    return None
                         
                 except Exception as e:
                     logger.error(f"Error during ComMarker automation: {str(e)}")
@@ -294,7 +349,7 @@ if __name__ == "__main__":
         client = ClaudeMCPClient()
         url = "https://commarker.com/product/commarker-b6/?ref=snlyaljc"
         machine_name = "ComMarker B6 30W"
-        old_price = 2399.0
+        old_price = None
         
         # Sample machine data for testing
         machine_data = {

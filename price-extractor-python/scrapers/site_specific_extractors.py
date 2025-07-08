@@ -18,19 +18,33 @@ class SiteSpecificExtractor:
                 'type': 'woocommerce',
                 'avoid_contexts': [
                     'related-products', 'cross-sells', 'up-sells', 
-                    'product-recommendations', 'comparison'
+                    'product-recommendations', 'comparison', 'bundle', 'package',
+                    'accessories', 'addons', 'extras'
+                ],
+                'avoid_selectors': [
+                    '.bundle-price', '.bundle-price *', '.package-price', '.package-price *',
+                    '.addon-price', '.extra-price', '.accessories-price',
+                    '.cross-sell', '.up-sell', '.related', '.recommendation'
                 ],
                 'prefer_contexts': [
                     'product-summary', 'single-product', 'product-main',
-                    'woocommerce-product-details', 'entry-summary'
+                    'woocommerce-product-details', 'entry-summary', 'product-price-wrapper'
                 ],
                 'price_selectors': [
-                    '.product-summary .price .woocommerce-Price-amount',
-                    '.single-product .price .amount',
-                    '.entry-summary .price'
+                    '.product-summary .price .woocommerce-Price-amount:not(.bundle-price *)',
+                    '.single-product .price .amount:not(.bundle-price *)', 
+                    '.entry-summary .price:not(.bundle-price *)',
+                    '.product-price-wrapper .price:not(.bundle-price *)',
+                    '.woocommerce-product-details .price:not(.bundle-price *)',
+                    '.product-main .price:not(.bundle-price *)'
+                ],
+                'blacklist_selectors': [
+                    '.bundle-price', '.bundle-price .main-amount', '.bundle-price *',
+                    '.package-price', '.package-price *', '.combo-price', '.combo-price *'
                 ],
                 'min_expected_price': 500,  # Commarker products typically > $500
-                'max_expected_price': 15000
+                'max_expected_price': 15000,
+                'strict_validation': True  # Enable strict price validation
             },
             
             'cloudraylaser.com': {
@@ -132,6 +146,66 @@ class SiteSpecificExtractor:
                 'max_expected_price': 8000
             },
             
+            'glowforge.com': {
+                'type': 'variant_configurator',
+                'requires_variant_detection': True,
+                'machine_variant_mapping': {
+                    'Glowforge Pro HD': {
+                        'keywords': ['pro', 'hd'], 
+                        'expected_price_range': [6500, 7500],
+                        'selector_hints': ['.pro.hd', '[data-variant*="pro-hd"]']
+                    },
+                    'Glowforge Pro': {
+                        'keywords': ['pro'], 
+                        'exclude_keywords': ['hd'],
+                        'expected_price_range': [5500, 6500],
+                        'selector_hints': ['.pro:not(.hd)', '[data-variant*="pro"]:not([data-variant*="hd"])']
+                    },
+                    'Glowforge Plus HD': {
+                        'keywords': ['plus', 'hd'], 
+                        'expected_price_range': [4500, 5500],
+                        'selector_hints': ['.plus.hd', '[data-variant*="plus-hd"]']
+                    },
+                    'Glowforge Plus': {
+                        'keywords': ['plus'], 
+                        'exclude_keywords': ['hd'],
+                        'expected_price_range': [4000, 5000],
+                        'selector_hints': ['.plus:not(.hd)', '[data-variant*="plus"]:not([data-variant*="hd"])']
+                    },
+                    'Glowforge Aura': {
+                        'url_contains': ['/craft', '/aura'], 
+                        'expected_price_range': [1000, 1500],
+                        'separate_page': True
+                    }
+                },
+                'avoid_selectors': [
+                    '.bundle-price', '.promotion-price', '.package-price',
+                    '.main-bundle-price', '.bundle .main-amount',
+                    '.financing-price', '.monthly-price'
+                ],
+                'price_selectors': [
+                    '.product-price:not(.bundle-price)',
+                    '.variant-price:not([class*="bundle"])',
+                    '.base-price',
+                    '.current-price:not(.bundle)',
+                    '[data-price]:not([data-bundle])'
+                ],
+                'prefer_contexts': [
+                    'product-variants',
+                    'variant-selector', 
+                    'product-options',
+                    'configurator-step',
+                    'product-pricing'
+                ],
+                'variant_detection_patterns': [
+                    r'(?i)glowforge\s+(pro|plus)\s*(hd)?',
+                    r'(?i)(pro|plus)(?:\s+hd)?',
+                    r'(?i)\$(\d{1,2},?\d{3})'
+                ],
+                'min_expected_price': 1000,
+                'max_expected_price': 8000
+            },
+            
         }
     
     def extract_price_with_rules(self, soup, html_content, url, machine_data=None):
@@ -201,7 +275,7 @@ class SiteSpecificExtractor:
             logger.info(f"Applying site-specific rules for {domain}")
             
             # Try site-specific extraction
-            price, method = self._extract_with_site_rules(soup, html_content, url, rules)
+            price, method = self._extract_with_site_rules(soup, html_content, url, rules, machine_data)
             if price is not None:
                 return price, method
         
@@ -331,7 +405,7 @@ class SiteSpecificExtractor:
             
         return None
     
-    def _extract_with_site_rules(self, soup, html_content, url, rules):
+    def _extract_with_site_rules(self, soup, html_content, url, rules, machine_data=None):
         """Extract price using specific site rules."""
         domain = urlparse(url).netloc.lower()
         if domain.startswith('www.'):
@@ -342,6 +416,18 @@ class SiteSpecificExtractor:
             price, method = self._extract_monport_base_machine_price(soup, rules)
             if price and self._validate_price(price, rules):
                 return price, f"Monport base machine ({method})"
+        
+        # ComMarker-specific price extraction logic
+        if domain == 'commarker.com':
+            price, method = self._extract_commarker_main_price(soup, rules)
+            if price and self._validate_price(price, rules):
+                return price, f"ComMarker main price ({method})"
+        
+        # Glowforge-specific variant detection logic
+        if domain == 'glowforge.com' and rules.get('requires_variant_detection'):
+            price, method = self._extract_glowforge_variant_price(soup, html_content, url, rules, machine_data)
+            if price and self._validate_price(price, rules):
+                return price, f"Glowforge variant ({method})"
         
         # Method 1: JSON-LD (for Shopify sites)
         if rules.get('prefer_json_ld', False):
@@ -359,6 +445,108 @@ class SiteSpecificExtractor:
         if price and self._validate_price(price, rules):
             return price, f"Site-specific fallback ({method})"
             
+        return None, None
+    
+    def _extract_commarker_main_price(self, soup, rules):
+        """Extract main product price for ComMarker, targeting main product summary."""
+        logger.info("🔍 Attempting ComMarker-specific price extraction")
+        
+        # Log page structure for debugging
+        title_elem = soup.find('title')
+        if title_elem:
+            logger.info(f"Page title: {title_elem.get_text()}")
+        
+        # Check if this is actually a ComMarker product page
+        page_content = soup.get_text().lower()
+        # More lenient check - sometimes the content is corrupted
+        if len(page_content) < 100:
+            logger.warning("❌ Page content too short, likely corrupted")
+            # Don't return None here, continue trying
+        
+        # Strategy 1: Enhanced WooCommerce price detection with context awareness
+        priority_selectors = [
+            # Most specific selectors first
+            '.summary-inner .price .woocommerce-Price-amount.amount',
+            '.entry-summary .price .woocommerce-Price-amount.amount',
+            '.product-summary .woocommerce-Price-amount.amount',
+            '.product .price .woocommerce-Price-amount.amount',
+            # Broader fallbacks
+            '.woocommerce-Price-amount.amount',
+            '.price .amount',
+            '.summary-inner .price .amount',
+            '.entry-summary .price .amount'
+        ]
+        
+        all_prices_found = []
+        for selector in priority_selectors:
+            elements = soup.select(selector)
+            logger.info(f"🔍 ComMarker selector '{selector}': found {len(elements)} elements")
+            
+            for i, elem in enumerate(elements):
+                price_text = elem.get_text().strip()
+                logger.info(f"  Element {i+1} text: '{price_text}'")
+                
+                # Check element context to avoid bundle/addon prices
+                context = self._get_element_context(elem)
+                if any(avoid in context.lower() for avoid in ['bundle', 'package', 'addon', 'extra', 'accessory']):
+                    logger.info(f"  ❌ Skipping price in bundle/addon context: {context}")
+                    continue
+                
+                price = self._parse_price_text(price_text, 'commarker.com')
+                if price and 500 <= price <= 15000:  # Reasonable ComMarker price range
+                    parent_classes = ' '.join(elem.parent.get('class', []) if elem.parent else [])
+                    all_prices_found.append((price, elem, selector, parent_classes))
+                    logger.info(f"  ✅ Valid price: ${price} (context: {parent_classes})")
+        
+        # Sort prices and log them
+        all_prices_found.sort(key=lambda x: x[0], reverse=True)
+        logger.info(f"🔍 All valid ComMarker prices: {[f'${p[0]}' for p in all_prices_found]}")
+        
+        # Enhanced price selection logic
+        if len(all_prices_found) >= 2:
+            high_price, _, _, high_context = all_prices_found[0]
+            low_price, low_elem, low_selector, low_context = all_prices_found[1]
+            
+            # Calculate price difference
+            price_difference_percent = ((high_price - low_price) / high_price) * 100
+            
+            # Prefer sale prices when there's a reasonable discount
+            if price_difference_percent > 15 and low_price < high_price:
+                logger.info(f"✅ Selected ComMarker sale price ${low_price} (was ${high_price}, {price_difference_percent:.1f}% off)")
+                return low_price, f"sale_price:{low_selector}"
+            else:
+                logger.info(f"✅ Selected ComMarker primary price ${high_price} (diff too small: {price_difference_percent:.1f}%)")
+                return high_price, f"primary_price:{all_prices_found[0][2]}"
+        
+        # Single price found
+        elif len(all_prices_found) == 1:
+            price, elem, selector, context = all_prices_found[0]
+            logger.info(f"✅ Selected single ComMarker price: ${price}")
+            return price, f"single_price:{selector}"
+        
+        # Strategy 2: Fallback to even more general search
+        fallback_selectors = [
+            '.product-summary .price',
+            '.entry-summary .price', 
+            '.woocommerce-product-details .price',
+            '.single-product-summary .price',
+            '.product-info .price',
+            '.product-main .price'
+        ]
+        
+        for selector in fallback_selectors:
+            elements = soup.select(selector)
+            logger.info(f"Fallback ComMarker selector '{selector}': found {len(elements)} elements")
+            for element in elements:
+                # Look for any price text within this element
+                price_text = element.get_text()
+                logger.info(f"  Fallback element text: '{price_text[:100]}...'")
+                price = self._parse_price_text(price_text, 'commarker.com')
+                if price is not None and price > 1000:
+                    logger.info(f"Found ComMarker fallback price: ${price} using selector: {selector}")
+                    return price, f"fallback:{selector}"
+        
+        logger.warning("ComMarker-specific extraction failed to find valid price")
         return None, None
     
     def _extract_monport_base_machine_price(self, soup, rules):
@@ -439,6 +627,222 @@ class SiteSpecificExtractor:
             except (json.JSONDecodeError, ValueError, KeyError):
                 continue
         
+        return None, None
+    
+    def _extract_glowforge_variant_price(self, soup, html_content, url, rules, machine_data=None):
+        """Extract variant-specific price for Glowforge machines."""
+        variant_mapping = rules.get('machine_variant_mapping', {})
+        
+        # Determine which machine variant we're looking for
+        target_variant = None
+        machine_name = ''
+        
+        if machine_data and 'Machine Name' in machine_data:
+            machine_name = machine_data['Machine Name'].lower()
+            
+            # Match machine name to variant mapping
+            for variant_name, variant_config in variant_mapping.items():
+                variant_keywords = variant_config.get('keywords', [])
+                exclude_keywords = variant_config.get('exclude_keywords', [])
+                
+                # Check if machine name contains required keywords
+                has_required = all(keyword.lower() in machine_name for keyword in variant_keywords)
+                has_excluded = any(keyword.lower() in machine_name for keyword in exclude_keywords)
+                
+                if has_required and not has_excluded:
+                    target_variant = variant_name
+                    break
+        
+        # Special handling for Aura (different URL)
+        if target_variant == 'Glowforge Aura':
+            aura_config = variant_mapping['Glowforge Aura']
+            url_patterns = aura_config.get('url_contains', [])
+            if any(pattern in url.lower() for pattern in url_patterns):
+                # This is the Aura page, extract normally
+                price_selectors = rules.get('price_selectors', [])
+                for selector in price_selectors:
+                    elements = soup.select(selector)
+                    for element in elements:
+                        price = self._parse_price_text(element.get_text(), 'glowforge.com')
+                        if price and 1000 <= price <= 1500:  # Aura price range
+                            return price, f"aura_page:{selector}"
+            return None, None
+        
+        if not target_variant:
+            logger.warning(f"Could not determine Glowforge variant for machine: {machine_name}")
+            return None, None
+        
+        logger.info(f"Looking for Glowforge variant: {target_variant}")
+        
+        # Strategy 1: Look for variant-specific selectors
+        variant_config = variant_mapping[target_variant]
+        selector_hints = variant_config.get('selector_hints', [])
+        expected_range = variant_config.get('expected_price_range', [])
+        
+        for selector_hint in selector_hints:
+            elements = soup.select(selector_hint)
+            for element in elements:
+                # Look for price in or around this element
+                price_element = element.select_one('.price, .amount, [data-price]')
+                if not price_element:
+                    price_element = element
+                
+                price = self._parse_price_text(price_element.get_text(), 'glowforge.com')
+                if price and expected_range[0] <= price <= expected_range[1]:
+                    return price, f"variant_selector:{selector_hint}"
+        
+        # Strategy 2: Look for all prices on page and match by expected range
+        price_selectors = rules.get('price_selectors', [])
+        avoid_selectors = rules.get('avoid_selectors', [])
+        
+        for selector in price_selectors:
+            elements = soup.select(selector)
+            for element in elements:
+                # Skip if element matches avoid selectors
+                element_html = str(element)
+                if any(avoid_pattern in element_html.lower() for avoid_pattern in [s.lower() for s in avoid_selectors]):
+                    continue
+                
+                price = self._parse_price_text(element.get_text(), 'glowforge.com')
+                if price and expected_range[0] <= price <= expected_range[1]:
+                    logger.info(f"Found {target_variant} price {price} in expected range {expected_range}")
+                    return price, f"range_match:{selector}"
+        
+        # Strategy 3: Pattern matching in HTML content
+        variant_patterns = rules.get('variant_detection_patterns', [])
+        keywords = variant_config.get('keywords', [])
+        
+        for pattern in variant_patterns:
+            matches = re.finditer(pattern, html_content, re.IGNORECASE)
+            for match in matches:
+                match_text = match.group(0).lower()
+                
+                # Check if this match relates to our target variant
+                keyword_match = any(keyword.lower() in match_text for keyword in keywords)
+                if keyword_match:
+                    # Look for price near this match
+                    price_match = re.search(r'\$?(\d{1,2},?\d{3})', match.group(0))
+                    if price_match:
+                        price = self._parse_price_text(price_match.group(1), 'glowforge.com')
+                        if price and expected_range[0] <= price <= expected_range[1]:
+                            return price, f"pattern_match:{pattern}"
+        
+        # Strategy 4: Fallback - look for any price in expected range with context clues
+        all_text = soup.get_text().lower()
+        keyword_positions = []
+        for keyword in keywords:
+            pos = all_text.find(keyword.lower())
+            if pos != -1:
+                keyword_positions.append(pos)
+        
+        if keyword_positions:
+            # Look for prices near keyword positions
+            price_pattern = r'\$?(\d{1,2},?\d{3})'
+            for match in re.finditer(price_pattern, all_text):
+                price = self._parse_price_text(match.group(1), 'glowforge.com')
+                if price and expected_range[0] <= price <= expected_range[1]:
+                    # Check if price is reasonably close to a keyword
+                    match_pos = match.start()
+                    min_distance = min(abs(match_pos - kw_pos) for kw_pos in keyword_positions)
+                    if min_distance < 500:  # Within 500 characters
+                        return price, f"keyword_proximity:{min_distance}chars"
+        
+        # Strategy 5: Context-aware price extraction - match prices to their product cards
+        logger.info(f"Trying Strategy 5: Context-aware price extraction for {target_variant}")
+        
+        # Create keywords to look for based on the target variant
+        variant_keywords = []
+        if 'pro hd' in target_variant.lower():
+            variant_keywords = ['pro', 'hd']
+        elif 'pro' in target_variant.lower():
+            variant_keywords = ['pro']
+        elif 'plus hd' in target_variant.lower():
+            variant_keywords = ['plus', 'hd']  
+        elif 'plus' in target_variant.lower():
+            variant_keywords = ['plus']
+        
+        # Find all price elements with their surrounding context
+        all_price_elements = soup.find_all(string=re.compile(r'\$\s*[\d,]+'))
+        
+        for price_text in all_price_elements:
+            # Skip if it's in an avoided context
+            parent_html = str(price_text.parent) if price_text.parent else ""
+            if any(avoid_pattern in parent_html.lower() for avoid_pattern in avoid_selectors):
+                continue
+                
+            price = self._parse_price_text(price_text, 'glowforge.com')
+            if not price or not (expected_range[0] <= price <= expected_range[1]):
+                continue
+                
+            # Check the surrounding context for variant keywords
+            # Look up the DOM tree to find the product card container
+            current_element = price_text.parent
+            context_found = False
+            variant_context = ""
+            
+            # Look up to 10 levels up in the DOM to find the product card (increased from 5)
+            for level in range(10):
+                if not current_element:
+                    break
+                    
+                element_text = current_element.get_text(separator=' ').lower() if hasattr(current_element, 'get_text') else str(current_element).lower()
+                variant_context += element_text + " "
+                
+                # Debug logging to see what context we're finding
+                if price == 4499 or price == 4999:  # Debug specific prices
+                    logger.info(f"DEBUG: Level {level} for ${price}: Found text snippet: '{element_text[:100]}...'")
+                
+                # Check if this context contains our variant keywords
+                if variant_keywords:
+                    # Use specific feature detection based on Glowforge product differences
+                    if 'plus' in variant_keywords and 'hd' not in variant_keywords:
+                        # Looking for "plus" (not HD) - check for "live camera view" WITHOUT "hd"
+                        if 'live camera view' in element_text and 'live camera view hd' not in element_text:
+                            logger.info(f"🎯 Found Plus (non-HD) signature: 'live camera view' without 'hd' for ${price}")
+                            context_found = True
+                            break
+                        elif 'glowforge plus' in element_text and 'glowforge plus hd' not in element_text:
+                            logger.info(f"🎯 Found exact match for 'glowforge plus' without 'hd' for ${price}")
+                            context_found = True
+                            break
+                    elif 'plus' in variant_keywords and 'hd' in variant_keywords:
+                        # Looking for "plus hd" - check for "live camera view hd"
+                        if 'live camera view hd' in element_text:
+                            logger.info(f"🎯 Found Plus HD signature: 'live camera view hd' for ${price}")
+                            context_found = True
+                            break
+                    elif all(keyword in element_text for keyword in variant_keywords):
+                        logger.info(f"🎯 Found all keywords {variant_keywords} for ${price}")
+                        context_found = True
+                        break
+                
+                current_element = current_element.parent if hasattr(current_element, 'parent') else None
+            
+            if context_found:
+                logger.info(f"✅ Strategy 5 SUCCESS: Found {target_variant} price ${price} with matching context: {variant_keywords}")
+                return price, f"context_aware:keywords_{'+'.join(variant_keywords)}"
+        
+        # If context-aware matching failed, fall back to simple range matching
+        logger.info(f"Strategy 5 context-aware failed, falling back to simple range matching")
+        all_found_prices = []
+        for price_text in all_price_elements:
+            parent_html = str(price_text.parent) if price_text.parent else ""
+            if any(avoid_pattern in parent_html.lower() for avoid_pattern in avoid_selectors):
+                continue
+            price = self._parse_price_text(price_text, 'glowforge.com')
+            if price:
+                all_found_prices.append(price)
+        
+        # Look for price in expected range as fallback
+        for price in all_found_prices:
+            if expected_range[0] <= price <= expected_range[1]:
+                logger.info(f"✅ Strategy 5 FALLBACK: Found {target_variant} price ${price} in expected range {expected_range}")
+                return price, f"direct_extraction:range_match"
+        
+        # Log what prices we found for debugging
+        logger.warning(f"Strategy 5: Found prices {all_found_prices} but none in expected range {expected_range} for {target_variant}")
+        
+        logger.warning(f"Could not find price for {target_variant} in expected range {expected_range}")
         return None, None
     
     def _extract_json_ld_with_paths(self, soup, json_ld_paths):
@@ -678,6 +1082,35 @@ class SiteSpecificExtractor:
                 return None
         
         return value
+    
+    def _get_element_context(self, element):
+        """Get contextual information about an element for better price filtering."""
+        context_parts = []
+        
+        # Get element's own classes and attributes
+        if element.get('class'):
+            context_parts.extend(element.get('class'))
+        if element.get('id'):
+            context_parts.append(element.get('id'))
+        
+        # Get parent element context
+        current = element.parent
+        depth = 0
+        while current and depth < 3:  # Check up to 3 levels up
+            if current.name:
+                if current.get('class'):
+                    context_parts.extend([f"parent-{cls}" for cls in current.get('class')])
+                if current.get('id'):
+                    context_parts.append(f"parent-{current.get('id')}")
+            current = current.parent
+            depth += 1
+        
+        # Get surrounding text content
+        if element.parent:
+            parent_text = element.parent.get_text()[:200].lower()
+            context_parts.append(parent_text)
+        
+        return ' '.join(context_parts)
 
 
 def integrate_with_existing_extractor():

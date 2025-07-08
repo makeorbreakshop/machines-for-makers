@@ -9,6 +9,7 @@ from config import ANTHROPIC_API_KEY, CLAUDE_MODEL
 from scrapers.site_specific_extractors import SiteSpecificExtractor
 from scrapers.dynamic_scraper import DynamicScraper
 from scrapers.mcp_learning_system import learn_and_extract_price
+from scrapers.selector_blacklist import is_selector_blacklisted, get_blacklist_reason
 
 class PriceExtractor:
     """Class for extracting prices from web pages using multiple methods."""
@@ -163,7 +164,7 @@ class PriceExtractor:
             
         # Method 6: Fallback to original Claude API (without automation)
         logger.info(f"🧠 METHOD 6: Attempting original Claude API as final fallback")
-        price, method = await self._extract_using_claude(html_content, url, old_price)
+        price, method = await self._extract_using_claude(html_content, url, old_price, machine_data)
         if price is not None:
             logger.info(f"✅ METHOD 6 SUCCESS: Extracted price ${price} using Claude API: {method}")
             logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
@@ -359,8 +360,27 @@ class PriceExtractor:
             ]
             
             for selector in selectors:
+                # Skip blacklisted selectors
+                if is_selector_blacklisted(selector):
+                    logger.debug(f"Skipping blacklisted selector: {selector}")
+                    continue
+                    
                 elements = soup.select(selector)
                 for element in elements:
+                    # Check if element is within a blacklisted context
+                    parent_classes = []
+                    parent = element.parent
+                    while parent and len(parent_classes) < 5:  # Check up to 5 parent levels
+                        if parent.get('class'):
+                            parent_classes.extend(parent.get('class'))
+                        parent = parent.parent
+                    
+                    # Skip if parent has blacklisted class
+                    parent_class_str = ' '.join(parent_classes).lower()
+                    if any(pattern in parent_class_str for pattern in ['bundle', 'package', 'combo', 'addon', 'related']):
+                        logger.debug(f"Skipping price in blacklisted context: {parent_class_str}")
+                        continue
+                    
                     # Try to get the price from various attributes or text
                     price_text = None
                     
@@ -386,7 +406,79 @@ class PriceExtractor:
         
         return None, None
     
-    async def _extract_using_claude(self, html_content, url, old_price=None):
+    def _get_brand_specific_instructions(self, machine_data, url):
+        """Get brand-specific extraction instructions for Claude AI."""
+        from urllib.parse import urlparse
+        
+        domain = urlparse(url).netloc.lower()
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        
+        # Get brand from machine data if available
+        brand = None
+        if machine_data and 'brand' in machine_data:
+            brand = machine_data['brand'].lower()
+        
+        # ComMarker specific instructions
+        if domain == 'commarker.com' or (brand and 'commarker' in brand):
+            return """BRAND-SPECIFIC INSTRUCTIONS FOR COMMARKER:
+
+TASK: Find the STANDALONE product price (NOT bundle pricing)
+
+CRITICAL - AVOID these CSS patterns at all costs:
+- .bundle-price, .bundle-price *, .package-price, .combo-price
+- Any element containing "bundle", "package", "combo", "kit" in the class name
+
+LOOK FOR prices in these preferred locations:
+- .product-summary .price .woocommerce-Price-amount
+- .entry-summary .price .amount
+- .woocommerce-product-details .price
+- .product-price-wrapper .price
+- .single-product .price
+
+COMMARKER CONTEXT:
+- This is a WooCommerce site selling laser engravers
+- Look for the main product price, typically the sale price (current/discounted price)
+- Avoid any bundle/package pricing sections
+- Look for the core machine price in standard WooCommerce price elements"""
+
+        # Glowforge specific instructions  
+        elif domain == 'glowforge.com' or (brand and 'glowforge' in brand):
+            machine_name = machine_data.get('name', '') if machine_data else ''
+            return f"""BRAND-SPECIFIC INSTRUCTIONS FOR GLOWFORGE:
+
+TASK: Find the variant-specific price for this Glowforge machine: {machine_name}
+
+VARIANT DETECTION:
+- Look for HTML content around price elements that matches the variant name
+- Plus models: look for "live camera view" without "hd" 
+- Plus HD models: look for "live camera view hd"
+- Pro models: look for "pro" without "hd"
+- Pro HD models: look for "pro" and "hd"
+
+APPROACH:
+- Find all prices on the page
+- Match each price to the surrounding HTML content/features
+- Select the price that matches the variant indicated in the machine name"""
+
+        # Generic instructions for other brands
+        else:
+            return """GENERAL PRODUCT EXTRACTION INSTRUCTIONS:
+
+TASK: Find the main standalone product price
+
+AVOID:
+- Bundle prices, package prices, accessory prices
+- Financing amounts, promotional pricing
+- Cross-sell, up-sell, or related product prices
+
+LOOK FOR:
+- Primary product price in main product summary
+- WooCommerce .price elements
+- Shopify product pricing sections
+- Main price display areas"""
+    
+    async def _extract_using_claude(self, html_content, url, old_price=None, machine_data=None):
         """
         Extract price using Claude AI as a fallback.
         
@@ -412,31 +504,32 @@ IMPORTANT CONTEXT: The previous price for this product was ${old_price:,.2f}
 
 """
 
-            # Create prompt for Claude with learning capabilities
-            prompt = f"""You are acting as a sub-agent to extract the correct product price from this webpage. You need to analyze the page structure intelligently.
+            # Get brand-specific instructions
+            brand_instructions = self._get_brand_specific_instructions(machine_data, url)
+            
+            # Add machine name context if available
+            machine_context = ""
+            if machine_data:
+                machine_name = machine_data.get('Machine Name', '') or machine_data.get('name', '')
+                if machine_name:
+                    machine_context = f"""
+MACHINE CONTEXT: You are extracting the price for "{machine_name}"
+- If the page shows multiple variants (e.g., 20W, 30W, 60W), select the price that matches this specific model
+- Look for power ratings, model numbers, or other distinguishing features in the machine name
+- For example, if the machine is "ComMarker B6 MOPA 30W", find the price for the 30W variant
+"""
+
+            # Create prompt for Claude with brand-specific learning capabilities
+            prompt = f"""You are acting as a sub-agent to extract the correct product price from this webpage.
 
 URL: {url}
-{price_context}Here is the HTML content of the page (truncated if too long):
+{price_context}{machine_context}Here is the HTML content of the page (truncated if too long):
 {truncated_html}
 
-TASK: Act like a human browsing this page. The variant/power option has already been selected. Now you need to:
+{brand_instructions}
 
-1. ANALYZE: Look at the page structure and identify ALL price elements
-2. UNDERSTAND: This appears to be a product with multiple bundle/package options
-3. IDENTIFY: Find the MAIN product price (usually the "Basic" or "Standard" bundle)
-4. AVOID: Lower accessory prices, financing amounts, or addon prices
-5. TARGET: Look for the primary product offering in the $4,000-$5,000 range
-
-For ComMarker products specifically:
-- After selecting a variant (20W/30W/60W), multiple bundle options appear
-- The "Basic Bundle" is typically the main product price
-- Look for bundle sections with titles like "Basic Bundle", "Standard Package", etc.
-- The main price is usually the highest among the bundle options
-
-Format your response as JSON:
-{{"price": "4589.00", "selector": ".bundle-price .main-amount"}}
-
-CRITICAL: You must find the MAIN PRODUCT BUNDLE price, not accessory or addon prices. Think step-by-step about what a customer would pay for the primary product.
+Format your response as JSON with the EXACT price you find and the CSS selector:
+{{"price": "XXXX.XX", "selector": ".actual-selector-you-found"}}
 """
             
             # Call Claude API
@@ -475,10 +568,16 @@ CRITICAL: You must find the MAIN PRODUCT BUNDLE price, not accessory or addon pr
                     # Parse the price
                     price = self._parse_price(price_str)
                     if price is not None and selector:
-                        logger.info(f"Extracted price {price} using Claude AI with selector: {selector}")
-                        # Store the learned selector (we'll implement this next)
-                        await self._store_learned_selector(url, selector, price)
-                        return price, f"Claude AI (learned: {selector})"
+                        # Check if selector is blacklisted before storing it
+                        if is_selector_blacklisted(selector):
+                            reason = get_blacklist_reason(selector)
+                            logger.warning(f"🚫 BLOCKED Claude AI from learning bad selector: {selector} ({reason})")
+                            return price, f"Claude AI (selector blocked: {reason})"
+                        else:
+                            logger.info(f"Extracted price {price} using Claude AI with selector: {selector}")
+                            # Store the learned selector only if it's not blacklisted
+                            await self._store_learned_selector(url, selector, price)
+                            return price, f"Claude AI (learned: {selector})"
                     elif price is not None:
                         logger.info(f"Extracted price {price} using Claude AI (no selector provided)")
                         return price, "Claude AI (no selector)"
@@ -698,7 +797,6 @@ CRITICAL: You must find the MAIN PRODUCT BUNDLE price, not accessory or addon pr
             
         # Sites that require dynamic extraction for variant selection
         dynamic_sites = [
-            'commarker.com',
             'cloudraylaser.com'
         ]
         
@@ -833,7 +931,7 @@ CRITICAL: You must find the MAIN PRODUCT BUNDLE price, not accessory or addon pr
                 # Site-specific change thresholds
                 change_threshold = 75  # Default 75%
                 if 'commarker.com' in domain:
-                    change_threshold = 30  # ComMarker prices are more stable
+                    change_threshold = 80  # ComMarker prices may have major sales
                 elif 'cloudraylaser.com' in domain:
                     change_threshold = 50  # CloudRay has more variation
                 

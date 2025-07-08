@@ -61,10 +61,11 @@ class WebScraper:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0'
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
         }
         
-        # Amazon specific headers 
+        # Site-specific headers for better compatibility
         if 'amazon.com' in domain:
             headers.update({
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -78,6 +79,19 @@ class WebScraper:
             if 'Sec-Fetch-' in str(headers):
                 headers = {k: v for k, v in headers.items() if not k.startswith('Sec-')}
             logger.info("🔒 Applied Amazon anti-detection headers")
+        
+        elif 'commarker.com' in domain:
+            # ComMarker specific headers to prevent content corruption
+            headers.update({
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9,*;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+                'Connection': 'keep-alive'
+            })
+            logger.info("🔒 Applied ComMarker-specific headers for content reliability")
         
         return headers
     
@@ -147,19 +161,81 @@ class WebScraper:
                     html_content = response.text
                     logger.debug(f"🔧 DEBUG: HTML content length: {len(html_content)} chars")
                     
-                    # Check if content looks like binary/corrupted
+                    # Improved content corruption detection and handling
                     if html_content and len(html_content) > 100:
-                        # Count non-printable characters in first 500 chars
-                        sample = html_content[:500]
-                        non_printable = sum(1 for c in sample if ord(c) < 32 and c not in '\n\r\t')
+                        # Check multiple indicators of content corruption
+                        sample = html_content[:1000]  # Larger sample for better detection
+                        
+                        # Count various corruption indicators
+                        non_printable = sum(1 for c in sample if ord(c) < 32 and c not in '\n\r\t\f\v')
                         non_printable_ratio = non_printable / len(sample)
                         
-                        if non_printable_ratio > 0.1:  # More than 10% non-printable
-                            logger.warning(f"🔧 Content appears corrupted (non-printable ratio: {non_printable_ratio:.2f}), trying content decode")
-                            # Try decoding raw content
+                        # Check for common encoding issues
+                        has_replacement_chars = '�' in sample
+                        has_null_bytes = '\x00' in sample
+                        has_excessive_control_chars = sample.count('\x00') + sample.count('\x01') > 5
+                        
+                        # Check if content looks like HTML at all
+                        looks_like_html = any(tag in html_content.lower()[:2000] for tag in ['<html', '<body', '<head', '<!doctype'])
+                        
+                        corruption_detected = (
+                            non_printable_ratio > 0.05 or  # Lowered threshold
+                            has_replacement_chars or 
+                            has_null_bytes or 
+                            has_excessive_control_chars or
+                            not looks_like_html
+                        )
+                        
+                        if corruption_detected:
+                            logger.warning(f"🔧 Content corruption detected for {url}")
+                            logger.warning(f"   Non-printable ratio: {non_printable_ratio:.3f}")
+                            logger.warning(f"   Replacement chars: {has_replacement_chars}")
+                            logger.warning(f"   Null bytes: {has_null_bytes}")
+                            logger.warning(f"   Looks like HTML: {looks_like_html}")
+                            
+                            # Try multiple recovery strategies
+                            recovery_attempts = []
+                            
+                            # Strategy 1: Force UTF-8 decoding
                             if response.content:
-                                html_content = response.content.decode('utf-8', errors='ignore')
-                                logger.info(f"✅ Successfully decoded raw content for {url}")
+                                try:
+                                    recovered = response.content.decode('utf-8', errors='ignore')
+                                    recovery_attempts.append(('utf-8-ignore', recovered))
+                                except Exception:
+                                    pass
+                            
+                            # Strategy 2: Try different encodings
+                            if response.content:
+                                for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                                    try:
+                                        recovered = response.content.decode(encoding, errors='ignore')
+                                        if recovered and '�' not in recovered[:500]:
+                                            recovery_attempts.append((encoding, recovered))
+                                            break
+                                    except Exception:
+                                        continue
+                            
+                            # Strategy 3: Clean existing content
+                            try:
+                                cleaned = ''.join(c for c in html_content if ord(c) >= 32 or c in '\n\r\t')
+                                if len(cleaned) > len(html_content) * 0.8:  # Keep if we retained 80% of content
+                                    recovery_attempts.append(('cleaned', cleaned))
+                            except Exception:
+                                pass
+                            
+                            # Use the best recovery attempt
+                            for method, recovered_content in recovery_attempts:
+                                test_sample = recovered_content[:1000]
+                                test_non_printable = sum(1 for c in test_sample if ord(c) < 32 and c not in '\n\r\t\f\v')
+                                test_ratio = test_non_printable / len(test_sample) if test_sample else 1.0
+                                
+                                if test_ratio < 0.02 and len(recovered_content) > 1000:  # Much better content
+                                    logger.info(f"✅ Content recovery successful using {method} for {url}")
+                                    html_content = recovered_content
+                                    break
+                            else:
+                                logger.error(f"❌ All content recovery attempts failed for {url}")
+                                return None, None
                 
                 except Exception as content_error:
                     logger.warning(f"🔧 Content handling error for {url}: {str(content_error)}")

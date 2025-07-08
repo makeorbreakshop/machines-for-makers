@@ -1,0 +1,140 @@
+{
+  "test_run": "2025-07-08T10:14:42.230209",
+  "summary": {
+    "total": 5,
+    "passed": 0,
+    "failed": 5,
+    "success_rate": 0.0
+  },
+  "by_issue": {
+    "Variant selection issue": {
+      "passed": 0,
+      "failed": 1,
+      "machines": [
+        {
+          "name": "Monport Onyx 55W Laser",
+          "expected": 1599.99,
+          "got": 1999.99,
+          "error": "Wrong price: got $1999.99, expected $1599.99"
+        }
+      ]
+    },
+    "Getting contaminated $4589 price": {
+      "passed": 0,
+      "failed": 1,
+      "machines": [
+        {
+          "name": "xTool S1",
+          "expected": 1899.0,
+          "got": 1699.0,
+          "error": "Wrong price: got $1699.0, expected $1899.0"
+        }
+      ]
+    },
+    "MCP automation extracting $50": {
+      "passed": 0,
+      "failed": 2,
+      "machines": [
+        {
+          "name": "ComMarker B4 30W",
+          "expected": 1799.0,
+          "got": 3199.0,
+          "error": "Wrong price: got $3199.0, expected $1799.0"
+        },
+        {
+          "name": "ComMarker B6 30W",
+          "expected": 2399.0,
+          "got": 2299.0,
+          "error": "Wrong price: got $2299.0, expected $2399.0"
+        }
+      ]
+    },
+    "Extracting bundle price $2495": {
+      "passed": 0,
+      "failed": 1,
+      "machines": [
+        {
+          "name": "Glowforge Aura",
+          "expected": 999.0,
+          "got": 3995.0,
+          "error": "Wrong price: got $3995.0, expected $999.0"
+        }
+      ]
+    }
+  },
+  "by_company": {
+    "monport": {
+      "passed": 0,
+      "failed": 1
+    },
+    "xtool": {
+      "passed": 0,
+      "failed": 1
+    },
+    "commarker": {
+      "passed": 0,
+      "failed": 2
+    },
+    "glowforge": {
+      "passed": 0,
+      "failed": 1
+    }
+  },
+  "detailed_results": [
+    {
+      "machine": "Monport Onyx 55W Laser",
+      "company": "monport",
+      "url": "https://monportlaser.com/products/monport-onyx-55w-desktop-co2-laser-cutter-with-upgraded-rotary-axis?sca_ref=4770620.meSplPc0Pq",
+      "expected": 1599.99,
+      "extracted": 1999.99,
+      "method": "Claude AI (learned: .product-price)",
+      "success": false,
+      "error": "Wrong price: got $1999.99, expected $1599.99",
+      "time": 6.7071309089660645
+    },
+    {
+      "machine": "xTool S1",
+      "company": "xtool",
+      "url": "https://www.xtool.com/products/xtool-s1-laser-cutter",
+      "expected": 1899.0,
+      "extracted": 1699.0,
+      "method": "Claude AI (learned: .product-price .price)",
+      "success": false,
+      "error": "Wrong price: got $1699.0, expected $1899.0",
+      "time": 3.449789047241211
+    },
+    {
+      "machine": "ComMarker B4 30W",
+      "company": "commarker",
+      "url": "https://commarker.com/product/b4-30w-laser-engraver-machine/",
+      "expected": 1799.0,
+      "extracted": 3199.0,
+      "method": "MCP Browser Automation (ComMarker B4 30W)",
+      "success": false,
+      "error": "Wrong price: got $3199.0, expected $1799.0",
+      "time": 40.00293207168579
+    },
+    {
+      "machine": "Glowforge Aura",
+      "company": "glowforge",
+      "url": "https://shop.glowforge.com/collections/printers/products/glowforge-aura",
+      "expected": 999.0,
+      "extracted": 3995.0,
+      "method": "Claude AI (learned: .product__price)",
+      "success": false,
+      "error": "Wrong price: got $3995.0, expected $999.0",
+      "time": 6.44494104385376
+    },
+    {
+      "machine": "ComMarker B6 30W",
+      "company": "commarker",
+      "url": "https://commarker.com/product/commarker-b6",
+      "expected": 2399.0,
+      "extracted": 2299.0,
+      "method": "Claude AI (learned: .woocommerce-Price-amount)",
+      "success": false,
+      "error": "Wrong price: got $2299.0, expected $2399.0",
+      "time": 35.1477906703949
+    }
+  ]
+}

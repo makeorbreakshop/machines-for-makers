@@ -386,7 +386,7 @@ export default function PriceTrackerAdmin() {
           const machineIds = [...new Set(recentEntries.map(item => item.machine_id))]
           const { data: machineData, error: machineError } = await supabase
             .from("machines")
-            .select("id, \"Machine Name\", \"Company\", Price, product_link, \"Affiliate Link\"")
+            .select("id, \"Machine Name\", \"Company\", Price, product_link, \"Affiliate Link\", \"Laser Power A\", \"LaserPower B\"")
             .in("id", machineIds)
           
           if (machineError) throw machineError
@@ -443,6 +443,7 @@ export default function PriceTrackerAdmin() {
               machineName: machine ? machine["Machine Name"] : "Unknown",
               company: machine ? machine["Company"] : "Unknown",
               productUrl: machine ? (machine.product_link || machine["Affiliate Link"]) : null,
+              laserPower: machine ? (machine["Laser Power A"] || "N/A") : "N/A",
               priceChange,
               priceChangeClass
             }
@@ -1377,7 +1378,8 @@ export default function PriceTrackerAdmin() {
                             <div className="font-medium">Price Change:</div>
                             <div className={debugInfo.details.priceChange > 0 ? 'text-red-500' : debugInfo.details.priceChange < 0 ? 'text-green-500' : ''}>
                               {debugInfo.details.priceChange > 0 ? '+' : ''}{formatPrice(debugInfo.details.priceChange)}
-                              {debugInfo.details.percentageChange !== null && (
+                              {typeof debugInfo.details.percentageChange === 'number' && 
+                               !isNaN(debugInfo.details.percentageChange) && (
                                 <span className="ml-1">
                                   ({debugInfo.details.percentageChange > 0 ? '+' : ''}{debugInfo.details.percentageChange.toFixed(2)}%)
                                 </span>
@@ -1910,6 +1912,7 @@ export default function PriceTrackerAdmin() {
                         </div>
                       </TableHead>
                       <TableHead>Machine</TableHead>
+                      <TableHead>Wattage</TableHead>
                       <TableHead>Previous Price</TableHead>
                       <TableHead>New Price</TableHead>
                       <TableHead>Date</TableHead>
@@ -1921,7 +1924,7 @@ export default function PriceTrackerAdmin() {
                   <TableBody>
                     {recentlyUpdated.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8">
+                        <TableCell colSpan={9} className="text-center py-8">
                           {statusFilter === "all" ? "No recent updates found." : `No updates found with status: ${statusFilter}`}
                         </TableCell>
                       </TableRow>
@@ -1958,6 +1961,7 @@ export default function PriceTrackerAdmin() {
                               <span className="text-sm text-gray-500">{record.company}</span>
                             </div>
                           </TableCell>
+                          <TableCell>{record.laserPower}</TableCell>
                           <TableCell>{formatPrice(record.recordedPrice)}</TableCell>
                           <TableCell>
                             {formatPrice(record.price)}
