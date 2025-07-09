@@ -221,15 +221,35 @@ recently_updated = 1  # Within threshold
 
 **CRITICAL**: Establish a daily analysis routine to turn individual failures into systematic improvements.
 
+**Analysis Script**: The `analyze_batch.py` script in the `price-extractor-python` directory automates batch analysis following these guidelines.
+
 #### 1. Post-Batch Analysis Steps
 
 1. **Review Batch Results**
    ```bash
-   # Check batch success rate
-   curl http://localhost:8000/api/v1/batch-results/{batch_id}
+   # Get list of recent batches
+   curl http://localhost:8000/api/v1/batches | python -m json.tool
+   
+   # Get detailed batch results
+   curl http://localhost:8000/api/v1/batch-results/{batch_id} | python -m json.tool > latest_batch_results.json
+   
+   # Run comprehensive batch analysis
+   cd price-extractor-python
+   python analyze_batch.py
+   
+   # The script provides:
+   # - Status breakdown (success/failed/pending)
+   # - Extraction method performance
+   # - Detailed failure analysis by domain
+   # - Key metrics (success rate, auto-apply rate)
+   # - Pattern identification for systematic issues
    ```
 
 2. **Analyze Manual Corrections**
+   ```bash
+   # Get failures and corrections for a specific batch
+   curl http://localhost:8000/api/v1/batch-failures-and-corrections/{batch_id} | python -m json.tool
+   ```
    - Look for patterns in manually corrected prices
    - Identify extraction methods with high error rates
    - Document systematic issues

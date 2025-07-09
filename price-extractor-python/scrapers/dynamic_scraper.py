@@ -210,19 +210,19 @@ class DynamicScraper:
                 # Enhanced power selectors based on ComMarker's current structure
                 power_selectors = []
                 
-                # Priority 1: Exact model + power combinations
+                # Priority 1: Exact model + power combinations (base machine only)
                 if model:
                     power_selectors.extend([
-                        f'button:has-text("{model} {power}W")',  # e.g., "B6 30W"
-                        f'label:has-text("{model} {power}W")',   # Label elements
-                        f'span:has-text("{model} {power}W")',    # Span elements
-                        f'div:has-text("{model} {power}W")',     # Div elements
+                        f'button:has-text("{model} {power}W"):not(:has-text("Bundle")):not(:has-text("Package"))',  # e.g., "B6 30W" (not bundle)
+                        f'label:has-text("{model} {power}W"):not(:has-text("Bundle")):not(:has-text("Package"))',   # Label elements
+                        f'span:has-text("{model} {power}W"):not(:has-text("Bundle")):not(:has-text("Package"))',    # Span elements
+                        f'div:has-text("{model} {power}W"):not(:has-text("Bundle")):not(:has-text("Package"))',     # Div elements
                     ])
                 
-                # Priority 2: Power-only selectors with stricter matching
+                # Priority 2: Power-only selectors with comprehensive bundle avoidance
                 power_selectors.extend([
-                    f'button:has-text("{power}W"):not(:has-text("Bundle")):not(:has-text("Combo"))',  # Avoid bundles
-                    f'label:has-text("{power}W"):not(:has-text("Bundle")):not(:has-text("Combo"))',
+                    f'button:has-text("{power}W"):not(:has-text("Bundle")):not(:has-text("Combo")):not(:has-text("Package")):not(:has-text("Kit"))',  # Avoid all bundle types
+                    f'label:has-text("{power}W"):not(:has-text("Bundle")):not(:has-text("Combo")):not(:has-text("Package")):not(:has-text("Kit"))',
                     f'input[value="{power}W"]',                    # Exact value match
                     f'input[value="{power}"]',                     # Numeric value match
                     f'option[value*="{power}W"]',                  # Select options
@@ -230,10 +230,18 @@ class DynamicScraper:
                     f'[data-value="{power}"]',                     # Data attribute numeric
                 ])
                 
-                # Priority 3: More flexible text matching
+                # Priority 3: Effect Power section targeting (ComMarker specific)
                 power_selectors.extend([
-                    f'text={power}W',                              # Playwright text selector
-                    f'text="{power}W"',                            # Quoted text selector
+                    f'.effect-power button:has-text("{power}W")',  # Effect Power section
+                    f'.effect-power label:has-text("{power}W")',   # Effect Power labels
+                    f'.variation-radios button:has-text("{power}W")', # Variation radio buttons
+                    f'.variation-option[data-value="{power}W"]',   # Variation options
+                ])
+                
+                # Priority 4: More flexible text matching (base machine only)
+                power_selectors.extend([
+                    f'text={power}W >> visible=true',              # Playwright text selector (visible only)
+                    f'text="{power}W" >> visible=true',            # Quoted text selector (visible only)
                 ])
                 
                 selected_power = False
@@ -246,51 +254,85 @@ class DynamicScraper:
                             # Verify this element actually contains our target power
                             element_text = await element.text_content()
                             if element_text and f"{power}W" in element_text:
-                                # Double-check this isn't a bundle/combo option
-                                if not any(word in element_text.lower() for word in ['bundle', 'combo', 'package', 'kit']):
-                                    logger.info(f"Found power element: '{element_text.strip()}' with selector: {selector}")
+                                # Enhanced bundle/combo detection
+                                bundle_keywords = ['bundle', 'combo', 'package', 'kit', 'set', 'plus', 'pro', 'deluxe', 'premium']
+                                if not any(word in element_text.lower() for word in bundle_keywords):
+                                    # Additional check - ensure this is in the base machine selection area
+                                    parent_text = ""
+                                    try:
+                                        parent = await element.locator('..').text_content()
+                                        parent_text = parent.lower() if parent else ""
+                                    except:
+                                        pass
                                     
-                                    # Try to click the element
-                                    await element.click(timeout=5000)
-                                    logger.info(f"Successfully selected power option: {power}W")
-                                    await self.page.wait_for_timeout(1500)  # Wait for price update
-                                    selected_power = True
-                                    break
+                                    # Skip if parent context suggests bundle/package area
+                                    if not any(word in parent_text for word in bundle_keywords):
+                                        logger.info(f"Found power element: '{element_text.strip()}' with selector: {selector}")
+                                        
+                                        # Try to click the element
+                                        await element.click(timeout=5000)
+                                        logger.info(f"Successfully selected power option: {power}W (base machine)")
+                                        await self.page.wait_for_timeout(1500)  # Wait for price update
+                                        selected_power = True
+                                        break
+                                    else:
+                                        logger.debug(f"Skipping power element in bundle context: '{element_text.strip()}'")
+                                else:
+                                    logger.debug(f"Skipping bundle/combo power element: '{element_text.strip()}'")
                         
                         if selected_power:
                             break
                             
                     except Exception as e:
-                        logger.debug(f"Power selector {selector} failed: {str(e)}")
+                        logger.debug(f"Power selector '{selector}' failed: {str(e)}")
                         continue
                 
                 if not selected_power:
-                    logger.warning(f"Failed to find any power selector for {power}W on ComMarker page")
+                    logger.warning(f"⚠️ Failed to find any power selector for {power}W on ComMarker page")
                     # Enhanced debugging - look for all interactive elements
                     
-                    # Check buttons
+                    # Check buttons (focus on power-related ones)
                     buttons = await self.page.query_selector_all('button')
                     logger.info(f"Available buttons on page: {len(buttons)}")
-                    for i, button in enumerate(buttons[:15]):  # Check more buttons
+                    power_buttons = []
+                    for i, button in enumerate(buttons[:20]):  # Check more buttons
                         try:
                             text = await button.text_content()
                             if text and text.strip():
-                                logger.info(f"Button {i}: '{text.strip()}'")
+                                # Highlight power-related buttons
+                                if any(term in text.lower() for term in ['w', 'watt', 'power', '20', '30', '60']):
+                                    power_buttons.append(f"Button {i}: '{text.strip()}' (POWER-RELATED)")
+                                    logger.info(f"🔍 Button {i}: '{text.strip()}' (POWER-RELATED)")
+                                else:
+                                    logger.debug(f"Button {i}: '{text.strip()}'")
                         except:
                             pass
                     
-                    # Check inputs
+                    if power_buttons:
+                        logger.info(f"Found {len(power_buttons)} power-related buttons but couldn't click {power}W")
+                    
+                    # Check inputs with focus on power/variant selection
                     inputs = await self.page.query_selector_all('input')
                     logger.info(f"Available inputs on page: {len(inputs)}")
-                    for i, input_elem in enumerate(inputs[:10]):
+                    power_inputs = []
+                    for i, input_elem in enumerate(inputs[:15]):
                         try:
                             value = await input_elem.get_attribute('value')
                             input_type = await input_elem.get_attribute('type')
                             name = await input_elem.get_attribute('name')
                             if value or input_type:
-                                logger.info(f"Input {i}: type='{input_type}', name='{name}', value='{value}'")
+                                # Highlight power/variant inputs
+                                if any(term in str(value).lower() for term in ['w', 'watt', 'power', '20', '30', '60']) or \
+                                   any(term in str(name).lower() for term in ['power', 'variant', 'option']):
+                                    power_inputs.append(f"Input {i}: type='{input_type}', name='{name}', value='{value}' (POWER-RELATED)")
+                                    logger.info(f"🔍 Input {i}: type='{input_type}', name='{name}', value='{value}' (POWER-RELATED)")
+                                else:
+                                    logger.debug(f"Input {i}: type='{input_type}', name='{name}', value='{value}'")
                         except:
                             pass
+                    
+                    if power_inputs:
+                        logger.info(f"Found {len(power_inputs)} power-related inputs but couldn't select {power}W")
                     
                     # Check for any text containing power values
                     power_texts = await self.page.query_selector_all('*:has-text("30W"), *:has-text("20W"), *:has-text("60W")')
@@ -299,9 +341,24 @@ class DynamicScraper:
                         try:
                             text = await elem.text_content()
                             tag = await elem.evaluate('el => el.tagName')
-                            logger.info(f"Power element {i}: <{tag}> '{text.strip()}'")
+                            logger.info(f"🔍 Power element {i}: <{tag}> '{text.strip()}'")
                         except:
                             pass
+                    
+                    # Try a more aggressive approach - look for Effect Power section
+                    try:
+                        effect_power_section = await self.page.query_selector('.effect-power, [id*="effect"], [class*="effect"]')
+                        if effect_power_section:
+                            logger.info("📍 Found Effect Power section, attempting targeted selection")
+                            # Try to find and click the power option within this section
+                            power_option = await effect_power_section.query_selector(f'*:has-text("{power}W")')
+                            if power_option:
+                                await power_option.click()
+                                logger.info(f"✅ Successfully selected {power}W from Effect Power section")
+                                selected_power = True
+                                await self.page.wait_for_timeout(1500)
+                    except Exception as e:
+                        logger.debug(f"Effect Power section fallback failed: {str(e)}")
             
             # Then try to select MOPA if applicable
             if is_mopa:
@@ -325,17 +382,30 @@ class DynamicScraper:
                         logger.debug(f"MOPA selector {selector} failed: {str(e)}")
                         continue
             
-            # AVOID bundle selection for ComMarker - extract base machine price only
+            # CRITICAL: AVOID bundle selection for ComMarker - extract base machine price only
             # Analysis shows bundle selection leads to wrong prices:
             # - B6 MOPA 30W: $3,599 (bundle) vs $3,569 (base machine)
             # - B6 MOPA 60W: $4,799 (bundle) vs $4,589 (base machine)
             # - Omni 1 UV: $3,224 (bundle) vs $3,888 (base machine)
-            logger.info("Skipping bundle selection for ComMarker to get base machine price")
+            # - B6 30W: $2,399 (base machine after 30W selection)
+            logger.info("✅ Skipping bundle selection for ComMarker to get base machine price")
             
-            # Instead, wait for the page to settle after power selection
-            # This allows us to extract the base machine price without bundle contamination
+            # Verify power selection was successful by checking for price updates
+            # Wait for JavaScript to update the main product price
+            await self.page.wait_for_timeout(2000)
             
-            # Wait for any AJAX updates
+            # Additional verification: check if price area shows loading or updates
+            try:
+                # Look for common price update indicators
+                price_area = await self.page.query_selector('.product-summary .price, .entry-summary .price')
+                if price_area:
+                    logger.info("✅ Found price area, power selection likely successful")
+                else:
+                    logger.warning("⚠️ Price area not found, power selection may have failed")
+            except Exception as e:
+                logger.debug(f"Price area verification failed: {str(e)}")
+            
+            # Final wait for any remaining AJAX updates
             await self.page.wait_for_timeout(1000)
             
         except Exception as e:
@@ -543,38 +613,30 @@ class DynamicScraper:
             # Use site-specific selectors for ComMarker
             if 'commarker.com' in domain:
                 price_selectors = [
-                    # Target the specific price that appears when B6 Basic Bundle is selected
-                    # Looking for $2,399 which is the 30W Basic Bundle price
-                    'td:contains("B6 Basic Bundle") ~ td .price ins .amount',  # Bundle row price
-                    'td:contains("B6 Basic Bundle") ~ td .price .amount:last-child',
-                    '.selected-package-row .price ins .amount',
-                    '.selected-package-row .price .amount:last-child',
+                    # CRITICAL FIX: Target BASE MACHINE prices only, NOT bundle prices
+                    # Analysis shows bundle prices are wrong:
+                    # - B6 MOPA 30W: $3,599 (bundle) vs $3,569 (base machine) 
+                    # - B6 MOPA 60W: $4,799 (bundle) vs $4,589 (base machine)
+                    # - B6 30W: Should be $2,399 (base machine after 30W selection)
                     
-                    # Package/bundle selection area
-                    '.package-selection .price ins .amount',  # Selected package sale price
-                    '.package-selection .price .amount:last-child',  # Selected package current price
-                    '.selected-package .price ins .amount',   # Selected bundle sale price
-                    '.selected-package .price .amount:last-child',  # Selected bundle current price
+                    # Main product price area after power variant selection
+                    '.product-summary .price ins .amount',      # Base machine sale price
+                    '.entry-summary .price ins .amount',        # Base machine sale price (alt)
+                    '.single-product-content .price ins .amount', # Base machine in product content
                     
                     # After variant selection, the main price should update
                     '.woocommerce-variation-price .price ins .amount',  # Variation sale price
                     '.woocommerce-variation-price .price .amount:last-child',  # Variation current price
                     
-                    # Bundle area selectors - but be specific about selected state
-                    '.bundle-price.selected .amount:last-child',  # Selected bundle final price
-                    '.package-option.selected .price .amount',   # Selected package price
+                    # Main product area regular prices (if no sale)
+                    '.product-summary .price .amount:last-child',  # Base machine current price
+                    '.entry-summary .price .amount:last-child',    # Base machine current price (alt)
                     
-                    # Main product area after dynamic updates
-                    '.product-summary .price ins .amount',
-                    '.entry-summary .price ins .amount', 
-                    '.single-product-content .price ins .amount',
-                    'form.cart .price ins .amount',
+                    # Form area prices (cart/purchase area)
+                    'form.cart .price ins .amount',             # Cart form sale price
+                    'form.cart .price .amount:last-child',      # Cart form current price
                     
-                    # Look for the prominent display price (like $2,399 shown in screenshot)
-                    '.product-summary .price .amount:last-child',
-                    '.entry-summary .price .amount:last-child',
-                    
-                    # Data attributes as final fallback
+                    # Data attributes as final fallback (base machine area only)
                     '.product-summary [data-price]',
                     '.entry-summary [data-price]'
                 ]
@@ -698,10 +760,44 @@ class DynamicScraper:
             if not machine_name:
                 logger.warning("No machine name available for ComMarker validation")
                 return True
+            
+            # Enhanced validation to catch obvious bundle prices
+            # Bundle prices are typically much higher than base machine prices
+            
+            # Parse machine details for more specific validation
+            model_match = re.search(r'(B\d+)', machine_name, re.IGNORECASE)
+            model = model_match.group(1) if model_match else None
+            
+            power_match = re.search(r'(\d+)W', machine_name, re.IGNORECASE)
+            power = int(power_match.group(1)) if power_match else None
+            
+            is_mopa = 'MOPA' in machine_name.upper()
+            
+            # General validation ranges based on ComMarker's actual pricing
+            # These are loose ranges to catch obvious errors, not strict validation
+            if model == 'B4':
+                # B4 models: typically $1,400-$2,500
+                if price < 1000 or price > 3000:
+                    logger.warning(f"ComMarker B4 price ${price} outside reasonable range $1,000-$3,000")
+                    return False
+            elif model == 'B6' and not is_mopa:
+                # B6 standard models: typically $1,800-$2,500
+                if price < 1500 or price > 3000:
+                    logger.warning(f"ComMarker B6 price ${price} outside reasonable range $1,500-$3,000")
+                    return False
+            elif model == 'B6' and is_mopa:
+                # B6 MOPA models: typically $3,000-$5,000
+                if price < 2500 or price > 6000:
+                    logger.warning(f"ComMarker B6 MOPA price ${price} outside reasonable range $2,500-$6,000")
+                    return False
+            
+            # Catch obvious bundle contamination - bundles are typically 50%+ higher
+            # If we find a price significantly higher than expected, it's likely a bundle
+            if price > 8000:  # No ComMarker base machine should exceed $8,000
+                logger.warning(f"ComMarker price ${price} too high, likely bundle contamination")
+                return False
                 
-            # Skip this extra validation - we'll use percentage-based validation in the main flow
-            # The fixed ranges are too restrictive and causing valid prices to be rejected
-            logger.debug(f"ComMarker price ${price} for {machine_name} - relying on percentage-based validation")
+            logger.debug(f"ComMarker price ${price} for {machine_name} passed validation")
             return True
             
         except Exception as e:

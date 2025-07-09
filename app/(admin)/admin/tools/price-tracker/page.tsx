@@ -1481,6 +1481,7 @@ export default function PriceTrackerAdmin() {
               </div>
               <p className="text-sm text-gray-500">
                 Set to 0 to update all machines regardless of last update time.
+                Note: Machines are considered "needing update" if their html_timestamp is older than this threshold.
               </p>
             </div>
             
@@ -1519,14 +1520,23 @@ export default function PriceTrackerAdmin() {
                   <span className="text-sm text-gray-500">Loading preview...</span>
                 </div>
               ) : (
-                <p className="text-sm">
-                  {batchPreviewCount === null 
-                    ? "Loading..."
-                    : batchPreviewCount === 0 
-                      ? "No machines found to update."
-                      : `${batchPreviewCount} machine${batchPreviewCount === 1 ? '' : 's'} will be updated.`
-                  }
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm">
+                    {batchPreviewCount === null 
+                      ? "Loading..."
+                      : batchPreviewCount === 0 
+                        ? "No machines found needing price checks."
+                        : `${batchPreviewCount} machine${batchPreviewCount === 1 ? '' : 's'} need price checks.`
+                    }
+                  </p>
+                  {batchPreviewCount !== null && batchPreviewCount > 0 && (
+                    <p className="text-xs text-gray-500">
+                      This shows machines whose prices haven't changed within {daysThreshold} days. 
+                      Many machines may have been checked recently but had no price changes.
+                      The actual batch will process up to {machineLimit || 'all'} of these machines.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -1542,7 +1552,7 @@ export default function PriceTrackerAdmin() {
               onClick={executeBatchUpdate}
               disabled={batchPreviewLoading || batchPreviewCount === 0}
             >
-              Start Batch Update
+              Start Price Check
             </Button>
           </div>
         </DialogContent>
