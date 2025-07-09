@@ -61,18 +61,18 @@ async def update_machine_price(request: MachineUpdateRequest):
         # Process the price update
         result = await price_service.update_machine_price(request.machine_id)
         
-        # Handle failure cases with detailed error messages
-        if not result["success"]:
+        # Handle different result scenarios
+        if result.get("requires_approval"):
+            # System worked correctly, just needs approval
+            logger.info(f"Price requires approval - Old: ${result.get('old_price')}, New: ${result.get('new_price')}")
+            # Return the full result so we can see the prices!
+            return result
+        elif not result["success"]:
+            # Actual extraction failure
             error_msg = result.get("error", "Price update failed")
-            logger.error(f"Price update failed for machine {request.machine_id}: {error_msg}")
+            logger.error(f"Price extraction failed for machine {request.machine_id}: {error_msg}")
             
-            # If it requires approval, return the FULL result with prices
-            if result.get("requires_approval"):
-                logger.info(f"Price requires approval - Old: ${result.get('old_price')}, New: ${result.get('new_price')}")
-                # Return the full result so we can see the prices!
-                return result
-            
-            # For other failures, still raise exception
+            # For extraction failures, raise exception
             raise HTTPException(
                 status_code=400, 
                 detail=error_msg
@@ -415,30 +415,26 @@ async def fix_bad_selectors():
 @router.get("/batch-failures/{batch_id}")
 async def get_batch_failures(batch_id: str):
     """
-    Get failed machines from batch logs (backward compatibility endpoint).
+    Get machines that had ACTUAL extraction failures (not approval requests).
     
     Args:
         batch_id: The batch ID to get failures for
         
     Returns:
-        List of failed machine IDs from batch logs
+        List of machine IDs that completely failed price extraction
     """
     try:
-        logger.info(f"Getting batch failures for batch ID: {batch_id}")
+        logger.info(f"Getting ACTUAL extraction failures for batch ID: {batch_id}")
         
-        # Debug current working directory
-        import os
-        logger.info(f"🔧 DEBUG: Current working directory: {os.getcwd()}")
-        logger.info(f"🔧 DEBUG: Directory contents: {os.listdir('.')}")
-        
-        # Get failed machines from batch logs
+        # Get machines that completely failed extraction from batch logs
         failed_machine_ids = await price_service.get_batch_failures(batch_id)
         
         return {
             "success": True,
             "batch_id": batch_id,
             "failed_machine_ids": failed_machine_ids,
-            "total_failures": len(failed_machine_ids)
+            "total_failures": len(failed_machine_ids),
+            "description": "Machines that completely failed price extraction (not approval requests)"
         }
     except Exception as e:
         logger.exception(f"Error getting batch failures for {batch_id}: {str(e)}")
@@ -447,18 +443,20 @@ async def get_batch_failures(batch_id: str):
 @router.get("/batch-failures-and-corrections/{batch_id}")
 async def get_batch_failures_and_corrections(batch_id: str):
     """
-    Get comprehensive list of failed AND manually corrected machines from a specific batch.
+    Get machines that need retesting: ACTUAL extraction failures + manually corrected machines.
+    
+    This endpoint excludes machines that just required approval (system worked correctly).
     
     Args:
         batch_id: The batch ID to get failures and corrections for
         
     Returns:
-        Combined list of failed and manually corrected machine IDs
+        Combined list of failed and manually corrected machine IDs that need retesting
     """
     try:
-        logger.info(f"Getting failures and corrections for batch ID: {batch_id}")
+        logger.info(f"Getting machines needing retest for batch ID: {batch_id}")
         
-        # Get failed machines from batch logs
+        # Get machines that completely failed extraction from batch logs
         failed_machine_ids = await price_service.get_batch_failures(batch_id)
         
         # Get manually corrected machines from database
@@ -467,17 +465,18 @@ async def get_batch_failures_and_corrections(batch_id: str):
         # Combine both lists and remove duplicates
         all_machine_ids = list(set(failed_machine_ids + corrected_machine_ids))
         
-        logger.info(f"Found {len(failed_machine_ids)} failed + {len(corrected_machine_ids)} corrected = {len(all_machine_ids)} total machines to retest")
+        logger.info(f"Found {len(failed_machine_ids)} extraction failures + {len(corrected_machine_ids)} manual corrections = {len(all_machine_ids)} total machines needing retest")
         
         return {
             "success": True,
             "batch_id": batch_id,
-            "failed_machine_ids": failed_machine_ids,
-            "corrected_machine_ids": corrected_machine_ids,
-            "all_machine_ids": all_machine_ids,
-            "total_failed": len(failed_machine_ids),
-            "total_corrected": len(corrected_machine_ids),
-            "total_for_retest": len(all_machine_ids)
+            "extraction_failures": failed_machine_ids,
+            "manual_corrections": corrected_machine_ids,
+            "machines_needing_retest": all_machine_ids,
+            "total_extraction_failures": len(failed_machine_ids),
+            "total_manual_corrections": len(corrected_machine_ids),
+            "total_needing_retest": len(all_machine_ids),
+            "description": "Only includes machines that failed extraction or were manually corrected (excludes approval requests)"
         }
     except Exception as e:
         logger.exception(f"Error getting batch failures and corrections for {batch_id}: {str(e)}")

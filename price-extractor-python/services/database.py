@@ -218,7 +218,7 @@ class DatabaseService:
     
     async def get_machines_needing_update(self, days_threshold: int = 7, machine_ids: List[str] = None, limit: Optional[int] = None) -> List[Dict]:
         """
-        Get machines that need price updates.
+        Get machines that need price updates based on last price check (price_history), not last price change.
         
         Args:
             days_threshold (int): Days threshold for considering a machine needs update.
@@ -234,75 +234,128 @@ class DatabaseService:
             
             # If specific machine IDs are provided, only get those
             if machine_ids:
+                logger.info(f"Getting {len(machine_ids)} specific machines for batch update")
                 query = (
                     self.supabase.table("machines")
                     .select(selected_columns)
                     .in_("id", machine_ids)
                 )
-            elif days_threshold > 0:
-                # Only apply the date threshold if days_threshold > 0
-                today = datetime.now()
                 
-                # Calculate the threshold date
-                threshold_date = today - timedelta(days=days_threshold)
-                threshold_date_str = threshold_date.strftime("%Y-%m-%d")
-                
-                # First query: Get machines with html_timestamp less than threshold
-                query1 = (
-                    self.supabase.table("machines")
-                    .select(selected_columns)
-                    .lt("html_timestamp", threshold_date_str)
-                )
-                
-                # Second query: Get machines with null html_timestamp
-                query2 = (
-                    self.supabase.table("machines")
-                    .select(selected_columns)
-                    .is_("html_timestamp", "null")
-                )
-                
-                # Execute both queries
-                response1 = query1.execute()
-                response2 = query2.execute()
-                
-                # Combine results - no need to check for error attribute
-                machines = response1.data + response2.data
-                
-                # Apply limit if provided
-                if limit is not None and len(machines) > limit:
-                    machines = machines[:limit]
-                    logger.info(f"Limited combined results to {limit} machines")
+                # Execute the query for specific machine IDs
+                response = query.execute()
+                machines = response.data
                 
                 if not machines:
-                    logger.info("No machines found for price update")
+                    logger.warning(f"No machines found for provided IDs: {machine_ids[:5]}...")
                     return []
                 
-                logger.info(f"Found {len(machines)} machines for price update")
+                logger.info(f"Found {len(machines)} machines for specific IDs")
                 return machines
+            elif days_threshold > 0:
+                # Use the database function for efficient filtering
+                logger.info(f"Finding machines that haven't been checked in {days_threshold} days using database function")
+                
+                try:
+                    # Use the Supabase database function
+                    response = self.supabase.rpc(
+                        'get_machines_needing_price_check', 
+                        {
+                            'days_threshold': days_threshold,
+                            'machine_limit': limit
+                        }
+                    ).execute()
+                    
+                    if response.data:
+                        machines = response.data
+                        logger.info(f"Found {len(machines)} machines needing price check (not checked in {days_threshold} days)")
+                        return machines
+                    else:
+                        logger.info("No machines found needing price check")
+                        return []
+                        
+                except Exception as e:
+                    logger.warning(f"Database function failed, falling back to manual method: {str(e)}")
+                    
+                    # Fallback to manual method if function doesn't exist
+                    today = datetime.now()
+                    threshold_date = today - timedelta(days=days_threshold)
+                    
+                    logger.info(f"Finding machines that haven't been checked since {threshold_date.isoformat()}")
+                    
+                    # Get all machines first
+                    all_machines_response = (
+                        self.supabase.table("machines")
+                        .select(selected_columns)
+                        .execute()
+                    )
+                    
+                    if not all_machines_response.data:
+                        logger.info("No machines found in database")
+                        return []
+                    
+                    machines_needing_update = []
+                    
+                    # Check each machine's last price history entry
+                    for machine in all_machines_response.data:
+                        machine_id = machine.get("id")
+                        
+                        # Get the most recent price history entry for this machine
+                        history_response = (
+                            self.supabase.table("price_history")
+                            .select("date")
+                            .eq("machine_id", machine_id)
+                            .order("date", desc=True)
+                            .limit(1)
+                            .execute()
+                        )
+                        
+                        # Check if machine needs update
+                        needs_update = False
+                        if not history_response.data:
+                            # Never checked
+                            needs_update = True
+                            logger.debug(f"Machine {machine_id} never checked - needs update")
+                        else:
+                            last_check = datetime.fromisoformat(history_response.data[0]["date"].replace('Z', '+00:00'))
+                            if last_check < threshold_date:
+                                # Last checked before threshold
+                                needs_update = True
+                                logger.debug(f"Machine {machine_id} last checked {last_check} - needs update")
+                            else:
+                                logger.debug(f"Machine {machine_id} last checked {last_check} - no update needed")
+                        
+                        if needs_update:
+                            machines_needing_update.append(machine)
+                            
+                        # Apply limit
+                        if limit and len(machines_needing_update) >= limit:
+                            logger.info(f"Reached limit of {limit} machines")
+                            break
+                    
+                    logger.info(f"Found {len(machines_needing_update)} machines needing price check (fallback method)")
+                    return machines_needing_update
             else:
                 # If days_threshold is 0, we're getting all machines
                 query = (
                     self.supabase.table("machines")
                     .select(selected_columns)
                 )
-            
-            # Apply limit if provided (for the single query cases)
-            if limit is not None:
-                query = query.limit(limit)
-                logger.info(f"Limiting query to {limit} machines")
-            
-            # Execute the query (only for the single query cases)
-            response = query.execute()
-            
-            # No need to check for error attribute
-            machines = response.data
-            
-            if not machines:
-                logger.info("No machines found for price update")
-                return []
-            
-            logger.info(f"Found {len(machines)} machines for price update")
-            return machines
+                
+                # Apply limit if provided
+                if limit is not None:
+                    query = query.limit(limit)
+                    logger.info(f"Limiting query to {limit} machines")
+                
+                # Execute the query
+                response = query.execute()
+                machines = response.data
+                
+                if not machines:
+                    logger.info("No machines found for price update")
+                    return []
+                
+                logger.info(f"Found {len(machines)} machines for price update (all machines)")
+                return machines
             
         except Exception as e:
             logger.exception(f"Error in get_machines_needing_update: {str(e)}")

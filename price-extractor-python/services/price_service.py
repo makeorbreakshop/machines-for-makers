@@ -59,13 +59,14 @@ class PriceService:
         
         return log_path
     
-    def _should_require_manual_approval(self, old_price, new_price):
+    async def _should_require_manual_approval(self, old_price, new_price, machine_id):
         """
         Determine if a price change requires manual approval based on thresholds.
         
         Args:
             old_price (float): Previous price
             new_price (float): New price
+            machine_id (str): Machine ID to check price history
             
         Returns:
             tuple: (requires_approval, reason)
@@ -76,6 +77,27 @@ class PriceService:
         # Skip validation for very low prices (likely test data)
         if new_price < MIN_PRICE_THRESHOLD:
             return True, f"New price ${new_price} below minimum threshold ${MIN_PRICE_THRESHOLD}"
+        
+        # Check if this price was recently manually corrected
+        try:
+            # Query recent price history for this machine
+            response = self.db_service.supabase.table("price_history").select("*").eq("machine_id", machine_id).order("created_at", desc=True).limit(10).execute()
+            
+            if response.data:
+                for entry in response.data:
+                    # Check if there's a recent manual correction to this exact price
+                    if (entry.get("status") == "MANUAL_CORRECTION" and 
+                        entry.get("new_price") == new_price and
+                        entry.get("created_at")):
+                        # Check if correction was made within last 7 days
+                        from datetime import datetime, timedelta
+                        correction_date = datetime.fromisoformat(entry["created_at"].replace('Z', '+00:00'))
+                        if datetime.now(correction_date.tzinfo) - correction_date < timedelta(days=7):
+                            logger.info(f"Price ${new_price} matches recent manual correction from {entry['created_at']}, auto-approving")
+                            return False, None
+                            
+        except Exception as e:
+            logger.warning(f"Error checking price history for approval logic: {str(e)}")
         
         # Calculate percentage change
         percentage_change = ((new_price - old_price) / old_price) * 100
@@ -139,6 +161,24 @@ class PriceService:
                 return {
                     "success": False, 
                     "error": "Thunder Laser machines temporarily excluded from batch updates", 
+                    "machine_id": machine_id, 
+                    "url": product_url
+                }
+            
+            # Skip Rendyr machines - connection/blocking issues
+            if 'rendyr.com' in domain:
+                logger.warning(f"⚠️ Skipping Rendyr machine {machine_id} - connection issues")
+                await self.db_service.add_price_history(
+                    machine_id=machine_id,
+                    old_price=current_price,
+                    new_price=None,
+                    success=False,
+                    error_message="Rendyr machines temporarily excluded from batch updates",
+                    batch_id=batch_id
+                )
+                return {
+                    "success": False, 
+                    "error": "Rendyr machines temporarily excluded from batch updates", 
                     "machine_id": machine_id, 
                     "url": product_url
                 }
@@ -280,7 +320,7 @@ class PriceService:
                 }
             
             # Check if price change requires manual approval
-            requires_approval, approval_reason = self._should_require_manual_approval(old_price, new_price)
+            requires_approval, approval_reason = await self._should_require_manual_approval(old_price, new_price, machine_id)
             
             if requires_approval:
                 # Log price change for manual review - don't update machines table
@@ -291,17 +331,18 @@ class PriceService:
                     machine_id=machine_id,
                     old_price=old_price,
                     new_price=new_price,
-                    success=False,  # Mark as pending review
+                    success=True,  # System worked correctly, just needs approval
                     error_message=f"Pending review: {approval_reason}",
-                    batch_id=batch_id
+                    batch_id=batch_id,
+                    status="PENDING_REVIEW"  # Distinguish from actual failures
                 )
                 
                 price_change = new_price - old_price if old_price is not None else None
                 percentage_change = ((new_price - old_price) / old_price) * 100 if old_price is not None and old_price > 0 else None
                 
                 return {
-                    "success": False,
-                    "error": f"Price change requires manual approval: {approval_reason}",
+                    "success": True,  # System worked correctly, just needs approval
+                    "extraction_success": True,  # Price was successfully extracted
                     "requires_approval": True,
                     "approval_reason": approval_reason,
                     "old_price": old_price,
@@ -555,13 +596,39 @@ class PriceService:
             with open(log_file, 'r') as f:
                 lines = f.readlines()
             
-            # Parse log lines to find complete failures
+            # Parse log lines to find ACTUAL extraction failures (not approval requests)
             error_lines_found = 0
             for line in lines:
-                # Look for database errors when adding price history - these contain machine IDs
-                if "ERROR" in line and "services.database:add_price_history" in line and "Error adding price history for machine" in line:
+                # Look for actual extraction failures - "Failed to extract price"
+                if "ERROR" in line and "Failed to extract price for machine" in line:
                     error_lines_found += 1
-                    logger.info(f"🔧 DEBUG: Found error line {error_lines_found}: {line.strip()[:100]}...")
+                    logger.info(f"🔧 DEBUG: Found extraction failure line {error_lines_found}: {line.strip()[:100]}...")
+                    try:
+                        # Extract machine ID from: "Failed to extract price for machine ebd7976d-9fa0-4142-84cf-065d7adcb870 from https://..."
+                        match_text = "Failed to extract price for machine "
+                        start_idx = line.find(match_text)
+                        if start_idx != -1:
+                            start_idx += len(match_text)
+                            # Find the end of the machine ID (next space or tab)
+                            end_idx = line.find(" ", start_idx)
+                            if end_idx != -1:
+                                machine_id = line[start_idx:end_idx].strip()
+                                logger.info(f"🔧 DEBUG: Extracted machine_id: '{machine_id}' (length: {len(machine_id)}, dashes: {machine_id.count('-')})")
+                                # Validate it looks like a UUID (36 chars with 4 dashes)
+                                if len(machine_id) == 36 and machine_id.count('-') == 4:
+                                    if machine_id not in failed_machine_ids:
+                                        failed_machine_ids.append(machine_id)
+                                        logger.info(f"🔧 DEBUG: Added failed machine ID: {machine_id}")
+                                else:
+                                    logger.warning(f"🔧 DEBUG: Invalid machine ID format: '{machine_id}'")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse machine ID from extraction failure line: {line.strip()}")
+                        continue
+                
+                # Also look for database errors when adding price history - these contain machine IDs
+                elif "ERROR" in line and "services.database:add_price_history" in line and "Error adding price history for machine" in line:
+                    error_lines_found += 1
+                    logger.info(f"🔧 DEBUG: Found database error line {error_lines_found}: {line.strip()[:100]}...")
                     try:
                         # Extract machine ID from: "Error adding price history for machine ebd7976d-9fa0-4142-84cf-065d7adcb870: {'message':..."
                         match_text = "Error adding price history for machine "

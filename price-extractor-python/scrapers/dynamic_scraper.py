@@ -325,38 +325,15 @@ class DynamicScraper:
                         logger.debug(f"MOPA selector {selector} failed: {str(e)}")
                         continue
             
-            # After selecting power, also select the appropriate package for B6 models
-            if model and model.startswith('B6'):
-                # For B6 models, select the Basic Bundle which is the standard option
-                bundle_selectors = [
-                    'text="B6 Basic Bundle"',
-                    ':text-is("B6 Basic Bundle")',
-                    'button:has-text("B6 Basic Bundle")',
-                    'div:has-text("B6 Basic Bundle")',
-                    '[data-package*="basic"]',
-                    '[data-bundle*="basic"]',
-                    '.package-option:has-text("Basic")',
-                    '.bundle-option:has-text("Basic")',
-                    # Try to find any element with "Basic Bundle" text
-                    '*:has-text("Basic Bundle")'
-                ]
-                
-                selected_bundle = False
-                for selector in bundle_selectors:
-                    try:
-                        element = await self.page.query_selector(selector)
-                        if element:
-                            await element.click()
-                            logger.info(f"Selected B6 Basic Bundle package")
-                            await self.page.wait_for_timeout(1000)  # Wait for price update
-                            selected_bundle = True
-                            break
-                    except Exception as e:
-                        logger.debug(f"Bundle selector {selector} failed: {str(e)}")
-                        continue
-                
-                if not selected_bundle:
-                    logger.warning("Could not find B6 Basic Bundle selector")
+            # AVOID bundle selection for ComMarker - extract base machine price only
+            # Analysis shows bundle selection leads to wrong prices:
+            # - B6 MOPA 30W: $3,599 (bundle) vs $3,569 (base machine)
+            # - B6 MOPA 60W: $4,799 (bundle) vs $4,589 (base machine)
+            # - Omni 1 UV: $3,224 (bundle) vs $3,888 (base machine)
+            logger.info("Skipping bundle selection for ComMarker to get base machine price")
+            
+            # Instead, wait for the page to settle after power selection
+            # This allows us to extract the base machine price without bundle contamination
             
             # Wait for any AJAX updates
             await self.page.wait_for_timeout(1000)

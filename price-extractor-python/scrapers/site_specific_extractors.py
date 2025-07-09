@@ -34,26 +34,35 @@ class SiteSpecificExtractor:
                     'woocommerce-product-details', 'entry-summary', 'product-price-wrapper'
                 ],
                 'price_selectors': [
-                    # Target the specific price displayed after bundle/variant selection
-                    '.package-selection .price .amount',  # Bundle price after selection
-                    '.bundle-price .amount:last-child',    # Final bundle price
-                    '.selected-package .price .amount',    # Selected package price
-                    '.woocommerce-variation-price .price .amount:last-child',  # Variant price
+                    # AVOID bundle pricing - target base machine prices only
+                    # Analysis shows bundle selection leads to wrong extraction
                     
-                    # Prioritize sale price selectors in main product area
+                    # Prioritize sale price selectors in main product area (base machine)
                     '.product-summary .price ins .amount',  # Sale price in <ins> tag
                     '.entry-summary .price ins .amount',
                     '.single-product-content .price ins .amount',
                     'form.cart .price ins .amount',
                     
-                    # Current price after variant selection
+                    # Current base machine price after variant selection
                     '.product-summary .price .amount:last-child',
                     '.entry-summary .price .amount:last-child',
+                    
+                    # Fallback to basic price structure (avoid bundle contexts)
+                    '.product-price .amount:last-child',
+                    '.woocommerce-Price-amount:last-child',
+                    '.price-current .amount',
                 ],
                 'blacklist_selectors': [
+                    # Comprehensive bundle pricing blacklist
                     '.bundle-price', '.bundle-price .main-amount', '.bundle-price *',
                     '.package-price', '.package-price *', '.combo-price', '.combo-price *',
-                    '.upsell-products .price', '.related_products .price'
+                    '.package-selection .price', '.package-selection .amount',
+                    '.selected-package .price', '.selected-package .amount',
+                    '.basic-bundle .price', '.standard-bundle .price', '.premium-bundle .price',
+                    '.bundle-option .price', '.package-option .price',
+                    '.upsell-products .price', '.related_products .price',
+                    # Blacklist learned selectors that commonly extract wrong prices
+                    '.price[data-bundle]', '.amount[data-package]'
                 ],
                 'strict_validation': True,  # Enable strict price validation
                 'requires_dynamic': True,  # Re-enable dynamic extraction for variant selection
@@ -95,6 +104,7 @@ class SiteSpecificExtractor:
             'aeonlaser.us': {
                 'type': 'configurator',
                 'requires_interaction': True,
+                'requires_dynamic': True,  # Enable dynamic extraction for variant selection
                 'price_selectors': [
                     '.total b',  # Final configurator total
                     '.tot-price .total',  # Alternative total selector
@@ -106,6 +116,43 @@ class SiteSpecificExtractor:
                     'model_options': '.option-label',
                     'total_display': '.total, .tot-price'
                 },
+                'variant_detection_rules': {
+                    'EMP ST30R': {
+                        'keywords': ['ST30R', 'ST 30R', '30R'],
+                        'expected_price': 4995,
+                        'price_tolerance': 0.1,  # 10% tolerance
+                        'variant_selector': 'li.js-option.js-radio:contains("ST30R"), li.js-option.js-radio:contains("ST 30R")',
+                        'price_range': [4500, 5500]
+                    },
+                    'EMP ST50R': {
+                        'keywords': ['ST50R', 'ST 50R', '50R'],
+                        'expected_price': 6995,
+                        'price_tolerance': 0.1,
+                        'variant_selector': 'li.js-option.js-radio:contains("ST50R"), li.js-option.js-radio:contains("ST 50R")',
+                        'price_range': [6500, 7500]
+                    },
+                    'EMP ST60J': {
+                        'keywords': ['ST60J', 'ST 60J', '60J'],
+                        'expected_price': 8995,
+                        'price_tolerance': 0.1,
+                        'variant_selector': 'li.js-option.js-radio:contains("ST60J"), li.js-option.js-radio:contains("ST 60J")',
+                        'price_range': [8500, 9500]
+                    },
+                    'EMP ST100J': {
+                        'keywords': ['ST100J', 'ST 100J', '100J'],
+                        'expected_price': 11995,
+                        'price_tolerance': 0.1,
+                        'variant_selector': 'li.js-option.js-radio:contains("ST100J"), li.js-option.js-radio:contains("ST 100J")',
+                        'price_range': [11500, 12500]
+                    }
+                },
+                'variant_matching_strategy': 'keyword_based',  # Match machine name to variant keywords
+                'fallback_patterns': [
+                    r'ST30R[\s\S]*?\$?([\d,]+)',  # Find ST30R followed by price
+                    r'ST50R[\s\S]*?\$?([\d,]+)',  # Find ST50R followed by price
+                    r'ST60J[\s\S]*?\$?([\d,]+)',  # Find ST60J followed by price
+                    r'ST100J[\s\S]*?\$?([\d,]+)'  # Find ST100J followed by price
+                ]
             },
             
             'shop.glowforge.com': {
@@ -140,23 +187,123 @@ class SiteSpecificExtractor:
                 ]
             },
             
+            'atomstack.com': {
+                'type': 'shopify',
+                'price_selectors': [
+                    # Atomstack Shopify selectors
+                    '.product__price .price__current',
+                    '.price__container .price-item--regular',
+                    '.product-price-current',
+                    '[data-price-wrapper] .price-item--regular',
+                    '.ProductItem__Price .Price--highlight',
+                    '.price.price--large .price-item--regular',
+                    # Standard Shopify selectors
+                    '.price--current',
+                    '.price-item--regular',
+                    'span.money',
+                    '[data-price]'
+                ],
+                'avoid_selectors': [
+                    '.price--compare',
+                    '.price-item--sale',
+                    '.CompareAtPrice',
+                    '.bundle-price'
+                ],
+                'strict_validation': True
+            },
+            
+            'atomstack.net': {
+                'type': 'shopify',
+                'price_selectors': [
+                    # Same selectors for both domains
+                    '.product__price .price__current',
+                    '.price__container .price-item--regular',
+                    '.product-price-current',
+                    '[data-price-wrapper] .price-item--regular',
+                    '.ProductItem__Price .Price--highlight',
+                    '.price.price--large .price-item--regular',
+                    # Standard Shopify selectors
+                    '.price--current',
+                    '.price-item--regular',
+                    'span.money',
+                    '[data-price]'
+                ],
+                'avoid_selectors': [
+                    '.price--compare',
+                    '.price-item--sale',
+                    '.CompareAtPrice',
+                    '.bundle-price'
+                ],
+                'strict_validation': True
+            },
+            
+            'wecreat.com': {
+                'type': 'shopify',
+                'price_selectors': [
+                    # WeCreat Shopify selectors
+                    '.product__price .price__current',
+                    '.price__container .price-item--regular',
+                    '.product-single__price',
+                    '.product__price-amount',
+                    '[data-price-wrapper] .price-item--regular',
+                    # Standard Shopify selectors
+                    '.price--current',
+                    '.price-item--regular',
+                    'span.money',
+                    '[data-price]'
+                ],
+                'avoid_selectors': [
+                    '.price--compare',
+                    '.bundle-price'
+                ],
+                'strict_validation': True
+            },
+            
+            'mr-carve.com': {
+                'type': 'custom',
+                'price_selectors': [
+                    # Mr Carve specific selectors
+                    '.product-price',
+                    '.price-now',
+                    '.current-price',
+                    '.product-info-price',
+                    # Generic price selectors
+                    '.price',
+                    'span.price',
+                    '[data-price]'
+                ],
+                'strict_validation': True
+            },
+            
             'monportlaser.com': {
                 'type': 'shopify_variants',
                 'base_machine_preference': True,  # Prefer base machine over bundles
                 'price_selectors': [
+                    # Specific Monport selectors based on their structure
+                    '.product__info .price__regular .price-item--regular',
+                    '.product__info .price .price-item--regular',
+                    '.price__container .price-item--regular',
+                    '.price__container .price__regular',
+                    '[data-price-wrapper] .price-item--regular',
+                    # Shopify standard selectors
                     '.product-price .price',
                     '.price--current',
                     '.money',
-                    '[data-price]'
+                    '[data-price]',
+                    # Fallback selectors
+                    'span.price-item--regular',
+                    '.price-item.price-item--regular'
                 ],
                 'avoid_selectors': [
                     '.bundle-price',  # Avoid bundle pricing
                     '.addon-price',   # Avoid addon prices
                     '.variant-price[data-variant*="bundle"]',  # Avoid bundle variants
                     '.variant-price[data-variant*="lightburn"]',  # Avoid LightBurn bundles
-                    '.variant-price[data-variant*="rotary"]'  # Avoid rotary bundles
+                    '.variant-price[data-variant*="rotary"]',  # Avoid rotary bundles
+                    '.price-item--sale'  # Avoid sale prices (often wrong variant)
                 ],
                 'prefer_contexts': [
+                    'product__info',
                     'product-form-wrapper',
                     'product-price-container', 
                     'price-container',
@@ -164,10 +311,11 @@ class SiteSpecificExtractor:
                 ],
                 'variant_selection_rules': {
                     'prefer_base_machine': True,
-                    'avoid_bundles': ['lightburn', 'rotary', 'bundle', 'combo'],
+                    'avoid_bundles': ['lightburn', 'rotary', 'bundle', 'combo', 'free 40w'],
                     'base_keywords': ['base', 'machine', 'standalone', 'only'],
-                    'selector_base_machine': 'input[value*="base"], input[value*="machine"], select option[value*="base"]'
+                    'selector_base_machine': 'input[value*="Machine"]:not([value*="+"]), input[value*="base"], select option[value*="Machine"]:not([value*="+"])'
                 },
+                'requires_dynamic': True,  # Monport needs dynamic extraction for variant selection
                 'decimal_parsing': {
                     'fix_comma_decimal_confusion': True,
                     'expected_decimal_places': 2,
@@ -276,7 +424,7 @@ class SiteSpecificExtractor:
         # METHOD 0: Try learned selectors first (fastest and free!) - BUT AVOID BAD SELECTORS
         if machine_data:
             learned_selectors = machine_data.get('learned_selectors', {})
-            if domain in learned_selectors:
+            if learned_selectors and domain in learned_selectors:
                 selector_data = learned_selectors[domain]
                 selector = selector_data.get('selector', '')
                 
@@ -286,6 +434,10 @@ class SiteSpecificExtractor:
                     '.variant-price[data-variant*="lightburn"]', '.variant-price[data-variant*="rotary"]',
                     '.bundle', '.combo-price', '.package-price'
                 ]
+                
+                # SPECIAL BLACKLIST: Skip generic selectors for sites with variant detection
+                if domain == 'aeonlaser.us':
+                    bad_selector_patterns.extend(['.price', '.amount', '.total'])  # Too generic for Aeon variants
                 
                 is_bad_selector = any(bad_pattern in selector.lower() for bad_pattern in bad_selector_patterns)
                 
@@ -455,6 +607,12 @@ class SiteSpecificExtractor:
             if price and self._validate_price(price, rules, machine_data):
                 return price, f"ComMarker main price ({method})"
         
+        # Aeon-specific variant detection logic for EMP lasers
+        if domain == 'aeonlaser.us' and rules.get('variant_detection_rules'):
+            price, method = self._extract_aeon_variant_price(soup, html_content, url, rules, machine_data)
+            if price and self._validate_price(price, rules, machine_data):
+                return price, f"Aeon variant ({method})"
+
         # Glowforge-specific variant detection logic
         if domain == 'glowforge.com' and rules.get('requires_variant_detection'):
             price, method = self._extract_glowforge_variant_price(soup, html_content, url, rules, machine_data)
@@ -876,6 +1034,123 @@ class SiteSpecificExtractor:
         
         logger.warning(f"Could not find price for {target_variant} in expected range {expected_range}")
         return None, None
+    
+    def _extract_aeon_variant_price(self, soup, html_content, url, rules, machine_data=None):
+        """Extract variant-specific price for Aeon EMP lasers."""
+        if not machine_data or not machine_data.get('Machine Name'):
+            logger.warning("No machine data provided for Aeon variant extraction")
+            return None, None
+        
+        machine_name = machine_data['Machine Name']
+        logger.info(f"Extracting Aeon variant price for: {machine_name}")
+        
+        variant_rules = rules.get('variant_detection_rules', {})
+        
+        # Find the matching variant based on machine name
+        matched_variant = None
+        variant_config = None
+        
+        for variant_name, config in variant_rules.items():
+            keywords = config.get('keywords', [])
+            # Check if any keyword matches the machine name
+            if any(keyword.upper() in machine_name.upper() for keyword in keywords):
+                matched_variant = variant_name
+                variant_config = config
+                logger.info(f"Matched variant: {variant_name} based on keywords: {keywords}")
+                break
+        
+        if not matched_variant:
+            logger.warning(f"No matching variant found for machine: {machine_name}")
+            return None, None
+        
+        expected_price = variant_config.get('expected_price')
+        price_range = variant_config.get('price_range', [])
+        tolerance = variant_config.get('price_tolerance', 0.1)
+        
+        # Strategy 1: Look for price in expected range on the page
+        all_prices = []
+        
+        # Find all price-like text on the page
+        price_patterns = [
+            r'\$\s*(\d{1,2}[,.]?\d{3})',  # $1,234 or $1.234
+            r'(\d{1,2}[,.]?\d{3})\s*dollars?',  # 1,234 dollars
+            r'price[:\s]*\$?\s*(\d{1,2}[,.]?\d{3})',  # price: $1,234
+        ]
+        
+        for pattern in price_patterns:
+            matches = re.finditer(pattern, html_content, re.IGNORECASE)
+            for match in matches:
+                price_str = match.group(1).replace(',', '').replace('.', '')
+                try:
+                    price = float(price_str)
+                    if price_range[0] <= price <= price_range[1]:
+                        all_prices.append(price)
+                        logger.info(f"Found candidate price: ${price} (in range {price_range})")
+                except ValueError:
+                    continue
+        
+        # Strategy 2: Look for the specific variant pattern in HTML
+        fallback_patterns = rules.get('fallback_patterns', [])
+        variant_keywords = variant_config.get('keywords', [])
+        
+        for keyword in variant_keywords:
+            # Look for the keyword followed by a price
+            pattern = rf'{keyword}[\s\S]*?\$?\s*(\d{{1,2}}[,.]?\d{{3}})'
+            matches = re.finditer(pattern, html_content, re.IGNORECASE)
+            for match in matches:
+                price_str = match.group(1).replace(',', '').replace('.', '')
+                try:
+                    price = float(price_str)
+                    if price_range[0] <= price <= price_range[1]:
+                        all_prices.append(price)
+                        logger.info(f"Found variant-specific price: ${price} near keyword '{keyword}'")
+                except ValueError:
+                    continue
+        
+        # Strategy 3: Use BeautifulSoup to find prices in structured elements
+        price_selectors = rules.get('price_selectors', [])
+        for selector in price_selectors:
+            elements = soup.select(selector)
+            for element in elements:
+                price_text = element.get_text().strip()
+                price = self._parse_price_text(price_text, 'aeonlaser.us')
+                if price and price_range[0] <= price <= price_range[1]:
+                    all_prices.append(price)
+                    logger.info(f"Found structured price: ${price} using selector: {selector}")
+        
+        # Remove duplicates and sort
+        unique_prices = list(set(all_prices))
+        unique_prices.sort()
+        
+        logger.info(f"All candidate prices for {matched_variant}: {unique_prices}")
+        
+        if not unique_prices:
+            logger.warning(f"No prices found in expected range {price_range} for {matched_variant}")
+            return None, None
+        
+        # Strategy 4: Select the best price
+        best_price = None
+        
+        if len(unique_prices) == 1:
+            best_price = unique_prices[0]
+            logger.info(f"Single price found: ${best_price}")
+        else:
+            # Multiple prices found - prefer the one closest to expected price
+            if expected_price:
+                best_price = min(unique_prices, key=lambda x: abs(x - expected_price))
+                logger.info(f"Selected price closest to expected ${expected_price}: ${best_price}")
+            else:
+                # No expected price, take the highest (usually the bundle/full price)
+                best_price = max(unique_prices)
+                logger.info(f"Selected highest price: ${best_price}")
+        
+        # Final validation
+        if best_price and price_range[0] <= best_price <= price_range[1]:
+            logger.info(f"✅ Successfully extracted {matched_variant} price: ${best_price}")
+            return best_price, f"variant_detection:{matched_variant}"
+        else:
+            logger.warning(f"Final validation failed for {matched_variant}: ${best_price} not in range {price_range}")
+            return None, None
     
     def _extract_json_ld_with_paths(self, soup, json_ld_paths):
         """Extract from JSON-LD using specific paths."""

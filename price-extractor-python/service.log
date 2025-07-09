@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/Users/brandoncullum/machines-for-makers/price-extractor-python/main.py", line 8, in <module>
+    from api.routes import router as api_router
+  File "/Users/brandoncullum/machines-for-makers/price-extractor-python/api/routes.py", line 6, in <module>
+    from services.price_service import PriceService
+  File "/Users/brandoncullum/machines-for-makers/price-extractor-python/services/price_service.py", line 7, in <module>
+    from services.database import DatabaseService
+  File "/Users/brandoncullum/machines-for-makers/price-extractor-python/services/database.py", line 1, in <module>
+    from supabase import create_client
+  File "/Users/brandoncullum/miniconda3/lib/python3.11/site-packages/supabase/__init__.py", line 13, in <module>
+    from realtime import AuthorizationError, NotConnectedError
+  File "/Users/brandoncullum/miniconda3/lib/python3.11/site-packages/realtime/__init__.py", line 9, in <module>
+    from ._async.client import AsyncRealtimeClient
+  File "/Users/brandoncullum/miniconda3/lib/python3.11/site-packages/realtime/_async/client.py", line 14, in <module>
+    from websockets.client import ClientProtocol
+ImportError: cannot import name 'ClientProtocol' from 'websockets.client' (/Users/brandoncullum/miniconda3/lib/python3.11/site-packages/websockets/client.py)
