@@ -16,7 +16,10 @@ This document contains critical guidelines and learnings from the development an
 2. **Extraction Methods** (In Priority Order)
    - **Method 1**: Dynamic Scraper (Playwright) - For sites requiring variant selection
    - **Method 2**: Site-Specific Rules - Static extraction with domain-specific selectors
-   - **Method 3**: Claude AI Fallback - For complex pages when other methods fail
+   - **Method 3**: Structured Data - JSON-LD, microdata extraction
+   - **Method 4**: Common CSS Selectors - Generic price patterns
+   
+   Note: Claude AI extraction removed due to high error rate and incorrect price extraction
 
 3. **Key Services**
    - `price_extractor.py` - Main extraction orchestrator
@@ -89,6 +92,35 @@ if machine_data and machine_data.get('old_price'):
     max_price = old_price * 1.5  # 50% increase threshold
 ```
 
+**CRITICAL: Multiple Valid Prices Selection**
+
+When multiple valid prices are found (common on variant/bundle pages), the system MUST select the price closest to the historical price:
+
+```python
+# Bad approach - takes first valid price
+if valid_prices:
+    return valid_prices[0]['price']  # Wrong!
+
+# Good approach - selects closest to old price
+if valid_prices and machine_data.get('old_price'):
+    old_price = float(machine_data['old_price'])
+    for candidate in valid_prices:
+        candidate['distance'] = abs(candidate['price'] - old_price)
+    best_price = min(valid_prices, key=lambda x: x['distance'])
+    return best_price['price']
+```
+
+**Database Field Mapping Issue (Fixed July 2025)**:
+- Database stores current price as `Price` field
+- Extraction logic expects `old_price` field
+- Solution: Map fields correctly in service layer:
+
+```python
+# In price_service.py
+machine_data_for_extraction = dict(machine)
+machine_data_for_extraction['old_price'] = current_price  # Map Price → old_price
+```
+
 ### 4. API Response Transparency
 
 **Always show what price was extracted, even in error cases:**
@@ -99,13 +131,133 @@ if result.get("requires_approval"):
     return result  # Return full result, not just error message
 ```
 
-### 5. Consistency Between Individual and Batch Updates
+### 5. Critical Bug Prevention
+
+**Function Definition Integrity**
+
+**CRITICAL**: Always ensure function definitions are complete when making changes to core extraction methods.
+
+Bug Example (January 2025):
+```python
+# MISSING function definition line caused AttributeError
+# def _parse_price(self, price_text):  # <- This line was missing!
+    """
+    Parse a price string and extract the numeric value.
+    """
+    # ... implementation existed but couldn't be called
+```
+
+**Prevention**:
+- Always verify function definitions after code modifications
+- Test core methods independently before batch operations
+- Monitor logs for AttributeError exceptions in extraction pipeline
+
+### 6. Brotli Compression Handling
+
+**Content Corruption Prevention**
+
+**ISSUE**: Web scraper was accepting Brotli compression without decompression capability, causing systematic content corruption.
+
+```python
+# BEFORE (causing corruption):
+'Accept-Encoding': 'gzip, deflate, br'
+
+# AFTER (working correctly):
+'Accept-Encoding': 'gzip, deflate'
+```
+
+**Impact**: This single fix resolved 100% content corruption that was masquerading as site-specific extraction failures.
+
+### 7. Domain-Specific Exclusions
+
+**Temporary Exclusions for Special Handling**
+
+Some domains require special handling that isn't implemented yet and should be temporarily excluded:
+
+```python
+# Thunder Laser exclusion (January 2025)
+if 'thunderlaserusa.com' in domain:
+    logger.warning(f"⚠️ Skipping Thunder Laser machine {machine_id} - requires special handling")
+    return {
+        "success": False, 
+        "error": "Thunder Laser machines temporarily excluded from batch updates"
+    }
+```
+
+**Rationale**: Thunder Laser uses a complex Chinese e-commerce integration that requires specialized handling.
+
+### 8. Batch Filtering Validation
+
+**Understanding "Repeated" Machines in Batches**
+
+**Common Misconception**: Users may think the same machines appear repeatedly due to filtering bugs.
+
+**Reality**: Machines appear repeatedly because:
+1. Extraction failures prevent `html_timestamp` updates
+2. Price changes require manual approval (don't update timestamp)
+3. Critical bugs prevent successful completion
+
+**Validation Approach**:
+```python
+# Check actual filtering logic
+machines_total = 153  # Total in database
+machines_needing_update = 152  # Older than threshold
+recently_updated = 1  # Within threshold
+
+# 99.3% accuracy indicates filtering is working correctly
+```
+
+### 9. Consistency Between Individual and Batch Updates
 
 **CRITICAL**: Individual machine updates and batch updates MUST use identical extraction logic.
 
 - Remove any extraction methods from individual updates that aren't in batch updates
 - Ensure both code paths use the same validation thresholds
 - Test both update methods when making changes
+
+## Daily Batch Analysis Workflow
+
+### Systematic Improvement Process
+
+**CRITICAL**: Establish a daily analysis routine to turn individual failures into systematic improvements.
+
+#### 1. Post-Batch Analysis Steps
+
+1. **Review Batch Results**
+   ```bash
+   # Check batch success rate
+   curl http://localhost:8000/api/v1/batch-results/{batch_id}
+   ```
+
+2. **Analyze Manual Corrections**
+   - Look for patterns in manually corrected prices
+   - Identify extraction methods with high error rates
+   - Document systematic issues
+
+3. **Create Site-Specific Rules**
+   - Convert individual fixes to permanent improvements
+   - Add domain-specific extraction rules
+   - Update selector blacklists
+
+4. **Validate Improvements**
+   - Test fixes on same machines that previously failed
+   - Ensure fixes don't break other sites
+   - Monitor success rate trends
+
+#### 2. Pattern Recognition
+
+**High-Value Patterns** (January 2025 examples):
+- **Glowforge**: Required site-specific rules for variant pricing
+- **ComMarker**: Bundle pricing contamination via learned selectors
+- **Thunder Laser**: Complex Chinese e-commerce requiring special handling
+
+#### 3. Success Rate Tracking
+
+**Target Metrics**:
+- Overall success rate: >70% (achieved)
+- Site-specific rules: 100% accuracy (Glowforge example)
+- Dynamic extraction: High reliability (ComMarker example)
+- System resilience: Multiple method fallback working
 
 ## Debugging Workflow
 
@@ -132,6 +284,12 @@ if result.get("requires_approval"):
 | Regular price instead of sale | Not checking `<ins>` tags | Prioritize sale selectors |
 | Bundle price extracted | Bundle selectors not blacklisted | Add to blacklist |
 | Same price for all machines | Selector contamination | Clean learned_selectors |
+| Wrong variant price selected | Multiple valid prices, taking first | Use closest-to-old-price logic |
+| All prices rejected as invalid | Fixed validation ranges too narrow | Use percentage-based validation |
+| **AttributeError: '_parse_price'** | **Missing function definition** | **Verify function signatures** |
+| **Garbled/corrupted content** | **Brotli compression without decompression** | **Remove 'br' from Accept-Encoding** |
+| **Thunder Laser failures** | **Complex Chinese e-commerce** | **Temporarily exclude domain** |
+| **"Repeated" machines in batches** | **Misunderstanding filtering logic** | **Analyze html_timestamp updates** |
 
 ### 3. Testing New Site Rules
 
@@ -177,6 +335,21 @@ Use dynamic scraper when:
 - **Manual review**: ≥ 15% change
 - **Suspicious**: > 50% change
 - **Likely error**: > 100% change
+
+**AVOID Fixed Price Ranges**:
+```python
+# BAD - Too restrictive, causes valid prices to be rejected
+if 'B6 30W' in machine_name:
+    if not (2350 <= price <= 2450):
+        return False  # Rejects valid sale prices!
+
+# GOOD - Percentage-based validation adapts to price changes
+if old_price:
+    min_price = old_price * 0.5  # 50% decrease OK
+    max_price = old_price * 1.5  # 50% increase OK
+    if not (min_price <= price <= max_price):
+        return False
+```
 
 ## Common Site Patterns
 

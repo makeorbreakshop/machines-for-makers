@@ -34,15 +34,21 @@ class SiteSpecificExtractor:
                     'woocommerce-product-details', 'entry-summary', 'product-price-wrapper'
                 ],
                 'price_selectors': [
-                    # Prioritize sale price selectors
+                    # Target the specific price displayed after bundle/variant selection
+                    '.package-selection .price .amount',  # Bundle price after selection
+                    '.bundle-price .amount:last-child',    # Final bundle price
+                    '.selected-package .price .amount',    # Selected package price
+                    '.woocommerce-variation-price .price .amount:last-child',  # Variant price
+                    
+                    # Prioritize sale price selectors in main product area
                     '.product-summary .price ins .amount',  # Sale price in <ins> tag
                     '.entry-summary .price ins .amount',
                     '.single-product-content .price ins .amount',
                     'form.cart .price ins .amount',
-                    # Fallback to last-child (but this might get regular price)
+                    
+                    # Current price after variant selection
                     '.product-summary .price .amount:last-child',
                     '.entry-summary .price .amount:last-child',
-                    # Avoid generic selectors that grab from anywhere
                 ],
                 'blacklist_selectors': [
                     '.bundle-price', '.bundle-price .main-amount', '.bundle-price *',
@@ -50,7 +56,9 @@ class SiteSpecificExtractor:
                     '.upsell-products .price', '.related_products .price'
                 ],
                 'strict_validation': True,  # Enable strict price validation
-                'requires_dynamic': True  # Force dynamic extraction for variant selection
+                'requires_dynamic': True,  # Re-enable dynamic extraction for variant selection
+                # Removed machine_specific_validation - using percentage-based validation instead
+                # Fixed ranges were too restrictive and rejecting valid prices
             },
             
             'cloudraylaser.com': {
@@ -98,6 +106,34 @@ class SiteSpecificExtractor:
                     'model_options': '.option-label',
                     'total_display': '.total, .tot-price'
                 },
+            },
+            
+            'shop.glowforge.com': {
+                'type': 'shopify',
+                'use_base_price': True,
+                'multi_price_strategy': 'highest_visible',
+                'price_selectors': [
+                    '.price--main:not(.price--compare)',  # Main price, not comparison price
+                    '.product__price .price--main',        # Product page main price
+                    '[data-price]:not(.price--compare)',   # Data attribute price
+                    '.price:not(.price--compare) .money'   # Money element without compare
+                ],
+                'avoid_selectors': [
+                    '.price--compare',     # Old/comparison price
+                    '.was-price',         # Previous price
+                    'strike',             # Struck-through price
+                    '.price--save',       # Savings amount
+                    '.bundle-price'       # Bundle pricing
+                ],
+                'validation': {
+                    'price_ranges': {
+                        'plus': {'min': 4000, 'max': 5000},
+                        'plus-hd': {'min': 4500, 'max': 5500},
+                        'pro': {'min': 5500, 'max': 6500},
+                        'pro-hd': {'min': 6500, 'max': 7500}
+                    }
+                },
+                'strict_validation': True,
                 'fallback_patterns': [
                     r'starting at \$?([\d,]+)',  # "starting at $6995"
                     r'total[\s\n]*\$?([\d,]+)'   # "Total $6995"

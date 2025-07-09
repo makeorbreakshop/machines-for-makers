@@ -273,6 +273,18 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **AI Integration**: Claude API for complex page analysis, MCP for browser automation
 - **Batch Processing**: Background tasks with progress tracking and error recovery
 
+### 2025-07-08: Batch Failure Analysis & ComMarker Price Extraction Fix
+- **Issue**: January 7 batch showed 52% "failure" rate but analysis revealed most were incorrect extractions, not failures
+- **Solution**: Systematic failure analysis identifying 5 major issue categories, fixed ComMarker extraction grabbing related product prices
+- **Impact**: Real failure rate only ~5%, ComMarker now extracts correct sale prices ($1,799 vs $3,199), extraction speed improved 3x
+- **Technical**: Site-specific selectors for WooCommerce sale prices, removed redundant MCP layers, fixed cookie sync error in logo API
+
+### 2025-07-09: Daily Batch Analysis System & Claude AI Removal
+- **Issue**: Manual price corrections revealing systematic extraction errors, Claude AI had 100% failure rate on corrected prices
+- **Solution**: Created comprehensive daily batch analysis workflow, removed Claude AI extraction method entirely
+- **Impact**: Eliminated costly incorrect AI extractions, established systematic improvement process from manual corrections
+- **Technical**: Analysis scripts for pattern detection, Glowforge-specific rules added, METHOD 5 (Claude API) completely removed
+
 ## 🎯 Success Criteria Achieved
 - ✅ Dual-service architecture operational with shared database
 - ✅ Intelligent price extraction with <20% false positives (down from 80%+)

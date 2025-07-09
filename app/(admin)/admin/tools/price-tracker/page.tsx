@@ -1789,10 +1789,21 @@ export default function PriceTrackerAdmin() {
         <TabsContent value="recent">
           <Card>
             <CardHeader>
-              <CardTitle>Recent Price Updates</CardTitle>
-              <CardDescription>
-                The 50 most recent price updates across all machines.
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Recent Price Updates</CardTitle>
+                  <CardDescription>
+                    The 50 most recent price updates across all machines.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline" 
+                  onClick={() => setRefreshing(prev => !prev)}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
               <div className="flex gap-4 mt-4">
                 <div className="flex items-center space-x-2">
                   <Label htmlFor="status-filter">Filter by Status:</Label>
@@ -2085,6 +2096,22 @@ export default function PriceTrackerAdmin() {
                                   </Button>
                                 </>
                               )}
+                              
+                              {/* Individual Update Price button */}
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                                onClick={() => updatePrice({ 
+                                  id: record.machine_id, 
+                                  "Machine Name": record.machineName 
+                                })}
+                                disabled={!pythonApiReady}
+                              >
+                                <RefreshCw className="w-4 h-4 mr-1" />
+                                Update
+                              </Button>
+                              
                               {/* Always show delete button */}
                               <Button 
                                 size="sm" 
@@ -2108,14 +2135,6 @@ export default function PriceTrackerAdmin() {
             </CardContent>
             <CardFooter className="flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline" 
-                  onClick={() => setRefreshing(prev => !prev)}
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh
-                </Button>
-                
                 {hasMoreRecords && (
                   <Button
                     variant="outline"

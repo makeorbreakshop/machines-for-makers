@@ -53,7 +53,7 @@ class WebScraper:
             'User-Agent': user_agent,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Encoding': 'gzip, deflate',
             'DNT': '1',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
@@ -85,7 +85,7 @@ class WebScraper:
             headers.update({
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9,*;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Encoding': 'gzip, deflate',
                 'Cache-Control': 'no-cache, no-store, must-revalidate',
                 'Pragma': 'no-cache',
                 'Expires': '0',
@@ -154,6 +154,12 @@ class WebScraper:
                 logger.debug(f"🔧 DEBUG: Response encoding: {response.encoding}, apparent_encoding: {response.apparent_encoding}")
                 logger.debug(f"🔧 DEBUG: Content-Type header: {response.headers.get('content-type', 'Not set')}")
                 logger.debug(f"🔧 DEBUG: Content-Encoding header: {response.headers.get('content-encoding', 'Not set')}")
+                
+                # Check for brotli encoding which we can't handle
+                content_encoding = response.headers.get('content-encoding', '').lower()
+                if 'br' in content_encoding:
+                    logger.error(f"❌ Server returned Brotli-compressed content which is not supported. Install 'brotli' package or remove 'br' from Accept-Encoding header.")
+                    return None, None
                 
                 # Try to get clean text content
                 try:

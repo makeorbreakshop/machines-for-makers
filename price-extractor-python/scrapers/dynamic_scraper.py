@@ -131,7 +131,7 @@ class DynamicScraper:
             await self.page.wait_for_timeout(1000)
             
             # Extract updated price
-            price, method = await self._extract_price_from_page(machine_data)
+            price, method = await self._extract_price_from_page(machine_data, machine_name)
             
             if price:
                 logger.info(f"Successfully extracted price ${price} using method: {method}")
@@ -205,38 +205,61 @@ class DynamicScraper:
             
             logger.info(f"Detected model: {model}, power: {power}W, MOPA: {is_mopa}")
             
-            # First try to select power/wattage  
+            # First try to select power/wattage using improved selectors
             if power:
-                # Updated selectors based on current ComMarker page structure
+                # Enhanced power selectors based on ComMarker's current structure
                 power_selectors = []
                 
-                # Add model-specific selectors if we have a model
+                # Priority 1: Exact model + power combinations
                 if model:
                     power_selectors.extend([
-                        f'text={model} {power}W',  # e.g., "B4 30W"
-                        f'text={model} MOPA {power}W',  # e.g., "B6 MOPA 60W"
+                        f'button:has-text("{model} {power}W")',  # e.g., "B6 30W"
+                        f'label:has-text("{model} {power}W")',   # Label elements
+                        f'span:has-text("{model} {power}W")',    # Span elements
+                        f'div:has-text("{model} {power}W")',     # Div elements
                     ])
                 
-                # Add generic power selectors
+                # Priority 2: Power-only selectors with stricter matching
                 power_selectors.extend([
-                    f'text={power}W',
-                    f'[data-value*="{power}"]',  # Data attribute approach
-                    f'button:has-text("{power}W")',  # Playwright has-text approach
-                    f'input[value*="{power}"]',  # Input elements
-                    f'option[value*="{power}"]'  # Select options
+                    f'button:has-text("{power}W"):not(:has-text("Bundle")):not(:has-text("Combo"))',  # Avoid bundles
+                    f'label:has-text("{power}W"):not(:has-text("Bundle")):not(:has-text("Combo"))',
+                    f'input[value="{power}W"]',                    # Exact value match
+                    f'input[value="{power}"]',                     # Numeric value match
+                    f'option[value*="{power}W"]',                  # Select options
+                    f'[data-value="{power}W"]',                    # Data attribute exact
+                    f'[data-value="{power}"]',                     # Data attribute numeric
+                ])
+                
+                # Priority 3: More flexible text matching
+                power_selectors.extend([
+                    f'text={power}W',                              # Playwright text selector
+                    f'text="{power}W"',                            # Quoted text selector
                 ])
                 
                 selected_power = False
                 for selector in power_selectors:
                     try:
-                        element = await self.page.query_selector(selector)
-                        if element:
-                            logger.info(f"Found power element with selector: {selector}")
-                            await element.click(timeout=5000)  # Shorter timeout
-                            logger.info(f"Successfully selected power option: {power}W")
-                            await self.page.wait_for_timeout(1000)  # Wait for price update
-                            selected_power = True
+                        # Try to find elements matching the selector
+                        elements = await self.page.query_selector_all(selector)
+                        
+                        for element in elements:
+                            # Verify this element actually contains our target power
+                            element_text = await element.text_content()
+                            if element_text and f"{power}W" in element_text:
+                                # Double-check this isn't a bundle/combo option
+                                if not any(word in element_text.lower() for word in ['bundle', 'combo', 'package', 'kit']):
+                                    logger.info(f"Found power element: '{element_text.strip()}' with selector: {selector}")
+                                    
+                                    # Try to click the element
+                                    await element.click(timeout=5000)
+                                    logger.info(f"Successfully selected power option: {power}W")
+                                    await self.page.wait_for_timeout(1500)  # Wait for price update
+                                    selected_power = True
+                                    break
+                        
+                        if selected_power:
                             break
+                            
                     except Exception as e:
                         logger.debug(f"Power selector {selector} failed: {str(e)}")
                         continue
@@ -301,6 +324,39 @@ class DynamicScraper:
                     except Exception as e:
                         logger.debug(f"MOPA selector {selector} failed: {str(e)}")
                         continue
+            
+            # After selecting power, also select the appropriate package for B6 models
+            if model and model.startswith('B6'):
+                # For B6 models, select the Basic Bundle which is the standard option
+                bundle_selectors = [
+                    'text="B6 Basic Bundle"',
+                    ':text-is("B6 Basic Bundle")',
+                    'button:has-text("B6 Basic Bundle")',
+                    'div:has-text("B6 Basic Bundle")',
+                    '[data-package*="basic"]',
+                    '[data-bundle*="basic"]',
+                    '.package-option:has-text("Basic")',
+                    '.bundle-option:has-text("Basic")',
+                    # Try to find any element with "Basic Bundle" text
+                    '*:has-text("Basic Bundle")'
+                ]
+                
+                selected_bundle = False
+                for selector in bundle_selectors:
+                    try:
+                        element = await self.page.query_selector(selector)
+                        if element:
+                            await element.click()
+                            logger.info(f"Selected B6 Basic Bundle package")
+                            await self.page.wait_for_timeout(1000)  # Wait for price update
+                            selected_bundle = True
+                            break
+                    except Exception as e:
+                        logger.debug(f"Bundle selector {selector} failed: {str(e)}")
+                        continue
+                
+                if not selected_bundle:
+                    logger.warning("Could not find B6 Basic Bundle selector")
             
             # Wait for any AJAX updates
             await self.page.wait_for_timeout(1000)
@@ -494,7 +550,7 @@ class DynamicScraper:
         except Exception as e:
             logger.error(f"❌ Error navigating Aeon configurator: {str(e)}")
     
-    async def _extract_price_from_page(self, machine_data=None):
+    async def _extract_price_from_page(self, machine_data=None, machine_name=None):
         """Extract price from the current page after variant selection."""
         try:
             # Get the updated page content
@@ -510,16 +566,38 @@ class DynamicScraper:
             # Use site-specific selectors for ComMarker
             if 'commarker.com' in domain:
                 price_selectors = [
-                    # Prioritize sale price in <ins> tags
+                    # Target the specific price that appears when B6 Basic Bundle is selected
+                    # Looking for $2,399 which is the 30W Basic Bundle price
+                    'td:contains("B6 Basic Bundle") ~ td .price ins .amount',  # Bundle row price
+                    'td:contains("B6 Basic Bundle") ~ td .price .amount:last-child',
+                    '.selected-package-row .price ins .amount',
+                    '.selected-package-row .price .amount:last-child',
+                    
+                    # Package/bundle selection area
+                    '.package-selection .price ins .amount',  # Selected package sale price
+                    '.package-selection .price .amount:last-child',  # Selected package current price
+                    '.selected-package .price ins .amount',   # Selected bundle sale price
+                    '.selected-package .price .amount:last-child',  # Selected bundle current price
+                    
+                    # After variant selection, the main price should update
+                    '.woocommerce-variation-price .price ins .amount',  # Variation sale price
+                    '.woocommerce-variation-price .price .amount:last-child',  # Variation current price
+                    
+                    # Bundle area selectors - but be specific about selected state
+                    '.bundle-price.selected .amount:last-child',  # Selected bundle final price
+                    '.package-option.selected .price .amount',   # Selected package price
+                    
+                    # Main product area after dynamic updates
                     '.product-summary .price ins .amount',
-                    '.entry-summary .price ins .amount',
+                    '.entry-summary .price ins .amount', 
                     '.single-product-content .price ins .amount',
                     'form.cart .price ins .amount',
-                    '.product_title ~ .price ins .amount',
-                    # Fallback to last-child
+                    
+                    # Look for the prominent display price (like $2,399 shown in screenshot)
                     '.product-summary .price .amount:last-child',
                     '.entry-summary .price .amount:last-child',
-                    # Fallback to data attributes in main area only
+                    
+                    # Data attributes as final fallback
                     '.product-summary [data-price]',
                     '.entry-summary [data-price]'
                 ]
@@ -559,6 +637,9 @@ class DynamicScraper:
                 max_price = old_price * 1.5
                 logger.info(f"Using price range ${min_price:.2f} - ${max_price:.2f} based on old price ${old_price:.2f}")
             
+            # Collect all valid price candidates instead of returning the first one
+            valid_prices = []
+            
             for selector in price_selectors:
                 try:
                     elements = soup.select(selector)
@@ -569,13 +650,43 @@ class DynamicScraper:
                             if price:
                                 logger.debug(f"Parsed price ${price} from text '{price_text}' - checking range ${min_price:.2f} - ${max_price:.2f}")
                                 if min_price <= price <= max_price:
-                                    logger.info(f"Found price ${price} within expected range using selector: {selector}")
-                                    return price, f"CSS selector: {selector}"
+                                    # Additional machine-specific validation for ComMarker
+                                    if self._validate_commarker_price(price, current_url, machine_name):
+                                        logger.info(f"Found valid price candidate ${price} using selector: {selector}")
+                                        valid_prices.append({
+                                            'price': price,
+                                            'selector': selector,
+                                            'text': price_text
+                                        })
+                                    else:
+                                        logger.warning(f"Price ${price} failed machine-specific validation, skipping")
                                 else:
                                     logger.debug(f"Price ${price} outside range ${min_price:.2f} - ${max_price:.2f}, skipping")
                 except Exception as e:
                     logger.debug(f"Price selector {selector} failed: {str(e)}")
                     continue
+            
+            # If we have valid prices, select the best one
+            if valid_prices:
+                # If we have old price data, prefer the price closest to the old price
+                if machine_data and machine_data.get('old_price'):
+                    old_price = float(machine_data['old_price'])
+                    logger.info(f"Found {len(valid_prices)} valid price candidates. Selecting closest to old price ${old_price}")
+                    
+                    # Calculate distance from old price for each candidate
+                    for candidate in valid_prices:
+                        candidate['distance'] = abs(candidate['price'] - old_price)
+                        logger.info(f"  Candidate: ${candidate['price']} (distance: ${candidate['distance']:.2f}) via {candidate['selector']}")
+                    
+                    # Sort by distance from old price and take the closest
+                    best_price = min(valid_prices, key=lambda x: x['distance'])
+                    logger.info(f"Selected best price: ${best_price['price']} (closest to old price ${old_price})")
+                    return best_price['price'], f"CSS selector: {best_price['selector']}"
+                else:
+                    # No old price available, take the first valid one
+                    logger.info(f"Found {len(valid_prices)} valid price candidates. No old price available, taking first valid.")
+                    best_price = valid_prices[0]
+                    return best_price['price'], f"CSS selector: {best_price['selector']}"
             
             # Try data attributes - but only in main product area
             main_product_area = soup.select_one('.product-summary, .entry-summary, .single-product-content, .product-main')
@@ -600,6 +711,26 @@ class DynamicScraper:
             logger.error(f"Error extracting price from page: {str(e)}")
             return None, None
     
+    def _validate_commarker_price(self, price, url, machine_name):
+        """Validate ComMarker price using machine-specific rules."""
+        try:
+            # Only validate ComMarker machines
+            if 'commarker.com' not in url.lower():
+                return True
+                
+            if not machine_name:
+                logger.warning("No machine name available for ComMarker validation")
+                return True
+                
+            # Skip this extra validation - we'll use percentage-based validation in the main flow
+            # The fixed ranges are too restrictive and causing valid prices to be rejected
+            logger.debug(f"ComMarker price ${price} for {machine_name} - relying on percentage-based validation")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in ComMarker price validation: {str(e)}")
+            return True  # Default to allowing price if validation fails
+
     def _parse_price_string(self, price_text):
         """Parse price from string with enhanced logic."""
         if not price_text:

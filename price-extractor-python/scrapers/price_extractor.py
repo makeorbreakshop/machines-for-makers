@@ -2,10 +2,8 @@ import json
 import re
 from bs4 import BeautifulSoup
 from loguru import logger
-import anthropic
 from decimal import Decimal, InvalidOperation
 
-from config import ANTHROPIC_API_KEY, CLAUDE_MODEL
 from scrapers.site_specific_extractors import SiteSpecificExtractor
 from scrapers.dynamic_scraper import DynamicScraper
 from scrapers.selector_blacklist import is_selector_blacklisted, get_blacklist_reason
@@ -14,14 +12,9 @@ class PriceExtractor:
     """Class for extracting prices from web pages using multiple methods."""
     
     def __init__(self):
-        """Initialize the price extractor with the Claude client."""
-        # Ensure the required Anthropic version header is set
-        self.client = anthropic.Anthropic(
-            api_key=ANTHROPIC_API_KEY,
-            default_headers={"anthropic-version": "2023-06-01"} # Recommended version
-        )
+        """Initialize the price extractor."""
         self.site_extractor = SiteSpecificExtractor()
-        logger.info("Price extractor initialized with Anthropic version header and site-specific rules")
+        logger.info("Price extractor initialized with site-specific rules")
     
     async def extract_price(self, soup, html_content, url, old_price=None, machine_name=None, machine_data=None):
         """
@@ -75,7 +68,7 @@ class PriceExtractor:
                 price, method = await self._extract_with_dynamic_scraper(url, machine_name, machine_data)
                 if price is not None:
                     # Validate the price against expected ranges and old price
-                    if self._validate_extracted_price(price, url, old_price):
+                    if self._validate_extracted_price(price, url, old_price, machine_name):
                         logger.info(f"✅ METHOD 1 SUCCESS: Extracted price ${price} using dynamic method: {method}")
                         logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                         return price, method
@@ -93,7 +86,7 @@ class PriceExtractor:
         price, method = self.site_extractor.extract_price_with_rules(soup, html_content, url, machine_data)
         if price is not None:
             # Validate the price against expected ranges and old price
-            if self._validate_extracted_price(price, url, old_price):
+            if self._validate_extracted_price(price, url, old_price, machine_name):
                 logger.info(f"✅ METHOD 2 SUCCESS: Extracted price ${price} using site-specific method: {method}")
                 logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                 return price, method
@@ -107,7 +100,7 @@ class PriceExtractor:
         price, method = self._extract_from_structured_data(soup)
         if price is not None:
             # Validate the price against expected ranges and old price
-            if self._validate_extracted_price(price, url, old_price):
+            if self._validate_extracted_price(price, url, old_price, machine_name):
                 logger.info(f"✅ METHOD 3 SUCCESS: Extracted price ${price} using structured data method: {method}")
                 logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                 return price, method
@@ -121,7 +114,7 @@ class PriceExtractor:
         price, method = self._extract_from_common_selectors(soup)
         if price is not None:
             # Validate the price against expected ranges and old price
-            if self._validate_extracted_price(price, url, old_price):
+            if self._validate_extracted_price(price, url, old_price, machine_name):
                 logger.info(f"✅ METHOD 4 SUCCESS: Extracted price ${price} using common selectors method: {method}")
                 logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
                 return price, method
@@ -130,23 +123,15 @@ class PriceExtractor:
         else:
             logger.info(f"❌ METHOD 4 FAILED: No price found with common selectors")
         
-        # Method 5: Claude MCP removed - was redundant with dynamic scraper
-        # The MCP system was just another layer of Playwright automation on top of our existing dynamic scraper
-            
-        # Method 5: Fallback to original Claude API (without automation)
-        logger.info(f"🧠 METHOD 5: Attempting original Claude API as final fallback")
-        price, method = await self._extract_using_claude(html_content, url, old_price, machine_data)
-        if price is not None:
-            logger.info(f"✅ METHOD 5 SUCCESS: Extracted price ${price} using Claude API: {method}")
-            logger.info(f"=== PRICE EXTRACTION COMPLETE ===")
-            return price, method
-        else:
-            logger.info(f"❌ METHOD 5 FAILED: No price found with Claude API")
+        # Claude AI extraction removed (METHOD 5) - was causing incorrect extractions
+        # Analysis showed 100% failure rate with Claude extracting promotional/wrong prices
+        # Better to fail cleanly and add site-specific rules than extract wrong prices
         
         # No price found with any method
         logger.error(f"=== PRICE EXTRACTION FAILED ===")
         logger.error(f"Machine: {machine_name}")
         logger.error(f"URL: {url}")
+        logger.error(f"All extraction methods exhausted. Consider adding site-specific rules for this domain.")
         logger.error(f"All methods exhausted, no price found")
         logger.error(f"Page length: {len(html_content)} chars")
         logger.error(f"Page contains '$': {'$' in html_content}")
@@ -449,186 +434,19 @@ LOOK FOR:
 - Shopify product pricing sections
 - Main price display areas"""
     
-    async def _extract_using_claude(self, html_content, url, old_price=None, machine_data=None):
-        """
-        Extract price using Claude AI as a fallback.
-        
-        Args:
-            html_content (str): Raw HTML content.
-            url (str): URL of the page.
-            
-        Returns:
-            tuple: (price as float, method used) or (None, None) if extraction failed.
-        """
-        try:
-            # Prepare a truncated version of the HTML for Claude
-            truncated_html = html_content[:15000] if len(html_content) > 15000 else html_content
-            
-            # Create context about previous price
-            price_context = ""
-            if old_price is not None:
-                price_context = f"""
-IMPORTANT CONTEXT: The previous price for this product was ${old_price:,.2f}
-- If you see multiple prices on the page, choose the main product price (usually the highest)
-- If prices seem unreasonable compared to the previous price, double-check your selection
-- Avoid selecting addon prices, financing amounts, or promotional bundle prices
-
-"""
-
-            # Get brand-specific instructions
-            brand_instructions = self._get_brand_specific_instructions(machine_data, url)
-            
-            # Add machine name context if available
-            machine_context = ""
-            if machine_data:
-                machine_name = machine_data.get('Machine Name', '') or machine_data.get('name', '')
-                if machine_name:
-                    machine_context = f"""
-MACHINE CONTEXT: You are extracting the price for "{machine_name}"
-- If the page shows multiple variants (e.g., 20W, 30W, 60W), select the price that matches this specific model
-- Look for power ratings, model numbers, or other distinguishing features in the machine name
-- For example, if the machine is "ComMarker B6 MOPA 30W", find the price for the 30W variant
-"""
-
-            # Create prompt for Claude with brand-specific learning capabilities
-            prompt = f"""You are acting as a sub-agent to extract the correct product price from this webpage.
-
-URL: {url}
-{price_context}{machine_context}Here is the HTML content of the page (truncated if too long):
-{truncated_html}
-
-{brand_instructions}
-
-Format your response as JSON with the EXACT price you find and the CSS selector:
-{{"price": "XXXX.XX", "selector": ".actual-selector-you-found"}}
-"""
-            
-            # Call Claude API
-            logger.info(f"Calling Claude API to extract price and learn selector from {url}")
-            response = self.client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=200,
-                system="You are a specialized AI assistant that extracts product prices and CSS selectors from web pages. Always respond with valid JSON containing 'price' and 'selector' fields.",
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            
-            # Process the response
-            result = response.content[0].text.strip()
-            logger.debug(f"Claude returned raw response: '{result}'")
-            
-            # Try to parse JSON response
-            try:
-                import json
-                # Clean up the response in case Claude added extra text
-                if '{' in result and '}' in result:
-                    json_start = result.find('{')
-                    json_end = result.rfind('}') + 1
-                    json_str = result[json_start:json_end]
-                    data = json.loads(json_str)
-                    
-                    price_str = data.get('price', '')
-                    selector = data.get('selector', '')
-                    
-                    # Check if Claude found a price
-                    if price_str.lower() == "no price found" or not price_str:
-                        logger.warning(f"Claude couldn't find a price for {url}")
-                        return None, None
-                    
-                    # Parse the price
-                    price = self._parse_price(price_str)
-                    if price is not None and selector:
-                        # Check if selector is blacklisted before storing it
-                        if is_selector_blacklisted(selector):
-                            reason = get_blacklist_reason(selector)
-                            logger.warning(f"🚫 BLOCKED Claude AI from learning bad selector: {selector} ({reason})")
-                            return price, f"Claude AI (selector blocked: {reason})"
-                        else:
-                            logger.info(f"Extracted price {price} using Claude AI with selector: {selector}")
-                            # Store the learned selector only if it's not blacklisted
-                            await self._store_learned_selector(url, selector, price)
-                            return price, f"Claude AI (learned: {selector})"
-                    elif price is not None:
-                        logger.info(f"Extracted price {price} using Claude AI (no selector provided)")
-                        return price, "Claude AI (no selector)"
-                        
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.debug(f"Failed to parse Claude JSON response: {str(e)}")
-                # Fall back to old parsing method
-                
-            # Fallback: try to extract just the price from non-JSON response
-            price = self._parse_price(result)
-            if price is not None:
-                logger.info(f"Extracted price {price} using Claude AI (fallback parsing)")
-                return price, "Claude AI (fallback)"
-                
-            logger.warning(f"Claude returned an invalid response: {result}")
-            return None, None
-        
-        except Exception as e:
-            logger.error(f"Error using Claude for price extraction: {str(e)}")
-            return None, None
-    
-    async def _store_learned_selector(self, url, selector, price):
-        """
-        Store a successfully learned CSS selector for future use.
-        
-        Args:
-            url (str): The URL where the selector worked
-            selector (str): The CSS selector that found the price
-            price (float): The price that was extracted
-        """
-        try:
-            from urllib.parse import urlparse
-            from datetime import datetime
-            
-            # Get domain from URL
-            domain = urlparse(url).netloc.lower()
-            if domain.startswith('www.'):
-                domain = domain[4:]
-            
-            # Import database service here to avoid circular imports
-            from services.database import DatabaseService
-            db_service = DatabaseService()
-            
-            # Get machine by URL to update its learned_selectors
-            # We'll need to find machines that match this URL
-            machines = await db_service.get_machines_by_url(url)
-            
-            for machine in machines:
-                machine_id = machine.get('id')
-                current_selectors = machine.get('learned_selectors', {})
-                
-                # Add the new selector
-                current_selectors[domain] = {
-                    'selector': selector,
-                    'last_success': datetime.utcnow().isoformat(),
-                    'confidence': 1.0,  # Start with high confidence
-                    'price_found': price
-                }
-                
-                # Update the machine record
-                await db_service.update_machine_learned_selectors(machine_id, current_selectors)
-                logger.info(f"Stored learned selector '{selector}' for domain '{domain}' on machine {machine_id}")
-                
-        except Exception as e:
-            logger.error(f"Error storing learned selector: {str(e)}")
-            # Don't fail the extraction if we can't store the selector
-    
     def _parse_price(self, price_text):
         """
-        Parse and normalize a price from text. More robust handling of separators.
+        Parse a price string and extract the numeric value.
         
         Args:
-            price_text (str): Text containing the price.
+            price_text (str): Raw price text containing currency symbols and formatting.
             
         Returns:
-            float: Parsed price or None if parsing failed.
+            float: Parsed price value or None if parsing failed.
         """
         if not price_text:
             return None
-
+            
         # Log the raw input using repr() to see hidden characters
         logger.debug(f"_parse_price received raw input: {repr(price_text)}")
 
@@ -831,7 +649,7 @@ Format your response as JSON with the EXACT price you find and the CSS selector:
         
         return variant_rules.get(domain, {})
     
-    def _validate_extracted_price(self, price, url, old_price=None):
+    def _validate_extracted_price(self, price, url, old_price=None, machine_name=None):
         """
         Validate an extracted price to detect obvious errors.
         
@@ -839,6 +657,7 @@ Format your response as JSON with the EXACT price you find and the CSS selector:
             price (float): The extracted price
             url (str): The URL being processed
             old_price (float, optional): Previous price for comparison
+            machine_name (str, optional): Machine name for machine-specific validation
             
         Returns:
             bool: True if price seems valid, False if suspicious
@@ -858,6 +677,11 @@ Format your response as JSON with the EXACT price you find and the CSS selector:
                 
             if domain in self.site_extractor.site_rules:
                 rules = self.site_extractor.site_rules[domain]
+                
+                # Machine-specific validation removed - using percentage-based validation instead
+                # Fixed ranges were too restrictive and causing valid prices to be rejected
+                
+                # Generic site validation
                 min_price = rules.get('min_expected_price', 10)
                 max_price = rules.get('max_expected_price', 100000)
                 
