@@ -29,6 +29,13 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 | 2025-07-02 | Enhanced logging & batch analysis tools | Method-by-method tracking with automated investigation workflows |
 | 2025-07-03 | Systematic manual correction fixes | Root cause analysis & comprehensive error type resolution |
 | 2025-07-03 | Critical retest failure diagnosis | Fixed unpacking bug, enhanced anti-detection, URL mapping |
+| 2025-07-09 | Daily batch analysis system | Comprehensive workflow for learning from manual corrections |
+| 2025-07-09 | Claude AI extraction removal | Eliminated METHOD 5 due to 100% failure rate on corrected prices |
+| 2025-07-09 | Critical web scraper Brotli fix | Fixed content corruption by removing unsupported compression |
+| 2025-07-09 | ComMarker bundle price contamination | Eliminated dynamic scraper bundle targeting, fixed base machine pricing |
+| 2025-07-09 | Meta tag extraction support | Added og:price:amount parsing for modern e-commerce sites |
+| 2025-07-09 | Site-specific rules expansion | Added Atomstack, WeCreat, Mr Carve extraction rules |
+| 2025-07-09 | Manual correction recognition | Prevented duplicate approvals for recently corrected prices |
 
 ## 🔎 Key Technical Insights
 - MCP integration provides direct Supabase access through Claude Code interface
@@ -48,6 +55,13 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Dynamic scraper with variant selection handles complex product configurations
 - Systematic batch analysis reveals many "failures" are actually false positives due to network issues
 - Hybrid learning approach: expensive MCP learning once, then fast Playwright automation
+- Daily batch analysis workflow enables systematic learning from every manual correction
+- Claude AI METHOD 5 caused 100% failure rate - removal improved system reliability and cost
+- Brotli compression support without decompression library caused content corruption
+- ComMarker bundle price contamination was systematic issue in dynamic scraper targeting wrong selectors
+- Meta tag extraction (og:price:amount) more reliable than CSS selectors for modern sites
+- Manual correction recognition prevents duplicate approval requests for same price
+- Site-specific extraction rules essential for Atomstack, WeCreat, Mr Carve domains
 - Method-by-method logging essential for debugging complex extraction pipelines
 - Configurator sites (Aeon) require multi-step browser interaction for accurate pricing
 - Price_history table workflow maintains proper audit trail for price discoveries

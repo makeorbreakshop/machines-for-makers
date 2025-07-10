@@ -19,6 +19,7 @@ class BatchUpdateRequest(BaseModel):
     days_threshold: Optional[int] = 7
     machine_ids: Optional[List[str]] = None
     limit: Optional[int] = None
+    max_workers: Optional[int] = None  # Number of concurrent workers
 
 class UpdateResponse(BaseModel):
     """Response model for price update operation."""
@@ -121,13 +122,15 @@ async def batch_update_machines(request: dict, background_tasks: BackgroundTasks
             - days_threshold (int): Days threshold for updates
             - limit (Optional[int]): Maximum machines to update
             - machine_ids (List[str], optional): Specific machine IDs to update
+            - max_workers (Optional[int]): Number of concurrent workers for processing
     """
     try:
         days_threshold = request.get("days_threshold", 7)
         limit = request.get("limit", None)
         machine_ids = request.get("machine_ids", None)
+        max_workers = request.get("max_workers", None)
         
-        logger.info(f"Batch update request with days={days_threshold}, limit={limit}, machine_ids={machine_ids[:5] if machine_ids and len(machine_ids) > 5 else machine_ids}")
+        logger.info(f"Batch update request with days={days_threshold}, limit={limit}, max_workers={max_workers}, machine_ids={machine_ids[:5] if machine_ids and len(machine_ids) > 5 else machine_ids}")
         
         if background_tasks:
             # Pass the specific machine_ids to the batch update if provided
@@ -135,7 +138,8 @@ async def batch_update_machines(request: dict, background_tasks: BackgroundTasks
                 _process_batch_update, 
                 days_threshold,
                 limit,
-                machine_ids
+                machine_ids,
+                max_workers
             )
             return {
                 "success": True, 
@@ -170,7 +174,8 @@ async def batch_update_prices(request: BatchUpdateRequest, background_tasks: Bac
             # Add the batch update to background tasks
             background_tasks.add_task(
                 _process_specific_machines, 
-                request.machine_ids
+                request.machine_ids,
+                request.max_workers
             )
             
             return {
@@ -185,7 +190,9 @@ async def batch_update_prices(request: BatchUpdateRequest, background_tasks: Bac
         background_tasks.add_task(
             _process_batch_update, 
             request.days_threshold,
-            request.limit
+            request.limit,
+            None,  # machine_ids
+            request.max_workers
         )
         
         return {
@@ -227,20 +234,20 @@ async def get_batch_results(batch_id: str):
             "error": f"Error fetching batch results: {str(e)}"
         }
 
-async def _process_batch_update(days_threshold: int, limit: Optional[int] = None, machine_ids: List[str] = None):
+async def _process_batch_update(days_threshold: int, limit: Optional[int] = None, machine_ids: List[str] = None, max_workers: Optional[int] = None):
     """Process a batch update in the background."""
     try:
-        await price_service.batch_update_machines(days_threshold, limit=limit, machine_ids=machine_ids)
+        await price_service.batch_update_machines(days_threshold, max_workers=max_workers, limit=limit, machine_ids=machine_ids)
     except Exception as e:
         logger.exception(f"Error in background batch update: {str(e)}")
 
-async def _process_specific_machines(machine_ids: List[str]):
-    """Process specific machines in the background."""
-    for machine_id in machine_ids:
-        try:
-            await price_service.update_machine_price(machine_id)
-        except Exception as e:
-            logger.exception(f"Error updating machine {machine_id} in batch: {str(e)}")
+async def _process_specific_machines(machine_ids: List[str], max_workers: Optional[int] = None):
+    """Process specific machines in the background using concurrent processing."""
+    try:
+        # Use the batch update method with specific machine IDs to get concurrent processing
+        await price_service.batch_update_machines(machine_ids=machine_ids, max_workers=max_workers)
+    except Exception as e:
+        logger.exception(f"Error in background specific machines update: {str(e)}")
 
 @router.post("/batch-configure")
 async def configure_batch_update(request: dict):
@@ -251,12 +258,14 @@ async def configure_batch_update(request: dict):
         request (dict): The request body containing configuration parameters:
             - days_threshold (int): Days threshold for machines needing update
             - limit (Optional[int]): Maximum number of machines to process
+            - max_workers (Optional[int]): Number of concurrent workers (for logging/preview)
     """
     try:
         days_threshold = request.get("days_threshold", 7)
         limit = request.get("limit", None)
+        max_workers = request.get("max_workers", 3)
         
-        logger.info(f"Configuring batch update with days_threshold={days_threshold}, limit={limit}")
+        logger.info(f"Configuring batch update with days_threshold={days_threshold}, limit={limit}, max_workers={max_workers}")
         
         # Get machines that need updates
         machines = await price_service.db_service.get_machines_needing_update(days_threshold)
@@ -659,6 +668,20 @@ async def correct_price(request: PriceCorrectionRequest):
             logger.error(f"Failed to update price history entry: {request.price_history_id}")
             raise HTTPException(status_code=500, detail="Failed to update price history entry")
         
+        # Also update the machines.Price column so future extractions use the corrected price as baseline
+        try:
+            machine_update_response = price_service.db_service.supabase.table("machines") \
+                .update({"Price": request.correct_price}) \
+                .eq("id", machine_id) \
+                .execute()
+            
+            if machine_update_response.data:
+                logger.info(f"✅ Updated machines.Price to ${request.correct_price} for machine {machine_id}")
+            else:
+                logger.warning(f"⚠️ Failed to update machines.Price for machine {machine_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Error updating machines.Price: {str(e)}")
+        
         # Log the correction for analysis
         correction_logged = await price_service.db_service.add_price_correction(
             machine_id=machine_id,
@@ -691,3 +714,78 @@ async def correct_price(request: PriceCorrectionRequest):
     except Exception as e:
         logger.exception(f"Error processing price correction: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing price correction: {str(e)}")
+
+@router.post("/sync-manual-corrections")
+async def sync_manual_corrections():
+    """
+    Sync machines.Price with the latest manual corrections from price_history.
+    This fixes existing stale prices in the machines table.
+    """
+    try:
+        logger.info("Starting sync of manual corrections to machines table")
+        
+        # Get all machines that have manual corrections
+        corrections_response = price_service.db_service.supabase.table("price_history") \
+            .select("machine_id, price, date") \
+            .eq("status", "MANUAL_CORRECTION") \
+            .order("date", desc=True) \
+            .execute()
+        
+        if not corrections_response.data:
+            return {"success": True, "message": "No manual corrections found", "updated_count": 0}
+        
+        # Group by machine_id and get the latest correction for each
+        machine_corrections = {}
+        for correction in corrections_response.data:
+            machine_id = correction["machine_id"]
+            if machine_id not in machine_corrections:
+                machine_corrections[machine_id] = correction
+        
+        updated_count = 0
+        updates = []
+        
+        # Sync each machine
+        for machine_id, correction in machine_corrections.items():
+            corrected_price = correction["price"]
+            
+            try:
+                # Get current machine price
+                machine_response = price_service.db_service.supabase.table("machines") \
+                    .select("id, \"Machine Name\", \"Price\"") \
+                    .eq("id", machine_id) \
+                    .single() \
+                    .execute()
+                
+                if machine_response.data:
+                    current_price = machine_response.data.get("Price")
+                    machine_name = machine_response.data.get("Machine Name", "Unknown")
+                    
+                    if current_price != corrected_price:
+                        # Update the machines table
+                        update_response = price_service.db_service.supabase.table("machines") \
+                            .update({"Price": corrected_price}) \
+                            .eq("id", machine_id) \
+                            .execute()
+                        
+                        if update_response.data:
+                            updated_count += 1
+                            updates.append({
+                                "machine_name": machine_name,
+                                "old_price": current_price,
+                                "new_price": corrected_price
+                            })
+                            logger.info(f"Updated {machine_name}: ${current_price} → ${corrected_price}")
+                        
+            except Exception as e:
+                logger.error(f"Error updating machine {machine_id}: {str(e)}")
+        
+        return {
+            "success": True,
+            "message": f"Synced {updated_count} machines with manual corrections",
+            "updated_count": updated_count,
+            "updates": updates
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error syncing manual corrections: {str(e)}")
+        return {"success": False, "error": f"Error syncing manual corrections: {str(e)}"}

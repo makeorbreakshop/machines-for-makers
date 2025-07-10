@@ -112,6 +112,42 @@ class PriceService:
         
         return False, None
     
+    async def _get_effective_current_price(self, machine_id, fallback_price):
+        """
+        Get the effective current price for a machine, prioritizing recent manual corrections.
+        
+        Args:
+            machine_id (str): The machine ID
+            fallback_price (float): The price from machines table as fallback
+            
+        Returns:
+            float: The effective current price to use as baseline
+        """
+        try:
+            # Check for recent manual corrections (within last 30 days)
+            from datetime import timedelta
+            cutoff_date = datetime.now() - timedelta(days=30)
+            
+            response = self.db_service.supabase.table("price_history") \
+                .select("price, date") \
+                .eq("machine_id", machine_id) \
+                .eq("status", "MANUAL_CORRECTION") \
+                .gte("date", cutoff_date.isoformat()) \
+                .order("date", desc=True) \
+                .limit(1) \
+                .execute()
+            
+            if response.data and len(response.data) > 0:
+                manual_price = response.data[0].get("price")
+                if manual_price is not None:
+                    logger.info(f"🔧 Using recent manual correction as baseline: ${manual_price} (instead of stale ${fallback_price})")
+                    return float(manual_price)
+        except Exception as e:
+            logger.warning(f"Error checking for manual corrections: {str(e)}")
+        
+        # Fall back to machines table price
+        return fallback_price
+    
     async def update_machine_price(self, machine_id, url=None, batch_id=None):
         """
         Update the price for a specific machine by scraping its URL.
@@ -140,45 +176,23 @@ class PriceService:
                 logger.error(f"No product URL available for machine {machine_id}")
                 return {"success": False, "error": "No product URL available", "machine_id": machine_id}
             
-            # Get current price from database
-            current_price = machine.get("Price")
+            # Get current price - check for recent manual corrections first
+            current_price = await self._get_effective_current_price(machine_id, machine.get("Price"))
             
-            # Skip Thunder Laser machines as they require special handling
-            domain = urlparse(product_url).netloc.lower()
-            if domain.startswith('www.'):
-                domain = domain[4:]
-            
-            if 'thunderlaserusa.com' in domain:
-                logger.warning(f"⚠️ Skipping Thunder Laser machine {machine_id} - requires special handling")
+            # Check if price tracking is enabled for this machine
+            if not machine.get("price_tracking_enabled", True):  # Default to True for existing machines
+                logger.warning(f"⚠️ Skipping machine {machine_id} - price tracking disabled")
                 await self.db_service.add_price_history(
                     machine_id=machine_id,
                     old_price=current_price,
                     new_price=None,
                     success=False,
-                    error_message="Thunder Laser machines temporarily excluded from batch updates",
+                    error_message="Machine excluded from price tracking",
                     batch_id=batch_id
                 )
                 return {
                     "success": False, 
-                    "error": "Thunder Laser machines temporarily excluded from batch updates", 
-                    "machine_id": machine_id, 
-                    "url": product_url
-                }
-            
-            # Skip Rendyr machines - connection/blocking issues
-            if 'rendyr.com' in domain:
-                logger.warning(f"⚠️ Skipping Rendyr machine {machine_id} - connection issues")
-                await self.db_service.add_price_history(
-                    machine_id=machine_id,
-                    old_price=current_price,
-                    new_price=None,
-                    success=False,
-                    error_message="Rendyr machines temporarily excluded from batch updates",
-                    batch_id=batch_id
-                )
-                return {
-                    "success": False, 
-                    "error": "Rendyr machines temporarily excluded from batch updates", 
+                    "error": "Machine excluded from price tracking", 
                     "machine_id": machine_id, 
                     "url": product_url
                 }
@@ -286,8 +300,8 @@ class PriceService:
                     "url": product_url
                 }
             
-            # Get the old price (proper case for Supabase column)
-            old_price = machine.get("Price")
+            # Get the old price - use same effective current price logic
+            old_price = await self._get_effective_current_price(machine_id, machine.get("Price"))
             logger.debug(f"Old price: {old_price}, New price: {new_price}")
             
             # Skip update if the price hasn't changed
@@ -409,6 +423,97 @@ class PriceService:
                 "url": product_url
             }
     
+    async def _process_machines_concurrently(self, machines, batch_id, results, max_workers):
+        """
+        Process machines concurrently while maintaining comprehensive logging and result tracking.
+        
+        Args:
+            machines: List of machine dictionaries to process
+            batch_id: Batch ID for tracking
+            results: Results dictionary to update (thread-safe)
+            max_workers: Maximum concurrent workers
+        """
+        import asyncio
+        from asyncio import Semaphore
+        
+        # Create semaphore to limit concurrent processing
+        semaphore = Semaphore(max_workers)
+        
+        # Thread-safe result aggregation lock
+        results_lock = asyncio.Lock()
+        
+        async def process_single_machine(machine):
+            """Process a single machine with semaphore control and result tracking."""
+            async with semaphore:
+                try:
+                    machine_id = machine.get("id")
+                    machine_name = machine.get("Machine Name", "Unknown")
+                    
+                    # Log start of processing for this machine
+                    logger.info(f"🔄 Processing machine {machine_name} (ID: {machine_id}) - Worker available")
+                    
+                    # Process the machine (this maintains all existing logging)
+                    result = await self.update_machine_price(machine_id, batch_id=batch_id)
+                    
+                    # Track result in database
+                    await self.db_service.add_batch_result(batch_id, machine_id, result)
+                    
+                    # Thread-safe result aggregation
+                    async with results_lock:
+                        if result["success"]:
+                            results["successful"] += 1
+                            if "message" in result and result["message"] == "Price unchanged":
+                                results["unchanged"] += 1
+                            else:
+                                results["updated"] += 1
+                        else:
+                            results["failed"] += 1
+                            results["failures"].append({
+                                "machine_id": machine_id,
+                                "error": result.get("error", "Unknown error")
+                            })
+                    
+                    # Log completion
+                    status = "✅ SUCCESS" if result["success"] else "❌ FAILED"
+                    logger.info(f"{status} Machine {machine_name} - {results['successful'] + results['failed']}/{results['total']} completed")
+                    
+                    return result
+                    
+                except Exception as e:
+                    logger.exception(f"❌ Concurrent processing error for machine {machine.get('Machine Name', 'Unknown')} (ID: {machine.get('id')}): {str(e)}")
+                    
+                    # Create error result
+                    error_result = {
+                        "success": False,
+                        "error": f"Concurrent processing error: {str(e)}",
+                        "machine_id": machine.get("id"),
+                        "url": machine.get("product_link")
+                    }
+                    
+                    # Track error in database
+                    await self.db_service.add_batch_result(batch_id, machine.get("id"), error_result)
+                    
+                    # Update results
+                    async with results_lock:
+                        results["failed"] += 1
+                        results["failures"].append({
+                            "machine_id": machine.get("id"),
+                            "error": str(e)
+                        })
+                    
+                    return error_result
+        
+        # Log start of concurrent processing
+        logger.info(f"🚀 Starting concurrent processing of {len(machines)} machines with {max_workers} workers")
+        
+        # Create tasks for all machines
+        tasks = [process_single_machine(machine) for machine in machines]
+        
+        # Process all tasks concurrently
+        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        logger.info(f"🎉 Concurrent processing completed - {results['successful']} successful, {results['failed']} failed")
+    
     async def batch_update_machines(self, days_threshold=7, max_workers=5, limit=None, machine_ids=None):
         """
         Update prices for all machines that need an update.
@@ -457,6 +562,13 @@ class PriceService:
         # Set up batch-specific logging
         batch_log_path = self._setup_batch_logging(batch_id)
         
+        # Set effective max workers (use config default if not specified)
+        from config import MAX_CONCURRENT_EXTRACTIONS
+        effective_max_workers = max_workers if max_workers is not None else MAX_CONCURRENT_EXTRACTIONS
+        
+        # Log concurrent processing configuration
+        logger.info(f"🔧 Configured for concurrent processing with {effective_max_workers} workers")
+        
         # Update each machine and track in batch_results
         results = {
             "batch_id": batch_id,
@@ -468,25 +580,8 @@ class PriceService:
             "failures": []
         }
         
-        for machine in machines:
-            machine_id = machine.get("id")
-            result = await self.update_machine_price(machine_id, batch_id=batch_id)
-            
-            # Track the result in batch_results table
-            await self.db_service.add_batch_result(batch_id, machine_id, result)
-            
-            if result["success"]:
-                results["successful"] += 1
-                if "message" in result and result["message"] == "Price unchanged":
-                    results["unchanged"] += 1
-                else:
-                    results["updated"] += 1
-            else:
-                results["failed"] += 1
-                results["failures"].append({
-                    "machine_id": machine_id,
-                    "error": result.get("error", "Unknown error")
-                })
+        # Process machines concurrently with controlled concurrency
+        await self._process_machines_concurrently(machines, batch_id, results, effective_max_workers)
         
         # Mark batch as completed
         await self.db_service.complete_batch(batch_id)

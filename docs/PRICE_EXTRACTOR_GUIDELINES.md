@@ -281,7 +281,21 @@ recently_updated = 1  # Within threshold
 
 ## Debugging Workflow
 
-### 1. When Price Extraction Fails
+### 1. Real-World Debugging Examples
+
+For a detailed walkthrough of debugging complex price extraction issues, see:
+- **[ComMarker B6 MOPA 60W Case Study](./CASE_STUDY_COMMARKER_B6_MOPA.md)** - Debugging WooCommerce variation pricing with AJAX updates
+
+Key debugging principles from real cases:
+- **Never hardcode prices** - The system must extract dynamic prices
+- **Understand the page interaction flow** - Some prices only appear after specific user selections
+- **Use static analysis first** - Determine if prices are in HTML or loaded dynamically
+- **Target the right DOM elements** - WooCommerce variations appear in specific locations
+- **Allow sufficient wait time** - AJAX updates need time to complete
+
+### 2. General Debugging Process
+
+When price extraction fails:
 
 1. **Check the logs** - Look for method-by-method attempts
 2. **Test with actual API** - Don't rely on test scripts
@@ -291,7 +305,26 @@ recently_updated = 1  # Within threshold
      -d '{"machine_id": "MACHINE_UUID_HERE"}' | jq
    ```
 
-3. **Examine the HTML** - Use Playwright to see actual page structure
+3. **Examine the HTML** - Use debugging scripts to analyze page structure
+   ```python
+   # Quick debugging script template
+   import requests
+   from bs4 import BeautifulSoup
+   
+   url = "YOUR_URL_HERE"
+   response = requests.get(url)
+   soup = BeautifulSoup(response.text, 'html.parser')
+   
+   # Find all prices
+   prices = soup.find_all(class_=re.compile('price'))
+   for price in prices:
+       print(f"Price element: {price.get('class')} - Text: {price.get_text(strip=True)}")
+   
+   # Find variation forms
+   forms = soup.find_all('form', class_='variations_form')
+   print(f"Found {len(forms)} variation forms")
+   ```
+
 4. **Check for sale prices** - Look for `<ins>` tags on WooCommerce sites
 5. **Verify selector specificity** - Ensure selectors target main product area
 

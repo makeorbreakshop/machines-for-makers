@@ -4,7 +4,65 @@ Analyze batch results following PRICE_EXTRACTOR_GUIDELINES.md methodology
 """
 import json
 import sys
+import requests
 from collections import defaultdict
+
+def get_manual_corrections_for_batch(batch_id):
+    """
+    Query the database for manual corrections made to machines processed in this batch.
+    """
+    try:
+        # Get machines processed in this batch first
+        response = requests.get(f'http://localhost:8000/api/v1/batch-results/{batch_id}')
+        if not response.ok:
+            print(f"Warning: Could not get batch results to check for manual corrections")
+            return []
+        
+        batch_data = response.json()
+        if not batch_data.get('success'):
+            return []
+        
+        entries = batch_data.get('batch_data', {}).get('entries', {})
+        if isinstance(entries, dict):
+            entries = list(entries.values())
+        
+        machine_ids = [entry.get('machine_id') for entry in entries if entry.get('machine_id')]
+        
+        if not machine_ids:
+            return []
+        
+        # Use the existing API endpoint to get manual corrections for this batch
+        corrections_response = requests.get(f'http://localhost:8000/api/v1/batch-failures-and-corrections/{batch_id}')
+        if corrections_response.ok:
+            corrections_data = corrections_response.json()
+            manual_correction_ids = corrections_data.get('manual_corrections', [])
+            
+            corrections = []
+            if manual_correction_ids:
+                # For each machine that was manually corrected, get the details
+                for machine_id in manual_correction_ids:
+                    # Find the machine name from the batch entries
+                    machine_name = "Unknown"
+                    for entry in entries:
+                        if entry.get('machine_id') == machine_id:
+                            machine_name = entry.get('machine_name', 'Unknown')
+                            break
+                    
+                    corrections.append({
+                        'machine_id': machine_id,
+                        'machine_name': machine_name,
+                        'corrected_price': 'Unknown',  # We'd need another API call to get the exact correction
+                        'date': 'Recent',
+                        'reason': 'Manual correction after batch processing'
+                    })
+        else:
+            corrections = []
+        
+        return corrections
+        
+    except Exception as e:
+        print(f"Warning: Could not fetch manual corrections from database: {str(e)}")
+        return []
 
 def analyze_batch(batch_file):
     with open(batch_file, 'r') as f:
@@ -21,10 +79,15 @@ def analyze_batch(batch_file):
     # Convert entries dict to list
     entries = list(entries_dict.values()) if isinstance(entries_dict, dict) else entries_dict
     
+    batch_id = batch_data.get("batch_id", "Unknown")
+    
     print('=== BATCH ANALYSIS SUMMARY ===')
-    print(f'Batch ID: {batch_data.get("batch_id", "Unknown")}')
+    print(f'Batch ID: {batch_id}')
     print(f'Total Machines: {len(entries)}')
     print()
+    
+    # Get manual corrections from database for this batch
+    manual_corrections_from_db = get_manual_corrections_for_batch(batch_id)
     
     # Count different statuses
     status_counts = defaultdict(int)
@@ -105,15 +168,37 @@ def analyze_batch(batch_file):
         print(f'... and {len(approval_needed) - 5} more')
     
     print()
-    print(f'=== MANUAL CORRECTIONS: {len(manual_corrections)} ===')
-    for correction in manual_corrections:
-        print(f'- {correction["machine_id"]}: Corrected to ${correction["corrected_price"]}')
+    print(f'=== MANUAL CORRECTIONS: {len(manual_corrections_from_db)} ===')
+    for correction in manual_corrections_from_db:
+        print(f'- {correction["machine_name"]} ({correction["machine_id"][:8]}...): Corrected to ${correction["corrected_price"]}')
+        print(f'  Date: {correction["date"]}')
+        print(f'  Reason: {correction["reason"]}')
+        print()
+    
+    # Show detailed extraction analysis for problematic machines
+    print()
+    print('=== DETAILED EXTRACTION ANALYSIS ===')
+    problematic_machines = ['ComMarker', 'xTool F2']
+    for machine_pattern in problematic_machines:
+        print(f'\n--- {machine_pattern} Machines ---')
+        for entry in entries:
+            machine_name = entry.get('machine_name', '')
+            if machine_pattern.lower() in machine_name.lower():
+                print(f'Machine: {machine_name}')
+                print(f'  Extracted Price: ${entry.get("new_price", "N/A")}')
+                print(f'  Previous Price: ${entry.get("old_price", "N/A")}')
+                print(f'  Method Used: {entry.get("extraction_method", "N/A")}')
+                print(f'  URL: {entry.get("url", "N/A")}')
+                print(f'  Success: {entry.get("success", False)}')
+                if entry.get('error'):
+                    print(f'  Error: {entry.get("error")}')
+                print()
     
     # Calculate success metrics
     total_attempted = len(entries)
     actual_failures = len(failed_machines)
     approvals = len(approval_needed)
-    corrections = len(manual_corrections)
+    corrections = len(manual_corrections_from_db)
     successes = len(successful_extractions)
     
     extraction_success_rate = ((successes + approvals) / total_attempted) * 100 if total_attempted > 0 else 0
@@ -124,6 +209,7 @@ def analyze_batch(batch_file):
     print(f'Extraction Success Rate: {extraction_success_rate:.1f}% (extracted price successfully)')
     print(f'Auto-Apply Rate: {auto_apply_rate:.1f}% (no approval needed)')
     print(f'Approval Rate: {(approvals/total_attempted)*100:.1f}% (large price changes)')
+    print(f'Manual Correction Rate: {(corrections/total_attempted)*100:.1f}% (required manual correction)')
     print(f'Failure Rate: {(actual_failures/total_attempted)*100:.1f}% (couldn\'t extract price)')
     
     # Identify patterns in failures

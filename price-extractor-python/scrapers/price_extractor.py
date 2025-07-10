@@ -32,6 +32,10 @@ class PriceExtractor:
             tuple: (price as float, method used) or (None, None) if extraction failed.
         """
         
+        # Store URL and old price for price parsing context
+        self._current_url = url
+        self._old_price = old_price
+        
         # Enhanced logging for batch analysis
         logger.info(f"=== PRICE EXTRACTION START ===")
         logger.info(f"Machine: {machine_name}")
@@ -62,7 +66,7 @@ class PriceExtractor:
         # The MCP system was just another layer of Playwright automation on top of our existing dynamic scraper
 
         # Method 1: Try dynamic extraction for sites requiring variant selection
-        if machine_name and self._requires_dynamic_extraction(url):
+        if machine_name and self._requires_dynamic_extraction(url, machine_name):
             try:
                 logger.info(f"🌐 METHOD 1: Attempting dynamic extraction with browser automation")
                 price, method = await self._extract_with_dynamic_scraper(url, machine_name, machine_data)
@@ -97,7 +101,20 @@ class PriceExtractor:
         
         # Method 3: Try structured data (JSON-LD, microdata)
         logger.info(f"📊 METHOD 3: Attempting structured data extraction")
-        price, method = self._extract_from_structured_data(soup)
+        
+        # Check if machine-specific rules say to avoid meta tags
+        should_skip_meta = False
+        if machine_data and machine_name:
+            from urllib.parse import urlparse
+            domain = urlparse(url).netloc.lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            rules = self.site_extractor.get_machine_specific_rules(domain, machine_name, url)
+            if rules and rules.get('avoid_meta_tags', False):
+                logger.info(f"🚫 Skipping meta tags for {machine_name} due to machine-specific rules")
+                should_skip_meta = True
+        
+        price, method = self._extract_from_structured_data(soup, skip_meta_tags=should_skip_meta)
         if price is not None:
             # Validate the price against expected ranges and old price
             if self._validate_extracted_price(price, url, old_price, machine_name):
@@ -144,27 +161,31 @@ class PriceExtractor:
         
         return None, None
     
-    def _extract_from_structured_data(self, soup):
+    def _extract_from_structured_data(self, soup, skip_meta_tags=False):
         """
         Extract price from structured data like JSON-LD or microdata.
         
         Args:
             soup (BeautifulSoup): Parsed HTML content.
+            skip_meta_tags (bool): Whether to skip meta tag extraction.
             
         Returns:
             tuple: (price as float, method used) or (None, None) if not found.
         """
         try:
-            # First check meta tags (og:price:amount)
-            meta_price = soup.find('meta', property='og:price:amount')
-            if meta_price and meta_price.get('content'):
-                price_content = meta_price.get('content')
-                logger.debug(f"Found og:price:amount meta tag: {price_content}")
-                # Parse the price (handle comma as thousands separator)
-                price = self._parse_price(price_content)
-                if price is not None and 10 <= price <= 100000:
-                    logger.info(f"Extracted price ${price} from og:price:amount meta tag")
-                    return price, "Meta tag (og:price:amount)"
+            # First check meta tags (og:price:amount) - unless skipped for machine-specific rules
+            if not skip_meta_tags:
+                meta_price = soup.find('meta', property='og:price:amount')
+                if meta_price and meta_price.get('content'):
+                    price_content = meta_price.get('content')
+                    logger.debug(f"Found og:price:amount meta tag: {price_content}")
+                    # Parse the price (handle comma as thousands separator)
+                    price = self._parse_price(price_content)
+                    if price is not None and 10 <= price <= 100000:
+                        logger.info(f"Extracted price ${price} from og:price:amount meta tag")
+                        return price, "Meta tag (og:price:amount)"
+            else:
+                logger.info(f"🚫 Skipping meta tag extraction due to machine-specific rules")
             
             # Look for JSON-LD data
             json_ld_scripts = soup.find_all('script', type='application/ld+json')
@@ -448,6 +469,7 @@ LOOK FOR:
     def _parse_price(self, price_text):
         """
         Parse a price string and extract the numeric value.
+        Handles multiple prices by splitting and parsing each separately.
         
         Args:
             price_text (str): Raw price text containing currency symbols and formatting.
@@ -461,6 +483,48 @@ LOOK FOR:
         # Log the raw input using repr() to see hidden characters
         logger.debug(f"_parse_price received raw input: {repr(price_text)}")
 
+        try:
+            price_str = str(price_text).strip()
+            
+            # Check if this contains multiple prices (common with variant pricing)
+            # Split on newlines, line breaks, or multiple spaces
+            price_lines = re.split(r'[\n\r]+|\s{3,}', price_str)
+            
+            # If we have multiple price lines, try to parse each one
+            if len(price_lines) > 1:
+                logger.debug(f"Found multiple price lines: {price_lines}")
+                parsed_prices = []
+                for line in price_lines:
+                    line = line.strip()
+                    if line and '$' in line:  # Only process lines with currency
+                        parsed_price = self._parse_single_price(line)
+                        if parsed_price is not None:
+                            parsed_prices.append(parsed_price)
+                
+                if parsed_prices:
+                    # If we have an old price, find the closest match
+                    if hasattr(self, '_old_price') and self._old_price:
+                        closest_price = min(parsed_prices, key=lambda x: abs(x - self._old_price))
+                        logger.info(f"Multiple prices found {parsed_prices}, selecting closest to old price ${self._old_price}: ${closest_price}")
+                        return closest_price
+                    
+                    # Fallback: return the first price found
+                    first_price = parsed_prices[0]
+                    logger.info(f"Multiple prices found {parsed_prices}, selecting first: ${first_price}")
+                    return first_price
+            
+            # Single price processing
+            return self._parse_single_price(price_str)
+            
+        except Exception as e:
+            logger.error(f"Unexpected error parsing price '{price_text}': {str(e)}")
+            return None
+    
+    def _parse_single_price(self, price_text):
+        """Parse a single price string."""
+        if not price_text:
+            return None
+            
         try:
             price_str = str(price_text).strip()
             
@@ -550,12 +614,13 @@ LOOK FOR:
         return value 
     
     
-    def _requires_dynamic_extraction(self, url):
+    def _requires_dynamic_extraction(self, url, machine_name=None):
         """
         Determine if a URL requires dynamic extraction with JavaScript.
         
         Args:
             url (str): The URL to check.
+            machine_name (str, optional): Machine name to check for machine-specific rules.
             
         Returns:
             bool: True if dynamic extraction is needed.
@@ -566,14 +631,25 @@ LOOK FOR:
         # Remove 'www.' prefix
         if domain.startswith('www.'):
             domain = domain[4:]
+        
+        # Check machine-specific rules first
+        if machine_name:
+            rules = self.site_extractor.get_machine_specific_rules(domain, machine_name, url)
+            if rules and rules.get('requires_dynamic', False):
+                logger.info(f"🎯 Dynamic extraction required for {machine_name} based on machine-specific rules")
+                return True
             
-        # Sites that require dynamic extraction for variant selection
+        # Sites that require dynamic extraction for variant selection (fallback)
         dynamic_sites = [
             'cloudraylaser.com',
             'commarker.com'  # Complex variant selection with bundle pricing
         ]
         
-        return any(site in domain for site in dynamic_sites)
+        site_requires_dynamic = any(site in domain for site in dynamic_sites)
+        if site_requires_dynamic:
+            logger.info(f"🌐 Dynamic extraction required for {domain} based on site-wide rules")
+        
+        return site_requires_dynamic
     
     async def _extract_with_dynamic_scraper(self, url, machine_name, machine_data=None):
         """
@@ -623,6 +699,24 @@ LOOK FOR:
             
         # Define variant selection rules for each site
         variant_rules = {
+            'xtool.com': {
+                'price_selectors': [
+                    '.product-badge-price',  # xTool's main price badge
+                    '.price__current .money',
+                    '.product-info .price-current',
+                    '.price .money:not(.price--compare)'
+                ],
+                'power_selectors': [
+                    'input[data-variant-id*="40W"]',  # 40W variant for S1
+                    'button[title*="40W"]',
+                    'option[value*="40W"]',
+                    '[data-variant*="40w"]'
+                ],
+                'variant_text_patterns': ['40W', '40 W'],  # Text patterns to look for
+                'min_expected_price': 500,
+                'max_expected_price': 3000
+            },
+            
             'commarker.com': {
                 'price_selectors': [
                     '.product-image-summary-inner .price .amount:nth-of-type(2)',

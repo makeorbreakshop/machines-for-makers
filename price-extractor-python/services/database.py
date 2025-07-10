@@ -230,7 +230,7 @@ class DatabaseService:
             List[Dict]: List of machines needing updates.
         """
         try:
-            selected_columns = "id, \"Machine Name\", \"Company\", Price, product_link, \"Affiliate Link\", html_timestamp"
+            selected_columns = "id, \"Machine Name\", \"Company\", Price, product_link, \"Affiliate Link\", html_timestamp, price_tracking_enabled"
             
             # If specific machine IDs are provided, only get those
             if machine_ids:
@@ -239,6 +239,7 @@ class DatabaseService:
                     self.supabase.table("machines")
                     .select(selected_columns)
                     .in_("id", machine_ids)
+                    .eq("price_tracking_enabled", True)  # Only include machines with price tracking enabled
                 )
                 
                 # Execute the query for specific machine IDs
@@ -246,10 +247,14 @@ class DatabaseService:
                 machines = response.data
                 
                 if not machines:
-                    logger.warning(f"No machines found for provided IDs: {machine_ids[:5]}...")
+                    logger.warning(f"No machines found for provided IDs (after filtering exclusions): {machine_ids[:5]}...")
                     return []
                 
-                logger.info(f"Found {len(machines)} machines for specific IDs")
+                excluded_count = len(machine_ids) - len(machines)
+                if excluded_count > 0:
+                    logger.info(f"Excluded {excluded_count} machines with price tracking disabled from batch")
+                
+                logger.info(f"Found {len(machines)} machines for specific IDs (after filtering)")
                 return machines
             elif days_threshold > 0:
                 # Use the database function for efficient filtering
@@ -282,10 +287,11 @@ class DatabaseService:
                     
                     logger.info(f"Finding machines that haven't been checked since {threshold_date.isoformat()}")
                     
-                    # Get all machines first
+                    # Get all machines first (only those with price tracking enabled)
                     all_machines_response = (
                         self.supabase.table("machines")
                         .select(selected_columns)
+                        .eq("price_tracking_enabled", True)
                         .execute()
                     )
                     

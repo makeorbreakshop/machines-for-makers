@@ -16,6 +16,56 @@ class SiteSpecificExtractor:
         self.site_rules = {
             'commarker.com': {
                 'type': 'woocommerce',
+                'machine_specific_rules': {
+                    # Machine-specific rules for problematic ComMarker machines
+                    'ComMarker B6 MOPA 60W': {
+                        'url_patterns': ['/commarker-b6-jpt-mopa', '/b6-mopa'],
+                        'price_selectors': [
+                            # Target the Package/Bundle price area after selection
+                            '.package-selection .price .amount',
+                            '.bundle-selection .price .amount', 
+                            '.variation-selection .price .amount',
+                            '.selected-package .price .amount',
+                            '.package-options .price .amount',
+                            
+                            # Target main product price area
+                            '.woocommerce-product-details-short .price .woocommerce-Price-amount.amount',
+                            '.product-price .price .amount',
+                            '.entry-summary .price .amount',
+                            '.single-product .price .amount'
+                        ],
+                        'avoid_selectors': [
+                            '.bundle-price',  # Avoid bundle pricing
+                            '.package-price',
+                            '.related .price',
+                            '.upsell .price',
+                            '.cross-sell .price'
+                        ],
+                        'expected_price_range': [4500, 4700],  # Correct range: $4,589 (with Basic Bundle)
+                        'requires_dynamic': True  # May need variant selection for exact match
+                    },
+                    'ComMarker B4 100W MOPA': {
+                        'url_patterns': ['/b4-100w-jpt-mopa', '/b4-100w'],
+                        'price_selectors': [
+                            '.entry-summary .price ins .amount',  # Prioritize sale price
+                            '[data-price]',  # Data attribute method that worked
+                            '.product-summary .price ins .amount'
+                        ],
+                        'avoid_data_price_contamination': True,
+                        'expected_price_range': [6500, 6800]  # Based on manual correction
+                    },
+                    'ComMarker B6 30W': {
+                        'url_patterns': ['/commarker-b6', '/b6-30w'],
+                        'price_selectors': [
+                            '.entry-summary .price ins .amount',  # Sale price first
+                            '.product-summary .price ins .amount'
+                        ],
+                        'avoid_selectors': [
+                            '.price .amount:last-child'  # This selector grabbed wrong price
+                        ],
+                        'expected_price_range': [2300, 2500]  # Based on manual correction
+                    }
+                },
                 'avoid_contexts': [
                     'related-products', 'cross-sells', 'up-sells', 
                     'product-recommendations', 'comparison', 'bundle', 'package',
@@ -34,16 +84,13 @@ class SiteSpecificExtractor:
                     'woocommerce-product-details', 'entry-summary', 'product-price-wrapper'
                 ],
                 'price_selectors': [
-                    # AVOID bundle pricing - target base machine prices only
-                    # Analysis shows bundle selection leads to wrong extraction
-                    
-                    # Prioritize sale price selectors in main product area (base machine)
-                    '.product-summary .price ins .amount',  # Sale price in <ins> tag
-                    '.entry-summary .price ins .amount',
+                    # PRIORITIZE sale prices - ComMarker runs frequent sales
+                    '.entry-summary .price ins .amount',  # Sale price in <ins> tag (highest priority)
+                    '.product-summary .price ins .amount',  # Sale price in product summary
                     '.single-product-content .price ins .amount',
                     'form.cart .price ins .amount',
                     
-                    # Current base machine price after variant selection
+                    # Regular prices as fallback
                     '.product-summary .price .amount:last-child',
                     '.entry-summary .price .amount:last-child',
                     
@@ -66,8 +113,7 @@ class SiteSpecificExtractor:
                 ],
                 'strict_validation': True,  # Enable strict price validation
                 'requires_dynamic': True,  # Re-enable dynamic extraction for variant selection
-                # Removed machine_specific_validation - using percentage-based validation instead
-                # Fixed ranges were too restrictive and rejecting valid prices
+                'prioritize_sale_prices': True,  # New flag to prioritize <ins> tags
             },
             
             'cloudraylaser.com': {
@@ -185,6 +231,97 @@ class SiteSpecificExtractor:
                     r'starting at \$?([\d,]+)',  # "starting at $6995"
                     r'total[\s\n]*\$?([\d,]+)'   # "Total $6995"
                 ]
+            },
+            
+            'xtool.com': {
+                'type': 'shopify',
+                'avoid_meta_tags': True,  # Meta tags often inaccurate for xTool
+                'requires_dynamic': True,  # Better extraction with dynamic scraper
+                'machine_specific_rules': {
+                    # Machine-specific URL patterns and extraction rules
+                    'xTool S1': {
+                        'url_patterns': ['/s1', '/xtool-s1'],
+                        'avoid_meta_tags': True,  # Meta tags show wrong 10W price
+                        'requires_dynamic': True,  # Need dynamic scraper to get correct variant
+                        'price_selectors': [
+                            # More specific selectors to get current price, not compare price
+                            '.price__current .money:first-child',  # Current price (first in list)
+                            '.price__sale .money',  # Sale price specifically
+                            '.price .money:not(.price--compare):first-child',  # First price that's not compare
+                            '.product-price .price--sale .money',  # Sale price container
+                            '.price-item--sale .money'  # Sale price item
+                        ],
+                        'avoid_selectors': [
+                            '.price--compare',  # Compare/struck-out price ($2,199)
+                            '.price__was',  # "Was" price
+                            '.price--was',  # Alternative "was" price
+                            '[data-variant-price]',  # Wrong variant
+                            'meta[property="og:price:amount"]'  # Avoid meta tags for S1
+                        ],
+                        # No price range - use old price for validation instead
+                    },
+                    'xTool F1': {
+                        'url_patterns': ['/f1', '/xtool-f1'],
+                        'price_selectors': [
+                            '.product-badge-price',
+                            '.product-info .price-current'
+                        ],
+                        'expected_price_range': [1100, 1300]  # Based on manual correction
+                    },
+                    'xTool F2 Ultra': {
+                        'url_patterns': ['/f2-ultra', '/xtool-f2-ultra'],
+                        'price_selectors': [
+                            '.product-badge-price',
+                            '.product-info .price-current',
+                            '.price__current .money'
+                        ],
+                        'avoid_meta_tags': True,  # Meta tags inaccurate
+                        'expected_price_range': [5900, 6100]  # Based on manual correction
+                    }
+                },
+                'price_selectors': [
+                    # Primary selectors for current pricing
+                    '.product-badge-price',  # xTool's primary price display
+                    '.product-info .price .money',  # Main product price display
+                    '.price-container .price-current',  # Current price container
+                    '.product-price .current-price',  # Product page current price
+                    '[data-product-price] .money',  # Data attribute price
+                    '.price__regular .money',  # Regular price element
+                    
+                    # Sale price selectors (prioritize over regular)
+                    '.price__sale .money',  # Sale price
+                    '.sale-price .money',  # Alternative sale price
+                    '.price--on-sale .money',  # On sale price
+                    
+                    # Fallback selectors
+                    '.product-block-price .money',  # Product block price
+                    '.price-item--regular',  # Shopify regular price
+                    '.price .amount',  # Generic price amount
+                    '.current-price'  # Current price fallback
+                ],
+                'avoid_selectors': [
+                    '.price--compare',  # Comparison price (crossed out)
+                    '.was-price',  # Old price
+                    '.compare-at-price',  # Compare at price
+                    '.price__compare',  # Compare price element
+                    '.bundle-price',  # Bundle pricing
+                    '.shipping-price',  # Shipping costs
+                    '.tax-price'  # Tax amounts
+                ],
+                'validation': {
+                    # Price ranges based on known xTool machines
+                    'price_ranges': {
+                        'f1': {'min': 800, 'max': 1500},  # F1 series
+                        'f2': {'min': 3000, 'max': 6000},  # F2 series  
+                        's1': {'min': 1500, 'max': 2500},  # S1 series
+                        'p2': {'min': 3000, 'max': 4500},  # P2 series
+                        'm1': {'min': 800, 'max': 1200},   # M1 series
+                        'd1': {'min': 200, 'max': 600}     # D1 series
+                    }
+                },
+                'closest_to_old_price': True,  # Use closest to historical price logic
+                'meta_tag_fallback': False,  # Don't fall back to meta tags
+                'extraction_strategy': 'dynamic_preferred'  # Prefer dynamic over static
             },
             
             'atomstack.com': {
@@ -388,6 +525,40 @@ class SiteSpecificExtractor:
             
         }
     
+    def get_machine_specific_rules(self, domain, machine_name, url):
+        """
+        Get machine-specific extraction rules for problematic machines.
+        Returns modified site rules if machine-specific rules exist.
+        """
+        if domain in self.site_rules:
+            site_rule = self.site_rules[domain].copy()
+            machine_rules = site_rule.get('machine_specific_rules', {})
+            
+            # Check if we have specific rules for this machine
+            for machine_pattern, specific_rules in machine_rules.items():
+                if machine_pattern.lower() in machine_name.lower():
+                    # Check URL patterns to confirm this is the right machine
+                    url_patterns = specific_rules.get('url_patterns', [])
+                    if url_patterns and any(pattern in url.lower() for pattern in url_patterns):
+                        logger.info(f"🎯 Using machine-specific rules for {machine_name} (pattern: {machine_pattern})")
+                        
+                        # Merge machine-specific rules with site rules
+                        if 'price_selectors' in specific_rules:
+                            site_rule['price_selectors'] = specific_rules['price_selectors']
+                        if 'avoid_selectors' in specific_rules:
+                            site_rule['avoid_selectors'] = site_rule.get('avoid_selectors', []) + specific_rules['avoid_selectors']
+                        if 'expected_price_range' in specific_rules:
+                            site_rule['expected_price_range'] = specific_rules['expected_price_range']
+                        if 'avoid_meta_tags' in specific_rules:
+                            site_rule['avoid_meta_tags'] = specific_rules['avoid_meta_tags']
+                        if 'requires_dynamic' in specific_rules:
+                            site_rule['requires_dynamic'] = specific_rules['requires_dynamic']
+                        
+                        return site_rule
+            
+            return site_rule
+        return None
+
     def extract_price_with_rules(self, soup, html_content, url, machine_data=None):
         """
         Extract price using learned selectors first, then site-specific rules.
@@ -455,8 +626,15 @@ class SiteSpecificExtractor:
             
         # METHOD 1: Check if we have specific rules for this domain
         if domain in self.site_rules:
-            rules = self.site_rules[domain]
-            logger.info(f"Applying site-specific rules for {domain}")
+            # Check for machine-specific rules first
+            machine_name = machine_data.get('Machine Name', '') if machine_data else ''
+            rules = self.get_machine_specific_rules(domain, machine_name, url)
+            
+            if rules is None:
+                rules = self.site_rules[domain]
+                logger.info(f"Applying site-specific rules for {domain}")
+            else:
+                logger.info(f"Applying machine-specific rules for {machine_name} on {domain}")
             
             # Try site-specific extraction
             price, method = self._extract_with_site_rules(soup, html_content, url, rules, machine_data)

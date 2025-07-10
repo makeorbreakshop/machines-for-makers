@@ -35,6 +35,9 @@ MAX_PRICE_INCREASE_PERCENT = float(os.getenv("MAX_PRICE_INCREASE_PERCENT", "0"))
 MAX_PRICE_DECREASE_PERCENT = float(os.getenv("MAX_PRICE_DECREASE_PERCENT", "0"))  # 0% = ALL decreases require review
 MIN_PRICE_THRESHOLD = float(os.getenv("MIN_PRICE_THRESHOLD", "10"))  # Minimum price to consider valid
 
+# Concurrent Processing Configuration
+MAX_CONCURRENT_EXTRACTIONS = int(os.getenv("MAX_CONCURRENT_EXTRACTIONS", "5"))  # Default to 5 concurrent workers
+
 # Configure logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 

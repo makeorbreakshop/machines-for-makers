@@ -261,6 +261,7 @@ export default function PriceTrackerAdmin() {
   const [batchPreviewCount, setBatchPreviewCount] = useState<number | null>(null)
   const [batchPreviewLoading, setBatchPreviewLoading] = useState(false)
   const [machineLimit, setMachineLimit] = useState<number | null>(10)
+  const [maxWorkers, setMaxWorkers] = useState<number>(3)
   const [previewMachineIds, setPreviewMachineIds] = useState<string[]>([])
   const [batches, setBatches] = useState<any[]>([])
   const [loadingBatches, setLoadingBatches] = useState(false)
@@ -352,11 +353,14 @@ export default function PriceTrackerAdmin() {
           case 'SUCCESS':
             query = query.eq('status', 'SUCCESS')
             break
+          case 'MANUAL_CORRECTION':
+            query = query.eq('status', 'MANUAL_CORRECTION')
+            break
           case 'REVIEWED_APPROVED':
-            query = query.eq('status', 'REVIEWED').eq('review_result', 'approved')
+            query = query.eq('status', 'REVIEWED').eq('review_result', 'APPROVED')
             break
           case 'REVIEWED_REJECTED':
-            query = query.eq('status', 'REVIEWED').eq('review_result', 'rejected')
+            query = query.eq('status', 'REVIEWED').eq('review_result', 'REJECTED')
             break
           case 'FAILED':
             query = query.eq('status', 'FAILED').not('failure_reason', 'like', '%Pending review%')
@@ -535,9 +539,9 @@ export default function PriceTrackerAdmin() {
   // Initial setup
   useEffect(() => {
     if (pythonApiReady) {
-      previewBatchUpdate(daysThreshold, machineLimit)
+      previewBatchUpdate(daysThreshold, machineLimit, maxWorkers)
     }
-  }, [pythonApiReady, daysThreshold, machineLimit])
+  }, [pythonApiReady, daysThreshold, machineLimit, maxWorkers])
   
   
   // Handle price history modal
@@ -666,11 +670,11 @@ export default function PriceTrackerAdmin() {
     // Reset preview count
     setBatchPreviewCount(null)
     // Start loading preview
-    previewBatchUpdate(daysThreshold, machineLimit)
+    previewBatchUpdate(daysThreshold, machineLimit, maxWorkers)
   }
   
   // Function to preview batch update (count of machines)
-  const previewBatchUpdate = async (days: number, limit: number | null = null) => {
+  const previewBatchUpdate = async (days: number, limit: number | null = null, workers: number = 3) => {
     try {
       setBatchPreviewLoading(true)
       
@@ -687,7 +691,8 @@ export default function PriceTrackerAdmin() {
         },
         body: JSON.stringify({ 
           days_threshold: days,
-          limit: limit 
+          limit: limit,
+          max_workers: workers
         })
       })
       
@@ -731,6 +736,7 @@ export default function PriceTrackerAdmin() {
         body: JSON.stringify({ 
           days_threshold: daysThreshold,
           limit: machineLimit,
+          max_workers: maxWorkers,
           machine_ids: previewMachineIds // Pass the machine IDs from preview
         })
       })
@@ -1473,7 +1479,7 @@ export default function PriceTrackerAdmin() {
                   onChange={(e) => {
                     const newValue = Number(e.target.value)
                     setDaysThreshold(newValue)
-                    previewBatchUpdate(newValue, machineLimit)
+                    previewBatchUpdate(newValue, machineLimit, maxWorkers)
                   }}
                   className="w-20"
                 />
@@ -1493,7 +1499,7 @@ export default function PriceTrackerAdmin() {
                 onValueChange={(value) => {
                   const limit = value === "all" ? null : parseInt(value)
                   setMachineLimit(limit)
-                  previewBatchUpdate(daysThreshold, limit)
+                  previewBatchUpdate(daysThreshold, limit, maxWorkers)
                 }}
               >
                 <SelectTrigger id="machine-limit" className="w-full">
@@ -1509,6 +1515,34 @@ export default function PriceTrackerAdmin() {
               </Select>
               <p className="text-sm text-gray-500">
                 Limit the number of machines to update at once.
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="max-workers">Max Workers (Concurrent Processing):</Label>
+              <Select 
+                value={maxWorkers.toString()} 
+                defaultValue="3"
+                onValueChange={(value) => {
+                  const workers = parseInt(value)
+                  setMaxWorkers(workers)
+                  previewBatchUpdate(daysThreshold, machineLimit, workers)
+                }}
+              >
+                <SelectTrigger id="max-workers" className="w-full">
+                  <SelectValue placeholder="Select workers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 worker (slowest, safest)</SelectItem>
+                  <SelectItem value="2">2 workers</SelectItem>
+                  <SelectItem value="3">3 workers (recommended)</SelectItem>
+                  <SelectItem value="4">4 workers</SelectItem>
+                  <SelectItem value="5">5 workers</SelectItem>
+                  <SelectItem value="6">6 workers (fastest, may trigger rate limits)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-gray-500">
+                Number of machines to process simultaneously. Higher values are faster but may trigger rate limits on some websites.
               </p>
             </div>
             
@@ -1533,7 +1567,7 @@ export default function PriceTrackerAdmin() {
                     <p className="text-xs text-gray-500">
                       This shows machines whose prices haven't changed within {daysThreshold} days. 
                       Many machines may have been checked recently but had no price changes.
-                      The actual batch will process up to {machineLimit || 'all'} of these machines.
+                      The actual batch will process up to {machineLimit || 'all'} of these machines using {maxWorkers} concurrent worker{maxWorkers === 1 ? '' : 's'}.
                     </p>
                   )}
                 </div>

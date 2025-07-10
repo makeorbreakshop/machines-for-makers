@@ -382,13 +382,125 @@ class DynamicScraper:
                         logger.debug(f"MOPA selector {selector} failed: {str(e)}")
                         continue
             
-            # CRITICAL: AVOID bundle selection for ComMarker - extract base machine price only
-            # Analysis shows bundle selection leads to wrong prices:
-            # - B6 MOPA 30W: $3,599 (bundle) vs $3,569 (base machine)
-            # - B6 MOPA 60W: $4,799 (bundle) vs $4,589 (base machine)
-            # - Omni 1 UV: $3,224 (bundle) vs $3,888 (base machine)
-            # - B6 30W: $2,399 (base machine after 30W selection)
-            logger.info("✅ Skipping bundle selection for ComMarker to get base machine price")
+            # Bundle selection logic - most ComMarker machines need base price, but some need bundle price
+            should_select_bundle = False
+            
+            # Special case: B6 MOPA 60W specifically needs "B6 Mopa Basic Bundle" selection
+            if "B6 MOPA 60W" in machine_name:
+                should_select_bundle = True
+                logger.info("🎯 B6 MOPA 60W detected - will select Basic Bundle for correct pricing")
+            else:
+                # For other machines, avoid bundle selection for base machine price
+                logger.info("✅ Skipping bundle selection for ComMarker to get base machine price")
+            
+            # Select bundle if needed
+            if should_select_bundle:
+                try:
+                    # Look for "B6 Mopa Basic Bundle" in Package dropdown/selection
+                    bundle_selectors = [
+                        # Select elements and option tags (most likely for ComMarker)
+                        'select[name*="package"] option:has-text("B6 Mopa Basic Bundle")',
+                        'select[name*="package"] option:has-text("Basic Bundle")',
+                        'option[value*="basic-bundle"]',
+                        'option:has-text("B6 Mopa Basic Bundle")',
+                        'option:has-text("Basic Bundle")',
+                        
+                        # Radio buttons or labels for package selection
+                        'input[name*="package"][value*="basic"]',
+                        'label:has-text("B6 Mopa Basic Bundle")',
+                        'label:has-text("Basic Bundle")',
+                        
+                        # Button-style selections
+                        'button:has-text("B6 Mopa Basic Bundle")',
+                        'button:has-text("Basic Bundle")',
+                        
+                        # Data attributes
+                        '[data-value*="basic-bundle"]',
+                        '[value*="basic-bundle"]'
+                    ]
+                    
+                    bundle_selected = False
+                    
+                    # First try to find and use select dropdown (most common for WooCommerce)
+                    select_elements = await self.page.query_selector_all('select')
+                    for select_elem in select_elements:
+                        try:
+                            # Check if this is the package/bundle selection dropdown
+                            select_name = await select_elem.get_attribute('name') or ""
+                            if 'package' in select_name.lower() or 'bundle' in select_name.lower():
+                                logger.info(f"Found package dropdown: {select_name}")
+                                
+                                # Look for Basic Bundle option
+                                options = await select_elem.query_selector_all('option')
+                                for option in options:
+                                    option_text = await option.text_content()
+                                    option_value = await option.get_attribute('value') or ""
+                                    
+                                    if option_text and ('basic bundle' in option_text.lower() or 
+                                                       'b6 mopa basic' in option_text.lower()):
+                                        logger.info(f"Found Basic Bundle option: '{option_text.strip()}' (value: {option_value})")
+                                        await select_elem.select_option(value=option_value)
+                                        logger.info("✅ Successfully selected B6 Mopa Basic Bundle from dropdown")
+                                        await self.page.wait_for_timeout(5000)  # Wait longer for price update
+                                        bundle_selected = True
+                                        break
+                                
+                                if bundle_selected:
+                                    break
+                        except Exception as e:
+                            logger.debug(f"Dropdown selection failed: {str(e)}")
+                    
+                    # Fallback to clicking elements if dropdown selection failed
+                    if not bundle_selected:
+                        for selector in bundle_selectors:
+                            try:
+                                element = await self.page.query_selector(selector)
+                                if element:
+                                    element_text = await element.text_content()
+                                    logger.info(f"Found bundle element: '{element_text.strip()}' with selector: {selector}")
+                                    await element.click(timeout=5000)
+                                    logger.info("✅ Successfully clicked B6 Mopa Basic Bundle")
+                                    await self.page.wait_for_timeout(2000)  # Wait for price update
+                                    bundle_selected = True
+                                    break
+                            except Exception as e:
+                                logger.debug(f"Bundle selector '{selector}' failed: {str(e)}")
+                    
+                    if not bundle_selected:
+                        logger.warning("⚠️ Failed to select Basic Bundle - may get base machine price instead")
+                    else:
+                        # After bundle selection, wait and check what price is shown
+                        logger.info("🔍 Bundle selected, waiting for price to update...")
+                        await self.page.wait_for_timeout(5000)  # Extra wait for price update
+                        
+                        # Try to find the specific bundle price
+                        bundle_price_selectors = [
+                            '.woocommerce-variation .woocommerce-variation-price .amount',
+                            '.single_variation_wrap .woocommerce-variation-price .amount',
+                            '.single_variation .price .amount',
+                            '.woocommerce-variation-price .price',
+                            '.single_variation .price',
+                            '.variation-price .price',
+                            'p.price .amount',
+                            'p.price'
+                        ]
+                        
+                        for selector in bundle_price_selectors:
+                            try:
+                                elem = await self.page.query_selector(selector)
+                                if elem:
+                                    text = await elem.text_content()
+                                    logger.info(f"🎯 Found price element after bundle selection: '{text}' via {selector}")
+                                    # Also try to get just the amount
+                                    amount_elem = await elem.query_selector('.amount')
+                                    if amount_elem:
+                                        amount_text = await amount_elem.text_content()
+                                        logger.info(f"  💰 Amount only: '{amount_text}'")
+                            except:
+                                pass
+                        
+                except Exception as e:
+                    logger.error(f"Error selecting bundle: {str(e)}")
             
             # Verify power selection was successful by checking for price updates
             # Wait for JavaScript to update the main product price
@@ -612,34 +724,66 @@ class DynamicScraper:
             
             # Use site-specific selectors for ComMarker
             if 'commarker.com' in domain:
-                price_selectors = [
-                    # CRITICAL FIX: Target BASE MACHINE prices only, NOT bundle prices
-                    # Analysis shows bundle prices are wrong:
-                    # - B6 MOPA 30W: $3,599 (bundle) vs $3,569 (base machine) 
-                    # - B6 MOPA 60W: $4,799 (bundle) vs $4,589 (base machine)
-                    # - B6 30W: Should be $2,399 (base machine after 30W selection)
-                    
-                    # Main product price area after power variant selection
-                    '.product-summary .price ins .amount',      # Base machine sale price
-                    '.entry-summary .price ins .amount',        # Base machine sale price (alt)
-                    '.single-product-content .price ins .amount', # Base machine in product content
-                    
-                    # After variant selection, the main price should update
-                    '.woocommerce-variation-price .price ins .amount',  # Variation sale price
-                    '.woocommerce-variation-price .price .amount:last-child',  # Variation current price
-                    
-                    # Main product area regular prices (if no sale)
-                    '.product-summary .price .amount:last-child',  # Base machine current price
-                    '.entry-summary .price .amount:last-child',    # Base machine current price (alt)
-                    
-                    # Form area prices (cart/purchase area)
-                    'form.cart .price ins .amount',             # Cart form sale price
-                    'form.cart .price .amount:last-child',      # Cart form current price
-                    
-                    # Data attributes as final fallback (base machine area only)
-                    '.product-summary [data-price]',
-                    '.entry-summary [data-price]'
-                ]
+                # Special case: B6 MOPA 60W needs bundle price selectors
+                if machine_name and "B6 MOPA 60W" in machine_name:
+                    price_selectors = [
+                        # WooCommerce variation price display (highest priority)
+                        '.woocommerce-variation .woocommerce-variation-price .amount',
+                        '.single_variation_wrap .woocommerce-variation-price .amount',
+                        '.single_variation .price .amount',
+                        'form.variations_form .single_variation .price',
+                        '.variations_form .woocommerce-variation-price span.amount',
+                        
+                        # Variation area after both selections
+                        '.woocommerce-variation-price .price ins .amount',  # Sale price in variation
+                        '.woocommerce-variation-price .price .amount:last-child',
+                        '.single_variation_wrap .price ins .amount',
+                        '.single_variation_wrap .price .amount',
+                        
+                        # The price that appears after selecting package
+                        'p.price .amount',
+                        'div.price .amount',
+                        '.price-wrapper .amount',
+                        '.product-price-wrapper .amount',
+                        
+                        # Inside the variations form
+                        '.variations_form .price .amount',
+                        'form.cart .woocommerce-variation-price .amount',
+                        'form.variations_form .price span.amount',
+                        
+                        # Main product area (may update after selection)
+                        '.summary .price .amount',
+                        '.product-summary .price .amount',
+                        '.entry-summary .price .amount',
+                        
+                        # Any price element that appears after variation selection
+                        '.price:not(.bundle-price) .amount',
+                        '.woocommerce-Price-amount.amount'
+                    ]
+                else:
+                    # For other ComMarker machines: Target BASE MACHINE prices only, NOT bundle prices
+                    price_selectors = [
+                        # Main product price area after power variant selection
+                        '.product-summary .price ins .amount',      # Base machine sale price
+                        '.entry-summary .price ins .amount',        # Base machine sale price (alt)
+                        '.single-product-content .price ins .amount', # Base machine in product content
+                        
+                        # After variant selection, the main price should update
+                        '.woocommerce-variation-price .price ins .amount',  # Variation sale price
+                        '.woocommerce-variation-price .price .amount:last-child',  # Variation current price
+                        
+                        # Main product area regular prices (if no sale)
+                        '.product-summary .price .amount:last-child',  # Base machine current price
+                        '.entry-summary .price .amount:last-child',    # Base machine current price (alt)
+                        
+                        # Form area prices (cart/purchase area)
+                        'form.cart .price ins .amount',             # Cart form sale price
+                        'form.cart .price .amount:last-child',      # Cart form current price
+                        
+                        # Data attributes as final fallback (base machine area only)
+                        '.product-summary [data-price]',
+                        '.entry-summary [data-price]'
+                    ]
             else:
                 # Default selectors for other sites
                 price_selectors = [
@@ -679,6 +823,17 @@ class DynamicScraper:
             # Collect all valid price candidates instead of returning the first one
             valid_prices = []
             
+            # Special handling for ComMarker B6 MOPA 60W - expand price range
+            if machine_name and "B6 MOPA 60W" in machine_name and 'commarker.com' in domain:
+                logger.info("🎯 B6 MOPA 60W detected - expanding search range for bundle price")
+                # For B6 MOPA 60W with Basic Bundle, we expect prices around $4,589
+                # Expand the range to ensure we capture it
+                if min_price > 4000:
+                    min_price = 4000
+                if max_price < 5000:
+                    max_price = 5000
+                logger.info(f"Adjusted price range for B6 MOPA 60W: ${min_price:.2f} - ${max_price:.2f}")
+            
             for selector in price_selectors:
                 try:
                     elements = soup.select(selector)
@@ -687,7 +842,12 @@ class DynamicScraper:
                         if price_text:
                             price = self._parse_price_string(price_text)
                             if price:
-                                logger.debug(f"Parsed price ${price} from text '{price_text}' - checking range ${min_price:.2f} - ${max_price:.2f}")
+                                # Enhanced logging for B6 MOPA 60W
+                                if machine_name and "B6 MOPA 60W" in machine_name:
+                                    logger.info(f"🔍 B6 MOPA 60W - Found price ${price} from text '{price_text}' via selector: {selector}")
+                                else:
+                                    logger.debug(f"Parsed price ${price} from text '{price_text}' - checking range ${min_price:.2f} - ${max_price:.2f}")
+                                
                                 if min_price <= price <= max_price:
                                     # Additional machine-specific validation for ComMarker
                                     if self._validate_commarker_price(price, current_url, machine_name):
@@ -786,9 +946,10 @@ class DynamicScraper:
                     logger.warning(f"ComMarker B6 price ${price} outside reasonable range $1,500-$3,000")
                     return False
             elif model == 'B6' and is_mopa:
-                # B6 MOPA models: typically $3,000-$5,000
-                if price < 2500 or price > 6000:
-                    logger.warning(f"ComMarker B6 MOPA price ${price} outside reasonable range $2,500-$6,000")
+                # B6 MOPA models: typically $3,000-$5,000 for base, up to $5,500 with Basic Bundle
+                # B6 MOPA 60W with Basic Bundle is specifically $4,589
+                if price < 2500 or price > 5500:
+                    logger.warning(f"ComMarker B6 MOPA price ${price} outside reasonable range $2,500-$5,500")
                     return False
             
             # Catch obvious bundle contamination - bundles are typically 50%+ higher
