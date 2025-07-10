@@ -9,12 +9,15 @@ import { Plus, Check, Star } from "lucide-react"
 import { useComparison } from "@/context/comparison-context"
 import type { Machine } from "@/lib/database-types"
 import RatingMeter from "./rating-meter"
+import { PriceDropBadge } from "@/components/price-drops/price-drop-badge"
+import type { PriceDropInfo } from "@/lib/services/price-drop-service"
 
 interface ProductsGridProps {
   products: Machine[]
   totalProducts: number
   onLoadMore?: () => void
   hasMoreProducts?: boolean
+  priceDrops?: Map<string, PriceDropInfo>
 }
 
 export default function ProductsGrid({
@@ -22,6 +25,7 @@ export default function ProductsGrid({
   totalProducts,
   onLoadMore,
   hasMoreProducts = false,
+  priceDrops
 }: ProductsGridProps) {
   const { addToComparison, removeFromComparison, isSelected } = useComparison()
 
@@ -51,6 +55,16 @@ export default function ProductsGrid({
                     <Badge className="bg-amber-500 hover:bg-amber-600">
                       {product["Award"]}
                     </Badge>
+                  </div>
+                )}
+
+                {priceDrops?.has(product.id) && (
+                  <div className="absolute top-2 left-2 z-10" style={{ marginTop: product["Award"] ? '32px' : '0' }}>
+                    <PriceDropBadge 
+                      percentageChange={priceDrops.get(product.id)!.percentageChange}
+                      isAllTimeLow={priceDrops.get(product.id)!.isAllTimeLow}
+                      size="sm"
+                    />
                   </div>
                 )}
 

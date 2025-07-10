@@ -87,6 +87,13 @@ export default function Navbar() {
             </Link>
             <nav className="hidden md:flex items-center space-x-6">
               <Link 
+                href="/deals" 
+                className="flex items-center text-sm font-medium hover:text-primary"
+              >
+                <Tag className="h-4 w-4 mr-1.5" />
+                Deals
+              </Link>
+              <Link 
                 href="/compare" 
                 className="flex items-center text-sm font-medium hover:text-primary"
               >
@@ -150,6 +157,14 @@ export default function Navbar() {
           style={{ top: '61px' }} // Height of the header
         >
           <nav className="flex flex-col p-6 space-y-6 border-t">
+            <Link 
+              href="/deals" 
+              className="flex items-center text-lg font-medium hover:text-primary"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Tag className="h-5 w-5 mr-2" />
+              Deals
+            </Link>
             <Link 
               href="/compare" 
               className="flex items-center text-lg font-medium hover:text-primary"

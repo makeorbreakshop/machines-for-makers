@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { dataProvider } from "@/lib/data-provider"
 import { ArrowRight } from "lucide-react"
 import { createServerClient } from "@/lib/supabase/server"
+import { PriceDropService } from "@/lib/services/price-drop-service"
+import { PriceDropBadge } from "@/components/price-drops/price-drop-badge"
 
 // Implement ISR with a 1-hour revalidation period
 export const revalidate = 3600
@@ -82,6 +84,10 @@ export default async function HomePage() {
   // Get top picks directly from Supabase
   const directAwardProducts = await getTopPicks();
   
+  // Get price drops for the featured products
+  const machineIds = directAwardProducts.map(p => p.id);
+  const priceDrops = await PriceDropService.getRecentPriceDrops(machineIds, 7);
+  
   // Debug what we're showing
   console.log('Top picks count:', directAwardProducts.length);
 
@@ -98,6 +104,9 @@ export default async function HomePage() {
               </p>
               <div className="flex justify-center gap-4">
                 <Button size="lg" asChild>
+                  <Link href="/deals">View Deals</Link>
+                </Button>
+                <Button size="lg" variant="outline" asChild>
                   <Link href="/compare">Compare Products</Link>
                 </Button>
               </div>
@@ -116,6 +125,15 @@ export default async function HomePage() {
               <Link key={product.id} href={`/products/${product.slug}`}>
                 <Card className="overflow-hidden h-full transition-transform hover:scale-[1.02]">
                   <div className="relative h-52 flex items-center justify-center">
+                    {priceDrops.has(product.id) && (
+                      <div className="absolute top-2 left-2 z-10">
+                        <PriceDropBadge 
+                          percentageChange={priceDrops.get(product.id)!.percentageChange}
+                          isAllTimeLow={priceDrops.get(product.id)!.isAllTimeLow}
+                          size="sm"
+                        />
+                      </div>
+                    )}
                     <Image
                       src={product.image_url || "/placeholder.svg?height=200&width=200"}
                       alt={product.machine_name || `Featured product ${product.id || "image"}`}
