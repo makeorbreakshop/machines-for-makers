@@ -343,6 +343,7 @@ When price extraction fails:
 | **Garbled/corrupted content** | **Brotli compression without decompression** | **Remove 'br' from Accept-Encoding** |
 | **Thunder Laser failures** | **Complex Chinese e-commerce** | **Temporarily exclude domain** |
 | **"Repeated" machines in batches** | **Misunderstanding filtering logic** | **Analyze html_timestamp updates** |
+| **Variant selection timeout** | **Wrong selector pattern (dropdown vs button)** | **Inspect HTML structure, use data-value attributes** |
 
 ### 3. Testing New Site Rules
 
@@ -351,6 +352,146 @@ When price extraction fails:
 3. **Test multiple machines** from same site
 4. **Run small batch test** before full batch
 5. **Monitor for selector contamination**
+
+## Troubleshooting Common Issues
+
+### Variant Selection Issues: Dropdown vs Button Structure
+
+**Problem**: E-commerce sites use different variant selection mechanisms, but scraper assumes one pattern.
+
+**Example Case**: ComMarker B6 MOPA variants use button-style selectors with `data-value` attributes, not dropdown `<select>` elements.
+
+**Symptoms**:
+- Variant selection fails with "element not visible" errors
+- Wrong variant prices extracted
+- Timeout errors on variant selection attempts
+
+**Root Cause**: Assuming all variant selection uses dropdown patterns:
+```python
+# Incorrect assumption - not all sites use dropdowns
+power_select = await page.query_selector('select[name="attribute_pa_effect-power"]')
+await power_select.select_option('b6-mopa-60w')
+```
+
+**Solution**: Inspect actual HTML structure and use appropriate selectors:
+
+**ComMarker Button Structure**:
+```html
+<div class="wd-swatch wd-text wd-active wd-enabled" 
+     data-value="b6-mopa-60w" 
+     data-title="B6 MOPA 60W">
+    <div class="wd-swatch-wrapper">
+        <div class="wd-swatch-text">B6 MOPA 60W</div>
+    </div>
+</div>
+```
+
+**Correct Implementation**:
+```python
+# Use button structure with data-value attributes
+if model and is_mopa:
+    power_selectors = [
+        f'div.wd-swatch[data-value="{model.lower()}-mopa-{power}w"]',
+        f'.wd-swatch[data-value="{model.lower()}-mopa-{power}w"]',
+        f'[data-value="{model.lower()}-mopa-{power}w"]',
+    ]
+
+for selector in power_selectors:
+    element = await page.query_selector(selector)
+    if element:
+        await element.click()  # Click button, don't use select_option
+        break
+```
+
+**Prevention**:
+- Always inspect HTML structure before implementing variant selection
+- Test with browser dev tools to understand interaction patterns
+- Use fallback selectors for different site architectures
+- Document site-specific variant patterns in extraction rules
+
+### URL Redirects Breaking Extraction
+
+**Problem**: Price extraction fails when a product URL redirects to a different domain, causing site-specific rules to not match.
+
+**Example Case**: EMP ST60J redirected from `aeonlaser.us/emp-laser` to `emplaser.com/emp-galvo-lasers`
+
+**Symptoms**:
+- Extraction works on old domain but fails after redirect
+- Wrong price extracted due to missing site-specific rules for new domain
+- Generic selectors extract incorrect prices
+
+**Solutions**:
+
+1. **Update the URL in the database** to the new destination URL:
+   ```sql
+   UPDATE machines 
+   SET product_link = 'https://emplaser.com/emp-galvo-lasers'
+   WHERE id = 'machine-uuid-here';
+   ```
+
+2. **Add site-specific rules for the new domain**:
+   ```python
+   'emplaser.com': {
+       'type': 'static_table',
+       'requires_dynamic': False,
+       'extraction_strategy': 'table_column',
+       # ... specific rules for new site
+   }
+   ```
+
+3. **Document the redirect in original domain rules**:
+   ```python
+   'aeonlaser.us': {
+       'redirect_to': 'emplaser.com',  # Note the redirect
+       # ... other rules
+   }
+   ```
+
+**Prevention**:
+- Monitor failed extractions for redirect patterns
+- Use `curl -I` to check response headers for 301/302 redirects
+- Update URLs proactively when manufacturers change domains
+
+### Price Extraction From Tables
+
+**Problem**: Table-based pricing structures require special handling when prices are in columns.
+
+**Example**: EMP products on emplaser.com have a pricing table where:
+- Row headers contain "Pricing"
+- Column headers contain model names
+- Prices are in specific column positions
+
+**Solution**: Use table column extraction strategy:
+```python
+'extraction_strategy': 'table_column',
+'machine_specific_rules': {
+    'EMP ST60J': {
+        'table_column': 5,  # Sixth column (0-indexed)
+        'keywords': ['ST60J', 'ST 60J', '60J']
+    }
+}
+```
+
+### Debugging Price Extraction Failures
+
+**Quick Diagnostic Commands**:
+
+1. **Check for redirects**:
+   ```bash
+   curl -I "https://original-url.com/product" | grep -i location
+   ```
+
+2. **Inspect page structure**:
+   ```bash
+   curl -s "https://site.com/product" | grep -A 5 -B 5 "price"
+   ```
+
+3. **Test extraction via API**:
+   ```bash
+   curl -X POST http://localhost:8000/api/v1/update-price \
+     -H "Content-Type: application/json" \
+     -d '{"machine_id": "machine-uuid"}' | jq
+   ```
 
 ## Best Practices
 

@@ -205,40 +205,43 @@ class DynamicScraper:
             
             logger.info(f"Detected model: {model}, power: {power}W, MOPA: {is_mopa}")
             
-            # First try to select power/wattage using improved selectors
+            # First try to select power/wattage using improved selectors for ComMarker's button structure
             if power:
-                # Enhanced power selectors based on ComMarker's current structure
+                # ComMarker uses wd-swatch button structure, not dropdowns
                 power_selectors = []
                 
-                # Priority 1: Exact model + power combinations (base machine only)
-                if model:
+                # Priority 1: ComMarker's specific wd-swatch button structure with data-value attributes
+                if model and is_mopa:
+                    # For MOPA variants: "b6-mopa-60w" format
                     power_selectors.extend([
-                        f'button:has-text("{model} {power}W"):not(:has-text("Bundle")):not(:has-text("Package"))',  # e.g., "B6 30W" (not bundle)
-                        f'label:has-text("{model} {power}W"):not(:has-text("Bundle")):not(:has-text("Package"))',   # Label elements
-                        f'span:has-text("{model} {power}W"):not(:has-text("Bundle")):not(:has-text("Package"))',    # Span elements
-                        f'div:has-text("{model} {power}W"):not(:has-text("Bundle")):not(:has-text("Package"))',     # Div elements
+                        f'div.wd-swatch[data-value="{model.lower()}-mopa-{power}w"]',
+                        f'.wd-swatch[data-value="{model.lower()}-mopa-{power}w"]',
+                        f'[data-value="{model.lower()}-mopa-{power}w"]',
+                    ])
+                elif model:
+                    # For non-MOPA variants: "b6-30w" format  
+                    power_selectors.extend([
+                        f'div.wd-swatch[data-value="{model.lower()}-{power}w"]',
+                        f'.wd-swatch[data-value="{model.lower()}-{power}w"]',
+                        f'[data-value="{model.lower()}-{power}w"]',
                     ])
                 
-                # Priority 2: Power-only selectors with comprehensive bundle avoidance
+                # Priority 2: Generic power selectors for wd-swatch structure
                 power_selectors.extend([
-                    f'button:has-text("{power}W"):not(:has-text("Bundle")):not(:has-text("Combo")):not(:has-text("Package")):not(:has-text("Kit"))',  # Avoid all bundle types
-                    f'label:has-text("{power}W"):not(:has-text("Bundle")):not(:has-text("Combo")):not(:has-text("Package")):not(:has-text("Kit"))',
-                    f'input[value="{power}W"]',                    # Exact value match
-                    f'input[value="{power}"]',                     # Numeric value match
-                    f'option[value*="{power}W"]',                  # Select options
-                    f'[data-value="{power}W"]',                    # Data attribute exact
-                    f'[data-value="{power}"]',                     # Data attribute numeric
+                    f'div.wd-swatch[data-title*="{power}W"]',      # Data title attribute
+                    f'.wd-swatch[data-title*="{power}W"]',
+                    f'div.wd-swatch:has(.wd-swatch-text:text("{power}W"))',  # Text within swatch
+                    f'.wd-swatch:has(.wd-swatch-text:text("{power}W"))',
                 ])
                 
-                # Priority 3: Effect Power section targeting (ComMarker specific)
+                # Priority 3: Fallback to data-value patterns
                 power_selectors.extend([
-                    f'.effect-power button:has-text("{power}W")',  # Effect Power section
-                    f'.effect-power label:has-text("{power}W")',   # Effect Power labels
-                    f'.variation-radios button:has-text("{power}W")', # Variation radio buttons
-                    f'.variation-option[data-value="{power}W"]',   # Variation options
+                    f'[data-value*="{power}w"]',                    # Data attribute contains power
+                    f'[data-value*="{power}W"]',                    # Data attribute contains power (uppercase)
+                    f'[data-title*="{power}W"]',                    # Data title contains power
                 ])
                 
-                # Priority 4: More flexible text matching (base machine only)
+                # Priority 4: Text-based selectors as final fallback
                 power_selectors.extend([
                     f'text={power}W >> visible=true',              # Playwright text selector (visible only)
                     f'text="{power}W" >> visible=true',            # Quoted text selector (visible only)
@@ -396,27 +399,35 @@ class DynamicScraper:
             # Select bundle if needed
             if should_select_bundle:
                 try:
-                    # Look for "B6 Mopa Basic Bundle" in Package dropdown/selection
+                    # Look for "B6 Mopa Basic Bundle" using ComMarker's wd-swatch button structure
                     bundle_selectors = [
-                        # Select elements and option tags (most likely for ComMarker)
+                        # Priority 1: ComMarker's wd-swatch button structure for packages
+                        'div.wd-swatch[data-value="b6-mopa-basic-bundle"]',
+                        '.wd-swatch[data-value="b6-mopa-basic-bundle"]',
+                        '[data-value="b6-mopa-basic-bundle"]',
+                        
+                        # Priority 2: Alternative data-value patterns
+                        'div.wd-swatch[data-value*="basic-bundle"]',
+                        '.wd-swatch[data-value*="basic-bundle"]',
+                        '[data-value*="basic-bundle"]',
+                        
+                        # Priority 3: Data-title attribute patterns
+                        'div.wd-swatch[data-title*="Basic Bundle"]',
+                        '.wd-swatch[data-title*="Basic Bundle"]',
+                        '[data-title*="Basic Bundle"]',
+                        
+                        # Priority 4: Text-based selectors within wd-swatch structure
+                        'div.wd-swatch:has(.wd-swatch-text:text("B6 Mopa Basic Bundle"))',
+                        '.wd-swatch:has(.wd-swatch-text:text("B6 Mopa Basic Bundle"))',
+                        'div.wd-swatch:has(.wd-swatch-text:text("Basic Bundle"))',
+                        '.wd-swatch:has(.wd-swatch-text:text("Basic Bundle"))',
+                        
+                        # Fallback: Legacy selectors for other potential structures
                         'select[name*="package"] option:has-text("B6 Mopa Basic Bundle")',
                         'select[name*="package"] option:has-text("Basic Bundle")',
                         'option[value*="basic-bundle"]',
-                        'option:has-text("B6 Mopa Basic Bundle")',
-                        'option:has-text("Basic Bundle")',
-                        
-                        # Radio buttons or labels for package selection
-                        'input[name*="package"][value*="basic"]',
-                        'label:has-text("B6 Mopa Basic Bundle")',
-                        'label:has-text("Basic Bundle")',
-                        
-                        # Button-style selections
                         'button:has-text("B6 Mopa Basic Bundle")',
-                        'button:has-text("Basic Bundle")',
-                        
-                        # Data attributes
-                        '[data-value*="basic-bundle"]',
-                        '[value*="basic-bundle"]'
+                        'button:has-text("Basic Bundle")'
                     ]
                     
                     bundle_selected = False
@@ -567,7 +578,8 @@ class DynamicScraper:
             logger.info(f"🔧 Starting Aeon configurator navigation for: {machine_name}")
             
             # Parse machine name for model details
-            model_match = re.search(r'(MIRA\s*\d+\s*[A-Z]*)', machine_name, re.IGNORECASE)
+            # Handle both MIRA and EMP models
+            model_match = re.search(r'(MIRA\s*\d+\s*[A-Z]*|EMP\s*[A-Z]*\d+[A-Z]*)', machine_name, re.IGNORECASE)
             model = model_match.group(1).strip() if model_match else None
             
             logger.info(f"Detected Aeon model: {model}")
@@ -673,6 +685,88 @@ class DynamicScraper:
                         logger.debug(f"MIRA variant selector {selector} failed: {str(e)}")
                         continue
             
+            # Handle EMP models specifically
+            elif 'EMP' in machine_name.upper():
+                logger.info(f"🎯 Looking for EMP variant: {machine_name}")
+                
+                # Extract the specific model (e.g., ST60J from EMP ST60J)
+                emp_model_match = re.search(r'(ST\d+[A-Z])', machine_name, re.IGNORECASE)
+                emp_model = emp_model_match.group(1) if emp_model_match else None
+                
+                if emp_model:
+                    # Try various selectors for EMP models
+                    variant_selectors = [
+                        f'li.js-option.js-radio:contains("{emp_model}")',  # Aeon's specific selector with model
+                        f'li.js-option:contains("{emp_model}")',
+                        f'.option-label:contains("{emp_model}")',
+                        f'text={emp_model}',
+                        f'[data-option*="{emp_model}"]',
+                        # Also try with spaces
+                        f'li.js-option.js-radio:contains("{emp_model[:2]} {emp_model[2:]}")',  # e.g., "ST 60J"
+                        'li.js-option.js-radio'  # Fallback to all radio options
+                    ]
+                    
+                    variant_found = False
+                    for selector in variant_selectors:
+                        try:
+                            if selector == 'li.js-option.js-radio':  # Fallback selector
+                                # Get all radio options and look for matching text
+                                elements = await self.page.query_selector_all(selector)
+                                logger.info(f"Found {len(elements)} radio options to check")
+                                
+                                for element in elements:
+                                    text = await element.text_content()
+                                    if text:
+                                        logger.debug(f"Checking option: {text.strip()}")
+                                        # Check if this option contains our model
+                                        if emp_model.upper() in text.upper() or emp_model.upper().replace('J', ' J') in text.upper():
+                                            await element.click()
+                                            logger.info(f"✅ Selected EMP variant: {text.strip()}")
+                                            # Wait longer for price update after variant selection
+                                            await self.page.wait_for_timeout(4000)
+                                            
+                                            # Check if the price has updated
+                                            price_elements = await self.page.query_selector_all('.price, .total, .tot-price')
+                                            logger.info(f"Found {len(price_elements)} price elements after EMP variant selection")
+                                            for price_el in price_elements[:3]:  # Log first 3 prices
+                                                try:
+                                                    price_text = await price_el.text_content()
+                                                    logger.info(f"Price element text: {price_text}")
+                                                except:
+                                                    pass
+                                            
+                                            variant_found = True
+                                            break
+                            else:
+                                # Try direct selector
+                                element = await self.page.query_selector(selector)
+                                if element:
+                                    await element.click()
+                                    logger.info(f"✅ Selected EMP variant using selector: {selector}")
+                                    # Wait longer for price update after variant selection
+                                    await self.page.wait_for_timeout(4000)
+                                    
+                                    # Check if the price has updated
+                                    price_elements = await self.page.query_selector_all('.price, .total, .tot-price')
+                                    logger.info(f"Found {len(price_elements)} price elements after variant selection")
+                                    for price_el in price_elements[:3]:  # Log first 3 prices
+                                        try:
+                                            price_text = await price_el.text_content()
+                                            logger.info(f"Price element text: {price_text}")
+                                        except:
+                                            pass
+                                    
+                                    variant_found = True
+                                    break
+                        except Exception as e:
+                            logger.debug(f"EMP variant selector {selector} failed: {str(e)}")
+                            continue
+                    
+                    if not variant_found:
+                        logger.warning(f"Could not find specific EMP variant for {emp_model}")
+                else:
+                    logger.warning(f"Could not parse EMP model from {machine_name}")
+            
             # Step 5: Complete configurator by clicking through remaining steps
             # Look for "Add to Cart", "Get Quote", or final pricing
             final_selectors = [
@@ -726,39 +820,45 @@ class DynamicScraper:
             if 'commarker.com' in domain:
                 # Special case: B6 MOPA 60W needs bundle price selectors
                 if machine_name and "B6 MOPA 60W" in machine_name:
+                    logger.info("🎯 B6 MOPA 60W detected - using WooCommerce variation price selectors")
                     price_selectors = [
-                        # WooCommerce variation price display (highest priority)
-                        '.woocommerce-variation .woocommerce-variation-price .amount',
+                        # HIGHEST PRIORITY: WooCommerce price structure found in HTML analysis
+                        # Structure: <ins><span class="woocommerce-Price-amount amount"><bdi>PRICE</bdi></span></ins>
+                        'ins .woocommerce-Price-amount.amount bdi',  # Exact structure from HTML analysis
+                        'ins .woocommerce-Price-amount.amount',      # Fallback without bdi wrapper
+                        'ins .amount bdi',                           # More general ins structure
+                        'ins .amount',                               # General ins amount tags
+                        
+                        # WooCommerce variation price areas (active after bundle selection)
+                        '.woocommerce-variation-price .amount bdi',
+                        '.woocommerce-variation-price .amount',
                         '.single_variation_wrap .woocommerce-variation-price .amount',
                         '.single_variation .price .amount',
-                        'form.variations_form .single_variation .price',
-                        '.variations_form .woocommerce-variation-price span.amount',
                         
-                        # Variation area after both selections
-                        '.woocommerce-variation-price .price ins .amount',  # Sale price in variation
-                        '.woocommerce-variation-price .price .amount:last-child',
-                        '.single_variation_wrap .price ins .amount',
-                        '.single_variation_wrap .price .amount',
+                        # Main price area ins tags (updated prices)
+                        '.entry-summary .price ins .amount bdi',
+                        '.entry-summary .price ins .amount',
+                        '.product-summary .price ins .amount bdi', 
+                        '.product-summary .price ins .amount',
+                        '.summary .price ins .amount bdi',
+                        '.summary .price ins .amount',
                         
-                        # The price that appears after selecting package
-                        'p.price .amount',
-                        'div.price .amount',
-                        '.price-wrapper .amount',
-                        '.product-price-wrapper .amount',
+                        # Variation form updated prices (after bundle selection)
+                        'form.variations_form .price ins .amount bdi',
+                        'form.variations_form .price ins .amount',
+                        '.variations_form .price ins .amount bdi',
+                        '.variations_form .price ins .amount',
                         
-                        # Inside the variations form
-                        '.variations_form .price .amount',
-                        'form.cart .woocommerce-variation-price .amount',
-                        'form.variations_form .price span.amount',
+                        # Generic WooCommerce price amount selectors
+                        '.woocommerce-Price-amount.amount bdi',
+                        '.woocommerce-Price-amount.amount',
+                        'span.amount bdi',
+                        'span.amount',
                         
-                        # Main product area (may update after selection)
-                        '.summary .price .amount',
-                        '.product-summary .price .amount',
-                        '.entry-summary .price .amount',
-                        
-                        # Any price element that appears after variation selection
-                        '.price:not(.bundle-price) .amount',
-                        '.woocommerce-Price-amount.amount'
+                        # Fallback to broader selectors if variation-specific fails
+                        '.summary .woocommerce-Price-amount.amount',
+                        '.entry-summary .price:not(.bundle-price) .amount',
+                        '.product-summary .price:not(.bundle-price) .amount'
                     ]
                 else:
                     # For other ComMarker machines: Target BASE MACHINE prices only, NOT bundle prices
@@ -809,30 +909,14 @@ class DynamicScraper:
                     '.final-price'
                 ]
             
-            # Calculate expected price range from machine data
-            min_price = 10  # Default minimum
-            max_price = 100000  # Default maximum
-            
+            # Get old price for comparison
+            old_price = None
             if machine_data and machine_data.get('old_price'):
                 old_price = float(machine_data['old_price'])
-                # Allow 50% variance from old price
-                min_price = old_price * 0.5
-                max_price = old_price * 1.5
-                logger.info(f"Using price range ${min_price:.2f} - ${max_price:.2f} based on old price ${old_price:.2f}")
+                logger.info(f"Using old price ${old_price:.2f} to find closest match")
             
             # Collect all valid price candidates instead of returning the first one
             valid_prices = []
-            
-            # Special handling for ComMarker B6 MOPA 60W - expand price range
-            if machine_name and "B6 MOPA 60W" in machine_name and 'commarker.com' in domain:
-                logger.info("🎯 B6 MOPA 60W detected - expanding search range for bundle price")
-                # For B6 MOPA 60W with Basic Bundle, we expect prices around $4,589
-                # Expand the range to ensure we capture it
-                if min_price > 4000:
-                    min_price = 4000
-                if max_price < 5000:
-                    max_price = 5000
-                logger.info(f"Adjusted price range for B6 MOPA 60W: ${min_price:.2f} - ${max_price:.2f}")
             
             for selector in price_selectors:
                 try:
@@ -841,34 +925,60 @@ class DynamicScraper:
                         price_text = element.get_text(strip=True)
                         if price_text:
                             price = self._parse_price_string(price_text)
-                            if price:
-                                # Enhanced logging for B6 MOPA 60W
-                                if machine_name and "B6 MOPA 60W" in machine_name:
-                                    logger.info(f"🔍 B6 MOPA 60W - Found price ${price} from text '{price_text}' via selector: {selector}")
-                                else:
-                                    logger.debug(f"Parsed price ${price} from text '{price_text}' - checking range ${min_price:.2f} - ${max_price:.2f}")
-                                
-                                if min_price <= price <= max_price:
-                                    # Additional machine-specific validation for ComMarker
-                                    if self._validate_commarker_price(price, current_url, machine_name):
-                                        logger.info(f"Found valid price candidate ${price} using selector: {selector}")
-                                        valid_prices.append({
-                                            'price': price,
-                                            'selector': selector,
-                                            'text': price_text
-                                        })
-                                    else:
-                                        logger.warning(f"Price ${price} failed machine-specific validation, skipping")
-                                else:
-                                    logger.debug(f"Price ${price} outside range ${min_price:.2f} - ${max_price:.2f}, skipping")
+                            if price and price > 10:  # Basic sanity check - price should be more than $10
+                                logger.info(f"Found price ${price} from text '{price_text}' via selector: {selector}")
+                                valid_prices.append({
+                                    'price': price,
+                                    'selector': selector,
+                                    'text': price_text
+                                })
                 except Exception as e:
                     logger.debug(f"Price selector {selector} failed: {str(e)}")
                     continue
             
             # If we have valid prices, select the best one
             if valid_prices:
-                # If we have old price data, prefer the price closest to the old price
-                if machine_data and machine_data.get('old_price'):
+                # Special handling for ComMarker B6 MOPA 60W - prioritize variation prices over distance
+                if machine_name and "B6 MOPA 60W" in machine_name and 'commarker.com' in domain:
+                    logger.info(f"Found {len(valid_prices)} valid price candidates for B6 MOPA 60W. Prioritizing variation prices.")
+                    
+                    # Log all candidates
+                    for candidate in valid_prices:
+                        logger.info(f"  Candidate: ${candidate['price']} via {candidate['selector']}")
+                    
+                    # Prioritize WooCommerce variation prices (these should be the correct Basic Bundle prices)
+                    variation_priority_keywords = [
+                        'variation', 'single_variation', 'woocommerce-variation',
+                        'ins', 'sale'  # Also prioritize sale prices
+                    ]
+                    
+                    # First try to find variation or sale prices
+                    priority_candidates = []
+                    for candidate in valid_prices:
+                        if any(keyword in candidate['selector'].lower() for keyword in variation_priority_keywords):
+                            priority_candidates.append(candidate)
+                            logger.info(f"  🎯 PRIORITY candidate: ${candidate['price']} (variation/sale price)")
+                    
+                    if priority_candidates:
+                        # Among priority candidates, choose the first one (highest priority selector)
+                        best_price = priority_candidates[0]
+                        logger.info(f"Selected variation/sale price: ${best_price['price']} via {best_price['selector']}")
+                        return best_price['price'], f"B6 MOPA 60W variation price: {best_price['selector']}"
+                    else:
+                        # Fallback to expected price range for B6 MOPA 60W Basic Bundle ($4,000 - $5,000)
+                        expected_range_candidates = [c for c in valid_prices if 4000 <= c['price'] <= 5000]
+                        if expected_range_candidates:
+                            best_price = expected_range_candidates[0]
+                            logger.info(f"Selected price in expected range: ${best_price['price']} via {best_price['selector']}")
+                            return best_price['price'], f"B6 MOPA 60W expected range: {best_price['selector']}"
+                        else:
+                            logger.warning("No prices found in expected range for B6 MOPA 60W Basic Bundle")
+                            best_price = valid_prices[0]
+                            logger.info(f"Fallback to first price: ${best_price['price']} via {best_price['selector']}")
+                            return best_price['price'], f"B6 MOPA 60W fallback: {best_price['selector']}"
+                
+                # For other machines, use distance-based selection
+                elif machine_data and machine_data.get('old_price'):
                     old_price = float(machine_data['old_price'])
                     logger.info(f"Found {len(valid_prices)} valid price candidates. Selecting closest to old price ${old_price}")
                     
@@ -895,15 +1005,37 @@ class DynamicScraper:
                         price_value = element.get('data-price')
                         if price_value:
                             price = self._parse_price_string(price_value)
-                            if price and min_price <= price <= max_price:
-                                logger.info(f"Found price ${price} within expected range using data-price attribute")
-                                return price, "data-price attribute"
+                            if price and price > 10:  # Basic sanity check
+                                logger.info(f"Found price ${price} from data-price attribute")
+                                valid_prices.append({
+                                    'price': price,
+                                    'selector': 'data-price attribute',
+                                    'text': price_value
+                                })
                     except:
                         continue
             
-            # Skip JavaScript evaluation - we'll use Python-based extraction instead
-            # JavaScript evaluation removed to eliminate hardcoded price patterns
+            # If we found any prices after checking data attributes, select the best one
+            if valid_prices:
+                if old_price:
+                    logger.info(f"Found {len(valid_prices)} total price candidates. Selecting closest to old price ${old_price}")
+                    
+                    # Calculate distance from old price for each candidate
+                    for candidate in valid_prices:
+                        candidate['distance'] = abs(candidate['price'] - old_price)
+                        logger.info(f"  Candidate: ${candidate['price']} (distance: ${candidate['distance']:.2f}) via {candidate['selector']}")
+                    
+                    # Sort by distance from old price and take the closest
+                    best_price = min(valid_prices, key=lambda x: x['distance'])
+                    logger.info(f"Selected best price: ${best_price['price']} (closest to old price ${old_price})")
+                    return best_price['price'], f"{best_price['selector']}"
+                else:
+                    # No old price available, take the first valid one
+                    logger.info(f"Found {len(valid_prices)} price candidates. No old price available, taking first.")
+                    best_price = valid_prices[0]
+                    return best_price['price'], f"{best_price['selector']}"
             
+            logger.warning("No valid prices found on page")
             return None, None
             
         except Exception as e:
@@ -935,10 +1067,15 @@ class DynamicScraper:
             
             # General validation ranges based on ComMarker's actual pricing
             # These are loose ranges to catch obvious errors, not strict validation
-            if model == 'B4':
-                # B4 models: typically $1,400-$2,500
-                if price < 1000 or price > 3000:
-                    logger.warning(f"ComMarker B4 price ${price} outside reasonable range $1,000-$3,000")
+            if model == 'B4' and is_mopa:
+                # B4 MOPA models: typically $4,500-$7,000 (B4 100W MOPA is $6,666)
+                if price < 4000 or price > 7500:
+                    logger.warning(f"ComMarker B4 MOPA price ${price} outside reasonable range $4,000-$7,500")
+                    return False
+            elif model == 'B4' and not is_mopa:
+                # B4 standard models: typically $1,400-$3,500
+                if price < 1000 or price > 3500:
+                    logger.warning(f"ComMarker B4 price ${price} outside reasonable range $1,000-$3,500")
                     return False
             elif model == 'B6' and not is_mopa:
                 # B6 standard models: typically $1,800-$2,500
