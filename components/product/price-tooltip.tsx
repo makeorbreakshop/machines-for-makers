@@ -13,7 +13,9 @@ import {
   DialogContent, 
   DialogHeader,
   DialogTitle,
-  DialogTrigger 
+  DialogTrigger,
+  DialogPortal,
+  DialogOverlay 
 } from "@/components/ui/dialog"
 import { PriceHistoryChart } from "@/components/product/price-history-chart"
 
@@ -28,15 +30,20 @@ export function PriceTooltip({
   machineId, 
   price,
   className,
-  variant = "popover"
-}: PriceTooltipProps) {
+  variant = "popover",
+  children
+}: PriceTooltipProps & { children?: React.ReactNode }) {
   if (variant === "popover") {
     return (
       <Popover>
         <PopoverTrigger asChild>
-          <button className={`text-slate-400 hover:text-slate-600 transition-colors ${className}`}>
-            <InfoIcon className="h-5 w-5" />
-          </button>
+          {children ? (
+            children
+          ) : (
+            <button className={`text-slate-400 hover:text-slate-600 transition-colors ${className}`}>
+              <InfoIcon className="h-5 w-5" />
+            </button>
+          )}
         </PopoverTrigger>
         <PopoverContent className="w-80 p-0" align="start">
           <div className="p-4 pb-2">
@@ -60,21 +67,24 @@ export function PriceTooltip({
         <DialogTrigger asChild>
           <Button variant="outline" size="sm" className={`text-xs ${className}`}>
             <InfoIcon className="h-3 w-3 mr-1" />
-            View Price History
+            Price History
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Price History</DialogTitle>
-          </DialogHeader>
-          <div className="pt-2">
-            <p className="text-sm text-muted-foreground mb-4">Track price changes over time</p>
-            <PriceHistoryChart 
-              machineId={machineId} 
-              currentPrice={price}
-            />
-          </div>
-        </DialogContent>
+        <DialogPortal>
+          <DialogOverlay className="bg-transparent" />
+          <DialogContent className="sm:max-w-[500px] bg-white dark:bg-gray-900 border shadow-xl">
+            <DialogHeader>
+              <DialogTitle>Price History</DialogTitle>
+            </DialogHeader>
+            <div className="pt-2">
+              <p className="text-sm text-muted-foreground mb-4">Track price changes over time</p>
+              <PriceHistoryChart 
+                machineId={machineId} 
+                currentPrice={price}
+              />
+            </div>
+          </DialogContent>
+        </DialogPortal>
       </Dialog>
     )
   }

@@ -2,13 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { PriceDropCard } from '@/components/price-drops/price-drop-card';
-import { PriceDropsFilters } from '@/components/price-drops/price-drops-filters';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Loader2, Filter, AlertCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useComparison } from '@/contexts/comparison-context';
-import { useRouter } from 'next/navigation';
 
 interface PriceDrop {
   id: string;
@@ -32,9 +29,6 @@ interface PriceDrop {
 }
 
 const defaultFilters = {
-  category: 'all',
-  minDiscount: '0',
-  days: '7',
   sortBy: 'recent'
 };
 
@@ -45,8 +39,6 @@ export function PriceDropsContent() {
   const [filters, setFilters] = useState(defaultFilters);
   const [filteredDrops, setFilteredDrops] = useState<PriceDrop[]>([]);
   
-  const { addToComparison } = useComparison();
-  const router = useRouter();
 
   // Fetch price drops
   const fetchDrops = useCallback(async () => {
@@ -55,9 +47,7 @@ export function PriceDropsContent() {
     
     try {
       const params = new URLSearchParams({
-        days: filters.days,
-        category: filters.category !== 'all' ? filters.category : '',
-        minDiscount: filters.minDiscount,
+        days: '30',
         limit: '50'
       });
 
@@ -74,25 +64,32 @@ export function PriceDropsContent() {
     } finally {
       setLoading(false);
     }
-  }, [filters.days, filters.category, filters.minDiscount]);
+  }, []);
 
-  // Sort and filter drops
+  // Sort drops
   useEffect(() => {
     let sorted = [...drops];
 
     // Apply sorting
     switch (filters.sortBy) {
-      case 'percentage':
-        sorted.sort((a, b) => a.percentageChange - b.percentageChange);
+      case 'discount-percent':
+        sorted.sort((a, b) => a.percentageChange - b.percentageChange); // More negative = bigger discount
         break;
-      case 'amount':
-        sorted.sort((a, b) => a.priceChange - b.priceChange);
+      case 'discount-amount':
+        sorted.sort((a, b) => a.priceChange - b.priceChange); // More negative = bigger savings
         break;
       case 'price-low':
         sorted.sort((a, b) => a.currentPrice - b.currentPrice);
         break;
       case 'price-high':
         sorted.sort((a, b) => b.currentPrice - a.currentPrice);
+        break;
+      case 'all-time-lows':
+        sorted.sort((a, b) => {
+          if (a.isAllTimeLow && !b.isAllTimeLow) return -1;
+          if (!a.isAllTimeLow && b.isAllTimeLow) return 1;
+          return a.percentageChange - b.percentageChange; // Then by biggest discount
+        });
         break;
       case 'recent':
       default:
@@ -107,130 +104,80 @@ export function PriceDropsContent() {
     fetchDrops();
   }, [fetchDrops]);
 
-  const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+  const handleSortChange = (value: string) => {
+    setFilters(prev => ({ ...prev, sortBy: value }));
   };
 
-  const handleReset = () => {
-    setFilters(defaultFilters);
-  };
-
-  const handleCompare = (machineId: string) => {
-    const drop = drops.find(d => d.machineId === machineId);
-    if (drop) {
-      addToComparison({
-        id: drop.machineId,
-        name: drop.machineName,
-        price: drop.currentPrice,
-        image: drop.imageUrl
-      });
-      router.push('/compare');
-    }
-  };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8">
-      {/* Desktop Filters */}
-      <aside className="hidden lg:block w-64 shrink-0">
-        <div className="sticky top-4 space-y-6">
-          <h2 className="text-lg font-semibold">Filters</h2>
-          <PriceDropsFilters 
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            onReset={handleReset}
-          />
+    <div className="space-y-6 px-4 sm:px-6 lg:px-8">
+      {/* Header with results count and sort */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h2 className="text-xl font-semibold">
+          {loading ? 'Loading deals...' : `${filteredDrops.length} Deals Found`}
+        </h2>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600 dark:text-gray-400">Sort by:</span>
+          <Select value={filters.sortBy} onValueChange={handleSortChange}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent">Most Recent</SelectItem>
+              <SelectItem value="discount-percent">Biggest Discount %</SelectItem>
+              <SelectItem value="discount-amount">Biggest Savings $</SelectItem>
+              <SelectItem value="all-time-lows">All-Time Lows</SelectItem>
+              <SelectItem value="price-low">Lowest Price</SelectItem>
+              <SelectItem value="price-high">Highest Price</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      </aside>
-
-      {/* Main Content */}
-      <div className="flex-1">
-        {/* Mobile Filter Button */}
-        <div className="flex items-center justify-between mb-6 lg:hidden">
-          <h2 className="text-lg font-semibold">
-            {loading ? 'Loading...' : `${filteredDrops.length} Deals Found`}
-          </h2>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Filter className="w-4 h-4 mr-2" />
-                Filters
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-80">
-              <SheetHeader>
-                <SheetTitle>Filters</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6">
-                <PriceDropsFilters 
-                  filters={filters}
-                  onFilterChange={handleFilterChange}
-                  onReset={handleReset}
-                />
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
-
-        {/* Results Count - Desktop */}
-        <div className="hidden lg:flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold">
-            {loading ? 'Loading...' : `${filteredDrops.length} Deals Found`}
-          </h2>
-        </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* No Results */}
-        {!loading && !error && filteredDrops.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400">
-              No price drops found matching your criteria.
-            </p>
-            <Button 
-              variant="outline" 
-              onClick={handleReset}
-              className="mt-4"
-            >
-              Reset Filters
-            </Button>
-          </div>
-        )}
-
-        {/* Price Drop Cards Grid */}
-        {!loading && !error && filteredDrops.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredDrops.map((drop) => (
-              <PriceDropCard 
-                key={drop.id} 
-                drop={drop}
-                onCompare={handleCompare}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Load More Button */}
-        {!loading && !error && drops.length >= 50 && (
-          <div className="mt-8 text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Showing top {filteredDrops.length} deals. More deals may be available.
-            </p>
-          </div>
-        )}
       </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* No Results */}
+      {!loading && !error && filteredDrops.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-gray-500 dark:text-gray-400">
+            No price drops found.
+          </p>
+        </div>
+      )}
+
+      {/* Price Drop Cards Grid */}
+      {!loading && !error && filteredDrops.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {filteredDrops.map((drop) => (
+            <PriceDropCard 
+              key={drop.id} 
+              drop={drop}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Load More Info */}
+      {!loading && !error && drops.length >= 50 && (
+        <div className="text-center">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Showing top {filteredDrops.length} deals from the last 30 days.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

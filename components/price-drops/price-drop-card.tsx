@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, TrendingDown, Award } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { PriceTooltip } from '@/components/machines/price-tooltip';
 import { Button } from '@/components/ui/button';
+import { PriceTooltip } from '@/components/product/price-tooltip';
 
 interface PriceDropCardProps {
   drop: {
@@ -30,23 +30,25 @@ interface PriceDropCardProps {
     workArea?: string;
     dropType: string;
   };
-  onCompare?: (machineId: string) => void;
 }
 
-export function PriceDropCard({ drop, onCompare }: PriceDropCardProps) {
+export function PriceDropCard({ drop }: PriceDropCardProps) {
   const savingsAmount = Math.abs(drop.priceChange);
   const savingsPercentage = Math.abs(drop.percentageChange);
 
   const getDropBadgeColor = () => {
-    switch (drop.dropType) {
-      case 'all_time_low':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
-      case 'major_drop':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'significant_drop':
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
-      default:
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+    const percentage = Math.abs(savingsPercentage);
+    
+    if (drop.isAllTimeLow) {
+      return 'bg-gradient-to-r from-purple-500 to-purple-600 text-white border-purple-400';
+    } else if (percentage >= 25) {
+      return 'bg-gradient-to-r from-red-500 to-red-600 text-white border-red-400';
+    } else if (percentage >= 15) {
+      return 'bg-gradient-to-r from-orange-500 to-orange-600 text-white border-orange-400';
+    } else if (percentage >= 10) {
+      return 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-400';
+    } else {
+      return 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-emerald-400';
     }
   };
 
@@ -58,38 +60,29 @@ export function PriceDropCard({ drop, onCompare }: PriceDropCardProps) {
   const detailsUrl = `/products/${machineSlug}`;
 
   return (
-    <div className="group relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border border-gray-200 dark:border-gray-700">
+    <div className="group relative bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 hover:-translate-y-1">
       {/* Price Drop Badge */}
-      <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-        <Badge className={cn('font-semibold', getDropBadgeColor())}>
+      <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
+        <Badge className={cn('font-bold text-xs px-3 py-1 shadow-lg transform -rotate-1', getDropBadgeColor())}>
           <TrendingDown className="w-3 h-3 mr-1" />
           {savingsPercentage.toFixed(0)}% OFF
         </Badge>
         {drop.isAllTimeLow && (
-          <Badge className="bg-purple-600 text-white hover:bg-purple-700">
+          <Badge className="bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-lg font-bold text-xs px-3 py-1">
             <Award className="w-3 h-3 mr-1" />
             All Time Low
           </Badge>
         )}
       </div>
 
-      {/* Affiliate Badge */}
-      {drop.affiliateLink && (
-        <div className="absolute top-2 right-2 z-10">
-          <Badge variant="secondary" className="text-xs">
-            Affiliate
-          </Badge>
-        </div>
-      )}
-
       {/* Image */}
-      <Link href={detailsUrl} className="block aspect-square relative overflow-hidden bg-gray-50 dark:bg-gray-900">
+      <Link href={detailsUrl} className="block aspect-square relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
         {drop.imageUrl ? (
           <Image
             src={drop.imageUrl}
             alt={drop.machineName}
             fill
-            className="object-contain p-4 group-hover:scale-105 transition-transform duration-200"
+            className="object-contain p-6 group-hover:scale-110 transition-transform duration-300 ease-out"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
         ) : (
@@ -101,31 +94,26 @@ export function PriceDropCard({ drop, onCompare }: PriceDropCardProps) {
         )}
       </Link>
 
-      {/* Content */}
+      {/* Content - with proper padding */}
       <div className="p-4 space-y-3">
-        {/* Title and Company */}
-        <div>
-          <Link href={detailsUrl} className="block">
-            <h3 className="font-medium text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-primary transition-colors">
-              {drop.machineName}
-            </h3>
-          </Link>
-          <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{drop.company}</p>
-        </div>
+        {/* Title */}
+        <Link href={detailsUrl} className="block">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200 text-base leading-tight">
+            {drop.machineName}
+          </h3>
+        </Link>
 
         {/* Price Section */}
-        <div className="space-y-1">
+        <div className="space-y-2">
           <div className="flex items-baseline gap-2">
-            <PriceTooltip machineId={drop.machineId} machineName={drop.machineName}>
-              <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                ${drop.currentPrice.toLocaleString()}
-              </span>
-            </PriceTooltip>
-            <span className="text-sm text-gray-500 line-through">
+            <span className="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+              ${drop.currentPrice.toLocaleString()}
+            </span>
+            <span className="text-base text-gray-500 line-through font-medium">
               ${drop.previousPrice.toLocaleString()}
             </span>
           </div>
-          <p className="text-sm font-medium text-green-600 dark:text-green-400">
+          <p className="text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full inline-block">
             Save ${savingsAmount.toLocaleString()}
           </p>
         </div>
@@ -136,33 +124,31 @@ export function PriceDropCard({ drop, onCompare }: PriceDropCardProps) {
           <span>{formatDistanceToNow(new Date(drop.dropDate), { addSuffix: true })}</span>
         </div>
 
-        {/* Work Area */}
-        {drop.workArea && (
-          <p className="text-xs text-gray-600 dark:text-gray-300">
-            Work Area: {drop.workArea}
-          </p>
-        )}
-
         {/* Actions */}
-        <div className="flex gap-2 pt-2">
+        <div className="flex gap-2 pt-1">
           <Button
             asChild
             size="sm"
-            className="flex-1"
+            variant="outline"
+            className="flex-1 hover:bg-gray-50 dark:hover:bg-gray-800 border-2 hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 rounded-lg font-semibold h-9"
           >
             <Link href={drop.affiliateLink || drop.productLink} target="_blank" rel="noopener noreferrer">
               View Deal
             </Link>
           </Button>
-          {onCompare && (
+          <PriceTooltip 
+            machineId={drop.machineId} 
+            price={drop.currentPrice}
+            variant="popover"
+          >
             <Button
               size="sm"
               variant="outline"
-              onClick={() => onCompare(drop.machineId)}
+              className="hover:bg-gray-50 dark:hover:bg-gray-800 border-2 hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 rounded-lg font-semibold text-xs h-9"
             >
-              Compare
+              Price History
             </Button>
-          )}
+          </PriceTooltip>
         </div>
       </div>
     </div>

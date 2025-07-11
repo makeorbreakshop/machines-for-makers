@@ -50,12 +50,14 @@ export default async function PriceDropsPage() {
   const stats = await getStats();
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <PriceDropsHero stats={stats || undefined} />
-      
-      <Suspense fallback={<PriceDropsSkeleton />}>
-        <PriceDropsContent />
-      </Suspense>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        <PriceDropsHero stats={stats || undefined} />
+        
+        <Suspense fallback={<PriceDropsSkeleton />}>
+          <PriceDropsContent />
+        </Suspense>
+      </div>
     </div>
   );
 }
