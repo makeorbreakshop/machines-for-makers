@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Tag, Laptop2, Tv, FlameKindling, Menu, X, Flame } from "lucide-react"
+import { Tag, Laptop2, Tv, FlameKindling, Menu, X, Flame, TrendingDown } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
@@ -87,13 +87,6 @@ export default function Navbar() {
             </Link>
             <nav className="hidden md:flex items-center space-x-6">
               <Link 
-                href="/deals" 
-                className="flex items-center text-sm font-medium hover:text-primary"
-              >
-                <Tag className="h-4 w-4 mr-1.5" />
-                Deals
-              </Link>
-              <Link 
                 href="/compare" 
                 className="flex items-center text-sm font-medium hover:text-primary"
               >
@@ -113,6 +106,13 @@ export default function Navbar() {
               >
                 <Tag className="h-4 w-4 mr-1.5" />
                 Promo Codes
+              </Link>
+              <Link 
+                href="/deals" 
+                className="flex items-center text-sm font-medium hover:text-primary"
+              >
+                <TrendingDown className="h-4 w-4 mr-1.5" />
+                Deals
               </Link>
               <Link 
                 href="https://www.youtube.com/@makeorbreakshop" 
@@ -158,14 +158,6 @@ export default function Navbar() {
         >
           <nav className="flex flex-col p-6 space-y-6 border-t">
             <Link 
-              href="/deals" 
-              className="flex items-center text-lg font-medium hover:text-primary"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <Tag className="h-5 w-5 mr-2" />
-              Deals
-            </Link>
-            <Link 
               href="/compare" 
               className="flex items-center text-lg font-medium hover:text-primary"
               onClick={() => setIsMenuOpen(false)}
@@ -188,6 +180,14 @@ export default function Navbar() {
             >
               <Tag className="h-5 w-5 mr-2" />
               Promo Codes
+            </Link>
+            <Link 
+              href="/deals" 
+              className="flex items-center text-lg font-medium hover:text-primary"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <TrendingDown className="h-5 w-5 mr-2" />
+              Deals
             </Link>
             <Link 
               href="https://www.youtube.com/@makeorbreakshop" 
