@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Tag, Laptop2, Tv, FlameKindling, Menu, X, Flame, TrendingDown, BarChart3 } from "lucide-react"
+import { Tag, Laptop2, Tv, FlameKindling, Menu, X, Flame, TrendingDown } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
@@ -115,13 +115,6 @@ export default function Navbar() {
                 Deals
               </Link>
               <Link 
-                href="/price-tracker" 
-                className="flex items-center text-sm font-medium hover:text-primary"
-              >
-                <BarChart3 className="h-4 w-4 mr-1.5" />
-                Price Tracker
-              </Link>
-              <Link 
                 href="https://www.youtube.com/@makeorbreakshop" 
                 className="flex items-center text-sm font-medium hover:text-primary"
                 target="_blank" 
@@ -195,14 +188,6 @@ export default function Navbar() {
             >
               <TrendingDown className="h-5 w-5 mr-2" />
               Deals
-            </Link>
-            <Link 
-              href="/price-tracker" 
-              className="flex items-center text-lg font-medium hover:text-primary"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <BarChart3 className="h-5 w-5 mr-2" />
-              Price Tracker
             </Link>
             <Link 
               href="https://www.youtube.com/@makeorbreakshop" 
