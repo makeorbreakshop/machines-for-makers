@@ -627,6 +627,7 @@ class DatabaseService:
                 "total": 0,
                 "successful": 0,
                 "failed": 0,
+                "excluded": 0,
                 "percent_complete": 0
             }
             
@@ -637,11 +638,20 @@ class DatabaseService:
                 .eq("success", True) \
                 .execute()
                 
-            # Count failed results
+            # Count failed results - excluding intentionally skipped machines
             failed_response = self.supabase.table("batch_results") \
                 .select("*", count="exact") \
                 .eq("batch_id", batch_id) \
                 .eq("success", False) \
+                .not_.like("error_message", "%excluded from price tracking%") \
+                .execute()
+                
+            # Count excluded/skipped machines
+            excluded_response = self.supabase.table("batch_results") \
+                .select("*", count="exact") \
+                .eq("batch_id", batch_id) \
+                .eq("success", False) \
+                .like("error_message", "%excluded from price tracking%") \
                 .execute()
             
             # Calculate status counts
@@ -655,7 +665,12 @@ class DatabaseService:
             elif failed_response and failed_response.data:
                 success_counts["failed"] = len(failed_response.data)
                 
-            success_counts["total"] = success_counts["successful"] + success_counts["failed"]
+            if excluded_response and hasattr(excluded_response, 'count'):
+                success_counts["excluded"] = excluded_response.count
+            elif excluded_response and excluded_response.data:
+                success_counts["excluded"] = len(excluded_response.data)
+                
+            success_counts["total"] = success_counts["successful"] + success_counts["failed"] + success_counts["excluded"]
             
             # Calculate percent complete if we know the total
             if batch.get("total_machines", 0) > 0:
@@ -701,10 +716,41 @@ class DatabaseService:
             except Exception as e:
                 logger.warning(f"Error calculating price stats for batch {batch_id}: {str(e)}")
             
+            # Get details about excluded machines if any exist
+            excluded_machines = []
+            if success_counts["excluded"] > 0:
+                try:
+                    excluded_details = self.supabase.table("batch_results") \
+                        .select("machine_id, url") \
+                        .eq("batch_id", batch_id) \
+                        .eq("success", False) \
+                        .like("error_message", "%excluded from price tracking%") \
+                        .execute()
+                    
+                    if excluded_details.data:
+                        # Get machine names for the excluded machines
+                        machine_ids = [r["machine_id"] for r in excluded_details.data]
+                        machines_response = self.supabase.table("machines") \
+                            .select("id, Machine Name") \
+                            .in_("id", machine_ids) \
+                            .execute()
+                        
+                        if machines_response.data:
+                            machine_names = {m["id"]: m["Machine Name"] for m in machines_response.data}
+                            for result in excluded_details.data:
+                                excluded_machines.append({
+                                    "machine_id": result["machine_id"],
+                                    "machine_name": machine_names.get(result["machine_id"], "Unknown"),
+                                    "url": result["url"]
+                                })
+                except Exception as e:
+                    logger.warning(f"Could not get excluded machine details: {str(e)}")
+            
             return {
                 "batch": batch,
                 "success_counts": success_counts,
-                "price_stats": price_stats
+                "price_stats": price_stats,
+                "excluded_machines": excluded_machines
             }
             
         except Exception as e:

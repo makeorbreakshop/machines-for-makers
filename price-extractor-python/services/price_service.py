@@ -114,7 +114,7 @@ class PriceService:
     
     async def _get_effective_current_price(self, machine_id, fallback_price):
         """
-        Get the effective current price for a machine, prioritizing recent manual corrections.
+        Get the effective current price for a machine, using the MOST RECENT approved price or manual correction.
         
         Args:
             machine_id (str): The machine ID
@@ -124,28 +124,29 @@ class PriceService:
             float: The effective current price to use as baseline
         """
         try:
-            # Check for recent manual corrections (within last 30 days)
-            from datetime import timedelta
-            cutoff_date = datetime.now() - timedelta(days=30)
-            
+            # Get the most recent price event (approved or manually corrected)
+            # This ensures we always use the latest price decision as baseline
             response = self.db_service.supabase.table("price_history") \
-                .select("price, date") \
+                .select("price, date, status") \
                 .eq("machine_id", machine_id) \
-                .eq("status", "MANUAL_CORRECTION") \
-                .gte("date", cutoff_date.isoformat()) \
+                .in_("status", ["APPROVED", "MANUAL_CORRECTION"]) \
                 .order("date", desc=True) \
                 .limit(1) \
                 .execute()
             
             if response.data and len(response.data) > 0:
-                manual_price = response.data[0].get("price")
-                if manual_price is not None:
-                    logger.info(f"🔧 Using recent manual correction as baseline: ${manual_price} (instead of stale ${fallback_price})")
-                    return float(manual_price)
+                recent_price = response.data[0].get("price")
+                status = response.data[0].get("status")
+                created_at = response.data[0].get("date")
+                
+                if recent_price is not None:
+                    logger.info(f"📊 Using most recent {status} price as baseline: ${recent_price} from {created_at} (machines.Price: ${fallback_price})")
+                    return float(recent_price)
         except Exception as e:
-            logger.warning(f"Error checking for manual corrections: {str(e)}")
+            logger.warning(f"Error checking for recent price events: {str(e)}")
         
         # Fall back to machines table price
+        logger.debug(f"No recent price history found, using machines.Price: ${fallback_price}")
         return fallback_price
     
     async def update_machine_price(self, machine_id, url=None, batch_id=None):
@@ -181,20 +182,23 @@ class PriceService:
             
             # Check if price tracking is enabled for this machine
             if not machine.get("price_tracking_enabled", True):  # Default to True for existing machines
-                logger.warning(f"⚠️ Skipping machine {machine_id} - price tracking disabled")
+                machine_name = machine.get("Machine Name", "Unknown")
+                logger.warning(f"⚠️ Skipping {machine_name} (ID: {machine_id}) - price tracking disabled")
                 await self.db_service.add_price_history(
                     machine_id=machine_id,
                     old_price=current_price,
                     new_price=None,
                     success=False,
-                    error_message="Machine excluded from price tracking",
+                    error_message=f"Machine excluded from price tracking: {machine_name}",
                     batch_id=batch_id
                 )
                 return {
                     "success": False, 
-                    "error": "Machine excluded from price tracking", 
+                    "error": f"Machine excluded from price tracking: {machine_name}", 
                     "machine_id": machine_id, 
-                    "url": product_url
+                    "machine_name": machine_name,
+                    "url": product_url,
+                    "excluded": True
                 }
             
             # Pre-validate URL health to catch broken links early

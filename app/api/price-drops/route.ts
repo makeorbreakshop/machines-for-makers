@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
           "price_tracking_enabled"
         )
       `)
-      .in('status', ['AUTO_APPLIED', 'MANUAL_CORRECTION'])
+      .in('status', ['AUTO_APPLIED', 'MANUAL_CORRECTION', 'SUCCESS'])
       .gte('date', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
       .not('previous_price', 'is', null)
       .not('price', 'is', null)

@@ -126,6 +126,14 @@ class PriceExtractor:
         else:
             logger.info(f"❌ METHOD 3 FAILED: No price found in structured data")
         
+        # Special handling for xTool F1 Lite - DO NOT check out of stock, it's incorrectly detecting in-stock items as out of stock
+        # The F1 Lite is available at $799 but the out-of-stock detection was finding unrelated "Out of Stock" text
+        # if machine_name and 'F1 Lite' in machine_name and 'xtool.com' in url.lower():
+        #     logger.info(f"🔍 SPECIAL CHECK: Checking if xTool F1 Lite is out of stock")
+        #     if self._is_xtool_f1_lite_out_of_stock(soup):
+        #         logger.warning(f"⚠️ xTool F1 Lite is out of stock - skipping generic extraction fallback")
+        #         return None, "xTool F1 Lite out of stock"
+        
         # Method 4: Try common price selectors
         logger.info(f"🔍 METHOD 4: Attempting common CSS selectors")
         price, method = self._extract_from_common_selectors(soup)
@@ -635,7 +643,7 @@ LOOK FOR:
         # Check machine-specific rules first
         if machine_name:
             rules = self.site_extractor.get_machine_specific_rules(domain, machine_name, url)
-            if rules and rules.get('requires_dynamic', False):
+            if rules and (rules.get('requires_dynamic', False) or rules.get('force_dynamic', False)):
                 logger.info(f"🎯 Dynamic extraction required for {machine_name} based on machine-specific rules")
                 return True
             
@@ -819,3 +827,75 @@ LOOK FOR:
         except Exception as e:
             logger.error(f"Error validating price {price}: {str(e)}")
             return True  # Default to accepting price if validation fails
+    
+    def _is_xtool_f1_lite_out_of_stock(self, soup):
+        """
+        Check if xTool F1 Lite is out of stock by looking for out of stock indicators
+        and empty price fields in F1 Lite sections.
+        """
+        try:
+            # Look for F1 Lite sections with out of stock indicators
+            f1_lite_elements = soup.find_all(text=re.compile(r'F1\s+Lite', re.IGNORECASE))
+            
+            for element in f1_lite_elements:
+                parent = element.parent
+                # Look up the DOM tree for the F1 Lite section
+                while parent and parent.name != 'body':
+                    parent_text = parent.get_text().lower()
+                    
+                    # Check for out of stock indicators in F1 Lite context
+                    if any(indicator in parent_text for indicator in [
+                        'out of stock', 'sold out', 'unavailable', 'coming soon'
+                    ]):
+                        # Also check if price fields are empty in this section
+                        price_elements = parent.find_all(['span', 'div'], 
+                                                       class_=re.compile(r'price|money|amount', re.IGNORECASE))
+                        
+                        empty_price_count = 0
+                        for price_elem in price_elements:
+                            price_text = price_elem.get_text().strip()
+                            # Empty or just whitespace/currency symbols
+                            if not price_text or price_text in ['$', '€', '£', '', ' ']:
+                                empty_price_count += 1
+                        
+                        # If we found empty price fields in F1 Lite section, it's likely out of stock
+                        if empty_price_count > 0:
+                            logger.info(f"🚫 F1 Lite appears out of stock: found out of stock indicator and {empty_price_count} empty price fields")
+                            return True
+                    
+                    parent = parent.parent
+            
+            # Additional check: Look for F1 Lite sections with completely empty price areas
+            f1_lite_sections = []
+            for element in soup.find_all(text=re.compile(r'F1.*Lite.*Standalone', re.IGNORECASE)):
+                parent = element.parent
+                while parent and parent.name != 'body':
+                    if any(cls for cls in parent.get('class', []) if 'product' in cls.lower()):
+                        f1_lite_sections.append(parent)
+                        break
+                    parent = parent.parent
+            
+            for section in f1_lite_sections:
+                # Look for price elements that should contain prices but are empty
+                price_containers = section.find_all(['div', 'span'], 
+                                                  class_=re.compile(r'price|money|amount|cost', re.IGNORECASE))
+                
+                if price_containers:
+                    all_empty = True
+                    for container in price_containers:
+                        text = container.get_text().strip()
+                        # Check if contains actual price numbers
+                        if re.search(r'\d+', text):
+                            all_empty = False
+                            break
+                    
+                    if all_empty:
+                        logger.info(f"🚫 F1 Lite appears out of stock: price containers exist but all are empty")
+                        return True
+            
+            logger.debug("F1 Lite stock status: appears to be in stock or status unclear")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking F1 Lite stock status: {str(e)}")
+            return False  # Default to allowing extraction if check fails

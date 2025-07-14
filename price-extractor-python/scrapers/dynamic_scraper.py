@@ -95,6 +95,7 @@ class DynamicScraper:
             tuple: (price, method) or (None, None)
         """
         try:
+            logger.info("🚀 CODE VERSION: F1 Lite Fix v2 - This message confirms new code is running!")
             logger.info(f"Starting dynamic extraction for {machine_name} at {url}")
             
             # Navigate to the page
@@ -117,13 +118,28 @@ class DynamicScraper:
                 domain = domain[4:]
                 
             logger.info(f"Applying variant selection for domain: {domain}")
+            logger.info(f"DEBUG: variant_rules = {variant_rules}")
+            logger.info(f"DEBUG: machine_name = {repr(machine_name)}")
             
             if 'commarker.com' in domain:
+                logger.info("DEBUG: Calling _select_commarker_variant")
                 await self._select_commarker_variant(machine_name)
             elif 'cloudraylaser.com' in domain:
+                logger.info("DEBUG: Calling _select_cloudray_variant")
                 await self._select_cloudray_variant(machine_name)
             elif 'aeonlaser.us' in domain or 'aeonlaser.com' in domain:
+                logger.info("DEBUG: Calling _navigate_aeon_configurator")
                 await self._navigate_aeon_configurator(machine_name)
+            elif 'xtool.com' in domain:
+                # Check if we have Shopify variant selection rules
+                logger.info(f"DEBUG: xtool.com domain detected")
+                logger.info(f"DEBUG: shopify_variant_selection = {variant_rules and variant_rules.get('shopify_variant_selection')}")
+                if variant_rules and variant_rules.get('shopify_variant_selection'):
+                    logger.info("DEBUG: Calling _select_shopify_variant (THIS IS THE PROBLEM!)")
+                    await self._select_shopify_variant(machine_name, variant_rules)
+                else:
+                    logger.info("DEBUG: Calling _select_xtool_variant (GOOD!)")
+                    await self._select_xtool_variant(machine_name)
             else:
                 logger.warning(f"No variant selection rules for domain: {domain}")
             
@@ -572,6 +588,452 @@ class DynamicScraper:
         except Exception as e:
             logger.error(f"Error selecting Cloudray variant: {str(e)}")
     
+    async def _select_xtool_variant(self, machine_name):
+        """Select the correct variant for xTool machines, specifically F1 Lite."""
+        try:
+            logger.info(f"Selecting xTool variant for: {machine_name}")
+            logger.info(f"DEBUG: machine_name type: {type(machine_name)}, repr: {repr(machine_name)}")
+            logger.info(f"DEBUG: 'F1 Lite' in machine_name = {'F1 Lite' in machine_name}")
+            
+            # Special handling for F1 Lite which shares URL with F1
+            if 'F1 Lite' in machine_name:
+                logger.info("Detected F1 Lite - looking for Lite variant selector")
+                
+                # xTool F1 Lite requires clicking the F1 Lite option in the Version section
+                logger.info("Looking for F1 Lite button to click...")
+                
+                # Wait for page to fully load and version options to appear
+                await self.page.wait_for_timeout(3000)
+                
+                # Debug: Take a screenshot before clicking
+                try:
+                    await self.page.screenshot(path="before_f1_lite_click.png")
+                    logger.info("DEBUG: Saved screenshot before clicking to before_f1_lite_click.png")
+                except:
+                    pass
+                
+                # Simple approach: Just click the text "F1 Lite" directly
+                try:
+                    # First, let's see what F1 Lite elements exist
+                    f1_lite_elements = await self.page.query_selector_all('text="F1 Lite"')
+                    logger.info(f"DEBUG: Found {len(f1_lite_elements)} elements with exact text 'F1 Lite'")
+                    
+                    # Method 1: Click using Playwright's text selector
+                    await self.page.click('text="F1 Lite"', timeout=5000)
+                    logger.info("✅ Successfully clicked F1 Lite using text selector")
+                    variant_selected = True
+                    
+                    # Wait for price to update
+                    await self.page.wait_for_timeout(2000)
+                    
+                    # Debug: Take a screenshot after clicking F1 Lite
+                    try:
+                        await self.page.screenshot(path="after_f1_lite_click.png")
+                        logger.info("DEBUG: Saved screenshot after F1 Lite click to after_f1_lite_click.png")
+                    except:
+                        pass
+                    
+                    # Now click F1 Lite Standalone package option
+                    try:
+                        # Check what package options are available
+                        package_elements = await self.page.query_selector_all('text="F1 Lite Standalone"')
+                        logger.info(f"DEBUG: Found {len(package_elements)} elements with text 'F1 Lite Standalone'")
+                        
+                        await self.page.click('text="F1 Lite Standalone"', timeout=3000)
+                        logger.info("✅ Successfully clicked F1 Lite Standalone package")
+                        await self.page.wait_for_timeout(2000)
+                        
+                        # Debug: Take final screenshot
+                        try:
+                            await self.page.screenshot(path="after_standalone_click.png")
+                            logger.info("DEBUG: Saved screenshot after Standalone click to after_standalone_click.png")
+                        except:
+                            pass
+                    except Exception as e:
+                        logger.info(f"Could not find F1 Lite Standalone package option: {str(e)}")
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to click F1 Lite with text selector: {str(e)}")
+                    variant_selected = False
+                
+                # Skip all the complex JavaScript and fallback code for now
+                if variant_selected:
+                    return  # Exit early if we succeeded
+                    
+                # Only continue with complex selectors if simple approach failed
+                logger.warning("Simple text click failed, trying other methods...")
+                
+                # Wait a bit for page to fully load
+                await self.page.wait_for_timeout(2000)
+                
+                # Debug: Let's see what's on the page
+                page_text = await self.page.evaluate('() => document.body.innerText')
+                if 'F1 Lite' in page_text:
+                    logger.info("✅ Page contains 'F1 Lite' text")
+                    # Count occurrences
+                    count = page_text.count('F1 Lite')
+                    logger.info(f"Found 'F1 Lite' {count} times in page text")
+                else:
+                    logger.warning("❌ Page does NOT contain 'F1 Lite' text!")
+                
+                # Check for version section
+                version_section = await self.page.query_selector('.product-options__section--version, [class*="version"], [class*="Version"]')
+                if version_section:
+                    version_html = await version_section.inner_html()
+                    logger.info(f"Version section HTML (first 500 chars): {version_html[:500]}")
+                
+                # Try to click F1 Lite using JavaScript directly
+                clicked = await self.page.evaluate('''
+                    () => {
+                        // Find all elements containing "F1 Lite" text
+                        const allElements = Array.from(document.querySelectorAll('*'));
+                        
+                        for (const element of allElements) {
+                            // Check if element directly contains "F1 Lite" text (not in children)
+                            const hasDirectText = Array.from(element.childNodes)
+                                .some(node => node.nodeType === 3 && node.textContent.includes('F1 Lite'));
+                            
+                            // Also check if it's the only text content
+                            const elementText = element.textContent.trim();
+                            
+                            if ((hasDirectText || elementText === 'F1 Lite') && 
+                                element.offsetParent !== null && // Is visible
+                                !element.querySelector('*')) { // Has no child elements (leaf node)
+                                
+                                console.log('Found F1 Lite element:', element);
+                                element.click();
+                                
+                                // Also try dispatching click event
+                                const event = new MouseEvent('click', {
+                                    view: window,
+                                    bubbles: true,
+                                    cancelable: true
+                                });
+                                element.dispatchEvent(event);
+                                
+                                return true;
+                            }
+                        }
+                        
+                        // If direct approach failed, try finding in Version section
+                        const versionSections = document.querySelectorAll('.product-options__section--version, [class*="version"]');
+                        for (const section of versionSections) {
+                            const liteOptions = section.querySelectorAll('*');
+                            for (const option of liteOptions) {
+                                if (option.textContent.includes('F1 Lite') && 
+                                    !option.querySelector('*') && // Leaf node
+                                    option.offsetParent !== null) { // Is visible
+                                    
+                                    console.log('Found F1 Lite in version section:', option);
+                                    option.click();
+                                    return true;
+                                }
+                            }
+                        }
+                        
+                        return false;
+                    }
+                ''')
+                
+                if clicked:
+                    logger.info("✅ Successfully clicked F1 Lite using JavaScript")
+                    variant_selected = True
+                    await self.page.wait_for_timeout(3000)  # Wait for price to load
+                else:
+                    logger.warning("⚠️ Could not click F1 Lite button with JavaScript")
+                    
+                    # Fallback: Try Playwright's text selector with exact match
+                    try:
+                        # First, let's see what elements contain "F1 Lite"
+                        f1_lite_elements = await self.page.locator('text="F1 Lite"').all()
+                        logger.info(f"Found {len(f1_lite_elements)} elements with exact text 'F1 Lite'")
+                        
+                        # Try to click the first visible one
+                        for element in f1_lite_elements:
+                            try:
+                                is_visible = await element.is_visible()
+                                if is_visible:
+                                    # Get parent to see context
+                                    parent_html = await element.evaluate('el => el.parentElement ? el.parentElement.outerHTML : "no parent"')
+                                    logger.info(f"Clicking F1 Lite element with parent: {parent_html[:200]}...")
+                                    
+                                    await element.click(force=True)  # Force click even if covered
+                                    logger.info("✅ Successfully clicked F1 Lite element")
+                                    variant_selected = True
+                                    await self.page.wait_for_timeout(3000)
+                                    break
+                            except Exception as e:
+                                logger.debug(f"Failed to click element: {str(e)}")
+                                continue
+                                
+                    except Exception as e:
+                        logger.error(f"Error with text selector: {str(e)}")
+                    
+                    # If still not selected, try more selectors
+                    if not variant_selected:
+                        lite_selectors = [
+                            'text=/.*F1\s+Lite.*/',  # Regex for F1 Lite with any spacing
+                            '.product-options >> text="F1 Lite"',
+                            '.product-options__section--version >> text="F1 Lite"',
+                            'div:has-text("F1 Lite"):not(:has(*))',  # Div with text but no children
+                            '[data-value="F1 Lite"]',
+                            '[data-option-value="F1 Lite"]'
+                        ]
+                
+                variant_selected = False
+                
+                # Scroll to variant selection area to ensure it's in view
+                try:
+                    version_section = await self.page.query_selector('.product-options__section--version, .product-options, [class*="version"]')
+                    if version_section:
+                        await version_section.scroll_into_view_if_needed()
+                        await self.page.wait_for_timeout(500)
+                except:
+                    pass
+                
+                for selector in lite_selectors:
+                    try:
+                        # Try multiple methods to find and click the element
+                        elements = await self.page.query_selector_all(selector)
+                        
+                        for element in elements:
+                            try:
+                                # Get element info for debugging
+                                element_text = await element.text_content()
+                                is_visible = await element.is_visible()
+                                
+                                # Only proceed if element contains "F1 Lite" and is visible
+                                if element_text and "F1 Lite" in element_text and is_visible:
+                                    logger.info(f"Found F1 Lite element: '{element_text.strip()}' with selector: {selector}")
+                                    
+                                    # Try different click methods
+                                    try:
+                                        # Method 1: Regular click
+                                        await element.click(timeout=5000)
+                                        logger.info("✅ Successfully clicked F1 Lite variant (regular click)")
+                                        variant_selected = True
+                                    except:
+                                        # Method 2: Force click with JavaScript
+                                        await self.page.evaluate('(element) => element.click()', element)
+                                        logger.info("✅ Successfully clicked F1 Lite variant (JS click)")
+                                        variant_selected = True
+                                    
+                                    # Wait for price to load after clicking
+                                    await self.page.wait_for_timeout(3000)
+                                    
+                                    # Verify the click worked by checking for price updates
+                                    price_elements = await self.page.query_selector_all('.price .money, [data-product-price], .product-price')
+                                    for price_elem in price_elements:
+                                        price_text = await price_elem.text_content()
+                                        if price_text and price_text.strip() and price_text != "$":
+                                            logger.info(f"Price appeared after variant selection: {price_text}")
+                                            break
+                                    
+                                    if variant_selected:
+                                        break
+                                        
+                            except Exception as e:
+                                logger.debug(f"Failed to interact with element: {str(e)}")
+                                continue
+                        
+                        if variant_selected:
+                            break
+                            
+                    except Exception as e:
+                        logger.debug(f"Variant selector {selector} failed: {str(e)}")
+                        continue
+                
+                if variant_selected:
+                    # After selecting F1 Lite version, also need to select the package
+                    logger.info("Now selecting F1 Lite Standalone package...")
+                    
+                    package_selectors = [
+                        # Priority 1: Package section selectors (from screenshot)
+                        '.product-options__section--package [data-value="F1 Lite Standalone"]',
+                        '.product-options__section [data-value="F1 Lite Standalone"]',
+                        '[data-option-name="Package"] [data-value="F1 Lite Standalone"]',
+                        'div[data-value="F1 Lite Standalone"]',
+                        
+                        # Priority 2: Text-based selectors
+                        'div:text("F1 Lite Standalone")',
+                        '.product-options div:has-text("F1 Lite Standalone")',
+                        
+                        # Priority 3: Button/option patterns
+                        'button:has-text("F1 Lite Standalone")',
+                        'option:has-text("F1 Lite Standalone")',
+                        '[data-value*="lite-standalone"]',
+                        '[data-value*="f1-lite-standalone"]'
+                    ]
+                    
+                    for selector in package_selectors:
+                        try:
+                            element = await self.page.query_selector(selector)
+                            if element and await element.is_visible():
+                                await element.click(timeout=5000)
+                                logger.info("✅ Successfully selected F1 Lite Standalone package")
+                                await self.page.wait_for_timeout(2000)
+                                break
+                        except Exception as e:
+                            logger.debug(f"Package selector {selector} failed: {str(e)}")
+                            continue
+                
+                if not variant_selected:
+                    logger.warning("⚠️ Could not find F1 Lite variant selector, trying alternative approaches")
+                    
+                    # Look for any variant selection area to debug
+                    variant_areas = await self.page.query_selector_all('[class*="variant"], [class*="option"], [class*="swatch"], [data-variant], [data-option], button, input, select')
+                    logger.info(f"Found {len(variant_areas)} potential variant selection areas")
+                    
+                    # Try to find elements that contain "lite" or "f1 lite" in their text or attributes
+                    for i, area in enumerate(variant_areas):
+                        try:
+                            text = await area.text_content()
+                            classes = await area.get_attribute('class') or ""
+                            data_variant = await area.get_attribute('data-variant') or ""
+                            data_option = await area.get_attribute('data-option') or ""
+                            value = await area.get_attribute('value') or ""
+                            
+                            # Check if any of these contain "lite" (case insensitive)
+                            all_text = f"{text} {classes} {data_variant} {data_option} {value}".lower()
+                            if "lite" in all_text and i < 20:  # Only check first 20 to avoid spam
+                                logger.info(f"🔍 Potential F1 Lite element {i}: text='{text}', classes='{classes}', data-variant='{data_variant}', value='{value}'")
+                                
+                                # Try to click this element
+                                try:
+                                    if await area.is_visible():
+                                        await area.click(timeout=3000)
+                                        logger.info(f"✅ Successfully clicked potential F1 Lite element {i}")
+                                        variant_selected = True
+                                        await self.page.wait_for_timeout(2000)
+                                        break
+                                except Exception as click_error:
+                                    logger.debug(f"Failed to click element {i}: {str(click_error)}")
+                                    continue
+                        except:
+                            pass
+            
+            # Handle other xTool variants if needed
+            elif 'S1' in machine_name and '40W' in machine_name:
+                # S1 40W specific handling
+                power_selectors = [
+                    '[data-option*="40W"]',
+                    'button:has-text("40W")',
+                    'input[value*="40W"]',
+                    'option[value*="40W"]'
+                ]
+                
+                for selector in power_selectors:
+                    try:
+                        element = await self.page.query_selector(selector)
+                        if element and await element.is_visible():
+                            await element.click()
+                            logger.info("Selected 40W variant for S1")
+                            await self.page.wait_for_timeout(1500)
+                            break
+                    except:
+                        continue
+            
+            # Final wait for any price updates
+            await self.page.wait_for_timeout(1000)
+            
+        except Exception as e:
+            logger.error(f"Error selecting xTool variant: {str(e)}")
+    
+    async def _select_shopify_variant(self, machine_name, variant_rules):
+        """Select Shopify variant using variant ID or option-based selection."""
+        try:
+            logger.info(f"🛍️ Selecting Shopify variant for: {machine_name}")
+            
+            # Try to select by variant ID first (most reliable)
+            if variant_rules.get('target_variant_id'):
+                variant_id = variant_rules['target_variant_id']
+                logger.info(f"Attempting to select variant ID: {variant_id}")
+                
+                # Look for variant selection dropdown
+                variant_selectors = [
+                    f'select[name="id"] option[value="{variant_id}"]',
+                    f'input[name="id"][value="{variant_id}"]',
+                    f'button[data-variant-id="{variant_id}"]'
+                ]
+                
+                for selector in variant_selectors:
+                    try:
+                        element = await self.page.query_selector(selector)
+                        if element:
+                            if 'option' in selector:
+                                # Select the option
+                                await self.page.select_option('select[name="id"]', variant_id)
+                                logger.info(f"✅ Selected variant option: {variant_id}")
+                            else:
+                                # Click the element
+                                await element.click()
+                                logger.info(f"✅ Clicked variant element: {variant_id}")
+                            
+                            # Wait for price update
+                            await self.page.wait_for_timeout(2000)
+                            return True
+                    except Exception as e:
+                        logger.debug(f"Variant selector {selector} failed: {str(e)}")
+                        continue
+            
+            # Fall back to option-based selection
+            option1 = variant_rules.get('option1')  # e.g., "F1 Lite"
+            option2 = variant_rules.get('option2')  # e.g., "F1 Lite Standalone"
+            
+            if option1:
+                logger.info(f"Attempting option-based selection: {option1}")
+                
+                # Look for option elements
+                option_selectors = [
+                    f'.product-options__section--version .option:has-text("{option1}")',
+                    f'.product-options__section--version [data-value="{option1}"]',
+                    f'button:has-text("{option1}")',
+                    f'input[value="{option1}"]',
+                    f'option[value="{option1}"]'
+                ]
+                
+                for selector in option_selectors:
+                    try:
+                        element = await self.page.query_selector(selector)
+                        if element and await element.is_visible():
+                            await element.click()
+                            logger.info(f"✅ Selected option: {option1}")
+                            await self.page.wait_for_timeout(1500)
+                            
+                            # Select second option if needed
+                            if option2:
+                                option2_selectors = [
+                                    f'.product-options__section--package .option:has-text("{option2}")',
+                                    f'.product-options__section--package [data-value="{option2}"]',
+                                    f'button:has-text("{option2}")',
+                                    f'input[value="{option2}"]',
+                                    f'option[value="{option2}"]'
+                                ]
+                                
+                                for selector2 in option2_selectors:
+                                    try:
+                                        element2 = await self.page.query_selector(selector2)
+                                        if element2 and await element2.is_visible():
+                                            await element2.click()
+                                            logger.info(f"✅ Selected second option: {option2}")
+                                            await self.page.wait_for_timeout(1500)
+                                            return True
+                                    except Exception as e:
+                                        logger.debug(f"Option2 selector {selector2} failed: {str(e)}")
+                                        continue
+                            else:
+                                return True
+                    except Exception as e:
+                        logger.debug(f"Option selector {selector} failed: {str(e)}")
+                        continue
+            
+            logger.warning("⚠️ Could not select Shopify variant using any method")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error selecting Shopify variant: {str(e)}")
+            return False
+    
     async def _navigate_aeon_configurator(self, machine_name):
         """Navigate Aeon's multi-step configurator to get accurate pricing."""
         try:
@@ -809,6 +1271,17 @@ class DynamicScraper:
             # Get the updated page content
             content = await self.page.content()
             soup = BeautifulSoup(content, 'lxml')
+            
+            # DEBUG: Log what prices we can find in the HTML
+            logger.info("DEBUG: Starting price extraction from page")
+            all_money_elements = soup.find_all(class_="money")
+            logger.info(f"DEBUG: Found {len(all_money_elements)} elements with class='money'")
+            
+            # Show first 10 money elements for debugging
+            for i, elem in enumerate(all_money_elements[:10]):
+                text = elem.get_text(strip=True)
+                parent_text = elem.parent.get_text(strip=True)[:100] if elem.parent else "No parent"
+                logger.info(f"DEBUG: Money element {i}: '{text}' (parent: '{parent_text}...')")
             
             # Get current URL domain
             current_url = self.page.url

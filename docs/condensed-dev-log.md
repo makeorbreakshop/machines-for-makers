@@ -299,6 +299,20 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Eliminated costly incorrect AI extractions, established systematic improvement process from manual corrections
 - **Technical**: Analysis scripts for pattern detection, Glowforge-specific rules added, METHOD 5 (Claude API) completely removed
 
+### 2025-07-10: Critical Baseline Price Logic Fix & Price Drops Feature
+- **Issue**: Manual corrections weren't updating machines.Price baseline, causing wrong future price comparisons
+- **Solution**: Fixed baseline price logic to prioritize manual corrections, synced 11 stale prices, added concurrent processing
+- **Impact**: ComMarker Omni 1 UV fixed $3,325→$3,888, all manual corrections now immediately effective, 3x batch speed
+- **Technical**: New _get_effective_current_price() method, dual-table updates, machine-specific extraction rules
+- **Feature**: Complete price drops page with filtering, enhanced UI, popover price history, navbar integration
+
+### 2025-07-11: Price Drops UI Enhancement & Automated Daily Updates via Cron
+- **Issue**: Price drops cards touching screen edges, missing approved prices, ComMarker B6 MOPA variant selection failing
+- **Solution**: Fixed card margins with mx-4, included SUCCESS status for deals, updated to wd-swatch button selectors
+- **Impact**: Professional UI with proper spacing, all approved prices visible, ComMarker variants extract correctly ($4,589)
+- **Technical**: Changed modals to popovers, color-coded discount badges, data-value attribute selectors for variants
+- **Feature**: Automated daily updates via cron at 3 AM, processes all 150+ machines nightly without manual intervention
+
 ## 🎯 Success Criteria Achieved
 - ✅ Dual-service architecture operational with shared database
 - ✅ Intelligent price extraction with <20% false positives (down from 80%+)
