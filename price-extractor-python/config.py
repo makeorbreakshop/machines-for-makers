@@ -30,9 +30,9 @@ USER_AGENT = os.getenv(
 MACHINES_TABLE = "machines"
 PRICE_HISTORY_TABLE = "price_history"
 
-# Price Validation Configuration - PRODUCTION MODE: REASONABLE THRESHOLDS
-MAX_PRICE_INCREASE_PERCENT = float(os.getenv("MAX_PRICE_INCREASE_PERCENT", "20"))  # 20% = Significant increases require review
-MAX_PRICE_DECREASE_PERCENT = float(os.getenv("MAX_PRICE_DECREASE_PERCENT", "20"))  # 20% = Significant decreases require review
+# Price Validation Configuration - CONSERVATIVE MODE: ALL CHANGES REQUIRE MANUAL APPROVAL
+MAX_PRICE_INCREASE_PERCENT = float(os.getenv("MAX_PRICE_INCREASE_PERCENT", "0.1"))  # 0.1% = Virtually all increases require review
+MAX_PRICE_DECREASE_PERCENT = float(os.getenv("MAX_PRICE_DECREASE_PERCENT", "0.1"))  # 0.1% = Virtually all decreases require review
 MIN_PRICE_THRESHOLD = float(os.getenv("MIN_PRICE_THRESHOLD", "10"))  # Minimum price to consider valid
 
 # Concurrent Processing Configuration

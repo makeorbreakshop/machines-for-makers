@@ -62,9 +62,10 @@ export async function GET(request: NextRequest) {
 
     // Transform the data and calculate real price drops
     const allPriceChanges = data?.map(drop => {
-      const currentPrice = parseFloat(drop.price);
+      const historicalCurrentPrice = parseFloat(drop.price);
       const previousPrice = parseFloat(drop.previous_price);
-      const priceChange = currentPrice - previousPrice;
+      const actualCurrentPrice = parseFloat(drop.machines.Price); // Current price from machines table
+      const priceChange = historicalCurrentPrice - previousPrice;
       const percentageChange = previousPrice > 0 ? (priceChange / previousPrice) * 100 : 0;
       
       return {
@@ -72,7 +73,8 @@ export async function GET(request: NextRequest) {
         machineId: drop.machine_id,
         machineName: drop.machines['Machine Name'],
         company: drop.machines.Company,
-        currentPrice,
+        currentPrice: actualCurrentPrice, // Use current price from machines table
+        historicalCurrentPrice, // The price at the time of the drop
         previousPrice,
         priceChange,
         percentageChange,
@@ -90,8 +92,11 @@ export async function GET(request: NextRequest) {
     }) || [];
 
     // Filter to only actual price drops (negative price change) with minimum 1% drop
+    // AND ensure the deal is still valid (current price hasn't increased above the deal price)
     let priceDrops = allPriceChanges.filter(drop => 
-      drop.priceChange < 0 && Math.abs(drop.percentageChange) >= 1.0
+      drop.priceChange < 0 && 
+      Math.abs(drop.percentageChange) >= 1.0 &&
+      drop.currentPrice <= drop.historicalCurrentPrice * 1.01 // Allow 1% tolerance for minor price fluctuations
     );
 
     // Apply additional minimum discount filter if provided

@@ -129,7 +129,7 @@ class PriceService:
             response = self.db_service.supabase.table("price_history") \
                 .select("price, date, status") \
                 .eq("machine_id", machine_id) \
-                .in_("status", ["APPROVED", "MANUAL_CORRECTION"]) \
+                .in_("status", ["AUTO_APPLIED", "SUCCESS", "MANUAL_CORRECTION"]) \
                 .order("date", desc=True) \
                 .limit(1) \
                 .execute()

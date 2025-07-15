@@ -2129,17 +2129,19 @@ export default function PriceTrackerAdmin() {
                                     <CheckCircle className="w-4 h-4 mr-1" />
                                     Approve
                                   </Button>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    className="border-orange-300 text-orange-700 hover:bg-orange-50"
-                                    onClick={() => openCorrectionDialog(record)}
-                                  >
-                                    <AlertCircle className="w-4 h-4 mr-1" />
-                                    Correct Price
-                                  </Button>
                                 </>
                               )}
+                              
+                              {/* Show Correct Price button for all statuses */}
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                                onClick={() => openCorrectionDialog(record)}
+                              >
+                                <AlertCircle className="w-4 h-4 mr-1" />
+                                Correct Price
+                              </Button>
                               
                               {/* Individual Update Price button */}
                               <Button 
@@ -2365,7 +2367,7 @@ export default function PriceTrackerAdmin() {
             </h2>
             
             <p style={{ fontSize: '14px', color: '#666', marginBottom: '16px' }}>
-              The extracted price appears to be incorrect. Please provide the correct price.
+              Correct the price for this machine. This will update both the price history and the current machine price.
             </p>
             
             {correctionRecord && (
