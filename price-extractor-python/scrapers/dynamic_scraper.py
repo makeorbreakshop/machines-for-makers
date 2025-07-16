@@ -913,25 +913,80 @@ class DynamicScraper:
                             pass
             
             # Handle other xTool variants if needed
-            elif 'S1' in machine_name and '40W' in machine_name:
-                # S1 40W specific handling
+            elif 'S1' in machine_name:
+                # S1 requires 40W variant selection - S1 is a 40W machine
+                logger.info("Detected xTool S1 - selecting 40W variant")
+                
+                # Wait for page to fully load and variant options to appear
+                await self.page.wait_for_timeout(3000)
+                
+                # S1 40W specific handling with comprehensive selectors
                 power_selectors = [
-                    '[data-option*="40W"]',
-                    'button:has-text("40W")',
-                    'input[value*="40W"]',
-                    'option[value*="40W"]'
+                    'text="40W"',  # Direct text selector
+                    'button:has-text("40W")',  # Button with 40W text
+                    '[data-option*="40W"]',  # Data attribute containing 40W
+                    '[data-value*="40W"]',  # Data value containing 40W
+                    'input[value*="40W"]',  # Input value containing 40W
+                    'option[value*="40W"]',  # Option value containing 40W
+                    '.variant-option:has-text("40W")',  # Variant option with 40W text
+                    '.product-option:has-text("40W")',  # Product option with 40W text
+                    '.power-option:has-text("40W")',  # Power option with 40W text
+                    'label:has-text("40W")',  # Label with 40W text
+                    'span:has-text("40W")',  # Span with 40W text
                 ]
                 
+                variant_selected = False
                 for selector in power_selectors:
                     try:
+                        logger.info(f"Trying S1 40W selector: {selector}")
                         element = await self.page.query_selector(selector)
                         if element and await element.is_visible():
-                            await element.click()
-                            logger.info("Selected 40W variant for S1")
-                            await self.page.wait_for_timeout(1500)
+                            await element.click(timeout=5000)
+                            logger.info(f"✅ Successfully selected 40W variant for S1 using: {selector}")
+                            variant_selected = True
+                            await self.page.wait_for_timeout(2000)  # Wait for price to update
                             break
-                    except:
+                    except Exception as e:
+                        logger.debug(f"Failed to click S1 40W selector {selector}: {str(e)}")
                         continue
+                
+                if not variant_selected:
+                    logger.warning("⚠️ Could not select 40W variant for S1 - may not be required")
+                    logger.info("S1 might show 40W price by default, continuing with extraction")
+                
+                # Additional wait for price to stabilize
+                await self.page.wait_for_timeout(1000)
+                
+                # Debug: Check what price elements are available on xTool S1 page
+                logger.info("🔍 Debugging xTool S1 page structure...")
+                
+                # Check for various price element patterns
+                price_patterns = [
+                    '.money',
+                    '.price',
+                    '[data-price]',
+                    '.price__current',
+                    '.price__sale',
+                    '.product-price',
+                    '.price-item',
+                    '*[class*="price"]',
+                    '*[class*="money"]'
+                ]
+                
+                for pattern in price_patterns:
+                    try:
+                        elements = await self.page.query_selector_all(pattern)
+                        if elements:
+                            logger.info(f"Found {len(elements)} elements matching '{pattern}'")
+                            for i, elem in enumerate(elements[:3]):  # Show first 3
+                                try:
+                                    text = await elem.text_content()
+                                    classes = await elem.get_attribute('class')
+                                    logger.info(f"  Element {i}: text='{text}', classes='{classes}'")
+                                except:
+                                    pass
+                    except:
+                        pass
             
             # Final wait for any price updates
             await self.page.wait_for_timeout(1000)
@@ -1357,6 +1412,45 @@ class DynamicScraper:
                         '.product-summary [data-price]',
                         '.entry-summary [data-price]'
                     ]
+            elif 'xtool.com' in domain:
+                # xTool Shopify-specific selectors
+                logger.info("🎯 xTool.com detected - using Shopify price selectors")
+                price_selectors = [
+                    # xTool's specific Shopify theme price structure
+                    '.product-page-info-price-container .price--sale .price__current',  # Sale price current
+                    '.product-page-info-price-container .price__current',  # Current price
+                    '.product-page-info__price .price__current',  # Alternative current price
+                    '.price--sale .price__current',  # Sale price current (simplified)
+                    '.price .price__current',  # Generic current price
+                    '.price__current',  # Direct current price
+                    
+                    # Alternative sale price selectors
+                    '.product-page-info-price-container .price--sale .price__sale',
+                    '.product-page-info__price .price__sale',
+                    '.price--sale .price__sale',
+                    '.price .price__sale',
+                    '.price__sale',
+                    
+                    # Money selectors in xTool's format
+                    '.product-page-info-price-container .money',
+                    '.product-page-info__price .money',
+                    '.price--sale .money',
+                    '.price .money',
+                    '.money',
+                    
+                    # Badge price selectors
+                    '.product-badge-price',
+                    '.footer-price-bold.product-badge-price',
+                    '.footer-price-bold',
+                    
+                    # Data attributes
+                    '[data-price]',
+                    '[data-product-price]',
+                    
+                    # Fallback generic selectors
+                    '.price',
+                    '.product-price'
+                ]
             else:
                 # Default selectors for other sites
                 price_selectors = [

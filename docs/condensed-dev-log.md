@@ -313,6 +313,20 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Technical**: Changed modals to popovers, color-coded discount badges, data-value attribute selectors for variants
 - **Feature**: Automated daily updates via cron at 3 AM, processes all 150+ machines nightly without manual intervention
 
+### 2025-07-14: Cron to Launchd Migration & xTool F1 Lite Extraction Fix
+- **Issue**: Cron job failed to run on July 12th due to Mac being asleep, xTool F1 Lite extracting wrong price ($1,169 vs $799)
+- **Solution**: Migrated to launchd for sleep-wake capability, simplified F1 Lite extraction with variant-specific URL
+- **Impact**: Reliable nightly updates regardless of system sleep state, xTool F1 Lite now extracts correct $799 price
+- **Technical**: launchd plist configuration for wake-on-schedule, direct variant URL bypassing complex automation
+- **Feature**: Experimental price tracker page with 90-day analytics, OneLaser XRF group buy landing page
+
+### 2025-07-15: Conservative Auto-Approval Implementation & Admin Interface Fixes
+- **Issue**: Price extraction auto-approving hundreds of dollars in changes (20% thresholds too permissive), deals page showing outdated prices
+- **Solution**: Implemented 0.1% conservative thresholds for system calibration, fixed deals page validation logic, enhanced price correction access
+- **Impact**: All price changes now require manual approval during tuning phase, deals page shows current prices, admin can correct any status
+- **Technical**: Updated config.py thresholds, fixed API status query bug (APPROVED→AUTO_APPLIED), deals page current price validation
+- **Feature**: Price correction available for all statuses, deals page filters invalid deals, previous price display bug fixed
+
 ## 🎯 Success Criteria Achieved
 - ✅ Dual-service architecture operational with shared database
 - ✅ Intelligent price extraction with <20% false positives (down from 80%+)

@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 
 from scrapers.site_specific_extractors import SiteSpecificExtractor
 from scrapers.dynamic_scraper import DynamicScraper
+from scrapers.browser_pool import PooledDynamicScraper
 from scrapers.selector_blacklist import is_selector_blacklisted, get_blacklist_reason
 
 class PriceExtractor:
@@ -661,7 +662,7 @@ LOOK FOR:
     
     async def _extract_with_dynamic_scraper(self, url, machine_name, machine_data=None):
         """
-        Extract price using dynamic scraper with variant selection.
+        Extract price using pooled dynamic scraper with variant selection.
         
         Args:
             url (str): Product page URL.
@@ -675,7 +676,8 @@ LOOK FOR:
             # Get variant rules for this site
             variant_rules = self._get_variant_rules(url)
             
-            async with DynamicScraper() as scraper:
+            # Use pooled scraper for better resource isolation
+            async with PooledDynamicScraper() as scraper:
                 price, method = await scraper.extract_price_with_variants(
                     url, machine_name, variant_rules, machine_data
                 )
