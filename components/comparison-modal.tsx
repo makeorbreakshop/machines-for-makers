@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button"
 import { useComparison } from "@/context/comparison-context"
 import Image from "next/image"
 import Link from "next/link"
-import { Check, X } from "lucide-react"
+import { Check, X, ChevronDown, ChevronRight } from "lucide-react"
 import type { Machine } from "@/lib/database-types"
-import React from "react"
+import React, { useState } from "react"
 
 // Define a type that can handle both camelCase and quoted property names
 interface MixedFormatProduct extends Record<string, any> {
@@ -34,8 +34,10 @@ const specCategories = [
   {
     name: "Laser Specifications",
     specs: [
-      { key: "Laser Type A", label: "Laser Type" },
-      { key: "Laser Power A", label: "Power", unit: "W" },
+      { key: "Laser Type A", label: "Laser A Type" },
+      { key: "Laser Power A", label: "Laser A Power", unit: "W" },
+      { key: "Laser Type B", label: "Laser B Type" },
+      { key: "LaserPower B", label: "Laser B Power", unit: "W" },
       { key: "Laser Source Manufacturer", label: "Laser Source" },
       { key: "Laser Frequency", label: "Frequency", defaultValue: "Not specified" },
       { key: "Pulse Width", label: "Pulse Width", defaultValue: "Not specified" },
@@ -81,6 +83,8 @@ const specKeys = {
   // Laser Specifications
   laserType: ["Laser Type A", "laser_type_a"],
   laserPower: ["Laser Power A", "laser_power_a"],
+  laserTypeB: ["Laser Type B", "laser_type_b"],
+  laserPowerB: ["LaserPower B", "laser_power_b"],
   laserSource: ["Laser Source Manufacturer", "laser_source_manufacturer"],
   laserFrequency: ["Laser Frequency", "laser_frequency"],
   pulseWidth: ["Pulse Width", "pulse_width"],
@@ -110,6 +114,14 @@ interface ComparisonModalProps {
 
 export default function ComparisonModal({ open, onOpenChange }: ComparisonModalProps) {
   const { selectedProducts, removeFromComparison, clearComparison } = useComparison()
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({"Basic Information": true, "Laser Specifications": true})
+  
+  const toggleSection = (sectionName: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }))
+  }
 
   // Helper function to get value from product using multiple possible keys
   const getProductValue = (product: Machine, keys: string[]) => {
@@ -137,6 +149,8 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
     else if (spec.key === "Software") value = getProductValue(product, specKeys.software)
     else if (spec.key === "Laser Type A") value = getProductValue(product, specKeys.laserType)
     else if (spec.key === "Laser Power A") value = getProductValue(product, specKeys.laserPower)
+    else if (spec.key === "Laser Type B") value = getProductValue(product, specKeys.laserTypeB)
+    else if (spec.key === "LaserPower B") value = getProductValue(product, specKeys.laserPowerB)
     else if (spec.key === "Laser Source Manufacturer") value = getProductValue(product, specKeys.laserSource)
     else if (spec.key === "Laser Frequency") value = getProductValue(product, specKeys.laserFrequency)
     else if (spec.key === "Pulse Width") value = getProductValue(product, specKeys.pulseWidth)
@@ -269,6 +283,14 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
       if (value === "?" || value === "—" || value === "Not specified" || value === "") {
         return "—";
       }
+      
+      // Special handling for laser power - clean up the formatting
+      if (spec.key === "Laser Power A" || spec.key === "LaserPower B") {
+        // Remove any existing "W" suffix before adding our own
+        const cleanValue = typeof value === "string" ? value.replace(/W?$/, "") : value;
+        return <span>{cleanValue}<span className="text-xs ml-0.5 text-muted-foreground">W</span></span>;
+      }
+      
       return <span>{value}<span className="text-xs ml-0.5 text-muted-foreground">{spec.unit}</span></span>;
     }
 
@@ -340,13 +362,21 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
                     {selectedProducts.map((product) => (
                       <th key={product.id} className="border-b p-2 md:p-3 text-center">
                         <div className="flex flex-col items-center relative group">
-                          <div className="relative h-16 w-16 md:h-20 md:w-20 mb-1 mx-auto rounded-md overflow-hidden bg-muted/20">
+                          <div className="relative h-32 w-32 md:h-36 md:w-36 mb-2 mx-auto rounded-lg overflow-hidden bg-muted/20 p-2">
                             <Image
                               src={getImageUrl(product)}
                               alt={getMachineName(product)}
                               fill
-                              className="object-contain p-1"
+                              className="object-contain p-2"
                             />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute top-1 right-1 h-6 w-6 p-0 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10"
+                              onClick={() => removeFromComparison(product.id)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
                           </div>
                           <Link
                             href={`/products/${getInternalLink(product)}`}
@@ -354,14 +384,6 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
                           >
                             {getMachineName(product)}
                           </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="mt-0.5 h-6 text-xs px-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => removeFromComparison(product.id)}
-                          >
-                            <X className="h-3 w-3 mr-0.5" /> Remove
-                          </Button>
                         </div>
                       </th>
                     ))}
@@ -382,6 +404,8 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
                         else if (spec.key === "Software") value = getProductValue(product, specKeys.software)
                         else if (spec.key === "Laser Type A") value = getProductValue(product, specKeys.laserType)
                         else if (spec.key === "Laser Power A") value = getProductValue(product, specKeys.laserPower)
+                        else if (spec.key === "Laser Type B") value = getProductValue(product, specKeys.laserTypeB)
+                        else if (spec.key === "LaserPower B") value = getProductValue(product, specKeys.laserPowerB)
                         else if (spec.key === "Laser Source Manufacturer") value = getProductValue(product, specKeys.laserSource)
                         else if (spec.key === "Laser Frequency") value = getProductValue(product, specKeys.laserFrequency)
                         else if (spec.key === "Pulse Width") value = getProductValue(product, specKeys.pulseWidth)
@@ -417,10 +441,20 @@ export default function ComparisonModal({ open, onOpenChange }: ComparisonModalP
                       <React.Fragment key={category.name}>
                         <tr className="bg-muted/50">
                           <td className="border-b p-2 md:p-3 font-bold text-sm md:text-base text-gray-700 dark:text-gray-300" colSpan={selectedProducts.length + 1}>
-                            {category.name}
+                            <button
+                              onClick={() => toggleSection(category.name)}
+                              className="flex items-center gap-2 w-full text-left hover:text-primary transition-colors"
+                            >
+                              {expandedSections[category.name] ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                              {category.name}
+                            </button>
                           </td>
                         </tr>
-                        {visibleSpecs.map((spec) => (
+                        {expandedSections[category.name] && visibleSpecs.map((spec) => (
                           <tr key={spec.key} className="hover:bg-muted/20 transition-colors">
                             <td className="border-b p-2 md:p-3 font-medium text-sm md:text-base text-muted-foreground">{spec.label}</td>
                             {selectedProducts.map((product) => (
