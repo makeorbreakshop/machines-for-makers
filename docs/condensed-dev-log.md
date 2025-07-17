@@ -327,6 +327,13 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Technical**: Updated config.py thresholds, fixed API status query bug (APPROVED→AUTO_APPLIED), deals page current price validation
 - **Feature**: Price correction available for all statuses, deals page filters invalid deals, previous price display bug fixed
 
+### 2025-07-16: Browser Resource Exhaustion Analysis & Browser Pool Implementation
+- **Issue**: Systematic price extraction failures (20+ machines) due to browser resource exhaustion during concurrent batch processing
+- **Solution**: Root cause analysis revealed shared browser conflicts → implemented browser pool architecture with dedicated instances per worker
+- **Impact**: Fixed ComMarker/xTool extraction failures, validated conservative thresholds were correct response to architectural problems
+- **Technical**: Browser pool with 5 dedicated instances, resource isolation, proper cleanup, fixed concurrent processing crashes
+- **Feature**: Admin brand creation workflow, RLS policy fixes, machine URL scraper improvements for inline editing
+
 ## 🎯 Success Criteria Achieved
 - ✅ Dual-service architecture operational with shared database
 - ✅ Intelligent price extraction with <20% false positives (down from 80%+)
