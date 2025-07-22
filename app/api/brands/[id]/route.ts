@@ -1,5 +1,7 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createServerClient, createServiceClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+
+export const runtime = 'nodejs'
 
 // GET a specific brand by ID
 export async function GET(request: Request, { params }: { params: { id: string } }) {
@@ -16,13 +18,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
 // PUT to update a brand
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const supabase = createServerClient()
+  const supabase = createServiceClient()
 
   try {
     const brandData = await request.json()
 
     // Update timestamp
-    brandData.updated_at = new Date().toISOString()
+    brandData["Updated On"] = new Date().toISOString()
 
     const { data, error } = await supabase.from("brands").update(brandData).eq("id", params.id).select()
 
@@ -38,7 +40,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
 // DELETE a brand
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
-  const supabase = createServerClient()
+  const supabase = createServiceClient()
 
   const { error } = await supabase.from("brands").delete().eq("id", params.id)
 

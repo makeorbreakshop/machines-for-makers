@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from services.database import DatabaseService
 from scrapers.web_scraper import WebScraper
 from scrapers.price_extractor import PriceExtractor
+from services.variant_verification import VariantVerificationService
 from config import (
     MAX_PRICE_INCREASE_PERCENT,
     MAX_PRICE_DECREASE_PERCENT,
@@ -21,6 +22,7 @@ class PriceService:
         self.db_service = DatabaseService()
         self.web_scraper = WebScraper()
         self.price_extractor = PriceExtractor()
+        self.variant_verifier = None  # Will be initialized per batch
         logger.info("Price service initialized")
     
     def _setup_batch_logging(self, batch_id):
@@ -114,39 +116,21 @@ class PriceService:
     
     async def _get_effective_current_price(self, machine_id, fallback_price):
         """
-        Get the effective current price for a machine, using the MOST RECENT approved price or manual correction.
+        Get the effective current price for a machine.
+        IMPORTANT: For extraction purposes, we ALWAYS use the machine's base price,
+        NOT manual corrections. This ensures price extraction selects prices
+        closest to the original baseline, not temporary corrections.
         
         Args:
             machine_id (str): The machine ID
-            fallback_price (float): The price from machines table as fallback
+            fallback_price (float): The price from machines table
             
         Returns:
             float: The effective current price to use as baseline
         """
-        try:
-            # Get the most recent price event (approved or manually corrected)
-            # This ensures we always use the latest price decision as baseline
-            response = self.db_service.supabase.table("price_history") \
-                .select("price, date, status") \
-                .eq("machine_id", machine_id) \
-                .in_("status", ["AUTO_APPLIED", "SUCCESS", "MANUAL_CORRECTION"]) \
-                .order("date", desc=True) \
-                .limit(1) \
-                .execute()
-            
-            if response.data and len(response.data) > 0:
-                recent_price = response.data[0].get("price")
-                status = response.data[0].get("status")
-                created_at = response.data[0].get("date")
-                
-                if recent_price is not None:
-                    logger.info(f"📊 Using most recent {status} price as baseline: ${recent_price} from {created_at} (machines.Price: ${fallback_price})")
-                    return float(recent_price)
-        except Exception as e:
-            logger.warning(f"Error checking for recent price events: {str(e)}")
-        
-        # Fall back to machines table price
-        logger.debug(f"No recent price history found, using machines.Price: ${fallback_price}")
+        # ALWAYS use the machine's base price from the machines table
+        # Do NOT use manual corrections as baseline for extraction
+        logger.info(f"📊 Using machines.Price as baseline: ${fallback_price}")
         return fallback_price
     
     async def update_machine_price(self, machine_id, url=None, batch_id=None):
@@ -307,6 +291,11 @@ class PriceService:
             # Get the old price - use same effective current price logic
             old_price = await self._get_effective_current_price(machine_id, machine.get("Price"))
             logger.debug(f"Old price: {old_price}, New price: {new_price}")
+            
+            # Record price for variant verification (if in batch mode)
+            if batch_id and self.variant_verifier:
+                machine_name = machine.get("Machine Name", "Unknown")
+                self.variant_verifier.record_price(machine_name, new_price, batch_id)
             
             # Skip update if the price hasn't changed
             if old_price == new_price:
@@ -566,6 +555,9 @@ class PriceService:
         # Set up batch-specific logging
         batch_log_path = self._setup_batch_logging(batch_id)
         
+        # Initialize variant verifier for this batch
+        self.variant_verifier = VariantVerificationService()
+        
         # Set effective max workers (use config default if not specified)
         from config import MAX_CONCURRENT_EXTRACTIONS
         effective_max_workers = max_workers if max_workers is not None else MAX_CONCURRENT_EXTRACTIONS
@@ -591,6 +583,16 @@ class PriceService:
         await self.db_service.complete_batch(batch_id)
         
         logger.info(f"Batch update completed. Results: {results['successful']} successful, {results['failed']} failed")
+        
+        # Generate and log variant verification report
+        if self.variant_verifier:
+            variant_report = self.variant_verifier.generate_report()
+            logger.info("\n" + variant_report)
+            
+            # Check if we should block the batch due to variant issues
+            if self.variant_verifier.should_block_batch():
+                logger.error("🛑 CRITICAL: Batch has variant price issues that indicate broken extraction!")
+                results['variant_alerts'] = self.variant_verifier.get_alerts()
         
         # Log batch completion details
         logger.info(f"======================")

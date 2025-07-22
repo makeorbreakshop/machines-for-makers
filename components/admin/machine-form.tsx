@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createMachine, updateMachine } from "@/lib/services/machine-service"
+import { createBrand, getBrands } from "@/lib/services/brand-service"
 import type { Machine, Category, Brand, BrandFromDB } from "@/lib/database-types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
@@ -269,6 +270,130 @@ const PublicationRequirementsChecklist = ({ formValues, showRequirements, curren
   );
 };
 
+// Create New Brand Dialog Component
+function CreateBrandDialog({ onBrandCreated, isOpen, onOpenChange }: { 
+  onBrandCreated: (brand: any) => void;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const createBrandForm = useForm({
+    resolver: zodResolver(
+      z.object({
+        Name: z.string().min(2, "Brand name must be at least 2 characters."),
+        Website: z.string().url({ message: "Please enter a valid URL" }).optional().or(z.literal('')),
+      })
+    ),
+    defaultValues: {
+      Name: "",
+      Website: "",
+    },
+  });
+
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^\w\s]/gi, "")
+      .replace(/\s+/g, "-");
+  };
+
+  const onCreateBrandSubmit = async (values: { Name: string; Website?: string }) => {
+    setIsSubmitting(true);
+    setError(null);
+    
+    try {
+      const brandData = {
+        Name: values.Name,
+        Slug: generateSlug(values.Name),
+        Website: values.Website || null,
+        Logo: null,
+      };
+      
+      const result = await createBrand(brandData);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      if (result.data) {
+        // Call the callback with the new brand data
+        onBrandCreated(result.data);
+        
+        // Reset form and close dialog
+        createBrandForm.reset();
+        onOpenChange(false);
+      } else {
+        throw new Error("Failed to create brand. No data returned.");
+      }
+    } catch (error: any) {
+      console.error("Error creating brand:", error);
+      setError(error?.message || "An error occurred while creating the brand");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Create New Brand</DialogTitle>
+          <DialogDescription>
+            Add a new brand to the system. This will be available immediately for selection.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={createBrandForm.handleSubmit(onCreateBrandSubmit)} className="space-y-4 py-4">
+          <FormField
+            control={createBrandForm.control}
+            name="Name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Brand Name</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter brand name" autoFocus />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={createBrandForm.control}
+            name="Website"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Website URL (optional)</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="https://example.com" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          {error && (
+            <div className="bg-red-50 text-red-800 px-4 py-2 rounded border border-red-200">
+              {error}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Brand"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Quick Add Machine Dialog Component
 function QuickAddMachineDialog() {
   const router = useRouter();
@@ -415,6 +540,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
   const [cloneSource, setCloneSource] = useState<string | null>(null)
   const [brandOptions, setBrandOptions] = useState<any[]>([])
   const [showRequirements, setShowRequirements] = useState(false)
+  const [showCreateBrand, setShowCreateBrand] = useState(false)
   const [machineImages, setMachineImages] = useState<string[]>(
     machine?.images && Array.isArray(machine.images) ? machine.images : 
     machine?.image_url ? [machine.image_url] : []
@@ -465,11 +591,72 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
         id: brand.id,
         name: brand.Name || '',
         value: brand.Slug || '',  // This must match exactly the Slug in brands table
-      }));
+      })).sort((a, b) => a.name.localeCompare(b.name));
       console.log('Processed brands:', processedBrands);
       setBrandOptions(processedBrands);
     }
   }, [brands]);
+  
+  // Handle new brand creation
+  const handleBrandCreated = async (newBrand: any) => {
+    try {
+      // Refetch all brands to ensure we have the latest data
+      const brandsResponse = await getBrands();
+      
+      if (brandsResponse.data) {
+        // Process the refreshed brands data
+        const processedBrands = brandsResponse.data.map((brand: any) => ({
+          id: brand.id,
+          name: brand.Name || '',
+          value: brand.Slug || '',
+        })).sort((a, b) => a.name.localeCompare(b.name));
+        
+        // Update the brand options with fresh data
+        setBrandOptions(processedBrands);
+        
+        // Automatically select the new brand
+        form.setValue('company', newBrand.Slug);
+        
+        // Show success message
+        setError(null);
+        setShowConfirmation(true);
+        setConfirmAction('brand-created');
+        setTimeout(() => setShowConfirmation(false), 3000);
+      } else {
+        // Fallback to adding just the new brand if API fails
+        const newBrandOption = {
+          id: newBrand.id,
+          name: newBrand.Name,
+          value: newBrand.Slug,
+        };
+        
+        setBrandOptions(prev => [...prev, newBrandOption]);
+        form.setValue('company', newBrand.Slug);
+        
+        setError(null);
+        setShowConfirmation(true);
+        setConfirmAction('brand-created');
+        setTimeout(() => setShowConfirmation(false), 3000);
+      }
+    } catch (error) {
+      console.error('Error refreshing brands:', error);
+      
+      // Fallback to adding just the new brand if refresh fails
+      const newBrandOption = {
+        id: newBrand.id,
+        name: newBrand.Name,
+        value: newBrand.Slug,
+      };
+      
+      setBrandOptions(prev => [...prev, newBrandOption]);
+      form.setValue('company', newBrand.Slug);
+      
+      setError(null);
+      setShowConfirmation(true);
+      setConfirmAction('brand-created');
+      setTimeout(() => setShowConfirmation(false), 3000);
+    }
+  };
   
   // Function to generate a slug from the machine name
   const generateSlug = (name: string) => {
@@ -821,6 +1008,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
             {confirmAction === 'continue' ? 'Changes saved successfully!' : 
              confirmAction === 'create' ? 'Machine created! Creating another...' : 
              confirmAction === 'scraper' ? 'Machine data updated from URL!' :
+             confirmAction === 'brand-created' ? 'Brand created and selected successfully!' :
              'Machine saved successfully!'}
           </div>
         )}
@@ -895,21 +1083,33 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                       <FormItem>
                         <PublishRequiredFormLabel>Company (Brand)</PublishRequiredFormLabel>
                         <FormControl>
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select brand" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {brandOptions.map((brand) => (
-                                <SelectItem key={brand.id} value={brand.value}>
-                                  {brand.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex gap-2">
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                            >
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder="Select brand" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {brandOptions.map((brand) => (
+                                  <SelectItem key={brand.id} value={brand.value}>
+                                    {brand.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowCreateBrand(true)}
+                              className="flex items-center gap-1 px-3"
+                            >
+                              <Plus className="h-4 w-4" />
+                              New
+                            </Button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1838,6 +2038,13 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
             onOpenChange={setIsScraperOpen}
           />
         )}
+        
+        {/* Create Brand Modal */}
+        <CreateBrandDialog 
+          isOpen={showCreateBrand}
+          onOpenChange={setShowCreateBrand}
+          onBrandCreated={handleBrandCreated}
+        />
 
       </form>
     </Form>

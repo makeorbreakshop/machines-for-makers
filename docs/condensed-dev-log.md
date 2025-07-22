@@ -36,6 +36,10 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 | 2025-07-09 | Meta tag extraction support | Added og:price:amount parsing for modern e-commerce sites |
 | 2025-07-09 | Site-specific rules expansion | Added Atomstack, WeCreat, Mr Carve extraction rules |
 | 2025-07-09 | Manual correction recognition | Prevented duplicate approvals for recently corrected prices |
+| 2025-07-16 | Browser pool architecture | Resolved resource exhaustion, enabled concurrent extraction |
+| 2025-07-17 | Critical cron job restoration | Fixed websockets dependency conflict, restored automated tracking |
+| 2025-07-17 | Cron job Python service integration | Eliminated duplicate scraping logic, unified extraction pipeline |
+| 2025-07-18 | ComMarker baseline price fix | Stopped using manual corrections as baseline, fixed feedback loop |
 
 ## 🔎 Key Technical Insights
 - MCP integration provides direct Supabase access through Claude Code interface
@@ -84,6 +88,9 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Systematic manual correction analysis with 3 error type identification and targeted fixes
 - Enhanced web scraper with Thunder Laser anti-detection and Atomstack URL corrections
 - Retest functionality for failed + manually corrected machines from specific batches
+- Browser pool architecture preventing resource exhaustion during concurrent extraction
+- Unified extraction pipeline with cron job using Python service instead of duplicate logic
+- Baseline price anchoring using original prices, not manual corrections
 
 ## 🕒 Development Log
 
@@ -333,6 +340,27 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Fixed ComMarker/xTool extraction failures, validated conservative thresholds were correct response to architectural problems
 - **Technical**: Browser pool with 5 dedicated instances, resource isolation, proper cleanup, fixed concurrent processing crashes
 - **Feature**: Admin brand creation workflow, RLS policy fixes, machine URL scraper improvements for inline editing
+
+### 2025-07-17: Critical Cron Job Restoration & Python Service Integration
+- **Issue**: Cron job failed due to websockets dependency conflict from browser pool, old scraping logic bypassing Python service
+- **Solution**: Fixed websockets 10.4→11.0.2, added playwright to requirements, rewrote cron to use Python service API
+- **Impact**: Restored automated nightly price tracking, unified extraction pipeline, eliminated duplicate scraping logic
+- **Technical**: Resolved ClientProtocol import error, added export const runtime='nodejs', Python service integration
+- **Feature**: Single source of truth for price extraction, consistent behavior between manual and automated processing
+
+### 2025-07-18: ComMarker Baseline Price Fix - Eliminated Manual Correction Feedback Loop
+- **Issue**: ComMarker B6 MOPA extracting $3,059 instead of $4,589 due to using manual corrections as baseline
+- **Solution**: Modified _get_effective_current_price to ALWAYS use original price, removed hardcoded price ranges
+- **Impact**: Fixed vicious feedback loop where corrections became new baseline, correct prices now extracted
+- **Technical**: Removed MANUAL_CORRECTION from baseline logic, always anchor to machines.Price field
+- **Feature**: Stable price anchoring prevents drift from manual corrections affecting future extractions
+
+### 2025-07-21: ComMarker Variant Selection Fix & xTool S1 URL Correction
+- **Issue**: ComMarker B6 MOPA variants all extracting same price ($3,059) despite multiple "fixes", xTool S1 404 error
+- **Solution**: Dual-method variant selection (dropdowns + buttons), variant price verification system, xTool URL update
+- **Impact**: All variants now extract different prices correctly (20W: $3599, 30W: $3999, 60W: $4589), xTool S1 working
+- **Technical**: Prioritize visible UI elements, per-variant baseline prices, automated verification system with alerts
+- **Feature**: Variant price verification prevents silent failures, Thunder Bolt identified as needing site-specific rules
 
 ## 🎯 Success Criteria Achieved
 - ✅ Dual-service architecture operational with shared database

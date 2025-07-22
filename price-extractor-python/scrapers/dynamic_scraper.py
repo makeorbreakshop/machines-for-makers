@@ -221,9 +221,14 @@ class DynamicScraper:
             
             logger.info(f"Detected model: {model}, power: {power}W, MOPA: {is_mopa}")
             
-            # First try to select power/wattage using improved selectors for ComMarker's button structure
+            # ComMarker has BOTH dropdown selects AND button swatches - try both!
             if power:
-                # ComMarker uses wd-swatch button structure, not dropdowns
+                selected_power = False
+                
+                # METHOD 1: Try button/swatch selectors first (they're visible)
+                logger.info("METHOD 1: Trying button/swatch selectors...")
+                
+                # ComMarker uses wd-swatch button structure
                 power_selectors = []
                 
                 # Priority 1: ComMarker's specific wd-swatch button structure with data-value attributes
@@ -244,67 +249,46 @@ class DynamicScraper:
                 
                 # Priority 2: Generic power selectors for wd-swatch structure
                 power_selectors.extend([
-                    f'div.wd-swatch[data-title*="{power}W"]',      # Data title attribute
+                    f'div.wd-swatch[data-title*="{power}W"]',
                     f'.wd-swatch[data-title*="{power}W"]',
-                    f'div.wd-swatch:has(.wd-swatch-text:text("{power}W"))',  # Text within swatch
+                    f'div.wd-swatch:has(.wd-swatch-text:text("{power}W"))',
                     f'.wd-swatch:has(.wd-swatch-text:text("{power}W"))',
                 ])
                 
-                # Priority 3: Fallback to data-value patterns
-                power_selectors.extend([
-                    f'[data-value*="{power}w"]',                    # Data attribute contains power
-                    f'[data-value*="{power}W"]',                    # Data attribute contains power (uppercase)
-                    f'[data-title*="{power}W"]',                    # Data title contains power
-                ])
-                
-                # Priority 4: Text-based selectors as final fallback
-                power_selectors.extend([
-                    f'text={power}W >> visible=true',              # Playwright text selector (visible only)
-                    f'text="{power}W" >> visible=true',            # Quoted text selector (visible only)
-                ])
-                
-                selected_power = False
+                # Try each selector
                 for selector in power_selectors:
                     try:
-                        # Try to find elements matching the selector
-                        elements = await self.page.query_selector_all(selector)
-                        
-                        for element in elements:
-                            # Verify this element actually contains our target power
-                            element_text = await element.text_content()
-                            if element_text and f"{power}W" in element_text:
-                                # Enhanced bundle/combo detection
-                                bundle_keywords = ['bundle', 'combo', 'package', 'kit', 'set', 'plus', 'pro', 'deluxe', 'premium']
-                                if not any(word in element_text.lower() for word in bundle_keywords):
-                                    # Additional check - ensure this is in the base machine selection area
-                                    parent_text = ""
-                                    try:
-                                        parent = await element.locator('..').text_content()
-                                        parent_text = parent.lower() if parent else ""
-                                    except:
-                                        pass
-                                    
-                                    # Skip if parent context suggests bundle/package area
-                                    if not any(word in parent_text for word in bundle_keywords):
-                                        logger.info(f"Found power element: '{element_text.strip()}' with selector: {selector}")
-                                        
-                                        # Try to click the element
-                                        await element.click(timeout=5000)
-                                        logger.info(f"Successfully selected power option: {power}W (base machine)")
-                                        await self.page.wait_for_timeout(1500)  # Wait for price update
-                                        selected_power = True
-                                        break
-                                    else:
-                                        logger.debug(f"Skipping power element in bundle context: '{element_text.strip()}'")
-                                else:
-                                    logger.debug(f"Skipping bundle/combo power element: '{element_text.strip()}'")
-                        
-                        if selected_power:
+                        element = await self.page.query_selector(selector)
+                        if element and await element.is_visible():
+                            logger.info(f"Found power button with selector: {selector}")
+                            await element.click()
+                            selected_power = True
+                            logger.info(f"✅ Successfully clicked {power}W button")
+                            await self.page.wait_for_timeout(2000)  # Wait for price update
                             break
-                            
                     except Exception as e:
-                        logger.debug(f"Power selector '{selector}' failed: {str(e)}")
-                        continue
+                        logger.debug(f"Failed with selector {selector}: {str(e)}")
+                
+                # METHOD 2: If buttons fail, try dropdown select (might be hidden but still work)
+                if not selected_power:
+                    logger.info("METHOD 2: Buttons failed, trying dropdown select...")
+                    dropdown_selector = 'select[name="attribute_pa_effect-power"], select#pa_effect-power'
+                    try:
+                        select_element = await self.page.query_selector(dropdown_selector)
+                        if select_element:
+                            # Build the option value
+                            if model and is_mopa:
+                                option_value = f"{model.lower()}-mopa-{power}w"
+                            else:
+                                option_value = f"{model.lower()}-{power}w"
+                            
+                            logger.info(f"Found dropdown, selecting option value: {option_value}")
+                            await select_element.select_option(option_value)
+                            selected_power = True
+                            logger.info(f"✅ Successfully selected {power}W via dropdown")
+                            await self.page.wait_for_timeout(2000)  # Wait for price update
+                    except Exception as e:
+                        logger.debug(f"Dropdown selection failed: {str(e)}")
                 
                 if not selected_power:
                     logger.warning(f"⚠️ Failed to find any power selector for {power}W on ComMarker page")
@@ -401,13 +385,13 @@ class DynamicScraper:
                         logger.debug(f"MOPA selector {selector} failed: {str(e)}")
                         continue
             
-            # Bundle selection logic - most ComMarker machines need base price, but some need bundle price
+            # Bundle selection logic - ALL ComMarker B6 MOPA machines need Basic Bundle selection
             should_select_bundle = False
             
-            # Special case: B6 MOPA 60W specifically needs "B6 Mopa Basic Bundle" selection
-            if "B6 MOPA 60W" in machine_name:
+            # All B6 MOPA machines need "B6 Mopa Basic Bundle" selection for correct pricing
+            if model == "B6" and is_mopa:
                 should_select_bundle = True
-                logger.info("🎯 B6 MOPA 60W detected - will select Basic Bundle for correct pricing")
+                logger.info(f"🎯 {machine_name} detected - will select Basic Bundle for correct pricing")
             else:
                 # For other machines, avoid bundle selection for base machine price
                 logger.info("✅ Skipping bundle selection for ComMarker to get base machine price")
@@ -415,7 +399,11 @@ class DynamicScraper:
             # Select bundle if needed
             if should_select_bundle:
                 try:
-                    # Look for "B6 Mopa Basic Bundle" using ComMarker's wd-swatch button structure
+                    bundle_selected = False
+                    
+                    # METHOD 1: Try button/swatch selectors first (they're visible)
+                    logger.info("METHOD 1: Trying button/swatch selectors for bundle...")
+                    
                     bundle_selectors = [
                         # Priority 1: ComMarker's wd-swatch button structure for packages
                         'div.wd-swatch[data-value="b6-mopa-basic-bundle"]',
@@ -431,67 +419,39 @@ class DynamicScraper:
                         'div.wd-swatch[data-title*="Basic Bundle"]',
                         '.wd-swatch[data-title*="Basic Bundle"]',
                         '[data-title*="Basic Bundle"]',
-                        
-                        # Priority 4: Text-based selectors within wd-swatch structure
-                        'div.wd-swatch:has(.wd-swatch-text:text("B6 Mopa Basic Bundle"))',
-                        '.wd-swatch:has(.wd-swatch-text:text("B6 Mopa Basic Bundle"))',
-                        'div.wd-swatch:has(.wd-swatch-text:text("Basic Bundle"))',
-                        '.wd-swatch:has(.wd-swatch-text:text("Basic Bundle"))',
-                        
-                        # Fallback: Legacy selectors for other potential structures
-                        'select[name*="package"] option:has-text("B6 Mopa Basic Bundle")',
-                        'select[name*="package"] option:has-text("Basic Bundle")',
-                        'option[value*="basic-bundle"]',
-                        'button:has-text("B6 Mopa Basic Bundle")',
-                        'button:has-text("Basic Bundle")'
                     ]
                     
-                    bundle_selected = False
-                    
-                    # First try to find and use select dropdown (most common for WooCommerce)
-                    select_elements = await self.page.query_selector_all('select')
-                    for select_elem in select_elements:
+                    for selector in bundle_selectors:
                         try:
-                            # Check if this is the package/bundle selection dropdown
-                            select_name = await select_elem.get_attribute('name') or ""
-                            if 'package' in select_name.lower() or 'bundle' in select_name.lower():
-                                logger.info(f"Found package dropdown: {select_name}")
-                                
-                                # Look for Basic Bundle option
-                                options = await select_elem.query_selector_all('option')
-                                for option in options:
-                                    option_text = await option.text_content()
-                                    option_value = await option.get_attribute('value') or ""
-                                    
-                                    if option_text and ('basic bundle' in option_text.lower() or 
-                                                       'b6 mopa basic' in option_text.lower()):
-                                        logger.info(f"Found Basic Bundle option: '{option_text.strip()}' (value: {option_value})")
-                                        await select_elem.select_option(value=option_value)
-                                        logger.info("✅ Successfully selected B6 Mopa Basic Bundle from dropdown")
-                                        await self.page.wait_for_timeout(5000)  # Wait longer for price update
-                                        bundle_selected = True
-                                        break
-                                
-                                if bundle_selected:
-                                    break
+                            element = await self.page.query_selector(selector)
+                            if element and await element.is_visible():
+                                logger.info(f"Found bundle button with selector: {selector}")
+                                await element.click(timeout=5000)
+                                logger.info(f"✅ Successfully clicked Basic Bundle button")
+                                bundle_selected = True
+                                await self.page.wait_for_timeout(3000)
+                                break
                         except Exception as e:
-                            logger.debug(f"Dropdown selection failed: {str(e)}")
+                            logger.debug(f"Bundle button selector '{selector}' failed: {str(e)}")
+                            continue
                     
-                    # Fallback to clicking elements if dropdown selection failed
+                    # METHOD 2: If buttons fail, try dropdown select (might be hidden but still work)
                     if not bundle_selected:
-                        for selector in bundle_selectors:
-                            try:
-                                element = await self.page.query_selector(selector)
-                                if element:
-                                    element_text = await element.text_content()
-                                    logger.info(f"Found bundle element: '{element_text.strip()}' with selector: {selector}")
-                                    await element.click(timeout=5000)
-                                    logger.info("✅ Successfully clicked B6 Mopa Basic Bundle")
-                                    await self.page.wait_for_timeout(2000)  # Wait for price update
-                                    bundle_selected = True
-                                    break
-                            except Exception as e:
-                                logger.debug(f"Bundle selector '{selector}' failed: {str(e)}")
+                        logger.info("METHOD 2: Buttons failed, trying dropdown select for bundle...")
+                        dropdown_selector = 'select[name="attribute_pa_package"], select#pa_package'
+                        try:
+                            select_element = await self.page.query_selector(dropdown_selector)
+                            if select_element:
+                                # For B6 MOPA Basic Bundle
+                                option_value = "b6-mopa-basic-bundle"
+                                
+                                logger.info(f"Found package dropdown, selecting option value: {option_value}")
+                                await select_element.select_option(option_value)
+                                bundle_selected = True
+                                logger.info(f"✅ Successfully selected Basic Bundle via dropdown")
+                                await self.page.wait_for_timeout(3000)  # Wait for price update
+                        except Exception as e:
+                            logger.debug(f"Package dropdown selection failed: {str(e)}")
                     
                     if not bundle_selected:
                         logger.warning("⚠️ Failed to select Basic Bundle - may get base machine price instead")
@@ -1505,44 +1465,34 @@ class DynamicScraper:
             
             # If we have valid prices, select the best one
             if valid_prices:
-                # Special handling for ComMarker B6 MOPA 60W - prioritize variation prices over distance
+                # Special handling for ComMarker B6 MOPA 60W - use old price as anchor
                 if machine_name and "B6 MOPA 60W" in machine_name and 'commarker.com' in domain:
-                    logger.info(f"Found {len(valid_prices)} valid price candidates for B6 MOPA 60W. Prioritizing variation prices.")
+                    logger.info(f"Found {len(valid_prices)} valid price candidates for B6 MOPA 60W.")
                     
                     # Log all candidates
                     for candidate in valid_prices:
                         logger.info(f"  Candidate: ${candidate['price']} via {candidate['selector']}")
                     
-                    # Prioritize WooCommerce variation prices (these should be the correct Basic Bundle prices)
-                    variation_priority_keywords = [
-                        'variation', 'single_variation', 'woocommerce-variation',
-                        'ins', 'sale'  # Also prioritize sale prices
-                    ]
-                    
-                    # First try to find variation or sale prices
-                    priority_candidates = []
-                    for candidate in valid_prices:
-                        if any(keyword in candidate['selector'].lower() for keyword in variation_priority_keywords):
-                            priority_candidates.append(candidate)
-                            logger.info(f"  🎯 PRIORITY candidate: ${candidate['price']} (variation/sale price)")
-                    
-                    if priority_candidates:
-                        # Among priority candidates, choose the first one (highest priority selector)
-                        best_price = priority_candidates[0]
-                        logger.info(f"Selected variation/sale price: ${best_price['price']} via {best_price['selector']}")
-                        return best_price['price'], f"B6 MOPA 60W variation price: {best_price['selector']}"
+                    # ALWAYS use old price as anchor if available
+                    if machine_data and machine_data.get('old_price'):
+                        old_price = float(machine_data['old_price'])
+                        logger.info(f"Using old price ${old_price} as anchor for B6 MOPA 60W")
+                        
+                        # Calculate distance from old price for each candidate
+                        for candidate in valid_prices:
+                            candidate['distance'] = abs(candidate['price'] - old_price)
+                            logger.info(f"  Candidate: ${candidate['price']} (distance: ${candidate['distance']:.2f}) via {candidate['selector']}")
+                        
+                        # Select the price closest to old price
+                        best_price = min(valid_prices, key=lambda x: x['distance'])
+                        logger.info(f"Selected best price: ${best_price['price']} (closest to old price ${old_price})")
+                        return best_price['price'], f"B6 MOPA 60W closest to baseline: {best_price['selector']}"
                     else:
-                        # Fallback to expected price range for B6 MOPA 60W Basic Bundle ($4,000 - $5,000)
-                        expected_range_candidates = [c for c in valid_prices if 4000 <= c['price'] <= 5000]
-                        if expected_range_candidates:
-                            best_price = expected_range_candidates[0]
-                            logger.info(f"Selected price in expected range: ${best_price['price']} via {best_price['selector']}")
-                            return best_price['price'], f"B6 MOPA 60W expected range: {best_price['selector']}"
-                        else:
-                            logger.warning("No prices found in expected range for B6 MOPA 60W Basic Bundle")
-                            best_price = valid_prices[0]
-                            logger.info(f"Fallback to first price: ${best_price['price']} via {best_price['selector']}")
-                            return best_price['price'], f"B6 MOPA 60W fallback: {best_price['selector']}"
+                        # No old price available, take the first valid one
+                        logger.warning("No old price available for B6 MOPA 60W")
+                        best_price = valid_prices[0]
+                        logger.info(f"Fallback to first price: ${best_price['price']} via {best_price['selector']}")
+                        return best_price['price'], f"B6 MOPA 60W fallback: {best_price['selector']}"
                 
                 # For other machines, use distance-based selection
                 elif machine_data and machine_data.get('old_price'):

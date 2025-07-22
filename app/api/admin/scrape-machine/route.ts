@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 import { processMachineData, getLastRawResponse } from '@/lib/services/claude-service';
+import { transformMachineData } from '@/lib/services/machine-data-transformer';
+import { createServerClient } from '@/lib/supabase/server';
 import puppeteer from 'puppeteer';
 import type { Browser, Page } from 'puppeteer';
 
@@ -153,22 +155,31 @@ export async function POST(request: NextRequest) {
     // Merge the data, with priority for certain fields
     const mergedData = mergeExtractionData(basicScrapedData, claudeData);
     
+    // Get brands for transformation
+    const supabase = createServerClient();
+    const { data: brands } = await supabase.from("brands").select("*").order("Name");
+    
+    // Transform the merged data to match form/database format
+    const transformedData = transformMachineData(mergedData, brands || []);
+    
     // Include debug information if requested
     if (debug) {
       return NextResponse.json({
-        data: mergedData,
+        data: transformedData,
         debug: {
           claude: {
             data: claudeData,
             error: claudeError,
             rawResponse: rawClaudeResponse
           },
-          webScraper: basicScrapedData
+          webScraper: basicScrapedData,
+          merged: mergedData,
+          transformed: transformedData
         }
       });
     }
     
-    return NextResponse.json(mergedData);
+    return NextResponse.json(transformedData);
   } catch (error) {
     console.error('Error scraping machine data:', error);
     return NextResponse.json(

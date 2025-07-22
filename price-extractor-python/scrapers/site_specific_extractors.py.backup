@@ -175,7 +175,7 @@ class SiteSpecificExtractor:
                         'price_range': [4500, 5500]
                     },
                     'EMP ST50R': {
-                        'keywords': ['ST50R', 'ST 50R'],  # Removed risky '50R' keyword
+                        'keywords': ['ST50R', 'ST 50R', '50R'],
                         'expected_price': 6995,
                         'price_tolerance': 0.1,
                         'variant_selector': 'li.js-option.js-radio:contains("ST50R"), li.js-option.js-radio:contains("ST 50R")',
@@ -217,34 +217,22 @@ class SiteSpecificExtractor:
                         'price_range': [4500, 5500]
                     },
                     'EMP ST50R': {
-                        'keywords': ['ST50R', 'ST 50R'],  # Removed risky '50R' keyword
-                        'expected_price': 6995,            # Corrected price
-                        'table_column': 2,                 # Corrected column (was 3, now 2)
-                        'price_range': [6500, 7500]       # Corrected range
+                        'keywords': ['ST50R', 'ST 50R', '50R'],
+                        'expected_price': 8495,
+                        'table_column': 3,  # Fourth price column
+                        'price_range': [8000, 9000]
                     },
                     'EMP ST60J': {
                         'keywords': ['ST60J', 'ST 60J', '60J'],
                         'expected_price': 8995,
-                        'table_column': 5,  # Sixth price column (corrected)
+                        'table_column': 4,  # Fifth price column
                         'price_range': [8500, 9500]
                     },
                     'EMP ST100J': {
                         'keywords': ['ST100J', 'ST 100J', '100J'],
                         'expected_price': 11995,
-                        'table_column': 6,  # Seventh price column (corrected)
+                        'table_column': 5,  # Sixth price column
                         'price_range': [11500, 12500]
-                    },
-                    'EMP ST30J': {
-                        'keywords': ['ST30J', 'ST 30J'],
-                        'expected_price': 6995,
-                        'table_column': 3,  # Fourth price column
-                        'price_range': [6500, 7500]
-                    },
-                    'EMP ST50J': {
-                        'keywords': ['ST50J', 'ST 50J'],
-                        'expected_price': 8495,
-                        'table_column': 4,  # Fifth price column
-                        'price_range': [8000, 9000]
                     }
                 },
                 'price_selectors': [

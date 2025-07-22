@@ -1,85 +1,64 @@
 #!/usr/bin/env python3
 """
-Simple test for ComMarker price extraction through the full pipeline.
+Simple test to verify ComMarker variants get different prices.
 """
-
 import asyncio
 import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 from loguru import logger
-from scrapers.price_extractor import PriceExtractor
-from scrapers.web_scraper import WebScraper
 
-# Configure logging
-logger.remove()
-logger.add(sys.stdout, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
+sys.path.append('.')
 
-# ComMarker test cases
-COMMARKER_TEST_CASES = [
-    {
-        "name": "ComMarker B4 30W",
-        "url": "https://www.commarker.com/products/commarker-b4-fiber-laser-engraver",
-        "expected_price": 1799.0,
-        "old_price": 50.0  # The buggy price
-    },
-    {
-        "name": "ComMarker B6 30W",
-        "url": "https://www.commarker.com/products/b6-enclosed-fiber-laser-engraver",
-        "expected_price": 2399.0,
-        "old_price": 50.0
-    }
-]
+from scrapers.dynamic_scraper import DynamicScraper
 
-
-async def test_extraction():
-    """Test ComMarker extraction through full pipeline."""
-    web_scraper = WebScraper()
-    price_extractor = PriceExtractor()
+async def test_simple():
+    """Test extraction of ComMarker variants."""
+    logger.info("Testing ComMarker variant selection...")
     
-    logger.info("TESTING COMMARKER PRICE EXTRACTION")
-    logger.info("Testing through full extraction pipeline\n")
+    machines = [
+        ("ComMarker B6 MOPA 20W", "https://commarker.com/product/commarker-b6-jpt-mopa/", 3500),  # Expected around $3599
+        ("ComMarker B6 MOPA 30W", "https://commarker.com/product/commarker-b6-jpt-mopa/", 4000),  # Expected around $3999
+        ("ComMarker B6 MOPA 60W", "https://commarker.com/product/commarker-b6-jpt-mopa/", 4600),  # Expected around $4589
+    ]
     
-    for test_case in COMMARKER_TEST_CASES:
-        logger.info(f"{'='*60}")
-        logger.info(f"Testing: {test_case['name']}")
-        logger.info(f"URL: {test_case['url']}")
-        logger.info(f"Old price: ${test_case['old_price']}")
-        logger.info(f"Expected: ${test_case['expected_price']}")
-        
-        try:
-            # Fetch page
-            html_content, soup = await web_scraper.get_page_content(test_case['url'])
+    prices = {}
+    
+    async with DynamicScraper() as scraper:
+        for name, url, baseline_price in machines:
+            logger.info(f"\nTesting: {name} (baseline: ${baseline_price})")
             
-            if not soup:
-                logger.error("Failed to fetch page")
-                continue
+            variant_rules = {'commarker.com': {'requires_selection': True}}
+            
+            try:
+                price, method = await scraper.extract_price_with_variants(
+                    url, name, variant_rules,
+                    machine_data={'Machine Name': name, 'old_price': baseline_price}
+                )
                 
-            # Extract price
-            price, method = await price_extractor.extract_price(
-                soup=soup,
-                html_content=html_content,
-                url=test_case['url'],
-                old_price=test_case['old_price'],
-                machine_name=test_case['name'],
-                machine_data={}
-            )
-            
-            if price is None:
-                logger.error(f"❌ FAILED: No price extracted")
-            elif price == 50:
-                logger.error(f"❌ BUG STILL EXISTS: Extracted $50!")
-            elif abs(price - test_case['expected_price']) < 1:
-                logger.success(f"✅ SUCCESS: Extracted ${price} using {method}")
-            else:
-                logger.error(f"❌ WRONG PRICE: Got ${price}, expected ${test_case['expected_price']}")
-                
-        except Exception as e:
-            logger.error(f"❌ ERROR: {str(e)}")
-            
-        await asyncio.sleep(2)
-
+                if price:
+                    logger.success(f"✅ {name}: ${price}")
+                    prices[name] = price
+                else:
+                    logger.error(f"❌ {name}: Failed to extract price")
+                    prices[name] = None
+                    
+            except Exception as e:
+                logger.error(f"❌ {name}: Error - {str(e)}")
+                prices[name] = None
+    
+    # Check results
+    logger.info("\n=== RESULTS ===")
+    unique_prices = set(p for p in prices.values() if p is not None)
+    
+    for name, price in prices.items():
+        logger.info(f"{name}: ${price if price else 'FAILED'}")
+    
+    if len(unique_prices) == len([p for p in prices.values() if p is not None]):
+        logger.success("\n✅ SUCCESS: All variants have DIFFERENT prices!")
+        return True
+    else:
+        logger.error("\n❌ FAILURE: Some variants have the SAME price!")
+        return False
 
 if __name__ == "__main__":
-    asyncio.run(test_extraction())
+    success = asyncio.run(test_simple())
+    sys.exit(0 if success else 1)

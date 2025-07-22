@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   Dialog,
   DialogContent,
@@ -29,6 +30,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 // Types
 import type { MachineFormData } from "@/components/admin/machine-form"
 import { getReferenceData } from "@/lib/services/reference-data-service"
+import { getBrands } from "@/lib/services/brand-service"
+import { transformMachineData, getTransformationSuggestions } from "@/lib/services/machine-data-transformer"
 
 // Add this interface to extend MachineFormData with the images property
 interface ExtendedMachineFormData extends MachineFormData {
@@ -75,6 +78,10 @@ export function MachineUrlScraper({
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const [forceKeepOpen, setForceKeepOpen] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState<string>('');
+  const [brands, setBrands] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   
   // Set up form
   const form = useForm<z.infer<typeof scraperFormSchema>>({
@@ -84,6 +91,24 @@ export function MachineUrlScraper({
       debug_mode: false,
     },
   });
+
+  // Fetch reference data on component mount
+  useEffect(() => {
+    const fetchReferenceData = async () => {
+      try {
+        const [refData, brandsData] = await Promise.all([
+          getReferenceData(),
+          getBrands()
+        ]);
+        setBrands(brandsData.data || []);
+        setCategories(refData.categories || []);
+      } catch (error) {
+        console.error('Error fetching reference data:', error);
+      }
+    };
+
+    fetchReferenceData();
+  }, []);
   
   // Prevent modal from closing while loading
   const preventModalClose = isLoading || isPending || forceKeepOpen;
@@ -130,11 +155,14 @@ export function MachineUrlScraper({
       // Process the scraped data
       let extractedData: Partial<ExtendedMachineFormData> = {};
       
+      // Get brands for transformation
+      const brandsData = await getBrands();
+      
       if (values.debug_mode && responseData.data && responseData.debug) {
-        extractedData = transformToMachineFormData(responseData.data);
+        extractedData = transformMachineData(responseData.data, brandsData.data || []);
         setDebugData(responseData.debug);
       } else {
-        extractedData = transformToMachineFormData(responseData);
+        extractedData = transformMachineData(responseData, brandsData.data || []);
       }
       
       // Use startTransition for updating state with the results
@@ -166,155 +194,28 @@ export function MachineUrlScraper({
     }
   }
   
-  // Transform scraped data to match MachineFormData format
-  function transformToMachineFormData(data: any): Partial<ExtendedMachineFormData> {
-    // Create a mapping for boolean fields that might be strings in the scraped data
-    const booleanFields = ['enclosure', 'wifi', 'camera', 'passthrough', 'is_featured', 'hidden'];
-    
-    // Convert the scraped data to the correct format
-    const formData: Record<string, any> = { ...data };
-    
-    // Handle boolean conversions if they're "Yes"/"No" strings
-    booleanFields.forEach(field => {
-      if (typeof data[field] === 'string') {
-        formData[field] = ['yes', 'true', '1'].includes((data[field] as string).toLowerCase());
-      }
-    });
-    
-    // Handle machine category - must use exact database values
-    const validMachineCategories = ["laser", "3d-printer", "cnc"];
-    if (formData.machine_category) {
-      // First try exact match
-      const exactMatch = validMachineCategories.find(cat => 
-        cat.toLowerCase() === formData.machine_category.toLowerCase()
-      );
-      
-      if (exactMatch) {
-        formData.machine_category = exactMatch;
-      } else {
-        // If no exact match, try to find the closest match
-        const matchScore = (a: string, b: string) => {
-          a = a.toLowerCase();
-          b = b.toLowerCase();
-          return a.includes(b) || b.includes(a);
-        };
-        
-        const bestMatch = validMachineCategories.find(cat => 
-          matchScore(cat, formData.machine_category)
-        );
-        
-        if (bestMatch) {
-          formData.machine_category = bestMatch;
-        }
-      }
-    }
-    
-    // Laser Category should match exact database values
-    const validLaserCategories = [
-      'desktop-diode-laser',
-      'desktop-co2-laser',
-      'desktop-fiber-laser',
-      'high-end-co2-laser',
-      'high-end-fiber',
-      'open-diode-laser'
-    ];
-    
-    if (formData.laser_category) {
-      // First try exact match
-      const exactMatch = validLaserCategories.find(cat => 
-        cat.toLowerCase() === formData.laser_category.toLowerCase()
-      );
-      
-      if (exactMatch) {
-        formData.laser_category = exactMatch;
-      } else {
-        // If no exact match, try to find the closest match
-        const matchScore = (a: string, b: string) => {
-          a = a.toLowerCase();
-          b = b.toLowerCase();
-          if (a === b) return 3;
-          if (a.includes(b) || b.includes(a)) return 2;
-          if (a.replace(/\s+/g, '-').includes(b) || b.includes(a.replace(/\s+/g, '-'))) return 1;
-          return 0;
-        };
-        
-        const matches = validLaserCategories.map(cat => ({
-          category: cat,
-          score: matchScore(cat, formData.laser_category)
-        }));
-        
-        const bestMatch = matches.sort((a, b) => b.score - a.score)[0];
-        
-        if (bestMatch && bestMatch.score > 0) {
-          formData.laser_category = bestMatch.category;
-        }
-      }
-    }
-    
-    // Laser types must exactly match valid database values
-    const validLaserTypes = {
-      'CO2': 'CO2',
-      'CO2-RF': 'CO2-RF',
-      'CO2-Glass': 'CO2-Glass',
-      'Diode': 'Diode',
-      'Fiber': 'Fiber',
-      'MOPA': 'MOPA',
-      'Infrared': 'Infrared',
-      'UV': 'UV'
-    };
-    
-    if (formData.laser_type_a) {
-      const matchedType = Object.entries(validLaserTypes).find(([key, _]) => 
-        key.toLowerCase() === formData.laser_type_a.toLowerCase()
-      );
-      
-      if (matchedType) {
-        formData.laser_type_a = matchedType[1];
-      }
-    }
-    
-    if (formData.laser_type_b) {
-      if (formData.laser_type_b.toLowerCase() === 'none' || !formData.laser_type_b) {
-        formData.laser_type_b = '';
-      } else {
-        const matchedType = Object.entries(validLaserTypes).find(([key, _]) => 
-          key.toLowerCase() === formData.laser_type_b.toLowerCase()
-        );
-        
-        if (matchedType) {
-          formData.laser_type_b = matchedType[1];
-        }
-      }
-    }
-    
-    // Handle multiple images
-    if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-      // Filter out empty strings and invalid URLs
-      const validImages = data.images.filter(url => 
-        url && typeof url === 'string' && url.trim() !== ''
-      );
-      
-      // Remove duplicates from the scraped images using Set
-      const uniqueImages = [...new Set(validImages)];
-      
-      console.log("Processing scraped images:", {
-        originalCount: data.images.length,
-        validCount: validImages.length,
-        uniqueCount: uniqueImages.length
-      });
-      
-      // Store the array of deduplicated images
-      formData.images = uniqueImages;
-      
-      // Still set the primary image to image_url for backward compatibility
-      if (!formData.image_url && uniqueImages.length > 0) {
-        formData.image_url = uniqueImages[0];
-      }
-    }
-    
-    return formData as Partial<ExtendedMachineFormData>;
-  }
+  // Note: Transformation is now handled by the machine-data-transformer service
   
+  // Format display value for differences
+  function formatDisplayValue(field: string, value: any, brands: any[] = [], scrapedData: any = null): string {
+    // Special handling for company field - show brand name instead of ID
+    if (field === 'company' && value && brands.length > 0) {
+      const brand = brands.find(b => b.id === value);
+      if (brand) {
+        return brand.Name || brand.name;
+      }
+      // If no brand found, return the value as-is (might be a company name)
+      return value;
+    }
+    
+    // Handle boolean values
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No';
+    }
+    
+    return formatValue(value);
+  }
+
   // Find differences between existing and scraped data
   function findDifferences(current: ExtendedMachineFormData, scraped: Partial<ExtendedMachineFormData>): FieldDifference[] {
     const diffs: FieldDifference[] = [];
@@ -408,6 +309,9 @@ export function MachineUrlScraper({
       // Skip if the key is not in the machine form data
       if (!(key in current)) continue;
       
+      // Skip company_display_name as it's for display purposes only
+      if (key === 'company_display_name') continue;
+      
       const currentValue = current[key as keyof ExtendedMachineFormData];
       
       // Skip non-substantial differences (empty to empty, null to empty string, etc.)
@@ -443,6 +347,85 @@ export function MachineUrlScraper({
     }
     console.log(`Image ${selected ? 'selected' : 'deselected'}:`, url);
     console.log('Updated selected images:', selectedImages);
+  }
+
+  // Start editing a field
+  function startEditing(field: string, currentValue: any) {
+    setEditingField(field);
+    setEditingValue(String(currentValue || ''));
+  }
+
+  // Save edited value
+  function saveEditedValue() {
+    if (!editingField) return;
+    
+    const diffIndex = differences.findIndex(d => d.field === editingField);
+    if (diffIndex !== -1) {
+      const updatedDifferences = [...differences];
+      updatedDifferences[diffIndex] = {
+        ...updatedDifferences[diffIndex],
+        newValue: editingValue
+      };
+      setDifferences(updatedDifferences);
+    }
+    
+    setEditingField(null);
+    setEditingValue('');
+  }
+
+  // Cancel editing
+  function cancelEditing() {
+    setEditingField(null);
+    setEditingValue('');
+  }
+
+  // Get dropdown options for a field
+  function getDropdownOptions(field: string): { value: string; label: string }[] {
+    switch (field) {
+      case 'company':
+        return brands.map(brand => ({
+          value: brand.id,
+          label: brand.Name || brand.name
+        }));
+      case 'machine_category':
+        return [
+          { value: 'laser', label: 'Laser' },
+          { value: '3d-printer', label: '3D Printer' },
+          { value: 'cnc', label: 'CNC' }
+        ];
+      case 'laser_category':
+        return [
+          { value: 'desktop-diode-laser', label: 'Desktop Diode Laser' },
+          { value: 'desktop-co2-laser', label: 'Desktop CO2 Laser' },
+          { value: 'desktop-fiber-laser', label: 'Desktop Fiber Laser' },
+          { value: 'fiber-laser', label: 'Fiber Laser' },
+          { value: 'high-end-co2-laser', label: 'High-End CO2 Laser' },
+          { value: 'industrial-co2-laser', label: 'Industrial CO2 Laser' },
+          { value: 'industrial-fiber-laser', label: 'Industrial Fiber Laser' }
+        ];
+      case 'laser_type_a':
+      case 'laser_type_b':
+        return [
+          { value: 'Diode', label: 'Diode' },
+          { value: 'CO2', label: 'CO2' },
+          { value: 'Fiber', label: 'Fiber' },
+          { value: 'Galvo', label: 'Galvo' },
+          { value: 'UV', label: 'UV' },
+          { value: 'Other', label: 'Other' }
+        ];
+      case 'focus':
+        return [
+          { value: 'Auto', label: 'Auto' },
+          { value: 'Manual', label: 'Manual' }
+        ];
+      default:
+        return [];
+    }
+  }
+
+  // Check if a field has dropdown options
+  function hasDropdownOptions(field: string): boolean {
+    return getDropdownOptions(field).length > 0;
   }
   
   // Apply the selected changes to the parent component
@@ -795,11 +778,70 @@ export function MachineUrlScraper({
                                   <div className="grid grid-cols-2 gap-2 mt-1">
                                     <div className="text-sm p-3 bg-red-50 rounded">
                                       <div className="text-red-600 text-xs font-medium mb-1">Current</div>
-                                      <div>{formatValue(diff.currentValue)}</div>
+                                      <div>{formatDisplayValue(diff.field, diff.currentValue, brands)}</div>
                                     </div>
                                     <div className="text-sm p-3 bg-green-50 rounded">
                                       <div className="text-green-600 text-xs font-medium mb-1">New</div>
-                                      <div>{formatValue(diff.newValue)}</div>
+                                      {editingField === diff.field ? (
+                                        <div className="space-y-2">
+                                          {hasDropdownOptions(diff.field) ? (
+                                            <Select value={editingValue} onValueChange={setEditingValue}>
+                                              <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="Select option" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {getDropdownOptions(diff.field).map(option => (
+                                                  <SelectItem key={option.value} value={option.value}>
+                                                    {option.label}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          ) : (
+                                            <Input
+                                              value={editingValue}
+                                              onChange={(e) => setEditingValue(e.target.value)}
+                                              className="w-full"
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                  saveEditedValue();
+                                                } else if (e.key === 'Escape') {
+                                                  cancelEditing();
+                                                }
+                                              }}
+                                            />
+                                          )}
+                                          <div className="flex gap-1">
+                                            <Button
+                                              size="sm"
+                                              onClick={saveEditedValue}
+                                              className="h-6 px-2 text-xs"
+                                            >
+                                              ✓
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={cancelEditing}
+                                              className="h-6 px-2 text-xs"
+                                            >
+                                              ✕
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center justify-between">
+                                          <div>{formatDisplayValue(diff.field, diff.newValue, brands)}</div>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => startEditing(diff.field, diff.newValue)}
+                                            className="h-6 px-2 text-xs opacity-60 hover:opacity-100"
+                                          >
+                                            Edit
+                                          </Button>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -860,11 +902,70 @@ export function MachineUrlScraper({
                                 <div className="grid grid-cols-2 gap-2 mt-1">
                                   <div className="text-sm p-3 bg-red-50 rounded">
                                     <div className="text-red-600 text-xs font-medium mb-1">Current</div>
-                                    <div>{formatValue(diff.currentValue)}</div>
+                                    <div>{formatDisplayValue(diff.field, diff.currentValue, brands)}</div>
                                   </div>
                                   <div className="text-sm p-3 bg-green-50 rounded">
                                     <div className="text-green-600 text-xs font-medium mb-1">New</div>
-                                    <div>{formatValue(diff.newValue)}</div>
+                                    {editingField === diff.field ? (
+                                      <div className="space-y-2">
+                                        {hasDropdownOptions(diff.field) ? (
+                                          <Select value={editingValue} onValueChange={setEditingValue}>
+                                            <SelectTrigger className="w-full">
+                                              <SelectValue placeholder="Select option" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {getDropdownOptions(diff.field).map(option => (
+                                                <SelectItem key={option.value} value={option.value}>
+                                                  {option.label}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        ) : (
+                                          <Input
+                                            value={editingValue}
+                                            onChange={(e) => setEditingValue(e.target.value)}
+                                            className="w-full"
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                saveEditedValue();
+                                              } else if (e.key === 'Escape') {
+                                                cancelEditing();
+                                              }
+                                            }}
+                                          />
+                                        )}
+                                        <div className="flex gap-1">
+                                          <Button
+                                            size="sm"
+                                            onClick={saveEditedValue}
+                                            className="h-6 px-2 text-xs"
+                                          >
+                                            ✓
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={cancelEditing}
+                                            className="h-6 px-2 text-xs"
+                                          >
+                                            ✕
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center justify-between">
+                                        <div>{formatDisplayValue(diff.field, diff.newValue, brands)}</div>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => startEditing(diff.field, diff.newValue)}
+                                          className="h-6 px-2 text-xs opacity-60 hover:opacity-100"
+                                        >
+                                          Edit
+                                        </Button>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>

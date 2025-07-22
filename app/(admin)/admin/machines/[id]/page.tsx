@@ -11,7 +11,7 @@ export const runtime = 'nodejs'
 
 // Define the form data type
 interface MachinePageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default async function EditMachinePage({
@@ -21,9 +21,12 @@ export default async function EditMachinePage({
   await requireAdminAuth();
   
   const supabase = await createServerClient()
+  
+  // Await the params object
+  const { id } = await params;
 
   // If id is "new", we're creating a new machine
-  if (params.id === "new") {
+  if (id === "new") {
     // Get categories and brands for the form
     const [categoriesResponse, brandsResponse] = await Promise.all([
       supabase.from("categories").select("*").order("name"),
@@ -41,7 +44,7 @@ export default async function EditMachinePage({
   }
 
   // Otherwise, we're editing an existing machine
-  const { data: machine, error } = await supabase.from("machines").select("*").eq("id", params.id).single()
+  const { data: machine, error } = await supabase.from("machines").select("*").eq("id", id).single()
 
   if (error || !machine) {
     console.error("Error fetching machine data:", error)
@@ -54,10 +57,10 @@ export default async function EditMachinePage({
   const { data: additionalImages } = await supabase
     .from("images")
     .select("*")
-    .eq("machine_id", params.id)
+    .eq("machine_id", id)
     .order("sort_order", { ascending: true });
 
-  console.log(`Found ${additionalImages?.length || 0} additional images for machine ${params.id}`);
+  console.log(`Found ${additionalImages?.length || 0} additional images for machine ${id}`);
 
   // Create a combined array of all images, starting with the primary image
   const allImages: string[] = [];
