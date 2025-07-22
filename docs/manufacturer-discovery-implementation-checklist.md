@@ -13,79 +13,79 @@ This checklist provides a comprehensive task list for implementing the Manufactu
 - [x] Document legacy field naming conventions
 
 ### Research & Planning
-- [ ] **Manufacturer Research (Phase 0)**
-  - [ ] Research 5 laser manufacturers (we already know specs)
-  - [ ] Research 5 3D printer manufacturers
-    - [ ] Bambu Lab product pages
-    - [ ] Prusa product pages
-    - [ ] Creality product pages
-    - [ ] Anycubic product pages
-    - [ ] Elegoo product pages
-  - [ ] Research 3-5 CNC manufacturers
-    - [ ] Shapeoko product pages
-    - [ ] Onefinity product pages
-    - [ ] Avid CNC product pages
-  - [ ] Research 3-4 UV/DTF printer manufacturers
-  - [ ] Document specification patterns for each type
-  - [ ] Create specification mapping templates
+- [x] **Manufacturer Research (Phase 0)**
+  - [x] Research 5 laser manufacturers (we already know specs)
+  - [x] Research 5 3D printer manufacturers
+    - [x] Bambu Lab product pages
+    - [x] Prusa product pages
+    - [x] Creality product pages
+    - [x] Anycubic product pages
+    - [x] Elegoo product pages
+  - [x] Research 3-5 CNC manufacturers
+    - [x] Shapeoko product pages
+    - [x] Onefinity product pages
+    - [x] Avid CNC product pages
+  - [x] Research 3-4 UV/DTF printer manufacturers
+  - [x] Document specification patterns for each type
+  - [x] Create specification mapping templates
 
 ## Phase 1: Foundation (Week 1-2)
 
 ### Database Schema Updates
-- [ ] **Create new tables**
+- [x] **Create new tables**
   ```sql
-  - [ ] manufacturer_sites table
-  - [ ] discovered_machines table
-  - [ ] site_scan_logs table
-  - [ ] machine_type_specifications table
+  - [x] manufacturer_sites table
+  - [x] discovered_machines table
+  - [x] site_scan_logs table
+  - [x] machine_type_specifications table
   ```
-- [ ] **Update machines table**
+- [x] **Update machines table**
   ```sql
-  - [ ] Add parent_machine_id column
-  - [ ] Add is_variant column
-  - [ ] Add variant_name column
-  - [ ] Add variant_order column
-  - [ ] Add lifecycle_status column
-  - [ ] Add last_seen_at column
-  - [ ] Add discontinued_at column
-  - [ ] Add discovery_source column
-  - [ ] Add specifications jsonb column
+  - [x] Add parent_machine_id column
+  - [x] Add is_variant column
+  - [x] Add variant_name column
+  - [x] Add variant_order column
+  - [x] Add lifecycle_status column
+  - [x] Add last_seen_at column
+  - [x] Add discontinued_at column
+  - [x] Add discovery_source column
+  - [x] Add specifications jsonb column
   ```
-- [ ] **Create database migrations**
-  - [ ] Write migration scripts
-  - [ ] Test migrations on development database
-  - [ ] Create rollback scripts
-  - [ ] Document migration process
+- [x] **Create database migrations**
+  - [x] Write migration scripts
+  - [x] Test migrations on development database
+  - [x] Create rollback scripts
+  - [x] Document migration process
 
 ### Admin UI - Manufacturer Site Management
-- [ ] **Create manufacturer sites page** (`/app/(admin)/admin/manufacturer-sites/page.tsx`)
-  - [ ] List view with existing sites
-  - [ ] Add/Edit modal
-  - [ ] Configuration editor (JSON)
-  - [ ] Crawl history display
-  - [ ] Manual crawl trigger button
-- [ ] **API endpoints for site management**
-  - [ ] GET `/api/admin/manufacturer-sites`
-  - [ ] POST `/api/admin/manufacturer-sites`
-  - [ ] PUT `/api/admin/manufacturer-sites/[id]`
-  - [ ] DELETE `/api/admin/manufacturer-sites/[id]`
-  - [ ] POST `/api/admin/manufacturer-sites/[id]/crawl`
+- [x] **Create manufacturer sites page** (`/app/(admin)/admin/manufacturer-sites/page.tsx`)
+  - [x] List view with existing sites
+  - [x] Add/Edit modal
+  - [x] Configuration editor (JSON)
+  - [x] Crawl history display
+  - [x] Manual crawl trigger button
+- [x] **API endpoints for site management**
+  - [x] GET `/api/admin/manufacturer-sites`
+  - [x] POST `/api/admin/manufacturer-sites`
+  - [x] PUT `/api/admin/manufacturer-sites/[id]`
+  - [x] DELETE `/api/admin/manufacturer-sites/[id]`
+  - [x] POST `/api/admin/manufacturer-sites/[id]/crawl`
 
 ### Crawler Infrastructure
-- [ ] **Basic crawler implementation** (`price-extractor-python/crawlers/`)
-  - [ ] Site configuration loader
-  - [ ] Robots.txt parser
-  - [ ] Sitemap.xml parser
-  - [ ] Product URL pattern matcher
-  - [ ] Rate limiting system
-  - [ ] Progress tracking
-- [ ] **Integration with existing scraper**
-  - [ ] Extend `dynamic_scraper.py` for full page extraction
-  - [ ] Add product discovery mode
-  - [ ] Cache raw HTML for reprocessing
-- [ ] **Crawler API endpoints**
-  - [ ] POST `/api/v1/discover-products`
-  - [ ] GET `/api/v1/discovery-status/[scan_id]`
+- [x] **Basic crawler implementation** (`price-extractor-python/crawlers/`)
+  - [x] Site configuration loader
+  - [x] Robots.txt parser
+  - [x] Sitemap.xml parser
+  - [x] Product URL pattern matcher
+  - [x] Rate limiting system
+  - [x] Progress tracking
+- [x] **Integration with existing scraper**
+  - [x] Extend `dynamic_scraper.py` for full page extraction
+  - [x] Add product discovery mode
+  - [x] Cache raw HTML for reprocessing
+- [x] **Crawler API endpoints**
+  - [x] POST `/api/v1/discover-products`
+  - [x] GET `/api/v1/discovery-status/[scan_id]`
 
 ## Phase 2: Extraction & Normalization (Week 2-3)
 
@@ -103,40 +103,40 @@ This checklist provides a comprehensive task list for implementing the Manufactu
   - [ ] Create cost dashboard
 
 ### Data Normalization System
-- [ ] **Create MachineDataNormalizer class** (`price-extractor-python/normalizers/`)
-  - [ ] **Field standardization**
-    - [ ] Unit converter (watts, kW, mW → W)
-    - [ ] Speed converter (mm/s → mm/min)
-    - [ ] Dimension parser (various formats → standard)
-    - [ ] Price cleaner ($, commas, ranges)
-  - [ ] **Field mapping**
-    - [ ] Create comprehensive field map for legacy columns
-    - [ ] Handle snake_case → "Title Case" conversion
-    - [ ] Map common variations (e.g., "wifi" → "Wifi")
-  - [ ] **Data type transformation**
-    - [ ] Boolean converter (true/false → "Yes"/"No")
-    - [ ] Date formatter
-    - [ ] Number parser with validation
-  - [ ] **Relationship handling**
-    - [ ] Brand fuzzy matching to UUIDs
-    - [ ] Category auto-assignment rules
-    - [ ] Duplicate detection algorithm
+- [x] **Create MachineDataNormalizer class** (`price-extractor-python/normalizers/`)
+  - [x] **Field standardization**
+    - [x] Unit converter (watts, kW, mW → W)
+    - [x] Speed converter (mm/s → mm/min)
+    - [x] Dimension parser (various formats → standard)
+    - [x] Price cleaner ($, commas, ranges)
+  - [x] **Field mapping**
+    - [x] Create comprehensive field map for legacy columns
+    - [x] Handle snake_case → "Title Case" conversion
+    - [x] Map common variations (e.g., "wifi" → "Wifi")
+  - [x] **Data type transformation**
+    - [x] Boolean converter (true/false → "Yes"/"No")
+    - [x] Date formatter
+    - [x] Number parser with validation
+  - [x] **Relationship handling**
+    - [x] Brand fuzzy matching to UUIDs
+    - [x] Category auto-assignment rules
+    - [x] Duplicate detection algorithm
 - [ ] **Testing suite**
   - [ ] Unit tests for each transformation
   - [ ] Integration tests with real data
   - [ ] Edge case handling
 
 ### Validation System
-- [ ] **Create validation rules engine**
-  - [ ] Common validations (required fields, formats)
-  - [ ] Machine-type specific rules
-  - [ ] Price reasonableness checks
-  - [ ] Image URL validation
-  - [ ] Specification range validation
-- [ ] **Error reporting**
-  - [ ] Detailed validation error messages
-  - [ ] Categorize errors by severity
-  - [ ] Suggest fixes for common issues
+- [x] **Create validation rules engine**
+  - [x] Common validations (required fields, formats)
+  - [x] Machine-type specific rules
+  - [x] Price reasonableness checks
+  - [x] Image URL validation
+  - [x] Specification range validation
+- [x] **Error reporting**
+  - [x] Detailed validation error messages
+  - [x] Categorize errors by severity
+  - [x] Suggest fixes for common issues
 
 ## Phase 3: Review Interface (Week 3-4)
 

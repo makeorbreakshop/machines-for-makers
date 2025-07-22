@@ -5,6 +5,7 @@ from typing import Optional, List
 
 from services.price_service import PriceService
 from services.learning_service import DailyLearningService
+from services.discovery_service import start_discovery
 
 router = APIRouter()
 price_service = PriceService()
@@ -789,3 +790,56 @@ async def sync_manual_corrections():
     except Exception as e:
         logger.exception(f"Error syncing manual corrections: {str(e)}")
         return {"success": False, "error": f"Error syncing manual corrections: {str(e)}"}
+
+
+# Discovery System Endpoints
+
+class DiscoveryRequest(BaseModel):
+    """Request model for product discovery."""
+    scan_log_id: str
+    site_id: str
+    base_url: str
+    sitemap_url: Optional[str] = None
+    scraping_config: Optional[dict] = {}
+    scan_type: str = 'discovery'
+
+
+@router.post("/discover-products")
+async def discover_products_endpoint(request: DiscoveryRequest, background_tasks: BackgroundTasks):
+    """
+    Start product discovery for a manufacturer site.
+    
+    This endpoint triggers the discovery process which:
+    1. Crawls the manufacturer website to find product URLs
+    2. Extracts data from each product page
+    3. Normalizes and validates the data
+    4. Stores discovered products for admin review
+    """
+    try:
+        logger.info(f"Starting product discovery for site {request.site_id}: {request.base_url}")
+        
+        # Start discovery in background task
+        background_tasks.add_task(
+            _process_discovery,
+            request.dict()
+        )
+        
+        return {
+            "success": True,
+            "message": f"Product discovery started for {request.base_url}",
+            "scan_log_id": request.scan_log_id,
+            "site_id": request.site_id
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error starting product discovery: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error starting discovery: {str(e)}")
+
+
+async def _process_discovery(request_data: dict):
+    """Process discovery in background task."""
+    try:
+        result = await start_discovery(request_data)
+        logger.info(f"Discovery completed: {result}")
+    except Exception as e:
+        logger.exception(f"Error in discovery background task: {str(e)}")
