@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Start the Manufacturer Discovery Service
+# This service runs on port 8001 and handles website scraping for new machines
+
+echo "🔍 Starting Manufacturer Discovery Service..."
+echo "================================================"
+echo "Service will run on: http://localhost:8001"
+echo "API Docs available at: http://localhost:8001/docs"
+echo "================================================"
+
+# Check if venv exists in current directory
+if [ -d "venv" ]; then
+    echo "Activating local venv..."
+    source venv/bin/activate
+    echo "Using Python: $(which python)"
+elif [[ -n "$VIRTUAL_ENV" ]]; then
+    echo "Using active virtual environment: $VIRTUAL_ENV"
+elif command -v conda &> /dev/null; then
+    # Try to activate conda environment
+    echo "Activating conda environment..."
+    eval "$(conda shell.bash hook)"
+    conda activate price-tracker 2>/dev/null || echo "Note: Could not activate price-tracker environment"
+else
+    echo "No virtual environment active"
+fi
+
+# Check if discovery_api.py exists
+if [ ! -f "discovery_api.py" ]; then
+    echo "❌ Error: discovery_api.py not found!"
+    echo "Please run this script from the price-extractor-python directory"
+    exit 1
+fi
+
+# Start the discovery service
+echo "Starting discovery service..."
+echo "Using Python: $(which python)"
+python discovery_api.py

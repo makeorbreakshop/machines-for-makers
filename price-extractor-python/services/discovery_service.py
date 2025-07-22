@@ -12,7 +12,11 @@ from datetime import datetime
 from crawlers.site_crawler import SiteCrawler, CrawlConfig
 from normalizers.machine_data_normalizer import MachineDataNormalizer, ValidationResult
 from scrapers.price_extractor import PriceExtractor
+from scrapers.dynamic_scraper import DynamicScraper
+from scrapers.hybrid_web_scraper import get_hybrid_scraper
 from services.database import DatabaseService
+from services.cost_tracker import CostTracker
+from services.scrapfly_service import get_scrapfly_service
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +50,9 @@ class DiscoveryService:
     def __init__(self):
         self.db = DatabaseService()
         self.price_extractor = PriceExtractor()
+        self.dynamic_scraper = None  # Initialize when needed
         self.normalizer = MachineDataNormalizer()
+        self.cost_tracker = CostTracker()
 
     async def discover_products(self, request: DiscoveryRequest) -> DiscoveryResult:
         """
@@ -75,21 +81,31 @@ class DiscoveryService:
             })
 
             # Step 1: Discover product URLs
-            logger.info("Step 1: Discovering product URLs...")
+            logger.info("=" * 60)
+            logger.info("STEP 1: DISCOVERING PRODUCT URLs")
+            logger.info("=" * 60)
+            logger.info(f"Site: {request.base_url}")
+            logger.info(f"Sitemap URL: {request.sitemap_url or 'Will auto-detect'}")
+            
             product_urls, crawl_stats = await self._discover_urls(request)
             discovered_count = len(product_urls)
 
             # Update scan log with crawl stats
             await self._update_scan_log(request.scan_log_id, {
-                'pages_crawled': crawl_stats.get('pages_crawled', 0),
-                'products_found': discovered_count
+                'products_found': discovered_count  # This column exists
             })
 
             if not product_urls:
+                logger.warning("⚠️ NO PRODUCT URLs DISCOVERED!")
+                logger.info("This could mean:")
+                logger.info("  - The sitemap doesn't contain product URLs")
+                logger.info("  - Product URL patterns need adjustment")
+                logger.info("  - The site structure is different than expected")
+                
                 await self._update_scan_log(request.scan_log_id, {
                     'status': 'completed',
                     'completed_at': datetime.utcnow().isoformat() + 'Z',
-                    'error_log': {'warning': 'No product URLs discovered'}
+                    'error_message': 'No product URLs discovered'
                 })
                 return DiscoveryResult(
                     success=True,
@@ -101,39 +117,65 @@ class DiscoveryService:
                     warnings=['No product URLs discovered']
                 )
 
-            logger.info(f"Discovered {discovered_count} product URLs")
+            logger.info(f"✅ Discovered {discovered_count} product URLs")
+            logger.info("Sample URLs:")
+            for i, url in enumerate(product_urls[:5]):
+                logger.info(f"  {i+1}. {url}")
+            if len(product_urls) > 5:
+                logger.info(f"  ... and {len(product_urls) - 5} more")
 
-            # Step 2: Process each URL
-            logger.info("Step 2: Extracting and processing product data...")
-            batch_size = 10  # Process in batches to manage memory
+            # Step 2: Store discovered URLs (skip extraction for now)
+            logger.info("")
+            logger.info("=" * 60)
+            logger.info("STEP 2: STORING DISCOVERED URLs")
+            logger.info("=" * 60)
             
-            for i in range(0, len(product_urls), batch_size):
-                batch_urls = product_urls[i:i + batch_size]
-                logger.info(f"Processing batch {i//batch_size + 1}/{(len(product_urls)-1)//batch_size + 1}")
-
-                batch_results = await self._process_batch(request, batch_urls)
-                
-                processed_count += batch_results['processed']
-                error_count += batch_results['errors']
-                total_cost += batch_results['cost']
-                errors.extend(batch_results['error_messages'])
-                warnings.extend(batch_results['warnings'])
-
-                # Update progress
-                progress_pct = int((i + len(batch_urls)) / len(product_urls) * 100)
-                await self._update_scan_log(request.scan_log_id, {
-                    'new_products': processed_count
-                })
-                
-                logger.info(f"Progress: {progress_pct}% ({processed_count}/{discovered_count} processed)")
+            # For now, just store the URLs without extracting data
+            for url in product_urls[:20]:  # Limit to first 20 for testing
+                try:
+                    # Check if already exists
+                    exists = await self._check_existing_url(url)
+                    if not exists:
+                        # Store basic record matching actual schema
+                        record = {
+                            'scan_log_id': request.scan_log_id,
+                            'source_url': url,  # Changed from discovered_url
+                            'raw_data': {'url': url, 'title': 'Pending extraction'},  # Changed from extracted_data
+                            'normalized_data': {},
+                            'validation_errors': [],  # Must be array not null
+                            'validation_warnings': [],
+                            'status': 'pending',
+                            'machine_type': None,
+                            'ai_extraction_cost': 0.0
+                        }
+                        
+                        stored = await self._store_discovered_machine(record)
+                        if stored:
+                            processed_count += 1
+                            logger.info(f"✅ Stored URL {processed_count}/{min(20, len(product_urls))}: {url}")
+                        else:
+                            error_count += 1
+                            logger.error(f"❌ Failed to store URL: {url}")
+                    else:
+                        logger.info(f"⏭️  Skipping existing URL: {url}")
+                        
+                except Exception as e:
+                    error_count += 1
+                    logger.error(f"❌ Error storing URL {url}: {str(e)}")
+            
+            logger.info(f"Stored {processed_count} new URLs")
 
             # Step 3: Complete scan
-            logger.info("Step 3: Finalizing discovery...")
+            logger.info("")
+            logger.info("=" * 60)
+            logger.info("STEP 3: DISCOVERY COMPLETE")
+            logger.info("=" * 60)
+            
             await self._update_scan_log(request.scan_log_id, {
                 'status': 'completed',
                 'completed_at': datetime.utcnow().isoformat() + 'Z',
-                'new_products': processed_count,
-                'cost_usd': total_cost
+                'products_processed': processed_count,  # Changed from new_products
+                'ai_cost_usd': total_cost  # Changed from cost_usd
             })
 
             result = DiscoveryResult(
@@ -146,7 +188,12 @@ class DiscoveryService:
                 warnings=warnings
             )
 
-            logger.info(f"Discovery completed: {processed_count}/{discovered_count} products processed")
+            logger.info(f"✅ Discovery Summary:")
+            logger.info(f"   URLs discovered: {discovered_count}")
+            logger.info(f"   Products processed: {processed_count}")
+            logger.info(f"   Errors: {error_count}")
+            logger.info(f"   Total cost: ${total_cost:.2f}")
+            logger.info(f"   Success rate: {(processed_count/discovered_count*100 if discovered_count > 0 else 0):.1f}%")
             return result
 
         except Exception as e:
@@ -158,7 +205,7 @@ class DiscoveryService:
             await self._update_scan_log(request.scan_log_id, {
                 'status': 'failed',
                 'completed_at': datetime.utcnow().isoformat() + 'Z',
-                'error_log': {'error': error_msg, 'errors': errors}
+                'error_message': error_msg  # Changed from error_log
             })
 
             return DiscoveryResult(
@@ -202,13 +249,18 @@ class DiscoveryService:
         error_messages = []
         warnings = []
 
-        for url in urls:
+        for idx, url in enumerate(urls):
             try:
+                logger.info(f"   [{idx+1}/{len(urls)}] Processing: {url}")
                 result = await self._process_single_url(request, url)
+                
                 if result['success']:
                     processed += 1
+                    logger.info(f"      ✅ Success - extracted product data")
                 else:
                     errors += 1
+                    error_reason = result.get('error', 'Unknown error')
+                    logger.warning(f"      ⚠️ Failed: {error_reason}")
                     if result.get('error'):
                         error_messages.append(f"{url}: {result['error']}")
                 
@@ -219,7 +271,7 @@ class DiscoveryService:
             except Exception as e:
                 errors += 1
                 error_msg = f"Failed to process {url}: {str(e)}"
-                logger.error(error_msg)
+                logger.error(f"      ❌ Error: {str(e)}")
                 error_messages.append(error_msg)
 
             # Brief delay between requests
@@ -258,19 +310,17 @@ class DiscoveryService:
             # Normalize data
             normalized_data, validation = self.normalizer.normalize(raw_data)
 
-            # Store in discovered_machines table
+            # Store in discovered_machines table with correct schema
             discovery_record = {
-                'site_id': request.site_id,
-                'discovered_url': url,
-                'page_title': raw_data.get('name') or raw_data.get('title', ''),
-                'extracted_data': raw_data,
+                'scan_log_id': request.scan_log_id,
+                'source_url': url,
+                'raw_data': raw_data,
                 'normalized_data': normalized_data,
-                'validation_status': 'passed' if validation.is_valid else 'failed',
-                'validation_errors': {
-                    'errors': validation.errors,
-                    'warnings': validation.warnings
-                } if not validation.is_valid else None,
-                'discovered_at': datetime.utcnow().isoformat() + 'Z'
+                'validation_errors': validation.errors if validation.errors else [],
+                'validation_warnings': validation.warnings if validation.warnings else [],
+                'status': 'passed' if validation.is_valid else 'failed',
+                'machine_type': self._infer_machine_type(raw_data),
+                'ai_extraction_cost': cost
             }
 
             await self._store_discovered_machine(discovery_record)
@@ -290,42 +340,185 @@ class DiscoveryService:
             }
 
     async def _extract_product_data(self, url: str) -> Dict:
-        """Extract product data from URL"""
+        """Extract comprehensive product data from URL"""
         try:
-            # Use existing price extractor for now
-            # TODO: Extend for full product extraction
-            result = await self.price_extractor.extract_price(url)
-            
-            if result and 'price' in result:
-                return {
-                    'success': True,
-                    'data': result,
-                    'cost': 0.02  # Estimated cost per extraction
-                }
-            else:
+            # Check budget before proceeding
+            budget_status = await self.cost_tracker.check_budget_limits('discovery')
+            if not budget_status.get('within_budget', True):
+                logger.warning(f"Budget limit exceeded for discovery operations")
+                await self.cost_tracker.create_budget_alert(
+                    f"Discovery budget exceeded: ${budget_status.get('operation_cost', 0):.2f}",
+                    budget_status
+                )
                 return {
                     'success': False,
-                    'error': 'No product data extracted',
-                    'cost': 0.01
+                    'error': 'Budget limit exceeded',
+                    'cost': 0.0
                 }
+            
+            # Check if we should use Scrapfly for this site
+            scrapfly_service = None
+            try:
+                scrapfly_service = get_scrapfly_service()
+                if scrapfly_service.should_use_scrapfly(url):
+                    logger.info(f"🚀 Using Scrapfly for discovery: {url}")
+                    
+                    # Scrape with Scrapfly
+                    html_content, metadata = await scrapfly_service.scrape_page(url, render_js=True)
+                    
+                    if html_content and metadata.get('success'):
+                        # Extract price from HTML using our price extractor
+                        from bs4 import BeautifulSoup
+                        soup = BeautifulSoup(html_content, 'html.parser')
+                        
+                        price_extractor = PriceExtractor()
+                        price, method = await price_extractor.extract_price(
+                            soup=soup,
+                            html_content=html_content,
+                            url=url,
+                            current_price=None,
+                            machine_name=None
+                        )
+                        
+                        # Build product data
+                        product_data = {
+                            'name': soup.find('h1').text.strip() if soup.find('h1') else 'Unknown Product',
+                            'price': price,
+                            'url': url,
+                            'extraction_method': f'scrapfly_{method}' if method else 'scrapfly',
+                            'scrapfly_credits': metadata.get('cost', 0)
+                        }
+                        
+                        # Track cost
+                        actual_cost = await self.cost_tracker.track_discovery_cost(
+                            scan_id=f"discovery_{datetime.utcnow().isoformat()}",
+                            site_id=url.split('/')[2] if '/' in url else 'unknown',
+                            url=url,
+                            model='scrapfly',
+                            tokens=int(metadata.get('cost', 1) * 1000),  # Convert credits to pseudo-tokens
+                            success=bool(price)
+                        )
+                        
+                        if price:
+                            return {
+                                'success': True,
+                                'data': product_data,
+                                'cost': actual_cost
+                            }
+                        else:
+                            logger.warning(f"Scrapfly scraped but no price found for {url}")
+                            # Fall through to dynamic scraper
+                    else:
+                        logger.warning(f"Scrapfly failed for {url}: {metadata.get('error')}")
+                        # Fall through to dynamic scraper
+            except Exception as e:
+                logger.info(f"Scrapfly not available or failed: {e}")
+                # Fall through to dynamic scraper
+            
+            # Use dynamic scraper as fallback or primary method
+            # Initialize dynamic scraper if needed
+            if not self.dynamic_scraper:
+                self.dynamic_scraper = DynamicScraper()
+                await self.dynamic_scraper.start_browser()
+            
+            logger.info(f"Extracting full product data from: {url}")
+            
+            # Extract comprehensive product data
+            product_data = await self.dynamic_scraper.extract_full_product_data(url)
+            
+            # Track cost (estimated tokens based on extraction success)
+            estimated_tokens = 2000 if product_data else 500
+            actual_cost = await self.cost_tracker.track_discovery_cost(
+                scan_id=f"discovery_{datetime.utcnow().isoformat()}",
+                site_id=url.split('/')[2] if '/' in url else 'unknown',
+                url=url,
+                model='claude-3-sonnet',
+                tokens=estimated_tokens,
+                success=bool(product_data and product_data.get('name'))
+            )
+            
+            if product_data and product_data.get('name'):
+                # Enhance with price extraction if needed
+                if not product_data.get('price'):
+                    logger.info(f"No price found in full extraction, trying price extractor")
+                    price_result = await self.price_extractor.extract_price(url)
+                    if price_result and price_result.get('price'):
+                        product_data['price'] = price_result['price']
+                        product_data['extraction_method'] = price_result.get('method', 'price_extractor')
+                
+                return {
+                    'success': True,
+                    'data': product_data,
+                    'cost': actual_cost
+                }
+            else:
+                # Fallback to price-only extraction
+                logger.info(f"Full extraction failed, falling back to price extraction for: {url}")
+                result = await self.price_extractor.extract_price(url)
+                
+                if result and 'price' in result:
+                    # Track fallback extraction cost
+                    fallback_cost = await self.cost_tracker.track_discovery_cost(
+                        scan_id=f"fallback_{datetime.utcnow().isoformat()}",
+                        site_id=url.split('/')[2] if '/' in url else 'unknown',
+                        url=url,
+                        model='claude-3-haiku',
+                        tokens=1000,
+                        success=True
+                    )
+                    
+                    # Convert price result to product data format
+                    product_data = {
+                        'name': result.get('name') or 'Unknown Product',
+                        'price': result.get('price'),
+                        'url': url,
+                        'extraction_method': result.get('method', 'price_extractor_fallback')
+                    }
+                    return {
+                        'success': True,
+                        'data': product_data,
+                        'cost': actual_cost + fallback_cost
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'No product data extracted',
+                        'cost': actual_cost
+                    }
 
         except Exception as e:
+            logger.error(f"Error extracting product data from {url}: {str(e)}")
+            
+            # Track error cost
+            try:
+                error_cost = await self.cost_tracker.track_discovery_cost(
+                    scan_id=f"error_{datetime.utcnow().isoformat()}",
+                    site_id=url.split('/')[2] if '/' in url else 'unknown',
+                    url=url,
+                    model='claude-3-haiku',
+                    tokens=100,
+                    success=False
+                )
+            except:
+                error_cost = 0.01  # Fallback cost
+            
             return {
                 'success': False,
                 'error': str(e),
-                'cost': 0.01
+                'cost': error_cost
             }
 
     async def _check_existing_url(self, url: str) -> bool:
         """Check if URL already exists in discovered_machines"""
         try:
-            query = """
-                SELECT id FROM discovered_machines 
-                WHERE discovered_url = %s 
-                LIMIT 1
-            """
-            result = await self.db.execute_query(query, (url,))
-            return len(result) > 0
+            # Use Supabase client with correct column name
+            result = self.db.supabase.table("discovered_machines") \
+                .select("id") \
+                .eq("source_url", url) \
+                .limit(1) \
+                .execute()
+            
+            return len(result.data) > 0 if result.data else False
         except Exception as e:
             logger.warning(f"Error checking existing URL: {e}")
             return False
@@ -333,38 +526,75 @@ class DiscoveryService:
     async def _store_discovered_machine(self, record: Dict) -> bool:
         """Store discovered machine record"""
         try:
-            query = """
-                INSERT INTO discovered_machines 
-                (site_id, discovered_url, page_title, extracted_data, normalized_data, 
-                 validation_status, validation_errors, discovered_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            params = (
-                record['site_id'],
-                record['discovered_url'],
-                record['page_title'],
-                json.dumps(record['extracted_data']),
-                json.dumps(record['normalized_data']),
-                record['validation_status'],
-                json.dumps(record['validation_errors']) if record['validation_errors'] else None,
-                record['discovered_at']
-            )
+            # Use Supabase client with correct column names
+            data = {
+                'scan_log_id': record['scan_log_id'],
+                'source_url': record['source_url'],
+                'raw_data': record['raw_data'],
+                'normalized_data': record['normalized_data'],
+                'validation_errors': record['validation_errors'],
+                'validation_warnings': record['validation_warnings'],
+                'status': record['status'],
+                'machine_type': record['machine_type'],
+                'ai_extraction_cost': record['ai_extraction_cost']
+            }
             
-            await self.db.execute_query(query, params)
-            return True
+            result = self.db.supabase.table("discovered_machines").insert(data).execute()
+            
+            if result.data:
+                logger.debug(f"Stored discovered machine: {record['page_title']}")
+                return True
+            else:
+                logger.error(f"Failed to store discovered machine: no data returned")
+                return False
         except Exception as e:
             logger.error(f"Error storing discovered machine: {e}")
             return False
+    
+    def _infer_machine_type(self, product_data: Dict) -> str:
+        """Infer machine type from product data"""
+        try:
+            name = product_data.get('name', '').lower()
+            description = product_data.get('description', '').lower()
+            brand = product_data.get('brand', '').lower()
+            
+            combined_text = f"{name} {description} {brand}"
+            
+            # Machine type detection patterns
+            if any(term in combined_text for term in ['laser', 'engraver', 'engraving', 'cutter']):
+                return 'laser-cutter'
+            elif any(term in combined_text for term in ['3d print', 'printer', 'fdm', 'sla', 'resin']):
+                return '3d-printer' 
+            elif any(term in combined_text for term in ['cnc', 'mill', 'router', 'machining']):
+                return 'cnc-machine'
+            elif any(term in combined_text for term in ['uv print', 'dtf', 'vinyl']):
+                return 'uv-dtf-printer'
+            else:
+                return 'unknown'
+                
+        except Exception as e:
+            logger.warning(f"Error inferring machine type: {e}")
+            return 'unknown'
+    
+    async def cleanup(self):
+        """Clean up resources"""
+        try:
+            if self.dynamic_scraper:
+                await self.dynamic_scraper.close_browser()
+                self.dynamic_scraper = None
+        except Exception as e:
+            logger.error(f"Error cleaning up discovery service: {e}")
 
     async def _update_scan_log(self, scan_log_id: str, updates: Dict) -> bool:
         """Update scan log with progress/status"""
         try:
-            set_clause = ", ".join([f"{key} = %s" for key in updates.keys()])
-            query = f"UPDATE site_scan_logs SET {set_clause} WHERE id = %s"
-            params = list(updates.values()) + [scan_log_id]
+            # Use Supabase client
+            result = self.db.supabase.table("site_scan_logs") \
+                .update(updates) \
+                .eq("id", scan_log_id) \
+                .execute()
             
-            await self.db.execute_query(query, params)
-            return True
+            return bool(result.data)
         except Exception as e:
             logger.error(f"Error updating scan log: {e}")
             return False
@@ -403,3 +633,7 @@ async def start_discovery(request_data: Dict) -> Dict:
             'success': False,
             'error': str(e)
         }
+    finally:
+        # Clean up resources
+        if 'service' in locals():
+            await service.cleanup()

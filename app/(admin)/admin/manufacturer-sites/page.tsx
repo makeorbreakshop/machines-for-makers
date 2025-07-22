@@ -1,4 +1,4 @@
-import { requireAdminAuth } from '@/lib/auth/admin-auth'
+import { requireAdminAuth } from '@/lib/auth-utils'
 import { ManufacturerSitesClient } from './manufacturer-sites-client'
 
 export const runtime = 'nodejs'

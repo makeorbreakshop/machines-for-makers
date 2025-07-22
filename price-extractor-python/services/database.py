@@ -1103,3 +1103,119 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error fixing learned selectors: {str(e)}")
             return 0 
+
+    async def execute_query(self, query: str, params: List = None):
+        """
+        Execute a raw SQL query with optional parameters.
+        
+        Args:
+            query (str): SQL query to execute
+            params (List, optional): Parameters for the query
+            
+        Returns:
+            List[Dict]: Query results
+        """
+        try:
+            # For parameterized queries, use table operations instead
+            if params:
+                logger.warning("Parameterized queries not supported in this simplified version")
+                return []
+            
+            # Use the execute_sql function we created
+            response = self.supabase.rpc('execute_sql', {'sql': query}).execute()
+            return response.data or []
+            
+        except Exception as e:
+            logger.error(f"Error executing query: {str(e)}")
+            return []
+    
+    async def get_machine_categories(self):
+        """Get all machine categories using database function"""
+        try:
+            response = self.supabase.rpc('get_machine_categories').execute()
+            return response.data or []
+        except Exception as e:
+            logger.error(f"Error getting machine categories: {str(e)}")
+            return []
+    
+    async def get_machines_by_category(self, category: str):
+        """Get machines by category using database function"""
+        try:
+            response = self.supabase.rpc('get_machines_by_category', {'category_name': category}).execute()
+            return response.data or []
+        except Exception as e:
+            logger.error(f"Error getting machines for category {category}: {str(e)}")
+            return []
+
+    async def create_scan_record(self, site_id: str, site_name: str) -> Optional[str]:
+        """Create a new scan record in site_scan_logs table"""
+        try:
+            scan_data = {
+                "id": str(uuid.uuid4()),
+                "site_id": site_id,
+                "site_name": site_name,
+                "status": "running",
+                "started_at": datetime.utcnow().isoformat() + "Z",
+                "total_urls": 0,
+                "processed_urls": 0,
+                "discovered_products": 0,
+                "errors": []
+            }
+            
+            response = self.supabase.table("site_scan_logs").insert(scan_data).execute()
+            
+            if response.data:
+                logger.info(f"Created scan record: {scan_data['id']}")
+                return scan_data["id"]
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error creating scan record: {str(e)}")
+            return None
+    
+    async def get_scan_status(self, scan_id: str) -> Optional[Dict]:
+        """Get scan status from site_scan_logs table"""
+        try:
+            response = self.supabase.table("site_scan_logs").select("*").eq("id", scan_id).single().execute()
+            return response.data
+        except Exception as e:
+            logger.error(f"Error getting scan status: {str(e)}")
+            return None
+    
+    async def update_scan_record(self, scan_id: str, status: str, **kwargs):
+        """Update scan record with progress or completion"""
+        try:
+            update_data = {
+                "status": status,
+                "updated_at": datetime.utcnow().isoformat() + "Z"
+            }
+            
+            # Add optional fields
+            if "total_urls" in kwargs:
+                update_data["total_urls"] = kwargs["total_urls"]
+            if "processed_urls" in kwargs:
+                update_data["processed_urls"] = kwargs["processed_urls"]
+            if "discovered_products" in kwargs:
+                update_data["discovered_products"] = kwargs["discovered_products"]
+            if "errors" in kwargs:
+                update_data["errors"] = kwargs["errors"]
+            
+            # Set completed_at if status is completed or failed
+            if status in ["completed", "failed"]:
+                update_data["completed_at"] = datetime.utcnow().isoformat() + "Z"
+            
+            response = self.supabase.table("site_scan_logs").update(update_data).eq("id", scan_id).execute()
+            
+            if response.data:
+                logger.info(f"Updated scan record {scan_id}: status={status}")
+                return True
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error updating scan record: {str(e)}")
+            return False
+
+    async def close(self):
+        """Close database connection if needed"""
+        # Supabase client doesn't need explicit closing
+        pass

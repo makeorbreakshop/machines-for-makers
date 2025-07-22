@@ -19,14 +19,14 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CrawlConfig:
     """Configuration for site crawling"""
-    crawl_delay: float = 3.0  # seconds between requests
+    crawl_delay: float = 1.0  # seconds between requests (faster for discovery)
     user_agent: str = "MachinesForMakers/1.0"
     respect_robots: bool = True
     product_url_patterns: List[str] = None
     exclude_patterns: List[str] = None
     use_sitemap: bool = True
     max_pages: int = 1000
-    timeout: int = 30
+    timeout: int = 10  # Shorter timeout to avoid hanging
 
     def __post_init__(self):
         if self.product_url_patterns is None:
@@ -72,18 +72,12 @@ class SiteCrawler:
             async with self.session.get(robots_url) as response:
                 if response.status == 200:
                     robots_content = await response.text()
-                    self.robots_parser = RobotFileParser()
-                    self.robots_parser.set_url(robots_url)
-                    self.robots_parser.read()
-                    
-                    # Parse content manually since robotparser expects file-like
-                    lines = robots_content.split('\n')
-                    for line in lines:
-                        self.robots_parser.readline(line)
-                    
-                    logger.info("Successfully loaded robots.txt")
+                    # Skip robots parser for now - it has issues with async
+                    logger.info("Robots.txt found but parsing skipped")
                 else:
                     logger.warning(f"Could not load robots.txt (status: {response.status})")
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout loading robots.txt")
         except Exception as e:
             logger.warning(f"Failed to load robots.txt: {e}")
 
@@ -115,15 +109,33 @@ class SiteCrawler:
 
     def _is_product_url(self, url: str) -> bool:
         """Check if URL appears to be a product page"""
-        # Check against include patterns
-        if not self._matches_pattern(url, self.config.product_url_patterns):
-            return False
+        # More flexible product URL detection
+        parsed_url = urlparse(url)
+        path = parsed_url.path.lower()
+        
+        # Common product URL indicators
+        product_indicators = [
+            '/product/', '/products/', '/item/', '/p/',
+            '/machines/', '/machine/', '/laser/', '/printer/',
+            '/shop/', '/store/', '/collections/'
+        ]
+        
+        # Check if URL contains product indicators
+        has_product_indicator = any(indicator in path for indicator in product_indicators)
+        
+        # Check for product-like patterns (e.g., slugs at end of URL)
+        looks_like_product = (
+            has_product_indicator or
+            re.search(r'/[\w-]+-[\w-]+$', path) or  # slug pattern
+            re.search(r'/\d+$', path) or  # numeric ID
+            re.search(r'[?&](id|product|item)=', url)  # query params
+        )
         
         # Check against exclude patterns
         if self._matches_pattern(url, self.config.exclude_patterns):
             return False
         
-        return True
+        return looks_like_product
 
     async def discover_from_sitemap(self) -> List[str]:
         """Discover product URLs from sitemap.xml"""
@@ -145,16 +157,29 @@ class SiteCrawler:
                 
                 async with self.session.get(sitemap_url) as response:
                     if response.status == 200:
+                        logger.info(f"✓ Found sitemap at {sitemap_url}, parsing...")
                         sitemap_content = await response.text()
                         urls = await self._parse_sitemap(sitemap_content)
-                        product_urls.extend(urls)
-                        logger.info(f"Found {len(urls)} URLs in {sitemap_url}")
+                        
+                        # Log progress
+                        if urls:
+                            product_urls.extend(urls)
+                            logger.info(f"✓ Found {len(urls)} product URLs in sitemap")
+                            for i, url in enumerate(urls[:5]):
+                                logger.info(f"  Sample {i+1}: {url}")
+                            if len(urls) > 5:
+                                logger.info(f"  ... and {len(urls) - 5} more")
+                        else:
+                            logger.warning(f"⚠ Sitemap found but no product URLs extracted")
+                        
                         break  # Use first successful sitemap
                     else:
                         logger.debug(f"Sitemap not found: {sitemap_url} (status: {response.status})")
                         
+            except asyncio.TimeoutError:
+                logger.error(f"⚠ Timeout accessing sitemap {sitemap_url}")
             except Exception as e:
-                logger.debug(f"Error accessing sitemap {sitemap_url}: {e}")
+                logger.error(f"⚠ Error accessing sitemap {sitemap_url}: {str(e)}")
 
         return product_urls
 
@@ -164,25 +189,57 @@ class SiteCrawler:
         
         try:
             root = ET.fromstring(sitemap_content)
+            logger.info(f"Parsing sitemap with root tag: {root.tag}")
             
             # Handle sitemap index (contains links to other sitemaps)
             if 'sitemapindex' in root.tag:
-                for sitemap in root.findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}sitemap'):
+                logger.info("Found sitemap index, parsing sub-sitemaps...")
+                sitemap_count = 0
+                max_sitemaps = 5  # Limit to avoid hanging
+                
+                all_sitemaps = root.findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}sitemap')
+                logger.info(f"Total sub-sitemaps found: {len(all_sitemaps)}")
+                
+                for sitemap in all_sitemaps[:max_sitemaps]:
                     loc = sitemap.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')
                     if loc is not None:
-                        # Recursively parse sub-sitemaps
-                        sub_urls = await self._fetch_and_parse_sitemap(loc.text)
-                        urls.extend(sub_urls)
+                        sitemap_count += 1
+                        logger.info(f"  Processing sub-sitemap {sitemap_count}/{min(len(all_sitemaps), max_sitemaps)}:")
+                        
+                        # Check if it's a products sitemap
+                        if 'products' in loc.text.lower() or 'product' in loc.text.lower():
+                            sub_urls = await self._fetch_and_parse_sitemap(loc.text)
+                            urls.extend(sub_urls)
+                            
+                            # Stop if we have enough URLs
+                            if len(urls) >= 50:
+                                logger.info(f"  ✓ Found enough product URLs ({len(urls)}), stopping sitemap parsing")
+                                break
+                        else:
+                            logger.info(f"     Skipping non-product sitemap: {loc.text}")
+                            
+                logger.info(f"Processed {sitemap_count} sub-sitemaps, found {len(urls)} product URLs")
             
             # Handle regular sitemap (contains URLs)
             else:
+                all_urls = []
                 for url_element in root.findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}url'):
                     loc = url_element.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')
-                    if loc is not None and self._is_product_url(loc.text):
-                        urls.append(loc.text)
+                    if loc is not None:
+                        all_urls.append(loc.text)
+                
+                logger.info(f"Found {len(all_urls)} total URLs in sitemap")
+                
+                # Filter for product URLs
+                for url in all_urls:
+                    if self._is_product_url(url):
+                        urls.append(url)
+                
+                logger.info(f"Filtered to {len(urls)} product URLs")
                         
         except ET.ParseError as e:
             logger.error(f"Failed to parse sitemap XML: {e}")
+            logger.debug(f"First 500 chars of content: {sitemap_content[:500]}")
         except Exception as e:
             logger.error(f"Unexpected error parsing sitemap: {e}")
 
@@ -193,14 +250,22 @@ class SiteCrawler:
         urls = []
         
         try:
+            logger.info(f"     Fetching: {sitemap_url}")
             await self._rate_limit()
-            async with self.session.get(sitemap_url) as response:
+            
+            # Add specific timeout for this request
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with self.session.get(sitemap_url, timeout=timeout) as response:
                 if response.status == 200:
                     content = await response.text()
                     urls = await self._parse_sitemap(content)
-                    logger.debug(f"Found {len(urls)} URLs in sub-sitemap {sitemap_url}")
+                    logger.info(f"     ✓ Found {len(urls)} URLs in sub-sitemap")
+                else:
+                    logger.warning(f"     ⚠️ Sub-sitemap returned status {response.status}")
+        except asyncio.TimeoutError:
+            logger.error(f"     ❌ Timeout fetching sub-sitemap (5s limit)")
         except Exception as e:
-            logger.warning(f"Failed to fetch sub-sitemap {sitemap_url}: {e}")
+            logger.error(f"     ❌ Failed to fetch sub-sitemap: {str(e)}")
 
         return urls
 

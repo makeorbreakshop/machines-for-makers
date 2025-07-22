@@ -10,10 +10,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("manufacturer_sites")
-      .select(`
-        *,
-        brands(id, Name, Slug)
-      `)
+      .select("*")
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -47,11 +44,10 @@ export async function POST(request: NextRequest) {
 
     // Set defaults
     const siteData = {
-      brand_id: body.brand_id || null,
+      name: body.name || new URL(body.base_url).hostname,
       base_url: body.base_url,
       sitemap_url: body.sitemap_url || null,
       scraping_config: body.scraping_config || {},
-      scan_frequency: body.scan_frequency || '30 days',
       is_active: body.is_active !== undefined ? body.is_active : true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -60,10 +56,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from("manufacturer_sites")
       .insert(siteData)
-      .select(`
-        *,
-        brands(id, Name, Slug)
-      `)
+      .select("*")
       .single()
 
     if (error) {

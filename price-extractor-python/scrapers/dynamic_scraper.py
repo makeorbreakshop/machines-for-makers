@@ -81,6 +81,45 @@ class DynamicScraper:
         except Exception as e:
             logger.error(f"Error closing Playwright browser: {str(e)}")
     
+    async def extract_full_product_data(self, url, variant_rules=None, machine_data=None):
+        """
+        Extract full product data from a page (beyond just price).
+        
+        Args:
+            url: Product page URL
+            variant_rules: Site-specific rules for variant selection
+            machine_data: Existing machine data for validation
+            
+        Returns:
+            dict: Complete product data or None
+        """
+        try:
+            logger.info(f"Starting full product extraction for {url}")
+            
+            # Navigate to the page
+            await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            await self.page.wait_for_timeout(2000)
+            
+            # Remove popups
+            await self._remove_popups()
+            
+            # Get the HTML content
+            content = await self.page.content()
+            
+            # Extract product data using selectors and AI
+            product_data = await self._extract_product_data_from_html(content, url)
+            
+            if product_data:
+                logger.info(f"Successfully extracted product data: {product_data.get('name', 'No name')}")
+                return product_data
+            else:
+                logger.warning("Failed to extract product data")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error in full product extraction: {str(e)}")
+            return None
+    
     async def extract_price_with_variants(self, url, machine_name, variant_rules, machine_data=None):
         """
         Extract price from a page that requires variant selection.
@@ -1731,6 +1770,379 @@ async def main():
         else:
             print("Failed to extract price")
 
+
+    async def _extract_product_data_from_html(self, html_content, url):
+        """
+        Extract comprehensive product data from HTML content.
+        
+        Args:
+            html_content: Raw HTML content
+            url: Product page URL
+            
+        Returns:
+            dict: Extracted product data
+        """
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+            domain = urlparse(url).netloc.lower()
+            
+            # Initialize product data structure
+            product_data = {
+                'url': url,
+                'domain': domain,
+                'name': None,
+                'price': None,
+                'description': None,
+                'specifications': {},
+                'images': [],
+                'brand': None,
+                'category': None,
+                'availability': None,
+                'sku': None,
+                'rating': None,
+                'reviews_count': None
+            }
+            
+            # Extract basic product information
+            product_data['name'] = self._extract_product_name(soup, domain)
+            product_data['price'] = self._extract_product_price(soup, domain)
+            product_data['description'] = self._extract_product_description(soup, domain)
+            product_data['brand'] = self._extract_product_brand(soup, domain)
+            product_data['category'] = self._extract_product_category(soup, domain)
+            product_data['sku'] = self._extract_product_sku(soup, domain)
+            product_data['images'] = self._extract_product_images(soup, domain, url)
+            product_data['availability'] = self._extract_product_availability(soup, domain)
+            product_data['rating'] = self._extract_product_rating(soup, domain)
+            product_data['reviews_count'] = self._extract_reviews_count(soup, domain)
+            
+            # Extract specifications
+            product_data['specifications'] = self._extract_specifications(soup, domain)
+            
+            return product_data
+            
+        except Exception as e:
+            logger.error(f"Error extracting product data from HTML: {str(e)}")
+            return None
+    
+    def _extract_product_name(self, soup, domain):
+        """Extract product name using various selectors."""
+        name_selectors = [
+            'h1.product-title',
+            'h1.product-name',
+            'h1.entry-title',
+            'h1[class*="product"]',
+            'h1[class*="title"]',
+            '.product-title h1',
+            '.product-name h1',
+            'h1',  # Fallback
+            '[data-product-title]',
+            '[data-product-name]'
+        ]
+        
+        for selector in name_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    name = element.get_text(strip=True)
+                    if name and len(name) > 5:  # Basic validation
+                        return name
+            except:
+                continue
+        
+        return None
+    
+    def _extract_product_price(self, soup, domain):
+        """Extract product price using domain-specific selectors."""
+        price_selectors = []
+        
+        if 'commarker.com' in domain:
+            price_selectors = [
+                '.price .amount:last-child',
+                '.woocommerce-Price-amount:last-child',
+                '.price ins .amount'
+            ]
+        elif 'xtool.com' in domain:
+            price_selectors = [
+                '.price__current',
+                '.money',
+                '[data-price]'
+            ]
+        else:
+            price_selectors = [
+                '.price',
+                '.product-price',
+                '[data-price]',
+                '.amount',
+                '.money'
+            ]
+        
+        for selector in price_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    price_text = element.get_text(strip=True)
+                    price = self._parse_price_string(price_text)
+                    if price and price > 0:
+                        return price
+            except:
+                continue
+        
+        return None
+    
+    def _extract_product_description(self, soup, domain):
+        """Extract product description."""
+        desc_selectors = [
+            '.product-description',
+            '.product-content',
+            '.entry-content',
+            '.description',
+            '[data-product-description]',
+            '.product-details .content',
+            '.tab-content .description'
+        ]
+        
+        for selector in desc_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    # Get text content but limit length
+                    desc = element.get_text(strip=True)
+                    if desc and len(desc) > 20:
+                        return desc[:2000]  # Limit to 2000 chars
+            except:
+                continue
+        
+        return None
+    
+    def _extract_product_brand(self, soup, domain):
+        """Extract brand information."""
+        brand_selectors = [
+            '[data-brand]',
+            '.brand',
+            '.product-brand',
+            '.manufacturer',
+            '[itemprop="brand"]',
+            '.breadcrumb a:nth-child(2)'  # Often brand is second in breadcrumb
+        ]
+        
+        # Domain-specific brand extraction
+        if 'commarker.com' in domain:
+            return 'ComMarker'
+        elif 'xtool.com' in domain:
+            return 'xTool'
+        elif 'aeonlaser' in domain:
+            return 'Aeon'
+        
+        for selector in brand_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    brand = element.get_text(strip=True)
+                    if brand and len(brand) < 50:  # Reasonable brand name length
+                        return brand
+            except:
+                continue
+        
+        return None
+    
+    def _extract_product_category(self, soup, domain):
+        """Extract product category."""
+        category_selectors = [
+            '.breadcrumb a:last-child',
+            '.product-category',
+            '.category',
+            '[data-category]',
+            '.nav-breadcrumb a:last-child'
+        ]
+        
+        for selector in category_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    category = element.get_text(strip=True)
+                    if category and len(category) < 100:
+                        return category
+            except:
+                continue
+        
+        return None
+    
+    def _extract_product_sku(self, soup, domain):
+        """Extract product SKU/model number."""
+        sku_selectors = [
+            '[data-sku]',
+            '.sku',
+            '.product-sku',
+            '.model-number',
+            '[itemprop="sku"]',
+            '[itemprop="model"]'
+        ]
+        
+        for selector in sku_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    sku = element.get_text(strip=True)
+                    if sku and len(sku) < 50:
+                        return sku
+            except:
+                continue
+        
+        return None
+    
+    def _extract_product_images(self, soup, domain, base_url):
+        """Extract product images."""
+        images = []
+        image_selectors = [
+            '.product-images img',
+            '.product-gallery img',
+            '.gallery img',
+            '[data-product-image]'
+        ]
+        
+        for selector in image_selectors:
+            try:
+                elements = soup.select(selector)
+                for img in elements[:5]:  # Limit to first 5 images
+                    src = img.get('src') or img.get('data-src')
+                    if src:
+                        # Convert relative URLs to absolute
+                        if src.startswith('//'):
+                            src = 'https:' + src
+                        elif src.startswith('/'):
+                            from urllib.parse import urljoin
+                            src = urljoin(base_url, src)
+                        
+                        if src not in images:
+                            images.append(src)
+            except:
+                continue
+        
+        return images[:5]  # Return max 5 images
+    
+    def _extract_product_availability(self, soup, domain):
+        """Extract product availability status."""
+        availability_selectors = [
+            '.stock-status',
+            '.availability',
+            '[data-availability]',
+            '.in-stock',
+            '.out-of-stock'
+        ]
+        
+        for selector in availability_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    availability = element.get_text(strip=True).lower()
+                    if 'in stock' in availability or 'available' in availability:
+                        return 'in_stock'
+                    elif 'out of stock' in availability or 'unavailable' in availability:
+                        return 'out_of_stock'
+                    else:
+                        return availability
+            except:
+                continue
+        
+        return 'unknown'
+    
+    def _extract_product_rating(self, soup, domain):
+        """Extract product rating."""
+        rating_selectors = [
+            '[data-rating]',
+            '.rating',
+            '.stars',
+            '[itemprop="ratingValue"]',
+            '.review-score'
+        ]
+        
+        for selector in rating_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    rating_text = element.get_text(strip=True)
+                    rating_match = re.search(r'([0-4]\.\d|5\.0|[0-5])', rating_text)
+                    if rating_match:
+                        return float(rating_match.group(1))
+            except:
+                continue
+        
+        return None
+    
+    def _extract_reviews_count(self, soup, domain):
+        """Extract number of reviews."""
+        review_selectors = [
+            '[data-review-count]',
+            '.review-count',
+            '.reviews-count',
+            '[itemprop="reviewCount"]'
+        ]
+        
+        for selector in review_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    count_text = element.get_text(strip=True)
+                    count_match = re.search(r'(\d+)', count_text)
+                    if count_match:
+                        return int(count_match.group(1))
+            except:
+                continue
+        
+        return None
+    
+    def _extract_specifications(self, soup, domain):
+        """Extract technical specifications."""
+        specs = {}
+        
+        # Common specification selectors
+        spec_selectors = [
+            '.specifications table tr',
+            '.specs table tr',
+            '.product-specs tr',
+            '.tech-specs tr',
+            '.attributes tr',
+            '.product-attributes tr',
+            '.woocommerce-product-attributes tr'
+        ]
+        
+        for selector in spec_selectors:
+            try:
+                rows = soup.select(selector)
+                for row in rows:
+                    # Try to extract key-value pairs
+                    cells = row.find_all(['td', 'th'])
+                    if len(cells) >= 2:
+                        key = cells[0].get_text(strip=True)
+                        value = cells[1].get_text(strip=True)
+                        if key and value and len(key) < 100 and len(value) < 500:
+                            specs[key] = value
+            except:
+                continue
+        
+        # Look for specification lists
+        list_selectors = [
+            '.specifications li',
+            '.specs li',
+            '.features li',
+            '.product-features li'
+        ]
+        
+        features = []
+        for selector in list_selectors:
+            try:
+                items = soup.select(selector)
+                for item in items:
+                    feature = item.get_text(strip=True)
+                    if feature and len(feature) < 200:
+                        features.append(feature)
+            except:
+                continue
+        
+        if features:
+            specs['features'] = features[:10]  # Limit to 10 features
+        
+        return specs
 
 if __name__ == "__main__":
     asyncio.run(main())

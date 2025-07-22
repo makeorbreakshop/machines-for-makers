@@ -20,6 +20,7 @@ class PriceService:
     def __init__(self):
         """Initialize dependencies."""
         self.db_service = DatabaseService()
+        # Always use regular scraper for price service - Scrapfly is discovery only
         self.web_scraper = WebScraper()
         self.price_extractor = PriceExtractor()
         self.variant_verifier = None  # Will be initialized per batch

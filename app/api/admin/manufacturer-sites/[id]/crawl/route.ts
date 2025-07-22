@@ -46,30 +46,47 @@ export async function POST(
       return NextResponse.json({ error: scanError.message }, { status: 500 })
     }
 
-    // TODO: Queue the actual crawl job here
-    // For now, we'll just return the scan log ID that can be used to track progress
-    // In a real implementation, this would:
-    // 1. Add job to a queue (Redis, database job queue, etc.)
-    // 2. Background worker would pick up the job
-    // 3. Worker would crawl the site and update the scan log
-    // 4. Worker would discover products and populate discovered_machines table
+    // Call the Python discovery service
+    try {
+      const discoveryRequest = {
+        scan_log_id: scanLog.id,
+        site_id: id,
+        base_url: site.base_url,
+        sitemap_url: site.sitemap_url,
+        scraping_config: site.scraping_config || {},
+        scan_type: scanData.scan_type
+      }
 
-    console.log(`Manual crawl triggered for site ${id}, scan log ID: ${scanLog.id}`)
-    console.log(`Site URL: ${site.base_url}`)
-    console.log(`Scan type: ${scanData.scan_type}`)
+      console.log(`Triggering discovery for site ${id}, scan log ID: ${scanLog.id}`)
+      
+      // Call Python discovery service (runs on port 8001)
+      const response = await fetch('http://localhost:8001/api/v1/discover-products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(discoveryRequest)
+      })
 
-    // For development, we'll simulate adding a job to a queue
-    const crawlJob = {
-      scanLogId: scanLog.id,
-      siteId: id,
-      baseUrl: site.base_url,
-      sitemapUrl: site.sitemap_url,
-      scrapingConfig: site.scraping_config,
-      scanType: scanData.scan_type
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Failed to start discovery')
+      }
+
+      const result = await response.json()
+      console.log('Discovery started:', result)
+      
+    } catch (error) {
+      console.error('Failed to start discovery:', error)
+      // Update scan log with error
+      await supabase
+        .from("site_scan_logs")
+        .update({ 
+          status: 'failed',
+          error_log: { error: error.message }
+        })
+        .eq("id", scanLog.id)
     }
-
-    // TODO: Replace this with actual queue integration
-    // await addCrawlJobToQueue(crawlJob)
 
     return NextResponse.json({
       success: true,

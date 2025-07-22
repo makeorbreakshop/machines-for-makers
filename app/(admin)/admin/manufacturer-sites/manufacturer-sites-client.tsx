@@ -35,20 +35,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface ManufacturerSite {
   id: string
-  brand_id: string | null
+  name: string
   base_url: string
   sitemap_url: string | null
   scraping_config: any
-  last_full_scan: string | null
-  scan_frequency: string
+  last_crawled_at: string | null
   is_active: boolean
   created_at: string
   updated_at: string
-  brands?: {
-    id: string
-    Name: string
-    Slug: string
-  } | null
 }
 
 interface Brand {
@@ -64,11 +58,10 @@ export function ManufacturerSitesClient() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingSite, setEditingSite] = useState<ManufacturerSite | null>(null)
   const [formData, setFormData] = useState({
-    brand_id: '',
+    name: '',
     base_url: '',
     sitemap_url: '',
     scraping_config: '{}',
-    scan_frequency: '30 days',
     is_active: true
   })
   const [error, setError] = useState<string | null>(null)
@@ -116,17 +109,16 @@ export function ManufacturerSitesClient() {
     if (site) {
       setEditingSite(site)
       setFormData({
-        brand_id: site.brand_id || '',
+        name: site.name,
         base_url: site.base_url,
         sitemap_url: site.sitemap_url || '',
         scraping_config: JSON.stringify(site.scraping_config, null, 2),
-        scan_frequency: site.scan_frequency,
         is_active: site.is_active
       })
     } else {
       setEditingSite(null)
       setFormData({
-        brand_id: '',
+        name: '',
         base_url: '',
         sitemap_url: '',
         scraping_config: JSON.stringify({
@@ -137,7 +129,6 @@ export function ManufacturerSitesClient() {
           exclude_patterns: ["/blog/*", "/support/*"],
           use_sitemap: true
         }, null, 2),
-        scan_frequency: '30 days',
         is_active: true
       })
     }
@@ -168,7 +159,6 @@ export function ManufacturerSitesClient() {
 
       const payload = {
         ...formData,
-        brand_id: formData.brand_id || null,
         scraping_config: config
       }
 
@@ -290,21 +280,23 @@ export function ManufacturerSitesClient() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Name</TableHead>
               <TableHead>URL</TableHead>
-              <TableHead>Brand</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Last Scan</TableHead>
-              <TableHead>Frequency</TableHead>
+              <TableHead>Last Crawled</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sites.map((site) => (
               <TableRow key={site.id}>
+                <TableCell className="font-medium">
+                  {site.name}
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Globe className="h-4 w-4" />
-                    <span className="font-medium">{site.base_url}</span>
+                    <span>{site.base_url}</span>
                     {site.sitemap_url && (
                       <Badge variant="secondary" className="text-xs">
                         Sitemap
@@ -313,15 +305,11 @@ export function ManufacturerSitesClient() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  {site.brands?.Name || 'No brand'}
-                </TableCell>
-                <TableCell>
                   <Badge variant={site.is_active ? 'default' : 'secondary'}>
                     {site.is_active ? 'Active' : 'Inactive'}
                   </Badge>
                 </TableCell>
-                <TableCell>{formatDate(site.last_full_scan)}</TableCell>
-                <TableCell>{site.scan_frequency}</TableCell>
+                <TableCell>{formatDate(site.last_crawled_at)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Button
@@ -368,6 +356,17 @@ export function ManufacturerSitesClient() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
+                <Label htmlFor="name">Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="ComMarker"
+                  required
+                />
+              </div>
+
+              <div>
                 <Label htmlFor="base_url">Base URL *</Label>
                 <Input
                   id="base_url"
@@ -377,56 +376,16 @@ export function ManufacturerSitesClient() {
                   required
                 />
               </div>
-
-              <div>
-                <Label htmlFor="brand_id">Brand</Label>
-                <Select
-                  value={formData.brand_id}
-                  onValueChange={(value) => setFormData({ ...formData, brand_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select brand" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">No brand</SelectItem>
-                    {brands.map((brand) => (
-                      <SelectItem key={brand.id} value={brand.id}>
-                        {brand.Name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="sitemap_url">Sitemap URL</Label>
-                <Input
-                  id="sitemap_url"
-                  value={formData.sitemap_url}
-                  onChange={(e) => setFormData({ ...formData, sitemap_url: e.target.value })}
-                  placeholder="https://example.com/sitemap.xml"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="scan_frequency">Scan Frequency</Label>
-                <Select
-                  value={formData.scan_frequency}
-                  onValueChange={(value) => setFormData({ ...formData, scan_frequency: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7 days">Weekly</SelectItem>
-                    <SelectItem value="14 days">Bi-weekly</SelectItem>
-                    <SelectItem value="30 days">Monthly</SelectItem>
-                    <SelectItem value="90 days">Quarterly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <Label htmlFor="sitemap_url">Sitemap URL</Label>
+              <Input
+                id="sitemap_url"
+                value={formData.sitemap_url}
+                onChange={(e) => setFormData({ ...formData, sitemap_url: e.target.value })}
+                placeholder="https://example.com/sitemap.xml"
+              />
             </div>
 
             <div>

@@ -5,11 +5,15 @@ from typing import Optional, List
 
 from services.price_service import PriceService
 from services.learning_service import DailyLearningService
-from services.discovery_service import start_discovery
+# from services.discovery_service import start_discovery  # Commented out - requires aiohttp
 
 router = APIRouter()
 price_service = PriceService()
 learning_service = DailyLearningService()
+
+# Include cost tracking routes
+from api.cost_routes import router as cost_router
+router.include_router(cost_router, prefix="/cost", tags=["cost-tracking"])
 
 class MachineUpdateRequest(BaseModel):
     """Request model for updating a machine's price."""
@@ -804,42 +808,43 @@ class DiscoveryRequest(BaseModel):
     scan_type: str = 'discovery'
 
 
-@router.post("/discover-products")
-async def discover_products_endpoint(request: DiscoveryRequest, background_tasks: BackgroundTasks):
-    """
-    Start product discovery for a manufacturer site.
-    
-    This endpoint triggers the discovery process which:
-    1. Crawls the manufacturer website to find product URLs
-    2. Extracts data from each product page
-    3. Normalizes and validates the data
-    4. Stores discovered products for admin review
-    """
-    try:
-        logger.info(f"Starting product discovery for site {request.site_id}: {request.base_url}")
-        
-        # Start discovery in background task
-        background_tasks.add_task(
-            _process_discovery,
-            request.dict()
-        )
-        
-        return {
-            "success": True,
-            "message": f"Product discovery started for {request.base_url}",
-            "scan_log_id": request.scan_log_id,
-            "site_id": request.site_id
-        }
-        
-    except Exception as e:
-        logger.exception(f"Error starting product discovery: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error starting discovery: {str(e)}")
+# Discovery endpoints commented out - requires separate service with aiohttp
+# @router.post("/discover-products")
+# async def discover_products_endpoint(request: DiscoveryRequest, background_tasks: BackgroundTasks):
+#     """
+#     Start product discovery for a manufacturer site.
+#     
+#     This endpoint triggers the discovery process which:
+#     1. Crawls the manufacturer website to find product URLs
+#     2. Extracts data from each product page
+#     3. Normalizes and validates the data
+#     4. Stores discovered products for admin review
+#     """
+#     try:
+#         logger.info(f"Starting product discovery for site {request.site_id}: {request.base_url}")
+#         
+#         # Start discovery in background task
+#         background_tasks.add_task(
+#             _process_discovery,
+#             request.dict()
+#         )
+#         
+#         return {
+#             "success": True,
+#             "message": f"Product discovery started for {request.base_url}",
+#             "scan_log_id": request.scan_log_id,
+#             "site_id": request.site_id
+#         }
+#         
+#     except Exception as e:
+#         logger.exception(f"Error starting product discovery: {str(e)}")
+#         raise HTTPException(status_code=500, detail=f"Error starting discovery: {str(e)}")
 
 
-async def _process_discovery(request_data: dict):
-    """Process discovery in background task."""
-    try:
-        result = await start_discovery(request_data)
-        logger.info(f"Discovery completed: {result}")
-    except Exception as e:
-        logger.exception(f"Error in discovery background task: {str(e)}")
+# async def _process_discovery(request_data: dict):
+#     """Process discovery in background task."""
+#     try:
+#         result = await start_discovery(request_data)
+#         logger.info(f"Discovery completed: {result}")
+#     except Exception as e:
+#         logger.exception(f"Error in discovery background task: {str(e)}")
