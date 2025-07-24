@@ -49,15 +49,18 @@ export async function POST(
     // Call the Python discovery service
     try {
       const discoveryRequest = {
-        scan_log_id: scanLog.id,
         site_id: id,
-        base_url: site.base_url,
-        sitemap_url: site.sitemap_url,
-        scraping_config: site.scraping_config || {},
-        scan_type: scanData.scan_type
+        site_name: site.name,
+        config: {
+          url: site.base_url,
+          sitemap_url: site.sitemap_url,
+          ...site.scraping_config
+        },
+        max_products: body.max_products || 10,
+        test_mode: body.test_mode || false  // Support test mode from frontend
       }
 
-      console.log(`Triggering discovery for site ${id}, scan log ID: ${scanLog.id}`)
+      console.log(`Triggering discovery for site ${id}, scan log ID: ${scanLog.id}, test_mode: ${discoveryRequest.test_mode}`)
       
       // Call Python discovery service (runs on port 8001)
       const response = await fetch('http://localhost:8001/api/v1/discover-products', {
@@ -66,11 +69,17 @@ export async function POST(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(discoveryRequest)
+      }).catch(fetchError => {
+        console.error('Failed to reach discovery service:', fetchError)
+        throw new Error('Discovery service is not running. Please start it with: cd price-extractor-python && ./start-discovery')
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.detail || 'Failed to start discovery')
+        const errorMessage = typeof error.detail === 'string' 
+          ? error.detail 
+          : JSON.stringify(error.detail || error)
+        throw new Error(errorMessage || 'Failed to start discovery')
       }
 
       const result = await response.json()

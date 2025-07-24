@@ -362,6 +362,21 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Technical**: Prioritize visible UI elements, per-variant baseline prices, automated verification system with alerts
 - **Feature**: Variant price verification prevents silent failures, Thunder Bolt identified as needing site-specific rules
 
+### 2025-07-22: Manufacturer Discovery System & Scrapfly Integration
+- **Issue**: Manual product discovery not scalable, JavaScript-heavy sites (xTool, ComMarker) achieving only ~40% success rate
+- **Solution**: Built discovery service architecture with Scrapfly API integration for 90%+ success on difficult sites
+- **Impact**: Automated discovery from 50+ manufacturer sites, separate service (port 8001) preserves price tracker stability
+- **Technical**: Hybrid scraping with Scrapfly for JS sites, FastAPI discovery service, 1000 free credits for testing
+- **Feature**: Admin play button triggers crawls, discovered products queue, credit-based routing for cost optimization
+
+### 2025-07-23: Discovery Data Pipeline & Claude AI Mapping Implementation + Critical Quota Exhaustion
+- **Issue**: Discovered products showing "Unknown" names, needed intelligent data transformation instead of hardcoded mappings
+- **Solution**: Implemented Claude-based intelligent mapper replacing MachineDataNormalizer, fixed data transformation pipeline
+- **Impact**: No more "Unknown" products, complete review/import workflow, Claude AI maps any JSON to database schema
+- **Technical**: SimplifiedDiscoveryService with Claude mapper, discovered machine review interface, credit usage tracking
+- **Feature**: Category-based discovery, admin review workflow, intelligent field mapping with validation warnings
+- **CRITICAL**: AI assistant exhausted entire 1000-credit Scrapfly quota (~$1.00) through inefficient testing methodology
+
 ## 🎯 Success Criteria Achieved
 - ✅ Dual-service architecture operational with shared database
 - ✅ Intelligent price extraction with <20% false positives (down from 80%+)

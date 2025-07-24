@@ -1153,13 +1153,13 @@ class DatabaseService:
             scan_data = {
                 "id": str(uuid.uuid4()),
                 "site_id": site_id,
-                "site_name": site_name,
+                "scan_type": "discovery",
                 "status": "running",
                 "started_at": datetime.utcnow().isoformat() + "Z",
-                "total_urls": 0,
-                "processed_urls": 0,
-                "discovered_products": 0,
-                "errors": []
+                "products_found": 0,
+                "products_processed": 0,
+                "products_imported": 0,
+                "scan_metadata": {"site_name": site_name}
             }
             
             response = self.supabase.table("site_scan_logs").insert(scan_data).execute()
@@ -1186,23 +1186,51 @@ class DatabaseService:
         """Update scan record with progress or completion"""
         try:
             update_data = {
-                "status": status,
-                "updated_at": datetime.utcnow().isoformat() + "Z"
+                "status": status
             }
             
-            # Add optional fields
+            # Add optional fields - map to correct column names
             if "total_urls" in kwargs:
-                update_data["total_urls"] = kwargs["total_urls"]
+                update_data["products_found"] = kwargs["total_urls"]
             if "processed_urls" in kwargs:
-                update_data["processed_urls"] = kwargs["processed_urls"]
+                update_data["products_processed"] = kwargs["processed_urls"]
             if "discovered_products" in kwargs:
-                update_data["discovered_products"] = kwargs["discovered_products"]
+                update_data["products_found"] = kwargs["discovered_products"]
             if "errors" in kwargs:
-                update_data["errors"] = kwargs["errors"]
+                update_data["error_message"] = str(kwargs["errors"])
+            if "error_message" in kwargs:
+                update_data["error_message"] = kwargs["error_message"]
+            if "products_imported" in kwargs:
+                update_data["products_imported"] = kwargs["products_imported"]
+            if "scan_metadata" in kwargs:
+                update_data["scan_metadata"] = kwargs["scan_metadata"]
+            if "ai_cost_usd" in kwargs:
+                update_data["ai_cost_usd"] = kwargs["ai_cost_usd"]
             
             # Set completed_at if status is completed or failed
             if status in ["completed", "failed"]:
                 update_data["completed_at"] = datetime.utcnow().isoformat() + "Z"
+                
+                # Calculate total AI cost from discovered_machines if not provided
+                if "ai_cost_usd" not in kwargs and status == "completed":
+                    try:
+                        # Get all discovered machines for this scan and sum their AI costs
+                        machines_response = self.supabase.table("discovered_machines") \
+                            .select("ai_extraction_cost") \
+                            .eq("scan_log_id", scan_id) \
+                            .execute()
+                        
+                        if machines_response.data:
+                            total_cost = sum(
+                                m.get("ai_extraction_cost", 0) 
+                                for m in machines_response.data 
+                                if m.get("ai_extraction_cost") is not None
+                            )
+                            if total_cost > 0:
+                                update_data["ai_cost_usd"] = total_cost
+                                logger.info(f"Calculated total AI cost for scan {scan_id}: ${total_cost:.4f}")
+                    except Exception as e:
+                        logger.warning(f"Could not calculate AI cost for scan {scan_id}: {str(e)}")
             
             response = self.supabase.table("site_scan_logs").update(update_data).eq("id", scan_id).execute()
             
@@ -1213,6 +1241,92 @@ class DatabaseService:
             
         except Exception as e:
             logger.error(f"Error updating scan record: {str(e)}")
+            return False
+    
+    async def store_discovered_machine(self, site_id: str, scan_id: str, data: Dict) -> bool:
+        """
+        Store a discovered machine in the discovered_machines table
+        
+        Args:
+            site_id: The manufacturer site ID
+            scan_id: The scan ID 
+            data: The machine data to store
+            
+        Returns:
+            bool: True if stored successfully
+        """
+        try:
+            # Ensure normalized_data is properly structured
+            normalized_data = data.get("normalized_data", {})
+            
+            # Debug logging to understand what we're receiving
+            logger.info("=== DATABASE SERVICE DEBUG ===")
+            logger.info(f"Received normalized_data type: {type(normalized_data)}")
+            logger.info(f"Normalized data keys: {list(normalized_data.keys()) if isinstance(normalized_data, dict) else 'Not a dict'}")
+            logger.info(f"Normalized data content: {json.dumps(normalized_data, indent=2, default=str)[:500]}...")
+            logger.info("==============================")
+            
+            # Check for machine name in the expected field from Claude mapper
+            machine_name_field = normalized_data.get("Machine Name") or normalized_data.get("name")
+            
+            if not normalized_data or not machine_name_field:
+                logger.warning(f"Missing or empty normalized_data, using fallback. Original: {normalized_data}")
+                normalized_data = {
+                    "name": "Unknown",
+                    "price": None,
+                    "image_url": None,
+                    "specifications": {}
+                }
+            else:
+                # Ensure normalized_data has a 'name' field for consistency
+                if "Machine Name" in normalized_data and "name" not in normalized_data:
+                    normalized_data["name"] = normalized_data["Machine Name"]
+            
+            # Extract machine name for logging
+            machine_name = normalized_data.get("name", "Unknown")
+            
+            # Extract AI extraction cost if available
+            ai_cost = None
+            raw_data = data.get("raw_data", {})
+            if isinstance(raw_data, dict) and "_credits_used" in raw_data:
+                # Scrapfly credits cost approximately $0.001 per credit
+                ai_cost = raw_data.get("_credits_used", 0) * 0.001
+            
+            discovered_data = {
+                "scan_log_id": scan_id,
+                "source_url": data.get("source_url", ""),
+                "raw_data": raw_data,
+                "normalized_data": normalized_data,
+                "status": data.get("status", "pending"),
+                "validation_errors": data.get("validation_errors", []),
+                "validation_warnings": data.get("validation_warnings", []),
+                "machine_type": data.get("machine_type", "laser_cutter")
+            }
+            
+            # Add AI extraction cost if available
+            if ai_cost is not None:
+                discovered_data["ai_extraction_cost"] = ai_cost
+            
+            # Log the data being stored for debugging
+            logger.debug(f"Storing discovered machine: {machine_name}")
+            logger.debug(f"Normalized data: {json.dumps(normalized_data, indent=2)[:500]}...")
+            logger.debug(f"Validation errors: {discovered_data['validation_errors']}")
+            logger.debug(f"Validation warnings: {discovered_data['validation_warnings']}")
+            
+            response = self.supabase.table("discovered_machines").insert(discovered_data).execute()
+            
+            if response.data:
+                logger.info(f"✅ Stored discovered machine: {machine_name}")
+                if ai_cost:
+                    logger.info(f"   AI extraction cost: ${ai_cost:.4f}")
+                return True
+            
+            logger.error(f"Failed to store machine {machine_name}: No data in response")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error storing discovered machine: {str(e)}")
+            logger.error(f"Data that failed to store: {json.dumps(data, indent=2, default=str)[:1000]}...")
             return False
 
     async def close(self):

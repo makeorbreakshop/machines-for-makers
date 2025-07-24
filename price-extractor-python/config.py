@@ -19,6 +19,9 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 # Using the cheaper Claude model as requested
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-haiku-20240307")
 
+# OpenAI Configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 # Scraping Configuration
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 USER_AGENT = os.getenv(

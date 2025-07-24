@@ -40,17 +40,18 @@ export function DiscoveryDetailModal({
   if (!product) return null
 
   const getProductName = () => {
-    return product.normalized_data?.['Machine Name'] ||
+    return product.normalized_data?.name ||
            product.raw_data?.name ||
            product.raw_data?.title ||
            'Unnamed Product'
   }
 
   const getProductImage = () => {
-    const imageUrl = product.normalized_data?.['Image'] || 
+    const imageUrl = product.normalized_data?.images?.[0] || 
+                    product.raw_data?.images?.[0] ||
                     product.raw_data?.image || 
                     product.raw_data?.image_url
-    return imageUrl || '/placeholder-machine.jpg'
+    return imageUrl || '/placeholder.svg?height=200&width=200'
   }
 
   const handleApprove = async () => {
@@ -168,7 +169,7 @@ export function DiscoveryDetailModal({
                 alt={getProductName()}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/placeholder-machine.jpg'
+                  (e.target as HTMLImageElement).src = '/placeholder.svg?height=200&width=200'
                 }}
               />
             </div>

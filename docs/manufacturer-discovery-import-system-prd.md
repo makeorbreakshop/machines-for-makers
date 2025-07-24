@@ -46,6 +46,16 @@ Expand the Machines for Makers platform to track entire manufacturer websites, a
 
 ## System Architecture
 
+### Updated Architecture with Scrapfly API
+
+With the shift to Scrapfly's API service, the architecture has evolved to leverage their AI extraction capabilities:
+
+**Key Changes:**
+1. **No Manual Crawling**: Scrapfly handles JavaScript rendering and anti-bot measures
+2. **AI Product Extraction**: Built-in `extraction_model='product'` for automatic data extraction
+3. **Category-Based Discovery**: Instead of sitemaps, we discover from category/collection pages
+4. **Credit-Based Pricing**: Each extraction costs credits (base + multipliers for features)
+
 ### Database Schema Additions
 
 ```sql
@@ -113,7 +123,7 @@ ALTER TABLE machines ADD COLUMN IF NOT EXISTS discovery_source text DEFAULT 'man
 -- Values: 'manual', 'crawler', 'api'
 ```
 
-### Component Architecture
+### Component Architecture (Updated with Scrapfly)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -122,7 +132,7 @@ ALTER TABLE machines ADD COLUMN IF NOT EXISTS discovery_source text DEFAULT 'man
 │                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐ │
 │  │ Site Manager │  │  Discovery   │  │  Import Review  │ │
-│  │              │  │   Crawler    │  │      Grid       │ │
+│  │              │  │   Trigger    │  │      Grid       │ │
 │  └──────────────┘  └──────────────┘  └─────────────────┘ │
 │                            │                    │          │
 └────────────────────────────┼────────────────────┼──────────┘
@@ -130,16 +140,19 @@ ALTER TABLE machines ADD COLUMN IF NOT EXISTS discovery_source text DEFAULT 'man
 ┌────────────────────────────┼────────────────────┼──────────┐
 │                            ▼                    ▼          │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │              Data Processing Pipeline                 │ │
+│  │          Scrapfly-Powered Discovery Service           │ │
 │  ├──────────────────────────────────────────────────────┤ │
 │  │                                                      │ │
-│  │  ┌─────────┐  ┌──────────┐  ┌──────────────────┐  │ │
-│  │  │ Scraper │→ │    AI    │→ │  Normalizer      │  │ │
-│  │  │         │  │Extractor │  │                  │  │ │
-│  │  └─────────┘  └──────────┘  └──────────────────┘  │ │
+│  │  ┌──────────┐  ┌────────────┐  ┌────────────────┐  │ │
+│  │  │ Category │→ │  Scrapfly  │→ │   Normalizer   │  │ │
+│  │  │ Discovery│  │AI Extract  │  │                │  │ │
+│  │  └──────────┘  └────────────┘  └────────────────┘  │ │
 │  │       │             │                │              │ │
-│  └───────┼─────────────┼────────────────┼──────────────┘ │
-│          ▼             ▼                ▼              │
+│  │       │      ┌──────────────┐       │              │ │
+│  │       └─────→│ Credit Mgmt  │←──────┘              │ │
+│  │              └──────────────┘                      │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                            ▼                              │
 │  ┌──────────────────────────────────────────────────┐ │
 │  │              Database Tables                      │ │
 │  │  - manufacturer_sites                            │ │
@@ -227,21 +240,32 @@ For each new machine type:
 }
 ```
 
-### 2. Product Discovery Crawler
+### 2. Product Discovery with Scrapfly (Updated)
 
 **Discovery Process:**
-1. Load manufacturer site configuration
-2. Check sitemap.xml first
-3. Fall back to crawling category pages
-4. Extract product URLs using patterns
-5. Queue URLs for extraction
-6. Respect rate limits and robots.txt
+1. Load manufacturer site configuration with category URLs
+2. Use Scrapfly to render JavaScript-heavy category pages
+3. Extract product URLs from rendered HTML
+4. Use Scrapfly's AI extraction on each product page
+5. Store extracted data for normalization
 
-**Implementation Details:**
-- Use existing Puppeteer infrastructure
-- Sequential crawling with delays
-- Store raw HTML for reprocessing
-- Track crawl progress and errors
+**Scrapfly Integration Details:**
+- API-based extraction (no local Puppeteer needed)
+- Automatic JavaScript rendering with `render_js=True`
+- Anti-bot protection bypass with `asp=True`
+- AI product extraction with `extraction_model='product'`
+- Credit tracking per request
+
+**Credit Cost Structure:**
+```javascript
+// Base cost: 1 credit
+// Multipliers:
+// - JavaScript rendering (render_js): 5x
+// - Anti-bot bypass (asp): 10x
+// - AI extraction: 10x
+// Total for product page: 1 × 5 × 10 × 10 = 500 credits
+// Actual observed: ~50-100 credits per product
+```
 
 ### 3. Enhanced Data Extraction
 
@@ -531,6 +555,51 @@ const validationRules = {
 3. Documentation
 4. Import first 10 manufacturer sites
 5. Gather feedback and refine
+
+## Scrapfly Integration Issues to Address
+
+### Current Problems
+1. **Data Flow Mismatch**: 
+   - Scrapfly returns structured product data
+   - Our normalizer expects different field names
+   - The simplified discovery service isn't properly transforming between formats
+
+2. **Missing Data Transformation**:
+   - Scrapfly provides data like `offers`, `specifications`, `images` arrays
+   - Our normalizer expects flat fields like `price`, `work_area`, etc.
+   - Need intermediate transformation layer
+
+3. **Category URL Configuration**:
+   - Sites need category URLs instead of just base URLs
+   - Different sites have different category structures
+   - Need to update manufacturer_sites configuration
+
+4. **Credit Usage Visibility**:
+   - No UI indication of credit costs
+   - No budget tracking or alerts
+   - Need credit usage dashboard
+
+### Required Updates
+1. **Update SimplifiedDiscoveryService**:
+   - Transform Scrapfly's nested data to flat structure
+   - Extract prices from `offers` array
+   - Convert `specifications` array to key-value pairs
+   - Handle image arrays properly
+
+2. **Update Manufacturer Sites**:
+   - Add `category_urls` field to configuration
+   - Update existing sites with proper category URLs
+   - Support multiple categories per site
+
+3. **Improve Data Display**:
+   - Fix "Unknown" product names in review interface
+   - Show extracted specifications properly
+   - Display all images, not just first one
+
+4. **Add Credit Management**:
+   - Track credits used per discovery run
+   - Show credit costs in UI
+   - Add budget limits and warnings
 
 ## Technical Considerations
 

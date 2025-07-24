@@ -6,6 +6,7 @@ import { DiscoveryGrid } from "@/components/admin/discovery-grid"
 import { requireAdminAuth } from "@/lib/auth-utils"
 import { Suspense } from "react"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { DiscoveryClientWrapper } from "./discovery-client-wrapper"
 
 // Force dynamic to prevent static generation and ensure fresh data
 export const dynamic = 'force-dynamic'
@@ -105,16 +106,6 @@ export default async function DiscoveryPage() {
             Review and approve products discovered from manufacturer websites
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Filters
-          </Button>
-          <Button variant="outline" size="sm">
-            <Search className="h-4 w-4 mr-2" />
-            Search
-          </Button>
-        </div>
       </div>
 
       {error && (
@@ -123,86 +114,10 @@ export default async function DiscoveryPage() {
         </div>
       )}
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Found</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-1">
-              <AlertTriangle className="h-4 w-4 text-orange-500" />
-              Pending
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stats.pending}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-1">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              Approved
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-1">
-              <XCircle className="h-4 w-4 text-red-500" />
-              Rejected
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">With Errors</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.withErrors}</div>
-          </CardContent>
-        </Card>
-      </div>
 
-      <div className="grid gap-4">
-        <Card className="overflow-hidden">
-          <CardHeader className="pb-2 md:pb-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <CardTitle>Discovered Products</CardTitle>
-                <CardDescription>
-                  Review and manage products found during website crawling
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Eye className="h-4 w-4" />
-                <span>Showing latest {Math.min(100, stats.total)} results</span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 md:p-3">
-            <Suspense fallback={<TableSkeleton columns={6} rows={10} />}>
-              <DiscoveryGrid data={safeData} />
-            </Suspense>
-          </CardContent>
-        </Card>
-      </div>
+      <Suspense fallback={<TableSkeleton columns={6} rows={10} />}>
+        <DiscoveryClientWrapper data={safeData} />
+      </Suspense>
     </div>
   )
 }

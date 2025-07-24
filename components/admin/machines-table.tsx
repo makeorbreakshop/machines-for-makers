@@ -105,7 +105,7 @@ const columns: ColumnDef<TableMachine>[] = [
     },
     cell: ({ row }) => {
       const machine = row.original
-      const imageUrl = machine.image || "/placeholder-machine.png"
+      const imageUrl = machine.image || "/placeholder.svg?height=200&width=200"
       
       return (
         <div className="flex items-center gap-2">

@@ -340,7 +340,20 @@ class MachineDataNormalizer:
             final_data['discovery_source'] = 'crawler'
             final_data['last_seen_at'] = self._get_current_timestamp()
             
-            normalized = final_data
+            # Step 5.5: Create simplified structure for discovered_machines table
+            # The discovered_machines table expects a simpler structure with 'name' not 'Machine Name'
+            normalized = {
+                'name': final_data.get('Machine Name', 'Unknown'),
+                'price': final_data.get('Price'),
+                'brand': final_data.get('Company') or final_data.get('Brand'),  # Check both fields
+                'category': final_data.get('Machine Category'),
+                'image_url': final_data.get('Image'),
+                'product_link': final_data.get('product_link'),
+                'affiliate_link': final_data.get('Affiliate Link'),
+                'description': final_data.get('Description'),
+                'specifications': self._extract_specifications(final_data),
+                'raw_fields': final_data  # Keep all normalized fields for reference
+            }
             
             # Step 6: Validate
             validation = self._validate_data(normalized, machine_type)
@@ -754,58 +767,112 @@ class MachineDataNormalizer:
         errors = []
         warnings = []
 
-        # Required fields
-        required_fields = ['Machine Name']
-        for field in required_fields:
-            if not data.get(field):
-                errors.append(f"Missing required field: {field}")
-
-        # Price validation
-        if 'Price' in data and data['Price']:
-            try:
-                price = float(data['Price'])
-                if price <= 0:
-                    warnings.append("Price is zero or negative")
-                elif price > 100000:
-                    warnings.append("Price seems unusually high")
-                elif price < 50:
-                    warnings.append("Price seems unusually low")
-                    
-                # Machine type specific price validation
-                if machine_type == 'laser-cutter':
-                    if price > 10000:
-                        warnings.append("Price is very high for a laser cutter")
-                    elif price < 100:
-                        warnings.append("Price seems too low for a laser cutter")
-                elif machine_type == '3d-printer':
-                    if price > 20000:
-                        warnings.append("Price is very high for a 3D printer")
-                elif machine_type == 'cnc-machine':
-                    if price > 100000:
-                        warnings.append("Price is very high for a CNC machine")
+        # Check if we're validating the simplified structure or the full structure
+        if 'raw_fields' in data:
+            # Simplified structure - check the simplified fields
+            if not data.get('name') or data['name'] == 'Unknown':
+                errors.append("Missing required field: name")
+                
+            if not data.get('brand'):
+                warnings.append("Missing brand information")
+                
+            # Price validation
+            if data.get('price') is not None:
+                try:
+                    price = float(data['price'])
+                    if price <= 0:
+                        warnings.append("Price is zero or negative")
+                    elif price > 100000:
+                        warnings.append("Price seems unusually high")
+                    elif price < 50:
+                        warnings.append("Price seems unusually low")
                         
-            except (ValueError, TypeError):
-                if data['Price']:  # Only error if price field has content
+                    # Machine type specific price validation
+                    if machine_type == 'laser-cutter':
+                        if price > 50000:
+                            warnings.append("Price is very high for a laser cutter")
+                        elif price < 100:
+                            warnings.append("Price seems too low for a laser cutter")
+                    elif machine_type == '3d-printer':
+                        if price > 20000:
+                            warnings.append("Price is very high for a 3D printer")
+                    elif machine_type == 'cnc-machine':
+                        if price > 100000:
+                            warnings.append("Price is very high for a CNC machine")
+                            
+                except (ValueError, TypeError):
                     errors.append("Price is not a valid number")
-        else:
-            # Missing price is an error for complete records
-            errors.append("Missing required field: Price")
-
-        # Machine name length
-        if 'Machine Name' in data:
-            name_length = len(str(data['Machine Name']))
-            if name_length < 3:
-                errors.append("Machine name is too short")
-            elif name_length > 200:
-                warnings.append("Machine name is very long")
-
-        # URL validation
-        url_fields = ['product_link', 'Affiliate Link', 'YouTube Review', 'Image']
-        for field in url_fields:
-            if field in data and data[field]:
-                url = str(data[field])
+            else:
+                # Missing price is just a warning for discovery
+                warnings.append("No price found")
+                
+            # Name length validation
+            if data.get('name'):
+                name_length = len(str(data['name']))
+                if name_length < 3:
+                    errors.append("Machine name is too short")
+                elif name_length > 200:
+                    warnings.append("Machine name is very long")
+                    
+            # URL validation
+            if data.get('product_link'):
+                url = str(data['product_link'])
                 if not (url.startswith('http://') or url.startswith('https://')):
-                    warnings.append(f"{field} does not appear to be a valid URL")
+                    warnings.append("product_link does not appear to be a valid URL")
+                    
+        else:
+            # Original validation for full structure (backwards compatibility)
+            required_fields = ['Machine Name']
+            for field in required_fields:
+                if not data.get(field):
+                    errors.append(f"Missing required field: {field}")
+
+            # Price validation
+            if 'Price' in data and data['Price']:
+                try:
+                    price = float(data['Price'])
+                    if price <= 0:
+                        warnings.append("Price is zero or negative")
+                    elif price > 100000:
+                        warnings.append("Price seems unusually high")
+                    elif price < 50:
+                        warnings.append("Price seems unusually low")
+                        
+                    # Machine type specific price validation
+                    if machine_type == 'laser-cutter':
+                        if price > 10000:
+                            warnings.append("Price is very high for a laser cutter")
+                        elif price < 100:
+                            warnings.append("Price seems too low for a laser cutter")
+                    elif machine_type == '3d-printer':
+                        if price > 20000:
+                            warnings.append("Price is very high for a 3D printer")
+                    elif machine_type == 'cnc-machine':
+                        if price > 100000:
+                            warnings.append("Price is very high for a CNC machine")
+                            
+                except (ValueError, TypeError):
+                    if data['Price']:  # Only error if price field has content
+                        errors.append("Price is not a valid number")
+            else:
+                # Missing price is an error for complete records
+                errors.append("Missing required field: Price")
+
+            # Machine name length
+            if 'Machine Name' in data:
+                name_length = len(str(data['Machine Name']))
+                if name_length < 3:
+                    errors.append("Machine name is too short")
+                elif name_length > 200:
+                    warnings.append("Machine name is very long")
+
+            # URL validation
+            url_fields = ['product_link', 'Affiliate Link', 'YouTube Review', 'Image']
+            for field in url_fields:
+                if field in data and data[field]:
+                    url = str(data[field])
+                    if not (url.startswith('http://') or url.startswith('https://')):
+                        warnings.append(f"{field} does not appear to be a valid URL")
 
         return ValidationResult(
             is_valid=len(errors) == 0,
@@ -817,6 +884,26 @@ class MachineDataNormalizer:
         """Get current timestamp in ISO format"""
         from datetime import datetime
         return datetime.utcnow().isoformat() + 'Z'
+    
+    def _extract_specifications(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract specifications from normalized data"""
+        specs = {}
+        
+        # Define specification fields to extract
+        spec_fields = [
+            'Working Area', 'Build Volume', 'Max Speed (mm/min)', 
+            'Laser Power A', 'Laser Type A', 'LaserPower B', 'Laser Type B',
+            'Z Axis', 'Pass Through', 'Camera', 'Air Assist',
+            'Materials', 'Software', 'File Formats',
+            'Layer Height', 'Build Speed', 'Nozzle Temperature',
+            'Spindle Power', 'Spindle Speed', 'Feed Rate'
+        ]
+        
+        for field in spec_fields:
+            if field in data and data[field]:
+                specs[field] = data[field]
+        
+        return specs
 
     # Test-specific methods that tests expect
     def _standardize_power(self, value: Any) -> float:

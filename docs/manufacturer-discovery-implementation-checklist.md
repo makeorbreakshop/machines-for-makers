@@ -64,6 +64,10 @@ This checklist provides a comprehensive task list for implementing the Manufactu
   - [x] Configuration editor (JSON)
   - [x] Crawl history display
   - [x] Manual crawl trigger button
+  - [ ] **Update for Scrapfly workflow**
+    - [ ] Add category URL fields to site configuration
+    - [ ] Show credit cost estimates
+    - [ ] Display last discovery credit usage
 - [x] **API endpoints for site management**
   - [x] GET `/api/admin/manufacturer-sites`
   - [x] POST `/api/admin/manufacturer-sites`
@@ -71,43 +75,49 @@ This checklist provides a comprehensive task list for implementing the Manufactu
   - [x] DELETE `/api/admin/manufacturer-sites/[id]`
   - [x] POST `/api/admin/manufacturer-sites/[id]/crawl`
 
-### Crawler Infrastructure
-- [x] **Basic crawler implementation** (`price-extractor-python/crawlers/`)
-  - [x] Site configuration loader
-  - [x] Robots.txt parser
-  - [x] Sitemap.xml parser
-  - [x] Product URL pattern matcher
-  - [x] Rate limiting system
-  - [x] Progress tracking
-- [x] **Scrapfly Integration for Difficult Sites**
+### Discovery Infrastructure (Scrapfly-based)
+- [x] **Scrapfly Integration**
   - [x] Create Scrapfly service module (`services/scrapfly_service.py`)
   - [x] Implement automatic site detection (xTool, ComMarker, etc.)
   - [x] Add cost tracking per request
   - [x] Create test script (`test_scrapfly.py`)
   - [x] Set up environment variables for API key
-- [x] **Integration with existing scraper**
-  - [x] Extend `dynamic_scraper.py` for full page extraction
-  - [x] Add product discovery mode
-  - [x] Integrate Scrapfly for JavaScript-heavy sites
-  - [x] Cache raw HTML for reprocessing
-- [x] **Crawler API endpoints**
-  - [x] POST `/api/v1/discover-products`
+- [x] **Simplified Discovery Service** (`services/simplified_discovery.py`)
+  - [x] Category-based product discovery
+  - [x] Scrapfly AI extraction integration
+  - [x] Basic data transformation
+  - [ ] **Fix data transformation issues**
+    - [ ] Properly extract product names from Scrapfly data
+    - [ ] Transform nested `offers` array to price field
+    - [ ] Convert `specifications` array to flat key-value pairs
+    - [ ] Handle multiple images properly
+    - [ ] Map Scrapfly fields to normalizer expected fields
+- [x] **Discovery API endpoints**
+  - [x] POST `/api/v1/discover-products` (old sitemap-based)
+  - [x] POST `/api/v1/discover-from-category` (new Scrapfly-based)
   - [x] GET `/api/v1/discovery-status/[scan_id]`
+- [ ] **Credit Management**
+  - [ ] Add credit usage to scan logs
+  - [ ] Create credit usage tracking endpoint
+  - [ ] Add budget limits configuration
+  - [ ] Create credit usage dashboard
 
 ## Phase 2: Extraction & Normalization (Week 2-3)
 
 ### Data Extraction Enhancement
-- [x] **Extend existing scraper**
-  - [x] Add full product data extraction mode
-  - [x] Extract all specifications (not just price)
-  - [x] Handle multi-image extraction
-  - [x] Extract technical specifications tables
-  - [x] Cache AI responses
-- [x] **Cost tracking**
-  - [x] Add cost calculation to Claude AI calls
-  - [x] Store costs in site_scan_logs
-  - [x] Add budget alerts
-  - [x] Create cost dashboard
+- [x] **Scrapfly AI Extraction**
+  - [x] Use `extraction_model='product'` for automatic extraction
+  - [x] Extract all product data in one API call
+  - [x] Get structured data including specs, images, offers
+  - [ ] **Fix extraction data flow**
+    - [ ] Debug why product names show as "Unknown"
+    - [ ] Ensure all Scrapfly data is properly captured
+    - [ ] Add logging for data transformation steps
+- [ ] **Cost tracking improvements**
+  - [x] Track Scrapfly credits per extraction
+  - [ ] Store credit usage in site_scan_logs
+  - [ ] Add credit budget alerts
+  - [ ] Show credits used in discovery UI
 
 ### Data Normalization System
 - [x] **Create MachineDataNormalizer class** (`price-extractor-python/normalizers/`)
@@ -364,6 +374,39 @@ This checklist provides a comprehensive task list for implementing the Manufactu
 - [ ] Annual architecture review
 
 ---
+
+## Immediate Action Items (Scrapfly Integration)
+
+### 1. Fix Data Transformation Pipeline
+- [ ] Debug SimplifiedDiscoveryService data flow
+  - [ ] Add comprehensive logging at each transformation step
+  - [ ] Verify Scrapfly response structure matches expectations
+  - [ ] Fix field mapping from Scrapfly to normalizer format
+  - [ ] Test with real xTool products
+
+### 2. Update Database Storage
+- [ ] Ensure normalized_data is properly structured
+- [ ] Fix the "Unknown" name issue in discovered_machines
+- [ ] Store Scrapfly credit usage in scan logs
+- [ ] Add validation_warnings field if missing
+
+### 3. Enhance Review Interface
+- [ ] Display actual product names from normalized_data
+- [ ] Show all images in gallery view
+- [ ] Display specifications in readable format
+- [ ] Add credit usage indicator
+
+### 4. Update Manufacturer Sites
+- [ ] Add category_url to scraping_config for each site
+- [ ] Update xTool with `/collections/all` URL
+- [ ] Test other manufacturer category pages
+- [ ] Document category URL patterns
+
+### 5. Testing & Validation
+- [ ] Run full discovery test with xTool
+- [ ] Verify data flows correctly to review interface
+- [ ] Test import to machines table
+- [ ] Monitor credit usage
 
 ## Notes
 

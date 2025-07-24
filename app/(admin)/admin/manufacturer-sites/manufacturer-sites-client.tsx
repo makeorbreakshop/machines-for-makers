@@ -14,6 +14,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -30,7 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { AlertCircle, Globe, Play, Plus, Settings, Trash2 } from 'lucide-react'
+import { AlertCircle, Globe, Play, Plus, Settings, Trash2, ChevronDown, FlaskConical, History, Package } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface ManufacturerSite {
@@ -215,20 +221,26 @@ export function ManufacturerSitesClient() {
     }
   }
 
-  const triggerCrawl = async (site: ManufacturerSite) => {
+  const triggerCrawl = async (site: ManufacturerSite, testMode: boolean = false) => {
     try {
       const response = await fetch(`/api/admin/manufacturer-sites/${site.id}/crawl`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ scan_type: 'discovery' }),
+        body: JSON.stringify({ 
+          scan_type: 'discovery',
+          test_mode: testMode 
+        }),
       })
 
       const result = await response.json()
 
       if (response.ok) {
-        setSuccess(`Crawl started for ${site.base_url} (Scan ID: ${result.scanLogId})`)
+        const message = testMode 
+          ? `Test crawl started for ${site.base_url} (no Scrapfly credits used)`
+          : `Crawl started for ${site.base_url} (Scan ID: ${result.scanLogId})`
+        setSuccess(message)
         setTimeout(() => setSuccess(null), 5000)
       } else {
         setError(result.error || 'Failed to trigger crawl')
@@ -312,13 +324,44 @@ export function ManufacturerSitesClient() {
                 <TableCell>{formatDate(site.last_crawled_at)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!site.is_active}
+                          className="flex items-center gap-1"
+                        >
+                          <Play className="h-4 w-4" />
+                          <ChevronDown className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={() => triggerCrawl(site, false)}>
+                          <Play className="h-4 w-4 mr-2" />
+                          Run Discovery (uses Scrapfly credits)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => triggerCrawl(site, true)}>
+                          <FlaskConical className="h-4 w-4 mr-2" />
+                          Test Mode (no credits used)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => triggerCrawl(site)}
-                      disabled={!site.is_active}
+                      onClick={() => window.location.href = `/admin/discovery?site=${site.name}`}
+                      title="Review discovered machines"
                     >
-                      <Play className="h-4 w-4" />
+                      <Package className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.location.href = `/admin/manufacturer-sites/${site.id}/scans`}
+                      title="View scan history"
+                    >
+                      <History className="h-4 w-4" />
                     </Button>
                     <Button
                       size="sm"

@@ -1,0 +1,311 @@
+{
+  "content_type": "application/json",
+  "data": {
+    "aggregate_rating": {
+      "best_rating": null,
+      "rating_value": 4.94,
+      "review_count": 673
+    },
+    "bidding": null,
+    "brand": "xTool",
+    "breadcrumbs": [
+      {
+        "link": "https://www.xtool.com/",
+        "name": "Smart Desktop Laser Cutter and Engraver | xTool"
+      },
+      {
+        "link": "https://www.xtool.com/products/xtool-s1-laser-cutter",
+        "name": "xTool S1 Enclosed Diode Laser Cutter"
+      }
+    ],
+    "canonical_url": null,
+    "color": null,
+    "delivery": null,
+    "description": "This is an all-in-one, ultra-precision laser engraver. From beginner to expert, there's something for everyone. Plus, with 4 switchable laser modules, you can upgrade at any time to excel in any scenario.",
+    "description_markdown": "This is an all-in-one, ultra-precision laser engraver. From beginner to expert, there's something for everyone. Plus, with 4 switchable laser modules, you can upgrade at any time to excel in any scenario.",
+    "identifiers": {
+      "sku": "P1030508"
+    },
+    "images": [
+      {
+        "url": "http://www.xtool.com/cdn/shop/files/mk-baidituyingyong_us_pc_s1-black_5123-201_2d7583eb-ddbd-411c-b1a1-de0499427182_1200x1200.webp?v=1747562517"
+      },
+      {
+        "url": "http://www.xtool.com/cdn/shop/files/preview_images/3280271ca85344ffaad1603ca8625ad5.thumbnail.0000000000_1200x1200.jpg?v=1699508842"
+      },
+      {
+        "url": "http://www.xtool.com/cdn/shop/files/890d4ec9e2d52117c77f8b22b701f9e1_e5f46f99-ac48-498b-84eb-8f56160b9aeb_1200x1200.jpg?v=1747562486"
+      }
+    ],
+    "main_category": "Machines",
+    "main_image": "http://www.xtool.com/cdn/shop/files/mk-baidituyingyong_us_pc_s1-black_5123-201_2d7583eb-ddbd-411c-b1a1-de0499427182_1200x1200.webp?v=1747562517",
+    "name": "xTool S1 Enclosed Diode Laser Cutter",
+    "offers": [
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1999,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 2589,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 3349,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1999,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 2589,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 3349,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1499,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1999,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 2799,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1499,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1999,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 2799,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 999,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1109,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1339,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 999,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1109,
+        "regular_price": null
+      },
+      {
+        "availability": "available",
+        "currency": "USD",
+        "price": 1339,
+        "regular_price": null
+      }
+    ],
+    "related_products": [
+      {
+        "availability": "available",
+        "description": null,
+        "images": null,
+        "link": "https://www.xtool.com/products/xtool-m1-ultra-the-worlds-first-4-in-1-craft-machine",
+        "name": "xTool M1 Ultra",
+        "price": null
+      },
+      {
+        "availability": "available",
+        "description": null,
+        "images": null,
+        "link": "https://www.xtool.com/products/xtool-screen-printer-1st-screen-printing-solution-with-laser",
+        "name": "laser screen printing",
+        "price": null
+      },
+      {
+        "availability": "available",
+        "description": null,
+        "images": null,
+        "link": "https://www.xtool.com/products/xtool-s1-automatic-conveyor-feeder",
+        "name": "conveyor accessory",
+        "price": null
+      },
+      {
+        "availability": "available",
+        "description": null,
+        "images": null,
+        "link": "https://www.xtool.com/products/xtool-heat-press?_pos=3&_sid=c9cc337a4&_ss=r&variant=45676483379439",
+        "name": "xTool H1",
+        "price": null
+      },
+      {
+        "availability": "available",
+        "description": null,
+        "images": null,
+        "link": "https://www.xtool.com/products/xtool-s1-riser-base",
+        "name": "S1 Riser Base",
+        "price": null
+      }
+    ],
+    "secondary_category": null,
+    "size": null,
+    "sizes": null,
+    "specifications": [
+      {
+        "name": "Laser Power",
+        "value": "40W"
+      },
+      {
+        "name": "Spot Size",
+        "value": "0.08 x 0.10 mm"
+      },
+      {
+        "name": "Working Speed",
+        "value": "600 mm/s"
+      },
+      {
+        "name": "Working Area",
+        "value": "19.6\" x 12.5\"\n(498 x 319 mm)"
+      },
+      {
+        "name": "Working Area with Automatic Conveyor Feeder",
+        "value": "18.5\" x 118\" (470 x 3000 mm) Additional transmission rail is required"
+      },
+      {
+        "name": "Output Voltage",
+        "value": "25V 11A"
+      },
+      {
+        "name": "Connection Way",
+        "value": "USB/Wi-Fi"
+      },
+      {
+        "name": "Support XCS System",
+        "value": "Phone: Android & iOS\nTablet: iPad\nComputer: Windows 10 or above & macOS"
+      },
+      {
+        "name": "Software",
+        "value": "XCS/Lightburn"
+      },
+      {
+        "name": "Support File",
+        "value": "SVG/DXF/JPG/JPEG/\nPNG/BMP/TIF"
+      },
+      {
+        "name": "Product Weight",
+        "value": "20KG"
+      },
+      {
+        "name": "Product Size",
+        "value": "30.12\" x 22.09\" x 7.2\"\n(765 x 561 x 183 mm)\nExcluding riser base\n\n30.12\" x 22.09\" x 10.55\"\n(765 x 561 x 268 mm)\nIncluding riser base"
+      },
+      {
+        "name": "Product Certification",
+        "value": "IEC/EN60825\nUS: FCC FDA\nCanada: IC\nAustralia and New Zealand: RCM, SAA\nUnited Kingdom: UKCA\nJapan: Telec, PSE\nEuropean Union: CE-RED, ROHS, EN60825, CE-MD"
+      },
+      {
+        "name": "Laser Power",
+        "value": "40W"
+      },
+      {
+        "name": "Spot Size",
+        "value": "0.08*0.10 mm"
+      },
+      {
+        "name": "Working Speed",
+        "value": "600 mm/s"
+      },
+      {
+        "name": "Working Area",
+        "value": "498*319 mm\n19.61*12.56 inches"
+      },
+      {
+        "name": "Working Area with Automatic Conveyor Feeder",
+        "value": "470mm*3000 mm (additional transmission rail is required)"
+      },
+      {
+        "name": "Output Voltage",
+        "value": "25V 11A"
+      },
+      {
+        "name": "Connection Way",
+        "value": "USB/Wi-Fi"
+      },
+      {
+        "name": "Support XCS System",
+        "value": "Phone: Android & iOS\nTablet: iPad\nComputer: Windows 10 or above & macOS"
+      },
+      {
+        "name": "Software",
+        "value": "XCS/Lightburn"
+      },
+      {
+        "name": "Support File",
+        "value": "SVG/DXF/JPG/JPEG/PNG/BMP/TIF"
+      },
+      {
+        "name": "Product Weight",
+        "value": "20KG"
+      },
+      {
+        "name": "Product Size",
+        "value": "765*561*183 mm (excluding riser base)\n765*561*268 mm (including riser base)"
+      }
+    ],
+    "style": null,
+    "url": "https://www.xtool.com/products/xtool-s1-laser-cutter",
+    "variants": null
+  },
+  "data_quality": {
+    "errors": [
+      "aggregate_rating.best_rating: Input should be a valid number"
+    ],
+    "fulfilled": false,
+    "fulfillment_percent": 60.87
+  }
+}

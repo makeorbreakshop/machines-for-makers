@@ -1,0 +1,12 @@
+# Testing requirements for discovery system
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+
+# For test data generation
+faker>=18.0.0
+
+# For HTTP mocking in integration tests
+responses>=0.23.0
+httpx>=0.24.0
