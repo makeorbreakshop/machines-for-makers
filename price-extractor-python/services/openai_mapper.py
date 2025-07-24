@@ -75,7 +75,7 @@ class OpenAIMapper:
             },
             "laser_power_a": {
                 "type": "string",
-                "description": "Primary laser power with unit (e.g., '40W', '55W')"
+                "description": "Primary laser power as number only without unit (e.g., '40', '55')"
             },
             "laser_type_b": {
                 "type": "string", 
@@ -84,15 +84,15 @@ class OpenAIMapper:
             },
             "laser_power_b": {
                 "type": "string",
-                "description": "Secondary laser power with unit (e.g., '2W', '10W')"
+                "description": "Secondary laser power as number only without unit (e.g., '2', '10')"
             },
             "work_area": {
                 "type": "string",
-                "description": "Work area dimensions in mm format (e.g., '400 x 400 mm', '600 x 305 mm')"
+                "description": "Work area dimensions in mm format with no spaces around x (e.g., '400x400 mm', '600x305 mm')"
             },
             "speed": {
                 "type": "string", 
-                "description": "Maximum speed in mm/min format (e.g., '12000 mm/min', '24000 mm/min')"
+                "description": "Maximum speed in mm/s format (e.g., '1200 mm/s', '15000 mm/s')"
             },
             "machine_size": {
                 "type": "string",
@@ -209,19 +209,20 @@ MAPPING INSTRUCTIONS:
 1. Extract core product info: name, brand, price
 2. Determine machine_category from product type
 3. For lasers, determine laser_category based on power/type
-4. Convert specifications to standard formats:
-   - work_area: Convert to "X x Y mm" format (e.g., "400 x 400 mm")
-   - speed: Convert to "X mm/min" format (e.g., "12000 mm/min") 
-   - laser_power_a: Keep with unit (e.g., "40W", "55W")
+4. Convert specifications to EXACT database formats:
+   - work_area: Convert to "XxY mm" format with NO SPACES around x (e.g., "400x400 mm", "600x305 mm")
+   - speed: Convert to "X mm/s" format (e.g., "1200 mm/s", "15000 mm/s") 
+   - laser_power_a: Number only, NO UNIT (e.g., "40", "55")
+   - laser_power_b: Number only, NO UNIT (e.g., "2", "10")
 5. Boolean fields: Use exactly "Yes" or "No"
 6. Only include fields with clear mappings - leave others empty
 
 EXAMPLES:
-- "15.7 x 15.7 inches" → "399 x 399 mm" (convert inches to mm)
-- "400mm/s" → "24000 mm/min" (convert mm/s to mm/min)
+- "15.7 x 15.7 inches" → "399x399 mm" (convert inches to mm, no spaces around x)
+- "24000 mm/min" → "400 mm/s" (convert mm/min to mm/s by dividing by 60)
 - "Starting at $1,299" → 1299 (extract lowest price as number)
 - "WiFi enabled" → wifi: "Yes"
-- "CO2 laser, 55W" → laser_type_a: "CO2", laser_power_a: "55W"
+- "CO2 laser, 55W" → laser_type_a: "CO2", laser_power_a: "55"
 
 Map only fields that have clear values in the source data."""
     

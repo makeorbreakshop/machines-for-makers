@@ -75,16 +75,16 @@ const validateAndFormat = {
   },
   laser_power_a: (value: string) => {
     const match = value.match(/^(\d+(?:\.\d+)?)\s*([kKmM]?)W?$/i)
-    if (!match) throw new Error('Format: "40W" or "5.5W"')
+    if (!match) throw new Error('Format: "40" or "5.5" (number only)')
     const num = parseFloat(match[1])
     const unit = match[2].toLowerCase()
-    if (unit === 'k') return `${num * 1000}W`
-    if (unit === 'm') return `${num / 1000}W`
-    return `${num}W`
+    if (unit === 'k') return `${num * 1000}`
+    if (unit === 'm') return `${num / 1000}`
+    return `${num}`
   },
   work_area: (value: string) => {
     const match = value.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*(mm|cm|in)?$/i)
-    if (!match) throw new Error('Format: "400 x 400 mm"')
+    if (!match) throw new Error('Format: "400x400 mm" (no spaces around x)')
     let w = parseFloat(match[1])
     let h = parseFloat(match[2])
     const unit = match[3]?.toLowerCase() || 'mm'
@@ -92,18 +92,18 @@ const validateAndFormat = {
     if (unit === 'cm') { w *= 10; h *= 10 }
     if (unit === 'in') { w *= 25.4; h *= 25.4 }
     
-    return `${Math.round(w)} x ${Math.round(h)} mm`
+    return `${Math.round(w)}x${Math.round(h)} mm`
   },
   speed: (value: string) => {
     const match = value.match(/^(\d+(?:\.\d+)?)\s*(mm\/min|mm\/s|m\/min)?$/i)
-    if (!match) throw new Error('Format: "12000 mm/min"')
+    if (!match) throw new Error('Format: "1200 mm/s"')
     let speed = parseFloat(match[1])
-    const unit = match[2]?.toLowerCase() || 'mm/min'
+    const unit = match[2]?.toLowerCase() || 'mm/s'
     
-    if (unit === 'mm/s') speed *= 60
-    if (unit === 'm/min') speed *= 1000
+    if (unit === 'mm/min') speed /= 60
+    if (unit === 'm/min') speed = (speed * 1000) / 60
     
-    return `${Math.round(speed)} mm/min`
+    return `${Math.round(speed)} mm/s`
   }
 }
 
