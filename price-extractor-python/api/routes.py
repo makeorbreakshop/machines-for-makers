@@ -5,11 +5,13 @@ from typing import Optional, List
 
 from services.price_service import PriceService
 from services.learning_service import DailyLearningService
+from services.url_discovery import URLDiscoveryService
 # from services.discovery_service import start_discovery  # Commented out - requires aiohttp
 
 router = APIRouter()
 price_service = PriceService()
 learning_service = DailyLearningService()
+url_discovery = URLDiscoveryService()
 
 # Include cost tracking routes
 from api.cost_routes import router as cost_router
@@ -806,6 +808,151 @@ class DiscoveryRequest(BaseModel):
     sitemap_url: Optional[str] = None
     scraping_config: Optional[dict] = {}
     scan_type: str = 'discovery'
+
+class URLDiscoveryRequest(BaseModel):
+    """Request model for URL discovery."""
+    manufacturer_id: str
+    base_url: str
+    max_pages: int = 5
+
+@router.post("/discover-urls")
+async def discover_urls(request: URLDiscoveryRequest):
+    """
+    Discover product URLs from a manufacturer site.
+    
+    This is Stage 1 of the discovery process - it finds product URLs
+    with minimal credit usage (1-2 credits per page).
+    """
+    try:
+        logger.info(f"Starting URL discovery for {request.base_url}")
+        
+        # Run URL discovery
+        results = await url_discovery.discover_urls(
+            start_url=request.base_url,
+            max_pages=request.max_pages
+        )
+        
+        logger.info(f"URL discovery complete: {results['total_urls_found']} URLs found")
+        
+        return results
+        
+    except Exception as e:
+        logger.exception(f"Error in URL discovery: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"URL discovery failed: {str(e)}")
+
+
+class ScrapeDiscoveredURLsRequest(BaseModel):
+    """Request model for scraping discovered URLs."""
+    urls: List[str]
+    manufacturer_id: str
+    max_workers: Optional[int] = 3
+
+
+@router.post("/scrape-discovered-urls")
+async def scrape_discovered_urls(request: ScrapeDiscoveredURLsRequest, background_tasks: BackgroundTasks):
+    """
+    Scrape specific discovered URLs and create machines from them.
+    
+    This is Stage 2 of the discovery process - it scrapes selected URLs
+    and creates machine entries in the database.
+    """
+    try:
+        logger.info(f"Starting scrape for {len(request.urls)} discovered URLs")
+        
+        # Get manufacturer info
+        manufacturer_response = price_service.db_service.supabase.table("brands") \
+            .select("*") \
+            .eq("id", request.manufacturer_id) \
+            .single() \
+            .execute()
+            
+        if not manufacturer_response.data:
+            raise HTTPException(status_code=404, detail="Manufacturer not found")
+            
+        manufacturer = manufacturer_response.data
+        
+        # Start background task to scrape URLs
+        background_tasks.add_task(
+            _process_discovered_urls,
+            request.urls,
+            manufacturer,
+            request.max_workers
+        )
+        
+        return {
+            "success": True,
+            "message": f"Started scraping {len(request.urls)} URLs for {manufacturer['name']}",
+            "url_count": len(request.urls),
+            "manufacturer": manufacturer['name']
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error starting URL scraping: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start scraping: {str(e)}")
+
+
+async def _process_discovered_urls(urls: List[str], manufacturer: dict, max_workers: Optional[int] = 3):
+    """Process discovered URLs in the background."""
+    try:
+        from services.discovery_service import SimplifiedDiscoveryService
+        
+        discovery_service = SimplifiedDiscoveryService()
+        
+        # Process each URL
+        for url in urls:
+            try:
+                logger.info(f"Processing discovered URL: {url}")
+                
+                # Extract product data using progressive scraper
+                product_data = await discovery_service.extract_product_data(url)
+                
+                if product_data:
+                    # Add manufacturer info
+                    product_data['manufacturer_id'] = manufacturer['id']
+                    product_data['manufacturer_name'] = manufacturer['name']
+                    
+                    # Save to discovered_machines table
+                    await discovery_service.save_discovered_machine(
+                        url=url,
+                        raw_data=product_data,
+                        manufacturer_id=manufacturer['id']
+                    )
+                    
+                    # Update discovered_urls status
+                    price_service.db_service.supabase.table("discovered_urls") \
+                        .update({"status": "scraped", "scraped_at": "now()"}) \
+                        .eq("url", url) \
+                        .eq("manufacturer_id", manufacturer['id']) \
+                        .execute()
+                else:
+                    # Mark as failed
+                    price_service.db_service.supabase.table("discovered_urls") \
+                        .update({
+                            "status": "failed",
+                            "error_message": "No product data extracted"
+                        }) \
+                        .eq("url", url) \
+                        .eq("manufacturer_id", manufacturer['id']) \
+                        .execute()
+                        
+            except Exception as e:
+                logger.error(f"Error processing URL {url}: {str(e)}")
+                # Mark as failed
+                price_service.db_service.supabase.table("discovered_urls") \
+                    .update({
+                        "status": "failed",
+                        "error_message": str(e)[:500]
+                    }) \
+                    .eq("url", url) \
+                    .eq("manufacturer_id", manufacturer['id']) \
+                    .execute()
+                    
+        logger.info(f"Completed processing {len(urls)} discovered URLs")
+        
+    except Exception as e:
+        logger.exception(f"Error in discovered URLs background task: {str(e)}")
 
 
 # Discovery endpoints commented out - requires separate service with aiohttp

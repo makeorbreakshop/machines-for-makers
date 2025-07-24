@@ -1329,6 +1329,48 @@ class DatabaseService:
             logger.error(f"Data that failed to store: {json.dumps(data, indent=2, default=str)[:1000]}...")
             return False
 
+    async def get_discovered_machines(self) -> List[Dict]:
+        """
+        Get all discovered machines
+        
+        Returns:
+            List[Dict]: List of discovered machine records
+        """
+        try:
+            response = self.supabase.table("discovered_machines").select("*").execute()
+            return response.data or []
+        except Exception as e:
+            logger.error(f"Error getting discovered machines: {str(e)}")
+            return []
+
+    async def update_discovered_machine_normalized_data(self, machine_id: str, normalized_data: Dict) -> bool:
+        """
+        Update the normalized_data field of a discovered machine
+        
+        Args:
+            machine_id: The discovered machine ID
+            normalized_data: The new normalized data to store
+            
+        Returns:
+            bool: True if updated successfully
+        """
+        try:
+            response = self.supabase.table("discovered_machines") \
+                .update({"normalized_data": normalized_data}) \
+                .eq("id", machine_id) \
+                .execute()
+            
+            if response.data:
+                logger.info(f"✅ Updated normalized data for machine {machine_id}")
+                return True
+            
+            logger.error(f"Failed to update machine {machine_id}: No data in response")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error updating discovered machine {machine_id}: {str(e)}")
+            return False
+
     async def close(self):
         """Close database connection if needed"""
         # Supabase client doesn't need explicit closing

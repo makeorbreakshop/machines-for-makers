@@ -1,142 +1,70 @@
 #!/usr/bin/env python3
 """
-Test script to verify URL discovery without using Scrapfly credits
+Test URL discovery for manufacturer sites
 """
 import asyncio
-import aiohttp
 import json
-from typing import Dict, Any
+from services.url_discovery import URLDiscoveryService
+from loguru import logger
 
-async def test_url_discovery(site_config: Dict[str, Any]):
-    """Test URL discovery for a site"""
+async def test_url_discovery():
+    """Test URL discovery on manufacturer sites"""
     
-    # API endpoint for testing
-    url = "http://localhost:8001/api/v1/test-discover-urls"
+    discovery = URLDiscoveryService()
     
-    # Prepare request data
-    request_data = {
-        "site_id": site_config.get("site_id", "test-site"),
-        "site_name": site_config.get("site_name", "Test Site"),
-        "config": site_config,
-        "max_products": 10,  # Limit for testing
-        "test_mode": False  # We're not using the fake data mode
-    }
+    # Test with xTool
+    test_sites = [
+        "https://www.xtool.com",
+        # Can add more sites here
+    ]
     
-    print(f"Testing URL discovery for: {site_config.get('site_name')}")
-    print(f"Base URL: {site_config.get('url')}")
-    print(f"Sitemap: {site_config.get('sitemap_url', 'Will auto-detect')}")
-    print("-" * 60)
-    
-    async with aiohttp.ClientSession() as session:
+    for site in test_sites:
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Discovering URLs for: {site}")
+        logger.info(f"{'='*60}")
+        
         try:
-            async with session.post(url, json=request_data) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    
-                    print(f"✅ SUCCESS: Found {result['urls_found']} URLs")
-                    print(f"\nCrawl Statistics:")
-                    for key, value in result.get('crawl_stats', {}).items():
-                        print(f"  - {key}: {value}")
-                    
-                    print(f"\nPatterns Used:")
-                    print(f"  Include: {result['patterns_used']['include']}")
-                    print(f"  Exclude: {result['patterns_used']['exclude']}")
-                    
-                    print(f"\nSample URLs (first 10):")
-                    for i, url in enumerate(result.get('sample_urls', []), 1):
-                        print(f"  {i}. {url}")
-                        
-                else:
-                    error_text = await response.text()
-                    print(f"❌ FAILED: Status {response.status}")
-                    print(f"Error: {error_text}")
-                    
+            # Discover URLs (crawl up to 5 pages)
+            results = await discovery.discover_urls(site, max_pages=5)
+            
+            print(f"\n📊 Discovery Results:")
+            print(f"Pages crawled: {results['pages_crawled']}")
+            print(f"Credits used: {results['credits_used']}")
+            print(f"Product URLs found: {results['total_urls_found']}")
+            
+            if results['categorized']:
+                print(f"\n📁 URLs by Category:")
+                for category, urls in results['categorized'].items():
+                    print(f"\n{category.replace('_', ' ').title()}: {len(urls)} URLs")
+                    for url in urls[:3]:  # Show first 3
+                        print(f"  - {url}")
+                    if len(urls) > 3:
+                        print(f"  ... and {len(urls) - 3} more")
+            
+            print(f"\n💰 Cost Estimate:")
+            print(f"Estimated credits for full scraping: {results['estimated_total_credits']:,}")
+            print(f"Estimated cost: ${results['estimated_total_credits'] * 0.00005:.2f}")
+            
+            # Validate a sample
+            if results['urls']:
+                print(f"\n🔍 Validating sample URLs...")
+                validation = await discovery.quick_validate_urls(results['urls'][:3])
+                
+                for url, is_valid in validation.items():
+                    status = "✅ Valid" if is_valid else "❌ Invalid"
+                    print(f"{status}: {url}")
+            
+            # Save results
+            filename = f"discovered_urls_{results['domain'].replace('.', '_')}.json"
+            with open(filename, 'w') as f:
+                json.dump(results, f, indent=2)
+            print(f"\n💾 Results saved to: {filename}")
+            
         except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            print("Make sure the discovery service is running on port 8001")
-
-
-# Test configurations for different sites
-TEST_SITES = {
-    "xtool": {
-        "site_id": "xtool-test",
-        "site_name": "xTool",
-        "url": "https://www.xtool.com",
-        "sitemap_url": "https://www.xtool.com/sitemap.xml",
-        "product_url_patterns": [
-            "/products/",
-            "/collections/.*/products/"
-        ],
-        "exclude_patterns": [
-            "/blogs/",
-            "/pages/",
-            "/collections/$",  # Collection pages, not products
-            "/products/.*#",   # Anchor links
-            "/products/.*/reviews"
-        ]
-    },
-    "commarker": {
-        "site_id": "commarker-test", 
-        "site_name": "ComMarker",
-        "url": "https://www.commarker.com",
-        "sitemap_url": "https://www.commarker.com/sitemap_products_1.xml",
-        "product_url_patterns": [
-            "/products/"
-        ],
-        "exclude_patterns": [
-            "/collections/",
-            "/blogs/",
-            "/pages/"
-        ]
-    },
-    "glowforge": {
-        "site_id": "glowforge-test",
-        "site_name": "Glowforge", 
-        "url": "https://glowforge.com",
-        "sitemap_url": "https://glowforge.com/sitemap.xml",
-        "product_url_patterns": [
-            "/products/",
-            "/shop/"
-        ],
-        "exclude_patterns": [
-            "/support/",
-            "/community/",
-            "/blog/"
-        ]
-    }
-}
-
-
-async def main():
-    """Run tests for all sites"""
-    print("=" * 60)
-    print("URL DISCOVERY TEST - No Scrapfly Credits Used")
-    print("=" * 60)
-    print()
-    
-    # Let user choose which site to test
-    print("Available sites to test:")
-    for i, (key, config) in enumerate(TEST_SITES.items(), 1):
-        print(f"{i}. {config['site_name']} ({config['url']})")
-    
-    choice = input("\nEnter site number to test (or 'all' for all sites): ").strip()
-    
-    if choice.lower() == 'all':
-        # Test all sites
-        for site_key, site_config in TEST_SITES.items():
-            print("\n" + "=" * 60)
-            await test_url_discovery(site_config)
-            print()
-    else:
-        # Test specific site
-        try:
-            idx = int(choice) - 1
-            site_key = list(TEST_SITES.keys())[idx]
-            await test_url_discovery(TEST_SITES[site_key])
-        except (ValueError, IndexError):
-            print("Invalid choice!")
-            return
+            logger.error(f"Error discovering {site}: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(test_url_discovery())

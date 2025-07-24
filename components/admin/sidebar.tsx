@@ -2,16 +2,15 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Layers, Tag, Star, Building, Settings, LogOut, Image, Wrench, LineChart, Globe, Search } from "lucide-react"
+import { LayoutDashboard, Layers, Tag, Star, Building, Settings, LogOut, Image, Wrench, LineChart, Globe, Search, Link as LinkIcon } from "lucide-react"
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/machines", label: "Machines", icon: Layers },
-  { href: "/admin/discovery", label: "Product Discovery", icon: Search },
+  { href: "/admin/discovery-unified", label: "Discovery Pipeline", icon: Search },
   { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/reviews", label: "Reviews", icon: Star },
   { href: "/admin/brands", label: "Brands", icon: Building },
-  { href: "/admin/manufacturer-sites", label: "Manufacturer Sites", icon: Globe },
   { href: "/admin/tools/machine-scraper", label: "Machine Scraper", icon: Wrench },
   { href: "/admin/tools/price-tracker", label: "Price Tracker", icon: LineChart },
   { href: "/admin/settings", label: "Settings", icon: Settings },

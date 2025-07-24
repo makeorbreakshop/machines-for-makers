@@ -96,7 +96,7 @@ class OpenAIMapper:
             },
             "machine_size": {
                 "type": "string",
-                "description": "Physical machine dimensions"
+                "description": "Physical machine dimensions in format like '1000x639x268 mm' or '39.4x25.1x10.6 inches'"
             },
             "software": {
                 "type": "string",
@@ -131,6 +131,45 @@ class OpenAIMapper:
                 "type": "string",
                 "enum": ["Yes", "No", "Optional"],
                 "description": "Rotary attachment availability"
+            },
+            "passthrough": {
+                "type": "string",
+                "enum": ["Yes", "No"],
+                "description": "Whether machine has passthrough capability for long materials"
+            },
+            
+            # Additional fields to match discovery modal
+            "product_link": {
+                "type": "string",
+                "description": "Official product page URL"
+            },
+            "height": {
+                "type": "string",
+                "description": "Z-axis height or clearance in mm (e.g., '268 mm')"
+            },
+            "acceleration": {
+                "type": "string",
+                "description": "Acceleration specification (e.g., '2000 mm/s²')"
+            },
+            "laser_frequency": {
+                "type": "string",
+                "description": "Laser frequency in Hz (e.g., '20000 Hz')"
+            },
+            "pulse_width": {
+                "type": "string",
+                "description": "Pulse width specification (e.g., '0.05-10ms')"
+            },
+            "controller": {
+                "type": "string",
+                "description": "Controller type (e.g., 'Ruida', 'GRBL', 'Marlin')"
+            },
+            "warranty": {
+                "type": "string",
+                "description": "Warranty information (e.g., '1 year limited warranty')"
+            },
+            "laser_source_manufacturer": {
+                "type": "string",
+                "description": "Laser source/diode manufacturer (e.g., 'OSRAM', 'Nichia')"
             }
         }
     
@@ -211,18 +250,38 @@ MAPPING INSTRUCTIONS:
 3. For lasers, determine laser_category based on power/type
 4. Convert specifications to EXACT database formats:
    - work_area: Convert to "XxY mm" format with NO SPACES around x (e.g., "400x400 mm", "600x305 mm")
+   - machine_size: Convert to "XxYxZ mm" format for physical dimensions (e.g., "1000x639x268 mm")
    - speed: Convert to "X mm/s" format (e.g., "1200 mm/s", "15000 mm/s") 
    - laser_power_a: Number only, NO UNIT (e.g., "40", "55")
    - laser_power_b: Number only, NO UNIT (e.g., "2", "10")
 5. Boolean fields: Use exactly "Yes" or "No"
-6. Only include fields with clear mappings - leave others empty
+6. Look carefully in specifications array for detailed technical data
+7. Feature detection - look for variations and context:
+   - Air Assist: "air assist", "air-assist", "air assistance", "C4 Air Assist", "air pump"
+   - Passthrough: "pass-through", "passthrough", "pass through", "door design", "oversized materials"
+   - Rotary: "rotary attachment", "rotary axis", "rotary roller", "M3 Rotary", "4-pin aviation port"
+   - Enclosure: "enclosure", "enclosed", "housing", "protective cover", "safety enclosure"
+8. Check product accessories and compatibility mentions for feature hints
+9. Extract URLs and links:
+   - product_link: Extract the main product page URL from 'url', 'product_url', or 'canonical_url'
+   - Look for warranty information in specifications or product details
+   - Find controller type (Ruida, GRBL, etc.) in technical specifications
+   - Extract laser source manufacturer (OSRAM, Nichia, etc.) if mentioned
+10. Only include fields with clear mappings - leave others empty
 
 EXAMPLES:
-- "15.7 x 15.7 inches" → "399x399 mm" (convert inches to mm, no spaces around x)
+- "23.6" × 12" (600 mm × 305 mm)" → work_area: "600x305 mm" (use the mm measurements)
+- "39.4" × 25.1" × 10.6" (1000 mm × 639 mm × 268 mm)" → machine_size: "1000x639x268 mm" (physical dimensions)
 - "24000 mm/min" → "400 mm/s" (convert mm/min to mm/s by dividing by 60)
 - "Starting at $1,299" → 1299 (extract lowest price as number)
 - "WiFi enabled" → wifi: "Yes"
 - "CO2 laser, 55W" → laser_type_a: "CO2", laser_power_a: "55"
+- "Autofocus" → focus: "Auto"
+- "USB/Wi-Fi" → wifi: "Yes"
+- "https://example.com/product" → product_link: "https://example.com/product"
+- "1 year warranty" → warranty: "1 year warranty"
+- "OSRAM diodes" → laser_source_manufacturer: "OSRAM"
+- "Ruida controller" → controller: "Ruida"
 
 Map only fields that have clear values in the source data."""
     
