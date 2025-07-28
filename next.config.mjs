@@ -28,6 +28,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'omtechlaser.com',
       },
+      {
+        protocol: 'http',
+        hostname: 'omtechlaser.com',
+      },
     ],
   },
   // Ensure environment variables are available in edge runtime

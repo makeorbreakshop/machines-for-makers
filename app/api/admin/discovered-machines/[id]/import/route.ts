@@ -70,6 +70,13 @@ export async function POST(
     
     console.log('Using brand slug:', brandData.Slug);
     
+    // Helper function to ensure URLs use https
+    const ensureHttps = (url: string | null): string | null => {
+      if (!url) return null;
+      if (typeof url !== 'string') return null;
+      return url.replace(/^http:\/\//i, 'https://');
+    };
+    
     // Map the data to machines table format
     const machineData = {
       'Machine Name': data.name || data.title || data.machine_name || 'Imported Machine',
@@ -81,9 +88,9 @@ export async function POST(
       'Laser Power A': data.laser_power_a || data.power || null,
       'Work Area': data.work_area || null,
       'Speed': data.speed || null,
-      'Image': data.images?.[0] || data.image || data.image_url || null,
+      'Image': ensureHttps(data.images?.[0] || data.image || data.image_url || null),
       'Description': data.description || null,
-      'product_link': discoveredMachine.source_url,
+      'product_link': ensureHttps(discoveredMachine.source_url),
       'Hidden': true, // Start as hidden/draft
       'Published On': null, // Start as draft
       'Created On': new Date().toISOString(),
