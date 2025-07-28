@@ -24,6 +24,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'xspderyoeancoqhdcloo.supabase.co',
       },
+      {
+        protocol: 'https',
+        hostname: 'omtechlaser.com',
+      },
     ],
   },
   // Ensure environment variables are available in edge runtime
