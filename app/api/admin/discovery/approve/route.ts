@@ -43,15 +43,41 @@ export async function POST(request: NextRequest) {
         }
 
         // Create machine from normalized data
+        const data = discoveredProduct.normalized_data || discoveredProduct.raw_data;
+        
+        // Get or create the brand
+        const brandName = data.company || data.brand || data.manufacturer || 'Unknown Brand';
+        
+        // Check if brand exists and get its slug
+        const { data: existingBrand, error: brandFetchError } = await supabase
+          .from('brands')
+          .select('Name, Slug')
+          .eq('Name', brandName)
+          .single();
+
+        if (brandFetchError) {
+          console.error('Brand not found:', brandName, brandFetchError);
+          errors.push(`Brand "${brandName}" not found in brands table for product ${productId}`);
+          continue;
+        }
+        
         const machineData = {
-          id: uuidv4(),
-          ...discoveredProduct.normalized_data,
-          // Add discovery metadata
-          discovery_source: 'automated_discovery',
-          specifications: discoveredProduct.raw_data || {},
-          // Set as draft initially
-          "Published On": null, // Draft state
-          "Updated On": new Date().toISOString(),
+          'Machine Name': data.name || data.title || data.machine_name || 'Imported Machine',
+          'Company': existingBrand.Slug,
+          'Machine Category': data.machine_category || 'laser',
+          'Laser Category': data.laser_category || null,
+          'Price': data.price ? parseFloat(String(data.price).replace(/[^0-9.-]/g, '')) || null : null,
+          'Laser Type A': data.laser_type_a || data.laser_type || null,
+          'Laser Power A': data.laser_power_a || data.power || null,
+          'Work Area': data.work_area || null,
+          'Speed': data.speed || null,
+          'Image': data.images?.[0] || data.image || data.image_url || null,
+          'Description': data.description || null,
+          'product_link': discoveredProduct.source_url,
+          'Hidden': true, // Start as hidden/draft
+          'Published On': null, // Start as draft
+          'Created On': new Date().toISOString(),
+          'Updated On': new Date().toISOString(),
         }
 
         // Insert into machines table
@@ -67,7 +93,7 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // Update discovered_machines status
+        // Update discovered_machines with imported machine ID and mark as approved
         const { error: updateError } = await supabase
           .from('discovered_machines')
           .update({

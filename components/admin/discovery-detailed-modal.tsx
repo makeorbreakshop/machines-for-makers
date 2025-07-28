@@ -148,6 +148,7 @@ const LASER_CATEGORIES = [
 ]
 
 export function DiscoveryDetailedModal({ product, isOpen, onClose }: DiscoveryDetailedModalProps) {
+  const [brands, setBrands] = useState<{Name: string}[]>([])
   const [editableFields, setEditableFields] = useState<EditableFields>({
     // Basic Information
     machine_name: '',
@@ -280,6 +281,16 @@ export function DiscoveryDetailedModal({ product, isOpen, onClose }: DiscoveryDe
     
     return value
   }
+
+  // Load brands when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/admin/brands')
+        .then(res => res.json())
+        .then(data => setBrands(data))
+        .catch(err => console.error('Failed to load brands:', err))
+    }
+  }, [isOpen])
 
   // Initialize fields when product changes
   useEffect(() => {
@@ -655,6 +666,23 @@ export function DiscoveryDetailedModal({ product, isOpen, onClose }: DiscoveryDe
             <SelectItem value="desktop-co2-laser">Desktop CO2 Laser</SelectItem>
             <SelectItem value="professional-co2-laser">Professional CO2 Laser</SelectItem>
             <SelectItem value="fiber-laser">Fiber Laser</SelectItem>
+          </SelectContent>
+        </Select>
+      )
+    }
+    
+    if (field === 'company') {
+      return (
+        <Select value={value} onValueChange={(val) => handleFieldChange(field, val)}>
+          <SelectTrigger className={error ? 'border-red-500' : ''}>
+            <SelectValue placeholder="Select brand" />
+          </SelectTrigger>
+          <SelectContent>
+            {brands.map((brand) => (
+              <SelectItem key={brand.Name} value={brand.Name}>
+                {brand.Name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       )
