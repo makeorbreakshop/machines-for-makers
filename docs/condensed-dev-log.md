@@ -377,6 +377,21 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Feature**: Category-based discovery, admin review workflow, intelligent field mapping with validation warnings
 - **CRITICAL**: AI assistant exhausted entire 1000-credit Scrapfly quota (~$1.00) through inefficient testing methodology
 
+### 2025-07-24: Two-Stage URL Discovery System & Unified Discovery Pipeline
+- **Issue**: Manual product discovery not scalable, direct scraping wasting credits on non-product pages
+- **Solution**: Implemented two-stage approach: URL discovery (1-2 credits) → selective scraping (~20 credits)
+- **Impact**: 95% reduction in discovery costs, complete control over which products to scrape
+- **Technical**: URLDiscoveryService, ProgressiveScraper (4 levels), discovered_urls table, unified pipeline UI
+- **Feature**: Unified discovery pipeline with tabbed interface combining Sites → URLs → Products workflow
+
+### 2025-07-25: Duplicate Detection System & Critical Infrastructure Fixes
+- **Issue**: Two-stage discovery system complete but discovered URLs showing all as unique despite known duplicates (xTool P2)
+- **Solution**: Implemented comprehensive duplicate detection with multi-strategy matching, fixed multiple critical database and query issues
+- **Impact**: Complete duplicate detection workflow with URL/name/pattern matching, prevents importing existing machines
+- **Technical**: Database schema extension with duplicate_status fields, similarity scoring (0.0-1.0), UI filtering and badges
+- **Critical Fixes**: Database schema mismatch (Product URL → product_link), Supabase query syntax errors, UPDATE WHERE clause issues
+- **Feature**: Multi-layer detection strategies, configurable thresholds, detailed duplicate reporting with existing machine links
+
 ## 🎯 Success Criteria Achieved
 - ✅ Dual-service architecture operational with shared database
 - ✅ Intelligent price extraction with <20% false positives (down from 80%+)
@@ -388,3 +403,4 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - ✅ Production-ready system with audit trails and error recovery
 - ✅ MCP integration enables direct database access through Claude Code
 - ✅ Complete documentation for 24+ table database schema and dual-service architecture
+- ✅ Two-stage discovery system with 95% cost reduction and unified pipeline interface

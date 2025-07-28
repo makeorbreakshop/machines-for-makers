@@ -1,16 +1,33 @@
-Traceback (most recent call last):
-  File "/Users/brandoncullum/machines-for-makers/price-extractor-python/main.py", line 8, in <module>
-    from api.routes import router as api_router
-  File "/Users/brandoncullum/machines-for-makers/price-extractor-python/api/routes.py", line 6, in <module>
-    from services.price_service import PriceService
-  File "/Users/brandoncullum/machines-for-makers/price-extractor-python/services/price_service.py", line 7, in <module>
-    from services.database import DatabaseService
-  File "/Users/brandoncullum/machines-for-makers/price-extractor-python/services/database.py", line 1, in <module>
-    from supabase import create_client
-  File "/Users/brandoncullum/miniconda3/lib/python3.11/site-packages/supabase/__init__.py", line 13, in <module>
-    from realtime import AuthorizationError, NotConnectedError
-  File "/Users/brandoncullum/miniconda3/lib/python3.11/site-packages/realtime/__init__.py", line 9, in <module>
-    from ._async.client import AsyncRealtimeClient
-  File "/Users/brandoncullum/miniconda3/lib/python3.11/site-packages/realtime/_async/client.py", line 14, in <module>
-    from websockets.client import ClientProtocol
-ImportError: cannot import name 'ClientProtocol' from 'websockets.client' (/Users/brandoncullum/miniconda3/lib/python3.11/site-packages/websockets/client.py)
+2025-07-25 13:58:40 | INFO     | services.database:__init__:21 - Database service initialized
+2025-07-25 13:58:40 | INFO     | scrapers.web_scraper:__init__:16 - 🔧 LOADING WebScraper v2025-07-03-14:00 - FIXED exception + comprehensive debugging
+2025-07-25 13:58:40 | INFO     | scrapers.price_extractor:__init__:18 - Price extractor initialized with site-specific rules
+2025-07-25 13:58:40 | INFO     | services.price_service:__init__:27 - Price service initialized
+2025-07-25 13:58:40 | INFO     | services.database:__init__:21 - Database service initialized
+2025-07-25 13:58:40 | INFO     | services.learning_service:__init__:22 - Daily Learning Service initialized
+2025-07-25 13:58:40 | INFO     | services.database:__init__:21 - Database service initialized
+2025-07-25 13:58:40 | INFO     | __main__:start:54 - Starting Price Extractor API on 0.0.0.0:8000
+INFO:     Started server process [39565]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-07-25 13:58:47 | INFO     | api.routes:run_duplicate_detection:908 - Starting duplicate detection
+Error fetching existing machines: 'SyncSelectRequestBuilder' object is not callable
+2025-07-25 13:58:59 | INFO     | api.routes:run_duplicate_detection:918 - Duplicate detection complete: {'message': 'Duplicate detection complete', 'checked': 102, 'duplicates_found': 0, 'updated': 102}
+INFO:     127.0.0.1:58204 - "POST /api/v1/run-duplicate-detection HTTP/1.1" 200 OK
+2025-07-25 14:02:06 | INFO     | api.routes:run_duplicate_detection:908 - Starting duplicate detection
+2025-07-25 14:02:06 | INFO     | api.routes:run_duplicate_detection:918 - Duplicate detection complete: {'message': 'No URLs to check', 'checked': 0, 'duplicates_found': 0}
+INFO:     127.0.0.1:58364 - "POST /api/v1/run-duplicate-detection HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "OPTIONS /api/v1/batch-configure HTTP/1.1" 200 OK
+2025-07-25 14:02:40 | INFO     | api.routes:get_batches:312 - Fetching list of batch jobs
+2025-07-25 14:02:41 | INFO     | api.routes:get_batches:329 - Found 20 batch jobs
+2025-07-25 14:02:41 | INFO     | api.routes:get_batches:333 - Most recent batch: {'id': '1966a2cf-ceb0-4933-b7c0-58481412e029', 'status': 'completed', 'start_time': '2025-07-25T07:00:23.470115+00:00', 'end_time': '2025-07-25T07:19:06.934307+00:00', 'total_machines': 154, 'days_threshold': 0}
+INFO:     127.0.0.1:58402 - "GET /api/v1/batches HTTP/1.1" 200 OK
+2025-07-25 14:02:41 | INFO     | api.routes:configure_batch_update:275 - Configuring batch update with days_threshold=7, limit=10, max_workers=3
+2025-07-25 14:02:41 | INFO     | services.database:get_machines_needing_update:261 - Finding machines that haven't been checked in 7 days using database function
+2025-07-25 14:02:41 | INFO     | services.database:get_machines_needing_update:278 - No machines found needing price check
+INFO:     127.0.0.1:58400 - "POST /api/v1/batch-configure HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [39565]

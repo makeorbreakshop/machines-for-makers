@@ -47,23 +47,18 @@ export async function POST(
     }
 
     // Call the Python discovery service
+    let result = null
     try {
       const discoveryRequest = {
-        site_id: id,
-        site_name: site.name,
-        config: {
-          url: site.base_url,
-          sitemap_url: site.sitemap_url,
-          ...site.scraping_config
-        },
-        max_products: body.max_products || 10,
-        test_mode: body.test_mode || false  // Support test mode from frontend
+        manufacturer_id: id,
+        base_url: site.base_url,
+        max_pages: body.max_pages || 5
       }
 
-      console.log(`Triggering discovery for site ${id}, scan log ID: ${scanLog.id}, test_mode: ${discoveryRequest.test_mode}`)
+      console.log(`Triggering discovery for site ${id}, scan log ID: ${scanLog.id}`)
       
-      // Call Python discovery service (runs on port 8001)
-      const response = await fetch('http://localhost:8001/api/v1/discover-products', {
+      // Call Python discovery service (runs on port 8000)
+      const response = await fetch('http://localhost:8000/api/v1/discover-urls', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,8 +77,83 @@ export async function POST(
         throw new Error(errorMessage || 'Failed to start discovery')
       }
 
-      const result = await response.json()
-      console.log('Discovery started:', result)
+      result = await response.json()
+      console.log('Discovery completed:', result)
+      
+      // Save discovered URLs to database
+      if (result.urls && result.urls.length > 0) {
+        // Find the corresponding brand for this manufacturer site
+        const { data: brand } = await supabase
+          .from("brands")
+          .select("id")
+          .ilike("Name", site.name)
+          .single()
+        
+        if (!brand) {
+          console.error(`No brand found matching site name: ${site.name}`)
+          throw new Error(`No brand found for manufacturer site: ${site.name}`)
+        }
+        
+        // Create a map of URL to category from categorized data
+        const categoryMap = new Map<string, string>()
+        if (result.categorized) {
+          for (const [category, urls] of Object.entries(result.categorized)) {
+            (urls as string[]).forEach(url => categoryMap.set(url, category))
+          }
+        }
+        
+        const urlsToInsert = result.urls.map((url: string) => ({
+          manufacturer_id: brand.id, // Use the matched brand ID
+          url: url,
+          category: categoryMap.get(url) || 'unknown',
+          status: 'pending',
+          discovered_at: new Date().toISOString()
+        }))
+        
+        const { error: insertError } = await supabase
+          .from("discovered_urls")
+          .upsert(urlsToInsert, { 
+            onConflict: 'manufacturer_id,url',
+            ignoreDuplicates: false 
+          })
+        
+        if (insertError) {
+          console.error("Error saving discovered URLs:", insertError)
+        } else {
+          console.log(`Saved ${urlsToInsert.length} discovered URLs`)
+        }
+        
+        // Update scan log with success
+        await supabase
+          .from("site_scan_logs")
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            urls_found: result.total_urls_found,
+            credits_used: result.credits_used
+          })
+          .eq("id", scanLog.id)
+        
+        // Run duplicate detection for this manufacturer
+        try {
+          console.log('Running duplicate detection...')
+          const duplicateResponse = await fetch('http://localhost:8000/api/v1/run-duplicate-detection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ manufacturer_id: brand.id })
+          })
+          
+          if (duplicateResponse.ok) {
+            const duplicateResults = await duplicateResponse.json()
+            console.log('Duplicate detection results:', duplicateResults)
+          } else {
+            console.error('Duplicate detection failed:', await duplicateResponse.text())
+          }
+        } catch (duplicateError) {
+          console.error('Error running duplicate detection:', duplicateError)
+          // Don't fail the whole process if duplicate detection fails
+        }
+      }
       
     } catch (error) {
       console.error('Failed to start discovery:', error)
@@ -100,7 +170,8 @@ export async function POST(
     return NextResponse.json({
       success: true,
       scanLogId: scanLog.id,
-      message: "Crawl job queued successfully"
+      message: "Crawl job queued successfully",
+      results: result || null
     })
 
   } catch (error: any) {

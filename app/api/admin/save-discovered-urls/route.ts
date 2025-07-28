@@ -69,8 +69,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const manufacturer_id = searchParams.get('manufacturer_id')
     const status = searchParams.get('status')
+    const duplicate_status = searchParams.get('duplicate_status')
     
-    // First get discovered URLs
+    // First get discovered URLs with duplicate detection fields
     let query = supabase
       .from('discovered_urls')
       .select('*')
@@ -82,6 +83,10 @@ export async function GET(request: NextRequest) {
     
     if (status) {
       query = query.eq('status', status)
+    }
+    
+    if (duplicate_status) {
+      query = query.eq('duplicate_status', duplicate_status)
     }
     
     const { data: urls, error } = await query
@@ -98,9 +103,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([])
     }
     
-    // Get unique manufacturer IDs and machine IDs
+    // Get unique manufacturer IDs and existing machine IDs
     const manufacturerIds = [...new Set(urls.map(u => u.manufacturer_id).filter(Boolean))]
-    const machineIds = [...new Set(urls.map(u => u.machine_id).filter(Boolean))]
+    const existingMachineIds = [...new Set(urls.map(u => u.existing_machine_id).filter(Boolean))]
     
     // Fetch manufacturer sites
     const { data: manufacturerSites } = await supabase
@@ -108,23 +113,23 @@ export async function GET(request: NextRequest) {
       .select('id, name, base_url')
       .in('id', manufacturerIds)
     
-    // Fetch machines if any
-    const { data: machines } = machineIds.length > 0 
+    // Fetch existing machines if any
+    const { data: existingMachines } = existingMachineIds.length > 0 
       ? await supabase
           .from('machines')
-          .select('id, "Machine Name", slug')
-          .in('id', machineIds)
+          .select('id, "Machine Name", "Company", "Machine Category", "Internal link", "Image", "Laser Power A", "Price"')
+          .in('id', existingMachineIds)
       : { data: [] }
     
     // Create lookup maps
     const manufacturerMap = new Map(manufacturerSites?.map(m => [m.id, m]) || [])
-    const machineMap = new Map(machines?.map(m => [m.id, m]) || [])
+    const existingMachineMap = new Map(existingMachines?.map(m => [m.id, m]) || [])
     
     // Combine the data
     const enrichedUrls = urls.map(url => ({
       ...url,
       manufacturer_sites: manufacturerMap.get(url.manufacturer_id) || { id: url.manufacturer_id, name: 'Unknown', base_url: '' },
-      machines: url.machine_id ? machineMap.get(url.machine_id) || null : null
+      existing_machine: url.existing_machine_id ? existingMachineMap.get(url.existing_machine_id) || null : null
     }))
     
     return NextResponse.json(enrichedUrls)

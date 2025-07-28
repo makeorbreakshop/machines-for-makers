@@ -1116,13 +1116,34 @@ class DatabaseService:
             List[Dict]: Query results
         """
         try:
-            # For parameterized queries, use table operations instead
             if params:
-                logger.warning("Parameterized queries not supported in this simplified version")
-                return []
+                # For parameterized queries, we need to substitute parameters manually
+                # since Supabase RPC doesn't support parameterized queries directly
+                
+                # Convert %s placeholders to actual values for safety
+                param_query = query
+                for i, param in enumerate(params):
+                    # Find first %s and replace with the actual parameter value
+                    if isinstance(param, str):
+                        # Escape single quotes for SQL safety and always quote strings
+                        escaped_param = param.replace("'", "''")
+                        param_query = param_query.replace('%s', f"'{escaped_param}'", 1)
+                    elif param is None:
+                        param_query = param_query.replace('%s', 'NULL', 1)
+                    elif isinstance(param, (int, float)):
+                        # Numbers don't need quotes
+                        param_query = param_query.replace('%s', str(param), 1)
+                    else:
+                        # For any other type, convert to string and quote it
+                        escaped_param = str(param).replace("'", "''")
+                        param_query = param_query.replace('%s', f"'{escaped_param}'", 1)
+                
+                logger.info(f"Executing parameterized query: {param_query}")
+                response = self.supabase.rpc('execute_sql', {'sql': param_query}).execute()
+            else:
+                # Use the execute_sql function for non-parameterized queries
+                response = self.supabase.rpc('execute_sql', {'sql': query}).execute()
             
-            # Use the execute_sql function we created
-            response = self.supabase.rpc('execute_sql', {'sql': query}).execute()
             return response.data or []
             
         except Exception as e:

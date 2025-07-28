@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,7 +18,12 @@ import {
   AlertTriangle,
   Search,
   Filter,
-  DollarSign
+  DollarSign,
+  ChevronDown,
+  ChevronRight,
+  Link,
+  Eye,
+  Target
 } from "lucide-react"
 
 interface DiscoveredURL {
@@ -31,15 +36,25 @@ interface DiscoveredURL {
   scraped_at: string | null
   error_message: string | null
   machine_id: string | null
+  duplicate_status: 'pending' | 'duplicate' | 'unique' | 'manual_review'
+  existing_machine_id: string | null
+  similarity_score: number | null
+  duplicate_reason: string | null
+  checked_at: string | null
   manufacturer_sites: {
     id: string
     name: string
     base_url: string
   }
-  machines: {
+  existing_machine: {
     id: string
     "Machine Name": string
-    slug: string
+    "Company": string
+    "Machine Category": string
+    "Internal link": string
+    "Image": string
+    "Laser Power A": string
+    "Price": string
   } | null
 }
 
@@ -62,12 +77,31 @@ export function DiscoveredURLsContent({
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [duplicateFilter, setDuplicateFilter] = useState<string>('all')
   const [scraping, setScraping] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [runningDuplicateCheck, setRunningDuplicateCheck] = useState(false)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [machines, setMachines] = useState<any[]>([])
+  const [showMachineSelector, setShowMachineSelector] = useState<string | null>(null)
+  const [machineSearch, setMachineSearch] = useState('')
 
   useEffect(() => {
     fetchURLs()
-  }, [manufacturerId, statusFilter])
+    fetchMachines()
+  }, [manufacturerId, statusFilter, duplicateFilter])
+
+  const fetchMachines = async () => {
+    try {
+      const response = await fetch('/api/machines?limit=1000') // Get all machines for linking
+      if (response.ok) {
+        const data = await response.json()
+        setMachines(data.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching machines:', error)
+    }
+  }
 
   useEffect(() => {
     // Report URL count changes
@@ -80,6 +114,7 @@ export function DiscoveredURLsContent({
       const params = new URLSearchParams()
       if (manufacturerId) params.append('manufacturer_id', manufacturerId)
       if (statusFilter !== 'all') params.append('status', statusFilter)
+      if (duplicateFilter !== 'all') params.append('duplicate_status', duplicateFilter)
       
       const response = await fetch(`/api/admin/save-discovered-urls?${params}`)
       
@@ -118,7 +153,7 @@ export function DiscoveredURLsContent({
     }
   }
 
-  const handleSelectUrl = (urlId: string, checked: boolean) => {
+  const handleSelectUrl = useCallback((urlId: string, checked: boolean) => {
     const newSelected = new Set(selectedUrls)
     if (checked) {
       newSelected.add(urlId)
@@ -126,7 +161,7 @@ export function DiscoveredURLsContent({
       newSelected.delete(urlId)
     }
     setSelectedUrls(newSelected)
-  }
+  }, [selectedUrls])
 
   const handleScrapeSelected = async () => {
     if (selectedUrls.size === 0) return
@@ -196,6 +231,154 @@ export function DiscoveredURLsContent({
     setSelectedUrls(new Set())
   }
 
+  const handleRunDuplicateCheck = async () => {
+    setRunningDuplicateCheck(true)
+    try {
+      const response = await fetch('/api/admin/run-duplicate-detection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          manufacturer_id: manufacturerId 
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Duplicate detection results:', result)
+        
+        // Only refresh once after duplicate detection is complete
+        await fetchURLs()
+        
+        alert(`Duplicate detection complete! Checked ${result.checked} URLs, found ${result.duplicates_found} duplicates.`)
+      } else {
+        const error = await response.json()
+        alert(`Error running duplicate detection: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error running duplicate detection:', error)
+      alert('Failed to run duplicate detection. Make sure the Python service is running.')
+    } finally {
+      setRunningDuplicateCheck(false)
+    }
+  }
+
+  const toggleRowExpansion = (urlId: string) => {
+    const newExpanded = new Set(expandedRows)
+    if (newExpanded.has(urlId)) {
+      newExpanded.delete(urlId)
+    } else {
+      newExpanded.add(urlId)
+    }
+    setExpandedRows(newExpanded)
+  }
+
+  const handleConfirmDuplicate = async (urlId: string) => {
+    try {
+      const response = await fetch('/api/admin/update-url-duplicate-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: urlId, 
+          duplicate_status: 'duplicate',
+          confirmed: true
+        })
+      })
+      
+      if (response.ok) {
+        // Optimistic update - just update the specific URL in state
+        setUrls(prevUrls => 
+          prevUrls.map(url => 
+            url.id === urlId 
+              ? { ...url, duplicate_status: 'duplicate' as const }
+              : url
+          )
+        )
+      }
+    } catch (error) {
+      console.error('Error confirming duplicate:', error)
+    }
+  }
+
+  const handleMarkAsUnique = async (urlId: string) => {
+    try {
+      const response = await fetch('/api/admin/update-url-duplicate-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: urlId, 
+          duplicate_status: 'unique'
+        })
+      })
+      
+      if (response.ok) {
+        // Optimistic update - mark as unique and remove existing machine link
+        setUrls(prevUrls => 
+          prevUrls.map(url => 
+            url.id === urlId 
+              ? { 
+                  ...url, 
+                  duplicate_status: 'unique' as const,
+                  existing_machine: null,
+                  existing_machine_id: null,
+                  similarity_score: null
+                }
+              : url
+          )
+        )
+      }
+    } catch (error) {
+      console.error('Error marking as unique:', error)
+    }
+  }
+
+  const handleLinkToMachine = async (urlId: string, machineId: string) => {
+    try {
+      const response = await fetch('/api/admin/link-url-to-machine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          url_id: urlId, 
+          machine_id: machineId
+        })
+      })
+      
+      if (response.ok) {
+        // Find the selected machine from our machines list
+        const selectedMachine = machines.find(m => m.id === machineId)
+        
+        // Optimistic update - link to the selected machine
+        setUrls(prevUrls => 
+          prevUrls.map(url => 
+            url.id === urlId 
+              ? { 
+                  ...url, 
+                  duplicate_status: 'duplicate' as const,
+                  existing_machine_id: machineId,
+                  existing_machine: selectedMachine ? {
+                    id: selectedMachine.id,
+                    "Machine Name": selectedMachine["Machine Name"],
+                    "Company": selectedMachine["Company"],
+                    "Machine Category": selectedMachine["Machine Category"] || '',
+                    "Internal link": selectedMachine["Internal link"] || '',
+                    "Image": selectedMachine["Image"] || '',
+                    "Laser Power A": selectedMachine["Laser Power A"] || '',
+                    "Price": selectedMachine["Price"] || ''
+                  } : null,
+                  similarity_score: 1.0,
+                  duplicate_reason: 'manual_link'
+                }
+              : url
+          )
+        )
+        
+        setShowMachineSelector(null)
+        setMachineSearch('')
+      }
+    } catch (error) {
+      console.error('Error linking to machine:', error)
+    }
+  }
+
   const filteredUrls = urls.filter(url => {
     if (categoryFilter !== 'all' && url.category !== categoryFilter) return false
     return true
@@ -209,7 +392,11 @@ export function DiscoveredURLsContent({
     pending: urls.filter(u => u.status === 'pending').length,
     scraped: urls.filter(u => u.status === 'scraped').length,
     skipped: urls.filter(u => u.status === 'skipped').length,
-    failed: urls.filter(u => u.status === 'failed').length
+    failed: urls.filter(u => u.status === 'failed').length,
+    // Duplicate detection stats
+    duplicates: urls.filter(u => u.duplicate_status === 'duplicate').length,
+    unique: urls.filter(u => u.duplicate_status === 'unique').length,
+    duplicate_pending: urls.filter(u => u.duplicate_status === 'pending').length
   }
 
   const estimatedCredits = selectedUrls.size * 20 // ~20 credits per product
@@ -233,7 +420,7 @@ export function DiscoveredURLsContent({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-3 gap-4 mb-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total URLs</CardTitle>
@@ -244,34 +431,48 @@ export function DiscoveredURLsContent({
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <CardTitle className="text-sm font-medium">Scraping Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span>Pending:</span>
+                <span className="font-medium text-yellow-600">{stats.pending}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Scraped:</span>
+                <span className="font-medium text-green-600">{stats.scraped}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Skipped:</span>
+                <span className="font-medium text-gray-600">{stats.skipped}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Failed:</span>
+                <span className="font-medium text-red-600">{stats.failed}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Scraped</CardTitle>
+            <CardTitle className="text-sm font-medium">Duplicate Detection</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.scraped}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Skipped</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-600">{stats.skipped}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Failed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span>Unique:</span>
+                <span className="font-medium text-green-600">{stats.unique}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Duplicates:</span>
+                <span className="font-medium text-orange-600">{stats.duplicates}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Not Checked:</span>
+                <span className="font-medium text-gray-600">{stats.duplicate_pending}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -300,7 +501,7 @@ export function DiscoveredURLsContent({
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Filters */}
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by status" />
@@ -311,6 +512,19 @@ export function DiscoveredURLsContent({
                 <SelectItem value="scraped">Scraped</SelectItem>
                 <SelectItem value="skipped">Skipped</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="unknown">Unknown</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={duplicateFilter} onValueChange={setDuplicateFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by duplicates" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All URLs</SelectItem>
+                <SelectItem value="unique">Unique Only</SelectItem>
+                <SelectItem value="duplicate">Duplicates Only</SelectItem>
+                <SelectItem value="pending">Not Checked</SelectItem>
               </SelectContent>
             </Select>
 
@@ -327,6 +541,21 @@ export function DiscoveredURLsContent({
                 ))}
               </SelectContent>
             </Select>
+
+            <Button 
+              variant="outline" 
+              onClick={handleRunDuplicateCheck}
+              disabled={runningDuplicateCheck}
+            >
+              {runningDuplicateCheck ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Checking...
+                </>
+              ) : (
+                'Run Duplicate Check'
+              )}
+            </Button>
 
             {!manufacturerId && (
               <Select>
@@ -402,50 +631,242 @@ export function DiscoveredURLsContent({
             </div>
           ) : (
           <div className="divide-y">
-            {filteredUrls.map(url => (
-              <div key={url.id} className="p-4 hover:bg-gray-50 flex items-center gap-4">
-                {url.status === 'pending' && (
-                  <Checkbox
-                    checked={selectedUrls.has(url.id)}
-                    onCheckedChange={(checked) => handleSelectUrl(url.id, checked as boolean)}
-                  />
-                )}
-                
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline">{url.manufacturer_sites.name}</Badge>
-                    <Badge variant="secondary">{url.category.replace('_', ' ')}</Badge>
-                    {url.status === 'pending' && <Badge variant="default">Pending</Badge>}
-                    {url.status === 'scraped' && <Badge variant="default" className="bg-green-500">Scraped</Badge>}
-                    {url.status === 'skipped' && <Badge variant="secondary">Skipped</Badge>}
-                    {url.status === 'failed' && <Badge variant="destructive">Failed</Badge>}
+            {filteredUrls.map(url => {
+              const isExpanded = expandedRows.has(url.id)
+              
+              return (
+                <div key={url.id} className="hover:bg-gray-50">
+                  <div className="p-4 flex items-center gap-4">
+                    {url.status === 'pending' && (
+                      <Checkbox
+                        checked={selectedUrls.has(url.id)}
+                        onCheckedChange={(checked) => handleSelectUrl(url.id, checked as boolean)}
+                      />
+                    )}
+                    
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <Badge variant="outline">{url.manufacturer_sites.name}</Badge>
+                        <Badge variant="secondary">{url.category.replace('_', ' ')}</Badge>
+                        
+                        {/* Scraping Status */}
+                        {url.status === 'pending' && <Badge variant="default">Pending</Badge>}
+                        {url.status === 'scraped' && <Badge variant="default" className="bg-green-500">Scraped</Badge>}
+                        {url.status === 'skipped' && <Badge variant="secondary">Skipped</Badge>}
+                        {url.status === 'failed' && <Badge variant="destructive">Failed</Badge>}
+                        
+                        {/* Duplicate Status */}
+                        {url.duplicate_status === 'unique' && <Badge variant="default" className="bg-green-500">Unique</Badge>}
+                        {url.duplicate_status === 'duplicate' && <Badge variant="destructive">Duplicate</Badge>}
+                        {url.duplicate_status === 'pending' && <Badge variant="outline">Not Checked</Badge>}
+                        {url.duplicate_status === 'manual_review' && <Badge variant="default" className="bg-yellow-500">Manual Review</Badge>}
+                        
+                        {/* Similarity Score */}
+                        {url.similarity_score && (
+                          <Badge variant="outline" className="text-xs">
+                            {Math.round(url.similarity_score * 100)}% match
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      <div className="text-sm font-mono text-gray-600 mb-2">{url.url}</div>
+                      
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2">
+                        {url.duplicate_status === 'duplicate' && url.existing_machine && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => toggleRowExpansion(url.id)}
+                            className="flex items-center gap-1"
+                          >
+                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                            <Target className="h-3 w-3" />
+                            View Match
+                          </Button>
+                        )}
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowMachineSelector(showMachineSelector === url.id ? null : url.id)}
+                          className="flex items-center gap-1"
+                        >
+                          <Link className="h-3 w-3" />
+                          Link to Machine
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => toggleRowExpansion(url.id)}
+                          className="flex items-center gap-1"
+                        >
+                          <Eye className="h-3 w-3" />
+                          Details
+                        </Button>
+                      </div>
+                      
+                      {url.error_message && (
+                        <div className="text-sm text-red-600 mt-2">
+                          Error: {url.error_message}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <a 
+                      href={url.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
                   </div>
-                  
-                  <div className="text-sm font-mono text-gray-600">{url.url}</div>
-                  
-                  {url.machines && (
-                    <div className="text-sm text-green-600 mt-1">
-                      ✓ Created: {url.machines["Machine Name"]}
+
+                  {/* Expandable Section */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 border-t bg-gray-50">
+                      <div className="mt-3 p-3 bg-white border border-gray-200 rounded">
+                        {url.existing_machine ? (
+                          <div className="flex items-start gap-4">
+                            {/* Machine Image */}
+                            <div className="flex-shrink-0">
+                              <img
+                                src={url.existing_machine["Image"] || '/placeholder-machine.jpg'}
+                                alt={url.existing_machine["Machine Name"]}
+                                className="w-20 h-20 object-cover rounded border"
+                                onError={(e) => {
+                                  e.currentTarget.src = '/placeholder-machine.jpg'
+                                }}
+                              />
+                            </div>
+                            
+                            {/* Machine Details */}
+                            <div className="flex-1">
+                              <div className="font-medium text-lg">{url.existing_machine["Machine Name"]}</div>
+                              <div className="text-sm text-gray-600 mb-2">by {url.existing_machine["Company"]}</div>
+                              
+                              {/* Specifications */}
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
+                                {url.existing_machine["Machine Category"] && (
+                                  <div>
+                                    <span className="text-gray-500">Category:</span> {url.existing_machine["Machine Category"]}
+                                  </div>
+                                )}
+                                {url.existing_machine["Laser Power A"] && (
+                                  <div>
+                                    <span className="text-gray-500">Power:</span> {url.existing_machine["Laser Power A"]}W
+                                  </div>
+                                )}
+                                {url.existing_machine["Price"] && (
+                                  <div>
+                                    <span className="text-gray-500">Price:</span> ${url.existing_machine["Price"]}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-2">
+                                {url.existing_machine["Internal link"] && (
+                                  <a
+                                    href={`/products/${url.existing_machine["Internal link"]}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    View Product
+                                  </a>
+                                )}
+                                
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleMarkAsUnique(url.id)}
+                                  className="flex items-center gap-1 text-orange-600 border-orange-300 hover:bg-orange-50"
+                                >
+                                  <XCircle className="h-3 w-3" />
+                                  Mark as Unique
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : url.duplicate_status === 'duplicate' ? (
+                          <div className="text-sm text-orange-600">
+                            Marked as duplicate but machine details not loaded
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-600">
+                            No duplicate match found
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                  
-                  {url.error_message && (
-                    <div className="text-sm text-red-600 mt-1">
-                      Error: {url.error_message}
-                    </div>
-                  )}
+
+                  {/* Machine Selector */}
+                  {showMachineSelector === url.id && (() => {
+                    const filteredMachines = machines.filter(m => 
+                      m["Machine Name"]?.toLowerCase().includes(machineSearch.toLowerCase()) ||
+                      m["Company"]?.toLowerCase().includes(machineSearch.toLowerCase())
+                    ).slice(0, 10) // Limit to 10 results
+                    
+                    return (
+                      <div className="px-4 pb-4 border-t bg-blue-50">
+                        <div className="mt-3 p-3 bg-white border border-blue-200 rounded">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Link className="h-4 w-4 text-blue-600" />
+                            <span className="font-medium">Link to Existing Machine</span>
+                          </div>
+                          
+                          <input
+                            type="text"
+                            placeholder="Search machines by name or brand..."
+                            value={machineSearch}
+                            onChange={(e) => setMachineSearch(e.target.value)}
+                            className="w-full p-2 border rounded mb-3 text-sm"
+                          />
+                          
+                          <div className="max-h-40 overflow-y-auto space-y-1">
+                            {filteredMachines.map(machine => (
+                              <div
+                                key={machine.id}
+                                onClick={() => handleLinkToMachine(url.id, machine.id)}
+                                className="p-2 hover:bg-blue-100 cursor-pointer rounded border flex justify-between items-center"
+                              >
+                                <div>
+                                  <div className="font-medium text-sm">{machine["Machine Name"]}</div>
+                                  <div className="text-xs text-gray-600">{machine["Company"]}</div>
+                                </div>
+                                <Badge variant="outline" className="text-xs">
+                                  {machine["Category"]}
+                                </Badge>
+                              </div>
+                            ))}
+                            {filteredMachines.length === 0 && machineSearch && (
+                              <div className="text-sm text-gray-500 p-2">No machines found</div>
+                            )}
+                          </div>
+                          
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setShowMachineSelector(null)
+                              setMachineSearch('')
+                            }}
+                            className="mt-2"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
-                
-                <a 
-                  href={url.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </div>
-            ))}
+              )
+            })}
           </div>
           )}
         </CardContent>

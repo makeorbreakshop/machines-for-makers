@@ -36,7 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { AlertCircle, Globe, Play, Plus, Settings, Trash2, ChevronDown, FlaskConical, History, Package } from 'lucide-react'
+import { AlertCircle, Globe, Play, Plus, Settings, Trash2, ChevronDown, FlaskConical, History, Package, Wand2, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface ManufacturerSite {
@@ -72,6 +72,8 @@ export function ManufacturerSitesClient() {
   })
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [autoDiscovering, setAutoDiscovering] = useState(false)
+  const [discoveryReport, setDiscoveryReport] = useState<any>(null)
 
   // Fetch sites and brands on component mount
   useEffect(() => {
@@ -252,6 +254,50 @@ export function ManufacturerSitesClient() {
     }
   }
 
+  const handleAutoDiscovery = async () => {
+    if (!formData.base_url || !formData.name) {
+      setError('Please enter site name and base URL first')
+      return
+    }
+
+    setAutoDiscovering(true)
+    setError(null)
+    setDiscoveryReport(null)
+
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/discover-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          base_url: formData.base_url,
+          site_name: formData.name
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update form with discovered configuration
+        setFormData({
+          ...formData,
+          scraping_config: result.configuration,
+          sitemap_url: result.report.sitemap_found ? 
+            `${formData.base_url}/sitemap.xml` : formData.sitemap_url
+        })
+        setDiscoveryReport(result.report)
+        setSuccess(`Auto-discovery complete! Found ${result.report.category_count} category URLs`)
+      } else {
+        setError(result.error || 'Auto-discovery failed')
+      }
+    } catch (err) {
+      setError('Failed to connect to discovery service')
+    } finally {
+      setAutoDiscovering(false)
+    }
+  }
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never'
     return new Date(dateString).toLocaleDateString()
@@ -386,7 +432,7 @@ export function ManufacturerSitesClient() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingSite ? 'Edit Manufacturer Site' : 'Add Manufacturer Site'}
@@ -396,61 +442,136 @@ export function ManufacturerSitesClient() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="ComMarker"
-                  required
-                />
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Basic Information</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="name">Site Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="OmTech"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="base_url">Base URL *</Label>
+                  <Input
+                    id="base_url"
+                    value={formData.base_url}
+                    onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
+                    placeholder="https://omtechlaser.com"
+                    required
+                  />
+                </div>
               </div>
 
               <div>
-                <Label htmlFor="base_url">Base URL *</Label>
+                <Label htmlFor="sitemap_url">Sitemap URL (Optional)</Label>
                 <Input
-                  id="base_url"
-                  value={formData.base_url}
-                  onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
-                  placeholder="https://example.com"
-                  required
+                  id="sitemap_url"
+                  value={formData.sitemap_url}
+                  onChange={(e) => setFormData({ ...formData, sitemap_url: e.target.value })}
+                  placeholder="https://omtechlaser.com/sitemap.xml"
                 />
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="sitemap_url">Sitemap URL</Label>
-              <Input
-                id="sitemap_url"
-                value={formData.sitemap_url}
-                onChange={(e) => setFormData({ ...formData, sitemap_url: e.target.value })}
-                placeholder="https://example.com/sitemap.xml"
-              />
+            {/* Auto-Discovery Section */}
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium">Scraping Configuration</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Generate configuration automatically or edit manually
+                  </p>
+                </div>
+                
+                <Button
+                  type="button"
+                  onClick={handleAutoDiscovery}
+                  disabled={autoDiscovering || !formData.base_url || !formData.name}
+                  className="flex items-center gap-2"
+                  variant="default"
+                >
+                  {autoDiscovering ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Discovering...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4" />
+                      Auto-Discover Config
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              {discoveryReport && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      <div className="font-medium">Discovery Complete!</div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>✅ Sitemap found: {discoveryReport.sitemap_found ? 'Yes' : 'No'}</div>
+                        <div>📊 Category URLs: {discoveryReport.category_count}</div>
+                        <div>⏱️ Crawl delay: {discoveryReport.suggested_delay}ms</div>
+                        <div>🔍 Analysis complete</div>
+                      </div>
+                      {discoveryReport.category_urls?.length > 0 && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-sm font-medium">
+                            View sample URLs ({discoveryReport.category_urls.length} found)
+                          </summary>
+                          <ul className="mt-2 ml-4 space-y-1">
+                            {discoveryReport.category_urls.slice(0, 5).map((url: string, idx: number) => (
+                              <li key={idx} className="text-xs text-muted-foreground truncate">
+                                • {url}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              <div>
+                <Label htmlFor="scraping_config">Configuration JSON</Label>
+                <Textarea
+                  id="scraping_config"
+                  value={formData.scraping_config}
+                  onChange={(e) => setFormData({ ...formData, scraping_config: e.target.value })}
+                  rows={10}
+                  className="font-mono text-sm mt-2"
+                  placeholder='{"crawl_delay": 3000, "user_agent": "MachinesForMakers/1.0", "use_sitemap": true}'
+                />
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="scraping_config">Scraping Configuration (JSON)</Label>
-              <Textarea
-                id="scraping_config"
-                value={formData.scraping_config}
-                onChange={(e) => setFormData({ ...formData, scraping_config: e.target.value })}
-                rows={8}
-                className="font-mono text-sm"
-              />
+            {/* Settings */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-lg font-medium">Settings</h3>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="is_active"
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                />
+                <Label htmlFor="is_active">Site is active for discovery</Label>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="is_active"
-                checked={formData.is_active}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-              />
-              <Label htmlFor="is_active">Active</Label>
-            </div>
-
+            {/* Status Messages */}
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -464,11 +585,12 @@ export function ManufacturerSitesClient() {
               </Alert>
             )}
 
-            <DialogFooter>
+            {/* Actions */}
+            <DialogFooter className="border-t pt-4">
               <Button type="button" variant="outline" onClick={closeDialog}>
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={autoDiscovering}>
                 {editingSite ? 'Update Site' : 'Create Site'}
               </Button>
             </DialogFooter>

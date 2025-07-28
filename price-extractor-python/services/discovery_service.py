@@ -87,12 +87,27 @@ class DiscoveryService:
             logger.info(f"Site: {request.base_url}")
             logger.info(f"Sitemap URL: {request.sitemap_url or 'Will auto-detect'}")
             
+            # Update status to show we're checking for sitemap
+            await self._update_scan_log(request.scan_log_id, {
+                'scan_metadata': {
+                    'current_stage': 'Checking sitemap...',
+                    'status_message': 'Looking for sitemap.xml to discover URLs efficiently',
+                    'total_urls': 0,
+                    'processed_urls': 0
+                }
+            })
+            
             product_urls, crawl_stats = await self._discover_urls(request)
             discovered_count = len(product_urls)
 
             # Update scan log with crawl stats
             await self._update_scan_log(request.scan_log_id, {
-                'products_found': discovered_count  # This column exists
+                'products_found': discovered_count,  # This column exists
+                'scan_metadata': {
+                    'total_urls': discovered_count,
+                    'current_stage': 'URL discovery complete',
+                    'discovery_method': crawl_stats.get('method', 'crawling')
+                }
             })
 
             if not product_urls:
@@ -131,7 +146,7 @@ class DiscoveryService:
             logger.info("=" * 60)
             
             # For now, just store the URLs without extracting data
-            for url in product_urls[:20]:  # Limit to first 20 for testing
+            for idx, url in enumerate(product_urls[:20]):  # Limit to first 20 for testing
                 try:
                     # Check if already exists
                     exists = await self._check_existing_url(url)
@@ -153,6 +168,18 @@ class DiscoveryService:
                         if stored:
                             processed_count += 1
                             logger.info(f"✅ Stored URL {processed_count}/{min(20, len(product_urls))}: {url}")
+                            
+                            # Update progress every 5 URLs
+                            if processed_count % 5 == 0 or processed_count == min(20, len(product_urls)):
+                                await self._update_scan_log(request.scan_log_id, {
+                                    'products_processed': processed_count,
+                                    'scan_metadata': {
+                                        'total_urls': discovered_count,
+                                        'processed_urls': processed_count,
+                                        'current_stage': f'Processing URL {processed_count} of {min(20, len(product_urls))}',
+                                        'status_message': f'Storing product URLs...'
+                                    }
+                                })
                         else:
                             error_count += 1
                             logger.error(f"❌ Failed to store URL: {url}")

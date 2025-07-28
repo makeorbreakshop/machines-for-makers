@@ -6,12 +6,14 @@ from typing import Optional, List
 from services.price_service import PriceService
 from services.learning_service import DailyLearningService
 from services.url_discovery import URLDiscoveryService
+from services.config_discovery import ConfigDiscoveryService
 # from services.discovery_service import start_discovery  # Commented out - requires aiohttp
 
 router = APIRouter()
 price_service = PriceService()
 learning_service = DailyLearningService()
 url_discovery = URLDiscoveryService()
+config_discovery = ConfigDiscoveryService()
 
 # Include cost tracking routes
 from api.cost_routes import router as cost_router
@@ -893,6 +895,59 @@ async def scrape_discovered_urls(request: ScrapeDiscoveredURLsRequest, backgroun
         raise HTTPException(status_code=500, detail=f"Failed to start scraping: {str(e)}")
 
 
+@router.post("/run-duplicate-detection")
+async def run_duplicate_detection(manufacturer_id: Optional[str] = None):
+    """
+    Run duplicate detection for discovered URLs.
+    
+    Args:
+        manufacturer_id: Optional manufacturer ID to limit detection to specific manufacturer
+        
+    Returns:
+        Summary of duplicate detection results
+    """
+    try:
+        logger.info(f"Starting duplicate detection" + (f" for manufacturer {manufacturer_id}" if manufacturer_id else ""))
+        
+        from services.duplicate_detector import DuplicateDetector
+        
+        # Initialize duplicate detector with price_service's db_service
+        detector = DuplicateDetector(price_service.db_service)
+        
+        # Run detection with force recheck
+        results = await detector.run_duplicate_detection(manufacturer_id, force_recheck=True)
+        
+        logger.info(f"Duplicate detection complete: {results}")
+        
+        return {
+            "success": True,
+            **results
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error in duplicate detection: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Duplicate detection failed: {str(e)}")
+
+
+@router.post("/api/v1/reset-duplicate-status")
+async def reset_duplicate_status():
+    """Reset duplicate detection status for re-checking"""
+    try:
+        logger.info("Resetting duplicate detection status")
+        
+        from services.duplicate_detector import DuplicateDetector
+        detector = DuplicateDetector(price_service.db_service)
+        
+        result = await detector.reset_duplicate_status()
+        
+        logger.info(f"Reset complete: {result}")
+        return {"success": True, **result}
+        
+    except Exception as e:
+        logger.error(f"Error resetting duplicate status: {e}")
+        return {"success": False, "error": str(e)}
+
+
 async def _process_discovered_urls(urls: List[str], manufacturer: dict, max_workers: Optional[int] = 3):
     """Process discovered URLs in the background."""
     try:
@@ -995,3 +1050,78 @@ async def _process_discovered_urls(urls: List[str], manufacturer: dict, max_work
 #         logger.info(f"Discovery completed: {result}")
 #     except Exception as e:
 #         logger.exception(f"Error in discovery background task: {str(e)}")
+
+
+# Config Discovery Endpoints
+class ConfigDiscoveryRequest(BaseModel):
+    base_url: str
+    site_name: str
+
+@router.post("/discover-config")
+async def discover_site_configuration(request: ConfigDiscoveryRequest):
+    """
+    Auto-discover manufacturer site configuration
+    
+    Analyzes a manufacturer website to automatically generate:
+    - Sitemap URL
+    - Category URLs for product discovery
+    - Optimal crawl delay
+    - User agent configuration
+    """
+    try:
+        logger.info(f"Starting config discovery for {request.site_name} at {request.base_url}")
+        
+        # Generate configuration
+        config = await config_discovery.discover_site_config(
+            base_url=request.base_url,
+            site_name=request.site_name
+        )
+        
+        # Format for UI
+        formatted_config = config_discovery.format_config_for_ui(
+            config, request.site_name, request.base_url
+        )
+        
+        # Generate detailed report
+        report = await config_discovery.generate_discovery_report(
+            base_url=request.base_url,
+            site_name=request.site_name
+        )
+        
+        return {
+            "success": True,
+            "configuration": formatted_config,
+            "report": report,
+            "message": f"Configuration discovered for {request.site_name}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error discovering configuration for {request.site_name}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"Failed to discover configuration for {request.site_name}"
+        }
+
+@router.get("/suggest-sitemap/{base_url:path}")
+async def suggest_sitemap_url(base_url: str):
+    """
+    Quick endpoint to suggest sitemap URL for a given base URL
+    """
+    try:
+        sitemap_url = await config_discovery._discover_sitemap(base_url)
+        
+        return {
+            "success": True,
+            "sitemap_url": sitemap_url,
+            "found": sitemap_url is not None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error finding sitemap for {base_url}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "sitemap_url": None,
+            "found": False
+        }

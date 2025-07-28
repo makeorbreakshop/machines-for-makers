@@ -75,6 +75,8 @@ class ScanStatusResponse(BaseModel):
     errors: List[str]
     created_at: str
     completed_at: Optional[str]
+    scan_metadata: Optional[Dict[str, Any]] = None
+    credits_used: Optional[int] = None
 
 # API Routes
 @app.get("/")
@@ -297,15 +299,29 @@ async def get_discovery_status(scan_id: str):
         if not scan_data:
             raise HTTPException(status_code=404, detail="Scan not found")
         
+        # Extract metadata for real-time status
+        metadata = scan_data.get("scan_metadata", {})
+        total_urls = metadata.get("total_urls", scan_data.get("products_found", 0))
+        processed_urls = metadata.get("processed_urls", scan_data.get("products_processed", 0))
+        
+        # Calculate approximate credits used
+        credits_used = None
+        if metadata.get("discovery_method") == "sitemap":
+            credits_used = 2  # Sitemap discovery uses minimal credits
+        elif processed_urls > 0:
+            credits_used = processed_urls * 2  # Approximate 2 credits per URL
+        
         return ScanStatusResponse(
             scan_id=scan_data["id"],
             status=scan_data["status"],
-            total_urls=scan_data.get("total_urls", 0),
-            processed_urls=scan_data.get("processed_urls", 0),
-            discovered_products=scan_data.get("discovered_products", 0),
-            errors=scan_data.get("errors", []),
+            total_urls=total_urls,
+            processed_urls=processed_urls,
+            discovered_products=scan_data.get("products_found", 0),
+            errors=[scan_data.get("error_message", "")] if scan_data.get("error_message") else [],
             created_at=scan_data["created_at"],
-            completed_at=scan_data.get("completed_at")
+            completed_at=scan_data.get("completed_at"),
+            scan_metadata=metadata,
+            credits_used=credits_used
         )
         
     except HTTPException:
