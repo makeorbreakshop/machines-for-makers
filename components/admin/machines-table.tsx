@@ -15,8 +15,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import Link from "next/link"
 import { DataTable } from "@/components/admin/data-table"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, Copy, Eye, MoreHorizontal, Pencil, Star, Trash2 } from "lucide-react"
-import { useState } from "react"
+import { ArrowUpDown, Copy, Eye, MoreHorizontal, Pencil, Star, Trash2, ChevronDown, X } from "lucide-react"
+import { useState, useCallback, useRef, useEffect } from "react"
+import { usePersistentFilters } from "@/lib/hooks/use-persistent-filters"
 import Image from "next/image"
 import { format } from "date-fns"
 import { deleteMachine } from "@/lib/services/machine-service"
@@ -302,7 +303,17 @@ const columns: ColumnDef<TableMachine>[] = [
   },
   {
     accessorKey: "published_at",
-    header: "Status",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Status
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
     cell: ({ row }) => {
       const published = row.original.published_at
       const updated = row.original.updated_at
@@ -315,13 +326,35 @@ const columns: ColumnDef<TableMachine>[] = [
           >
             {published ? "Published" : "Draft"}
           </Badge>
-          {updated && (
+          {published && (
+            <div className="text-xs text-muted-foreground mt-1">
+              Published: {format(new Date(published), "MMM d, yyyy")}
+            </div>
+          )}
+          {!published && updated && (
             <div className="text-xs text-muted-foreground mt-1">
               Updated: {format(new Date(updated), "MMM d, yyyy")}
             </div>
           )}
         </div>
       )
+    },
+    sortingFn: (rowA, rowB) => {
+      const publishedA = rowA.original.published_at
+      const publishedB = rowB.original.published_at
+      
+      // Handle null values (drafts) - put them at the end
+      if (!publishedA && !publishedB) return 0
+      if (!publishedA) return 1
+      if (!publishedB) return -1
+      
+      // Sort by published date
+      return new Date(publishedA).getTime() - new Date(publishedB).getTime()
+    },
+    filterFn: (row, id, value) => {
+      const published = row.original.published_at
+      const status = published ? "Published" : "Draft"
+      return value.includes(status)
     },
   },
   {
@@ -354,7 +387,10 @@ const columns: ColumnDef<TableMachine>[] = [
                   <span>View</span>
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer flex items-center">
+              <DropdownMenuItem 
+                className="cursor-pointer flex items-center"
+                onClick={() => handleDuplicateClick(machine.id)}
+              >
                 <Copy className="mr-2 h-4 w-4" />
                 <span>Duplicate</span>
               </DropdownMenuItem>
@@ -499,6 +535,14 @@ const getBrandFilterOptions = (data: TableMachine[]) => {
   }))
 }
 
+// Define status filter options for published/draft
+const getStatusFilterOptions = () => {
+  return [
+    { label: "Published", value: "Published" },
+    { label: "Draft", value: "Draft" },
+  ]
+}
+
 export function MachinesTable({ data }: { data: TableMachine[] }) {
   const router = useRouter()
   const [selectedMachines, setSelectedMachines] = useState<string[]>([])
@@ -507,10 +551,49 @@ export function MachinesTable({ data }: { data: TableMachine[] }) {
   const [isBulkDelete, setIsBulkDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isDuplicating, setIsDuplicating] = useState(false)
+  const [tableInstance, setTableInstance] = useState<any>(null)
+  
+  // Persistent filter states
+  const {
+    categoryFilter,
+    brandFilter, 
+    statusFilter,
+    setCategoryFilter,
+    setBrandFilter,
+    setStatusFilter,
+    clearAllFilters,
+    hasFilters,
+    isInitialized
+  } = usePersistentFilters()
+  
+  // Filter the data based on active filters
+  const filteredData = data.filter(machine => {
+    // Category filter
+    if (categoryFilter.length > 0 && !categoryFilter.includes(machine.machine_category || '')) {
+      return false
+    }
+    
+    // Brand filter
+    if (brandFilter.length > 0 && !brandFilter.includes(machine.company || '')) {
+      return false
+    }
+    
+    // Status filter
+    if (statusFilter.length > 0) {
+      const status = machine.published_at ? "Published" : "Draft"
+      if (!statusFilter.includes(status)) {
+        return false
+      }
+    }
+    
+    return true
+  })
   
   // Generate filter options from data
   const categoryFilters = getCategoryFilterOptions(data)
   const brandFilters = getBrandFilterOptions(data)
+  const statusFilters = getStatusFilterOptions()
 
   // Handler for opening delete confirmation for a single machine
   const handleDeleteClick = (machineId: string) => {
@@ -521,8 +604,86 @@ export function MachinesTable({ data }: { data: TableMachine[] }) {
 
   // Handler for opening delete confirmation for multiple machines
   const handleBulkDeleteClick = () => {
+    setSelectedMachines(getSelectedMachines())
     setIsBulkDelete(true)
     setIsDeleteDialogOpen(true)
+  }
+
+  // Handler for duplicating a single machine
+  const handleDuplicateClick = async (machineId: string) => {
+    setIsDuplicating(true)
+    try {
+      await duplicateMachine(machineId)
+      router.refresh()
+    } catch (error) {
+      console.error("Error duplicating machine:", error)
+    } finally {
+      setIsDuplicating(false)
+    }
+  }
+
+  // Handler for bulk duplicating machines
+  const handleBulkDuplicateClick = async () => {
+    const selectedIds = getSelectedMachines()
+    setIsDuplicating(true)
+    try {
+      await Promise.all(selectedIds.map(id => duplicateMachine(id)))
+      router.refresh()
+    } catch (error) {
+      console.error("Error duplicating machines:", error)
+    } finally {
+      setIsDuplicating(false)
+    }
+  }
+
+  // Function to duplicate a machine
+  const duplicateMachine = async (machineId: string) => {
+    const machine = data.find(m => m.id === machineId)
+    if (!machine) throw new Error("Machine not found")
+
+    // Create the duplicate data
+    const duplicateData = {
+      machine_name: `${machine.machine_name} (Copy)`,
+      company: machine.company,
+      machine_category: machine.machine_category,
+      laser_category: machine.machine_category, // Assuming this maps to machine_category
+      price: machine.price,
+      rating: machine.rating,
+      award: machine.award,
+      laser_type_a: machine.laser_type,
+      laser_power_a: machine.laser_power,
+      work_area: machine.work_area,
+      speed: machine.speed,
+      height: machine.height,
+      machine_size: machine.machine_size,
+      acceleration: machine.acceleration,
+      software: machine.software,
+      focus: machine.focus,
+      enclosure: machine.enclosure === "Yes",
+      wifi: machine.wifi === "Yes",
+      camera: machine.camera === "Yes",
+      passthrough: machine.passthrough === "Yes",
+      controller: machine.controller,
+      warranty: machine.warranty,
+      image_url: machine.image,
+      is_featured: false, // Set to false for copies
+      slug: `${machine.machine_name.toLowerCase().replace(/\s+/g, '-')}-copy-${Date.now()}`
+    }
+
+    // Call the API to create the duplicate
+    const response = await fetch('/api/machines', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(duplicateData),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to duplicate machine')
+    }
+
+    return response.json()
   }
 
   // Perform the actual deletion
@@ -599,7 +760,10 @@ export function MachinesTable({ data }: { data: TableMachine[] }) {
                   <span>View</span>
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer flex items-center">
+              <DropdownMenuItem 
+                className="cursor-pointer flex items-center"
+                onClick={() => handleDuplicateClick(machine.id)}
+              >
                 <Copy className="mr-2 h-4 w-4" />
                 <span>Duplicate</span>
               </DropdownMenuItem>
@@ -625,18 +789,34 @@ export function MachinesTable({ data }: { data: TableMachine[] }) {
   const updatedColumns = columns.map(col => 
     col.id === "actions" ? actionsColumn : col
   )
+
+  const handleTableReady = useCallback((table: any) => {
+    setTableInstance(table)
+  }, [])
+
+  // Get selected machines from table instance
+  const getSelectedMachines = () => {
+    if (!tableInstance) return []
+    const selectedRows = tableInstance.getSelectedRowModel().rows
+    return selectedRows.map((row: any) => row.original.id)
+  }
   
   return (
     <div>
-      {selectedMachines.length > 0 && (
+      {getSelectedMachines().length > 0 && (
         <div className="bg-muted/50 p-2 mb-4 rounded flex items-center justify-between">
           <span className="text-sm">
-            {selectedMachines.length} {selectedMachines.length === 1 ? 'machine' : 'machines'} selected
+            {getSelectedMachines().length} {getSelectedMachines().length === 1 ? 'machine' : 'machines'} selected
           </span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleBulkDuplicateClick}
+              disabled={isDuplicating}
+            >
               <Copy className="h-3.5 w-3.5 mr-1" />
-              Duplicate
+              {isDuplicating ? "Duplicating..." : "Duplicate"}
             </Button>
             <Button 
               variant="destructive" 
@@ -651,28 +831,236 @@ export function MachinesTable({ data }: { data: TableMachine[] }) {
         </div>
       )}
       
-      <DataTable 
-        columns={updatedColumns} 
-        data={data}
-        filterableColumns={[
-          {
-            id: "machine_category",
-            title: "Category",
-            options: categoryFilters,
-          },
-          {
-            id: "company",
-            title: "Brand",
-            options: brandFilters,
-          },
-        ]}
+      {/* Filter Controls */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <div className="flex gap-2 flex-wrap">
+        {/* Category Filter */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant={categoryFilter.length > 0 ? "default" : "outline"} 
+              size="sm" 
+              className="h-9"
+            >
+              Category
+              {categoryFilter.length > 0 && (
+                <Badge className="ml-2 bg-background text-foreground" variant="secondary">
+                  {categoryFilter.length}
+                </Badge>
+              )}
+              <ChevronDown className="ml-2 h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-[200px]" align="start">
+            <DropdownMenuLabel className="flex items-center justify-between">
+              Category
+              {categoryFilter.length > 0 && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setCategoryFilter([])}
+                  className="h-auto p-0 text-xs"
+                >
+                  Clear
+                </Button>
+              )}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {categoryFilters.map((category) => (
+              <DropdownMenuItem
+                key={category.value}
+                onClick={(e) => {
+                  e.preventDefault()
+                  setCategoryFilter(
+                    categoryFilter.includes(category.value)
+                      ? categoryFilter.filter((c: string) => c !== category.value)
+                      : [...categoryFilter, category.value]
+                  )
+                }}
+                className="cursor-pointer"
+              >
+                <Checkbox
+                  checked={categoryFilter.includes(category.value)}
+                  className="mr-2"
+                />
+                {category.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Brand Filter */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant={brandFilter.length > 0 ? "default" : "outline"} 
+              size="sm" 
+              className="h-9"
+            >
+              Brand
+              {brandFilter.length > 0 && (
+                <Badge className="ml-2 bg-background text-foreground" variant="secondary">
+                  {brandFilter.length}
+                </Badge>
+              )}
+              <ChevronDown className="ml-2 h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-[200px]" align="start">
+            <DropdownMenuLabel className="flex items-center justify-between">
+              Brand
+              {brandFilter.length > 0 && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setBrandFilter([])}
+                  className="h-auto p-0 text-xs"
+                >
+                  Clear
+                </Button>
+              )}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {brandFilters.map((brand) => (
+              <DropdownMenuItem
+                key={brand.value}
+                onClick={(e) => {
+                  e.preventDefault()
+                  setBrandFilter(
+                    brandFilter.includes(brand.value)
+                      ? brandFilter.filter((b: string) => b !== brand.value)
+                      : [...brandFilter, brand.value]
+                  )
+                }}
+                className="cursor-pointer"
+              >
+                <Checkbox
+                  checked={brandFilter.includes(brand.value)}
+                  className="mr-2"
+                />
+                {brand.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Status Filter */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant={statusFilter.length > 0 ? "default" : "outline"} 
+              size="sm" 
+              className="h-9"
+            >
+              Status
+              {statusFilter.length > 0 && (
+                <Badge className="ml-2 bg-background text-foreground" variant="secondary">
+                  {statusFilter.length}
+                </Badge>
+              )}
+              <ChevronDown className="ml-2 h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-[200px]" align="start">
+            <DropdownMenuLabel className="flex items-center justify-between">
+              Status
+              {statusFilter.length > 0 && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setStatusFilter([])}
+                  className="h-auto p-0 text-xs"
+                >
+                  Clear
+                </Button>
+              )}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {statusFilters.map((status) => (
+              <DropdownMenuItem
+                key={status.value}
+                onClick={(e) => {
+                  e.preventDefault()
+                  setStatusFilter(
+                    statusFilter.includes(status.value)
+                      ? statusFilter.filter((s: string) => s !== status.value)
+                      : [...statusFilter, status.value]
+                  )
+                }}
+                className="cursor-pointer"
+              >
+                <Checkbox
+                  checked={statusFilter.includes(status.value)}
+                  className="mr-2"
+                />
+                {status.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        </div>
+        
+        {/* Clear Filters Button */}
+        {hasFilters && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={clearAllFilters}
+            className="h-9 whitespace-nowrap text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5 mr-1" />
+            Clear Filters
+          </Button>
+        )}
+      </div>
+      
+      {/* Results Summary */}
+      {isInitialized && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          {/* Active Filters Summary */}
+          {hasFilters ? (
+            <div className="flex flex-wrap gap-1 text-sm text-muted-foreground">
+              <span>Active filters:</span>
+              {categoryFilter.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {categoryFilter.length} categor{categoryFilter.length === 1 ? 'y' : 'ies'}
+                </Badge>
+              )}
+              {brandFilter.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {brandFilter.length} brand{brandFilter.length === 1 ? '' : 's'}
+                </Badge>
+              )}
+              {statusFilter.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {statusFilter.length} status{statusFilter.length === 1 ? '' : 'es'}
+                </Badge>
+              )}
+            </div>
+          ) : (
+            <div></div>
+          )}
+          
+          {/* Results Count */}
+          <div className="text-sm text-muted-foreground">
+            Showing {filteredData.length} of {data.length} machines
+          </div>
+        </div>
+      )}
+      
+      {/* Show loading state while filters are initializing */}
+      {!isInitialized ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-muted-foreground">Loading filters...</div>
+        </div>
+      ) : (
+        <DataTable 
+          columns={updatedColumns} 
+          data={filteredData}
         searchableColumns={[
           {
             id: "machine_name",
             title: "name",
           },
         ]}
-        onRowSelectionChange={setSelectedMachines}
+        onTableReady={handleTableReady}
         initialColumnVisibility={{
           // Hide feature columns by default
           laser_type: false,
@@ -690,7 +1078,8 @@ export function MachinesTable({ data }: { data: TableMachine[] }) {
           controller: false,
           warranty: false,
         }}
-      />
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

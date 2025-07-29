@@ -392,6 +392,20 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Critical Fixes**: Database schema mismatch (Product URL → product_link), Supabase query syntax errors, UPDATE WHERE clause issues
 - **Feature**: Multi-layer detection strategies, configurable thresholds, detailed duplicate reporting with existing machine links
 
+### 2025-07-28: Auto-Discovery System & Brand Linking Implementation
+- **Issue**: Manual manufacturer configuration required tedious sitemap research and URL discovery
+- **Solution**: Complete auto-discovery system with sitemap analysis, category URL detection, and optimal crawl delay testing
+- **Impact**: One-click manufacturer setup with intelligent configuration generation for immediate product discovery
+- **Technical**: ConfigDiscoveryService, FastAPI endpoints, enhanced UI with discovery reports, automatic JSON population
+- **Feature**: Auto-discovery button, discovery progress feedback, expandable URL lists, brand linking via dropdowns
+
+### 2025-07-28: Comprehensive Discovery System Fixes & UI Enhancements  
+- **Issue**: Auto-discovery button not visible, discovered machine import failures, URL management UI consuming excessive screen space
+- **Solution**: Modal UI refactoring, foreign key constraint fixes, brand dropdown integration, compact stats interface
+- **Impact**: Fully operational discovery pipeline from manufacturer sites through machine import with enhanced user experience
+- **Technical**: Modal restructuring, brand slug lookup system, React Select validation fixes, discovered machine import workflow
+- **Feature**: Compact URL stats, machine images in search results, enhanced validation and dropdown support
+
 ## 🎯 Success Criteria Achieved
 - ✅ Dual-service architecture operational with shared database
 - ✅ Intelligent price extraction with <20% false positives (down from 80%+)

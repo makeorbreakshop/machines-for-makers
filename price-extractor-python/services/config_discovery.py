@@ -120,7 +120,7 @@ class ConfigDiscoveryService:
         category_urls = []
         category_keywords = [
             'laser', 'cutter', 'engraver', 'printer', '3d', 'cnc', 'mill', 'router',
-            'collection', 'category', 'product', 'shop', 'machine', 'tool'
+            'collection', 'category', 'product', 'shop', 'machine', 'tool', 'spec'
         ]
         
         try:
@@ -129,13 +129,126 @@ class ConfigDiscoveryService:
                 return category_urls
             
             # Parse XML sitemap
-            root = ET.fromstring(response.content)
+            try:
+                root = ET.fromstring(response.content)
+            except ET.ParseError as e:
+                logger.error(f"Failed to parse XML from {sitemap_url}: {e}")
+                return category_urls
             
             # Handle namespace
             namespace = {'sitemap': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
             
-            # Find all URLs
-            urls = []
+            # Check if this is a sitemap index file (contains <sitemap> elements)
+            sitemap_refs = []
+            
+            # Look for sitemap references with namespace
+            for sitemap_elem in root.findall('.//sitemap:sitemap', namespace):
+                loc_elem = sitemap_elem.find('sitemap:loc', namespace)
+                if loc_elem is not None:
+                    sitemap_refs.append(loc_elem.text)
+            
+            # Try without namespace if no refs found
+            if not sitemap_refs:
+                for sitemap_elem in root.findall('.//sitemap'):
+                    loc_elem = sitemap_elem.find('loc')
+                    if loc_elem is not None:
+                        sitemap_refs.append(loc_elem.text)
+            
+            # If this is a sitemap index, process the referenced sitemaps
+            if sitemap_refs:
+                logger.info(f"Found sitemap index with {len(sitemap_refs)} referenced sitemaps: {sitemap_refs}")
+                
+                # Focus on collection and product sitemaps, prioritize collections
+                relevant_sitemaps = []
+                priority_sitemaps = []  # Collections first, then products, then pages
+                
+                for sitemap_ref in sitemap_refs:
+                    sitemap_lower = sitemap_ref.lower()
+                    if 'collection' in sitemap_lower:
+                        priority_sitemaps.append(sitemap_ref)
+                    elif any(keyword in sitemap_lower for keyword in ['product', 'category', 'page']):
+                        relevant_sitemaps.append(sitemap_ref)
+                
+                # Put priority sitemaps first
+                relevant_sitemaps = priority_sitemaps + relevant_sitemaps
+                logger.info(f"Processing {len(relevant_sitemaps)} relevant sitemaps: {relevant_sitemaps}")
+                
+                # Process a few of the most relevant sitemaps
+                for sitemap_ref in relevant_sitemaps[:3]:  # Limit to avoid too many requests
+                    logger.info(f"Processing referenced sitemap: {sitemap_ref}")
+                    sub_urls = self._extract_urls_from_sitemap(sitemap_ref)
+                    logger.info(f"Got {len(sub_urls)} URLs from {sitemap_ref}")
+                    category_urls.extend(sub_urls)
+                    
+            else:
+                # This is a regular sitemap, extract URLs directly
+                urls = self._extract_urls_from_sitemap(sitemap_url)
+                category_urls.extend(urls)
+            
+            # Filter for category-like URLs
+            filtered_urls = []
+            for url in category_urls:
+                url_lower = url.lower()
+                path = urlparse(url).path.lower()
+                
+                # Skip individual product pages (usually have IDs or specific product names)
+                if re.search(r'/products?/[^/]+/[^/]+$', path):
+                    continue
+                
+                # Skip very specific product URLs (with model numbers, SKUs, etc.)
+                if re.search(r'/products?/[a-z0-9-]+-\d+', path):
+                    continue
+                
+                # Look for category indicators
+                if any(keyword in url_lower for keyword in category_keywords):
+                    # Strongly prefer collection/category pages
+                    if any(indicator in path for indicator in ['/collection', '/category', '/shop']):
+                        filtered_urls.append(url)
+                    # Also include general product pages that seem like categories
+                    elif '/products' in path and not re.search(r'/products/[^/]+$', path):
+                        filtered_urls.append(url)
+                    # Include tech-specs, manual, or other product-related pages
+                    elif any(indicator in path for indicator in ['/tech-spec', '/manual', '/spec']):
+                        filtered_urls.append(url)
+            
+            category_urls = filtered_urls
+            
+            # Remove duplicates and sort
+            category_urls = list(set(category_urls))
+            category_urls.sort()
+            
+            # Limit to reasonable number
+            category_urls = category_urls[:10]
+            
+            logger.info(f"Found {len(category_urls)} category URLs after filtering")
+            
+        except Exception as e:
+            logger.error(f"Error analyzing sitemap {sitemap_url}: {e}")
+        
+        return category_urls
+    
+    def _extract_urls_from_sitemap(self, sitemap_url: str) -> List[str]:
+        """Extract URLs from a regular sitemap file"""
+        
+        urls = []
+        
+        try:
+            response = self.session.get(sitemap_url, timeout=15)
+            if response.status_code != 200:
+                logger.warning(f"Failed to fetch sitemap {sitemap_url}: HTTP {response.status_code}")
+                return urls
+            
+            # Parse XML sitemap
+            try:
+                root = ET.fromstring(response.content)
+            except ET.ParseError as e:
+                logger.error(f"Failed to parse XML from {sitemap_url}: {e}")
+                return urls
+            
+            # Handle namespace
+            namespace = {'sitemap': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+            
+            # Find all URLs with namespace
             for url_elem in root.findall('.//sitemap:url', namespace):
                 loc_elem = url_elem.find('sitemap:loc', namespace)
                 if loc_elem is not None:
@@ -148,34 +261,12 @@ class ConfigDiscoveryService:
                     if loc_elem is not None:
                         urls.append(loc_elem.text)
             
-            logger.info(f"Found {len(urls)} URLs in sitemap")
-            
-            # Filter for category-like URLs
-            for url in urls:
-                url_lower = url.lower()
-                path = urlparse(url).path.lower()
-                
-                # Skip individual product pages (usually have IDs or specific product names)
-                if re.search(r'/products?/[^/]+$', path):
-                    continue
-                
-                # Look for category indicators
-                if any(keyword in url_lower for keyword in category_keywords):
-                    # Prefer collection/category pages over individual items
-                    if any(indicator in path for indicator in ['/collection', '/category', '/shop', '/products']):
-                        category_urls.append(url)
-            
-            # Remove duplicates and sort
-            category_urls = list(set(category_urls))
-            category_urls.sort()
-            
-            # Limit to reasonable number
-            category_urls = category_urls[:10]
+            logger.info(f"Extracted {len(urls)} URLs from sitemap: {sitemap_url}")
             
         except Exception as e:
-            logger.error(f"Error analyzing sitemap {sitemap_url}: {e}")
+            logger.error(f"Error extracting URLs from sitemap {sitemap_url}: {e}")
         
-        return category_urls
+        return urls
     
     async def _discover_categories_from_page(self, base_url: str) -> List[str]:
         """Fallback: discover categories by crawling main page"""
@@ -272,10 +363,12 @@ class ConfigDiscoveryService:
         # Pretty format the JSON
         return json.dumps(formatted_config, indent=2)
     
-    async def generate_discovery_report(self, base_url: str, site_name: str) -> Dict:
+    async def generate_discovery_report(self, base_url: str, site_name: str, config: Optional[Dict] = None) -> Dict:
         """Generate a detailed report of what was discovered"""
         
-        config = await self.discover_site_config(base_url, site_name)
+        # If config is not provided, discover it
+        if config is None:
+            config = await self.discover_site_config(base_url, site_name)
         
         report = {
             "site_name": site_name,
