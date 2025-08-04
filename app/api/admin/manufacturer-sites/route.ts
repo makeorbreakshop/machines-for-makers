@@ -10,7 +10,13 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("manufacturer_sites")
-      .select("*")
+      .select(`
+        *,
+        brands (
+          Name,
+          Slug
+        )
+      `)
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -49,6 +55,7 @@ export async function POST(request: NextRequest) {
       sitemap_url: body.sitemap_url || null,
       scraping_config: body.scraping_config || {},
       is_active: body.is_active !== undefined ? body.is_active : true,
+      brand_id: body.brand_id || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }

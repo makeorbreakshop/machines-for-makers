@@ -28,6 +28,7 @@ export async function GET() {
       .select("id, \"Machine Name\", \"Award\", \"Internal link\", \"Image\", \"Excerpt (Short)\", \"Price\", \"Laser Category\"")
       .not("Award", "is", null)
       .eq("Hidden", false)
+      .not('Published On', 'is', null)  // Only show published machines
       .order("Rating", { ascending: false })
       .limit(6)
 

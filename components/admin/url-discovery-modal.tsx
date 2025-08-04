@@ -82,6 +82,8 @@ export function URLDiscoveryModal({
   const [filter, setFilter] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [maxPages, setMaxPages] = useState(5)
+  const [smartClassification, setSmartClassification] = useState<any>(null)
+  const [useSmartFiltering, setUseSmartFiltering] = useState(true)
   const pollingInterval = useRef<NodeJS.Timeout | null>(null)
   const { toast } = useToast()
   
@@ -93,6 +95,7 @@ export function URLDiscoveryModal({
       setDiscoveryStatus(null)
       setResults(null)
       setUrls([])
+      setSmartClassification(null)
       if (pollingInterval.current) {
         clearInterval(pollingInterval.current)
         pollingInterval.current = null
@@ -164,28 +167,105 @@ export function URLDiscoveryModal({
     setIsDiscovering(true)
     setScanId(null)
     setDiscoveryStatus(null)
+    setSmartClassification(null)
     
     try {
-      // Use the manufacturer sites crawl endpoint
-      const response = await fetch(`/api/admin/manufacturer-sites/${manufacturerId}/crawl`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let endpoint, body
+      
+      if (useSmartFiltering) {
+        // Use smart discovery endpoint
+        endpoint = 'http://localhost:8000/api/v1/smart/smart-discover-urls'
+        body = JSON.stringify({
+          manufacturer_id: manufacturerId,
+          base_url: baseUrl,
+          manufacturer_name: manufacturerName,
+          max_pages: maxPages,
+          apply_smart_filtering: true
+        })
+      } else {
+        // Use regular manufacturer sites crawl endpoint
+        endpoint = `/api/admin/manufacturer-sites/${manufacturerId}/crawl`
+        body = JSON.stringify({
           scan_type: 'discovery',
-          max_products: maxPages * 10, // Approximate products per page
+          max_products: maxPages * 10,
           test_mode: false
         })
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
       })
 
       if (!response.ok) throw new Error('Discovery failed')
       
       const data = await response.json()
       
-      // Check if we have immediate results
-      if (data.results && data.results.urls) {
+      if (useSmartFiltering && data.success) {
+        // Handle smart discovery results
+        setIsDiscovering(false)
+        setSmartClassification(data)
+        
+        // Transform classified URLs for display (include auto_skip for auditing)
+        const urlsToShow = [
+          ...data.classified_urls.high_confidence.map(item => ({
+            url: item.url,
+            category: item.category,
+            selected: item.classification === 'HIGH_CONFIDENCE', // Auto-select high confidence
+            classification: item.classification,
+            confidence: item.confidence,
+            reason: item.reason
+          })),
+          ...data.classified_urls.needs_review.map(item => ({
+            url: item.url,
+            category: item.category,  
+            selected: false, // Require manual review
+            classification: item.classification,
+            confidence: item.confidence,
+            reason: item.reason
+          })),
+          ...data.classified_urls.auto_skip.map(item => ({
+            url: item.url,
+            category: item.category,  
+            selected: false, // Not selected by default for auditing
+            classification: item.classification,
+            confidence: item.confidence,
+            reason: item.reason
+          })),
+          ...data.classified_urls.duplicate_likely.map(item => ({
+            url: item.url,
+            category: item.category,  
+            selected: false, // Not selected by default
+            classification: item.classification,
+            confidence: item.confidence,
+            reason: item.reason
+          }))
+        ]
+        
+        setUrls(urlsToShow)
+        
+        setResults({
+          domain: new URL(baseUrl).hostname,
+          pages_crawled: 1,
+          credits_used: data.credits_used,
+          total_urls_found: data.total_urls_found,
+          urls: urlsToShow.map(u => u.url),
+          categorized: {},
+          estimated_credits_per_product: 20,
+          estimated_total_credits: data.estimated_credits_for_products,
+          discovery_method: data.discovery_method
+        })
+        
+        toast({
+          title: "Smart Discovery Complete",
+          description: `Found ${data.total_urls_found} URLs. Classified ${data.classification_summary.auto_skip} as auto-skip (showing for audit). ${urlsToShow.length} total for review.`,
+        })
+        
+      } else if (!useSmartFiltering && data.results && data.results.urls) {
+        // Handle regular discovery results  
         setIsDiscovering(false)
         
-        // Transform the results for display
         const categorizedUrls = data.results.categorized || {}
         const allUrls = data.results.urls.map(url => ({
           url,
@@ -209,7 +289,6 @@ export function URLDiscoveryModal({
         
         setUrls(allUrls)
         
-        // Show completion message
         toast({
           title: "Discovery Complete",
           description: `Found ${data.results.total_urls_found} product URLs using ${data.results.credits_used} credits`,
@@ -232,6 +311,11 @@ export function URLDiscoveryModal({
     } catch (error) {
       console.error('Discovery error:', error)
       setIsDiscovering(false)
+      toast({
+        title: "Discovery Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive"
+      })
     }
   }
 
@@ -559,10 +643,33 @@ export function URLDiscoveryModal({
                       checked={urlObj.selected}
                       onCheckedChange={() => toggleUrl(urls.indexOf(urlObj))}
                     />
-                    <Badge variant="outline" className="shrink-0">
-                      {urlObj.category.replace('_', ' ')}
-                    </Badge>
-                    <span className="text-sm flex-1 truncate">
+                    <div className="flex gap-1 shrink-0">
+                      <Badge variant="outline">
+                        {urlObj.category.replace('_', ' ')}
+                      </Badge>
+                      {(urlObj as any).classification && (
+                        <Badge 
+                          variant={
+                            (urlObj as any).classification === 'HIGH_CONFIDENCE' ? 'default' :
+                            (urlObj as any).classification === 'NEEDS_REVIEW' ? 'secondary' :
+                            (urlObj as any).classification === 'AUTO_SKIP' ? 'destructive' :
+                            'outline'
+                          }
+                          className="text-xs"
+                        >
+                          {(urlObj as any).classification === 'HIGH_CONFIDENCE' ? 'HIGH' :
+                           (urlObj as any).classification === 'NEEDS_REVIEW' ? 'REVIEW' :
+                           (urlObj as any).classification === 'AUTO_SKIP' ? 'SKIP' :
+                           (urlObj as any).classification === 'DUPLICATE_LIKELY' ? 'DUP' :
+                           'UNK'}
+                          {(urlObj as any).confidence && ` ${Math.round((urlObj as any).confidence * 100)}%`}
+                        </Badge>
+                      )}
+                    </div>
+                    <span 
+                      className="text-sm flex-1 truncate"
+                      title={(urlObj as any).reason || ''}
+                    >
                       {urlObj.url}
                     </span>
                     <a 

@@ -149,6 +149,8 @@ export async function GET(request: NextRequest) {
       .select(fields, { count: "exact" })
       // Simplified hidden filter
       .filter('Hidden', 'not.eq', 'true')
+      // Only show published machines
+      .not('Published On', 'is', null)
 
     debug.log("API: Getting all visible machines with query:", query)
 

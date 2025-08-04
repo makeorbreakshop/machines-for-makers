@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 import gzip
 from io import BytesIO
 import xml.etree.ElementTree as ET
+from .smart_url_classifier import SmartURLClassifier
 
 load_dotenv()
 
@@ -27,6 +28,7 @@ class URLDiscoveryService:
         if not api_key:
             raise ValueError("SCRAPFLY_API_KEY not set")
         self.client = ScrapflyClient(key=api_key)
+        self.classifier = SmartURLClassifier()
         
         # Common product URL patterns
         self.product_patterns = [
@@ -148,6 +150,35 @@ class URLDiscoveryService:
         if sitemap_urls:
             logger.info(f"Success! Found {len(sitemap_urls)} URLs from sitemap (minimal credits used)")
             
+            # Apply smart classification to all URLs
+            logger.info(f"Applying smart classification to {len(sitemap_urls)} URLs...")
+            classifications = self.classifier.classify_batch(sitemap_urls)
+            summary = self.classifier.get_classification_summary(classifications)
+            
+            logger.info(f"Classification results: {summary['auto_skip']} auto-skip, "
+                       f"{summary['high_confidence']} high confidence, "
+                       f"{summary['needs_review']} needs review, "
+                       f"{summary['duplicate_likely']} likely duplicates")
+            
+            # Organize URLs by classification (including auto_skip for auditing)
+            classified_urls = {
+                'auto_skip': [],
+                'high_confidence': [],
+                'needs_review': [],
+                'duplicate_likely': []
+            }
+            
+            for url, classification in classifications.items():
+                status_key = classification.status.lower()
+                classified_urls[status_key].append({
+                    'url': url,
+                    'classification': classification.status,
+                    'confidence': classification.confidence,
+                    'reason': classification.reason,
+                    'category': classification.category_hint,
+                    'details': classification.details
+                })
+            
             categorized = self._categorize_urls(sitemap_urls)
             
             return {
@@ -158,8 +189,10 @@ class URLDiscoveryService:
                 'total_urls_found': len(sitemap_urls),
                 'urls': sitemap_urls,
                 'categorized': categorized,
+                'classified': classified_urls,
+                'classification_summary': summary,
                 'discovery_method': 'sitemap',
-                'estimated_credits_per_product': 20,
+                'estimated_credits_per_product': len(classified_urls['high_confidence']) * 20 + len(classified_urls['needs_review']) * 20,
                 'estimated_total_credits': len(sitemap_urls) * 20
             }
         

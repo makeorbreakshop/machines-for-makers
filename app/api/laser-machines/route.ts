@@ -40,6 +40,7 @@ export async function GET() {
         "Image"
       `)
       .or('Hidden.is.null,Hidden.eq.false,Hidden.neq.true')  // Only visible machines
+      .not('Published On', 'is', null)  // Only show published machines
       .order("Machine Name", { ascending: true });
 
     if (error) {

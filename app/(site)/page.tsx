@@ -55,6 +55,7 @@ async function getTopPicks(): Promise<TopPickProduct[]> {
       .select('id, "Machine Name", "Award", "Internal link", "Image", "Excerpt (Short)", "Price", "Laser Category"')
       .eq("Award", "Top Pick")
       .or('Hidden.is.null,"Hidden".eq.false')
+      .not('Published On', 'is', null)  // Only show published machines
       .order("Rating", { ascending: false })
       .limit(6)
 

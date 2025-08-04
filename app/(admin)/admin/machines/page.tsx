@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { createServerClient } from "@/lib/supabase/server"
-import { Plus, Database } from "lucide-react"
+import { Plus } from "lucide-react"
 import Link from "next/link"
 import { MachinesTable, type TableMachine } from "@/components/admin/machines-table"
 import type { Database as DbType } from "@/lib/database-types"
@@ -110,20 +110,6 @@ export default async function MachinesPage() {
 
       <div className="grid gap-4">
         <Card className="overflow-hidden">
-          <CardHeader className="pb-2 md:pb-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <CardTitle>All Machines</CardTitle>
-                <CardDescription>
-                  {safeData.length} machines in database
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Database className="h-4 w-4" />
-                <span>Last updated: {new Date().toLocaleDateString()}</span>
-              </div>
-            </div>
-          </CardHeader>
           <CardContent className="p-0 md:p-3">
             <Suspense fallback={<TableSkeleton columns={7} rows={10} />}>
               <MachinesTable data={safeData} />

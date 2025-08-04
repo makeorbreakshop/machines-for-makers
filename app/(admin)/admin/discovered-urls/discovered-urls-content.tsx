@@ -419,62 +419,23 @@ export function DiscoveredURLsContent({
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total URLs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Scraping Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span>Pending:</span>
-                <span className="font-medium text-yellow-600">{stats.pending}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Scraped:</span>
-                <span className="font-medium text-green-600">{stats.scraped}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Skipped:</span>
-                <span className="font-medium text-gray-600">{stats.skipped}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Failed:</span>
-                <span className="font-medium text-red-600">{stats.failed}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Duplicate Detection</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span>Unique:</span>
-                <span className="font-medium text-green-600">{stats.unique}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Duplicates:</span>
-                <span className="font-medium text-orange-600">{stats.duplicates}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Not Checked:</span>
-                <span className="font-medium text-gray-600">{stats.duplicate_pending}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Compact Stats */}
+      <div className="flex items-center gap-6 text-sm mb-4 p-3 bg-gray-50 rounded-lg">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-600">Total:</span>
+          <span className="font-semibold text-lg">{stats.total}</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-yellow-600">Pending: {stats.pending}</span>
+          <span className="text-green-600">Scraped: {stats.scraped}</span>
+          <span className="text-gray-600">Skipped: {stats.skipped}</span>
+          <span className="text-red-600">Failed: {stats.failed}</span>
+        </div>
+        <div className="flex items-center gap-4 border-l pl-4">
+          <span className="text-green-600">Unique: {stats.unique}</span>
+          <span className="text-orange-600">Duplicates: {stats.duplicates}</span>
+          <span className="text-gray-600">Not Checked: {stats.duplicate_pending}</span>
+        </div>
       </div>
 
       {/* Filters and Actions */}
@@ -833,13 +794,26 @@ export function DiscoveredURLsContent({
                               <div
                                 key={machine.id}
                                 onClick={() => handleLinkToMachine(url.id, machine.id)}
-                                className="p-2 hover:bg-blue-100 cursor-pointer rounded border flex justify-between items-center"
+                                className="p-2 hover:bg-blue-100 cursor-pointer rounded border flex items-center gap-3"
                               >
-                                <div>
-                                  <div className="font-medium text-sm">{machine["Machine Name"]}</div>
-                                  <div className="text-xs text-gray-600">{machine["Company"]}</div>
+                                <div className="flex-shrink-0 w-12 h-12">
+                                  {machine["Image"] ? (
+                                    <img
+                                      src={machine["Image"]}
+                                      alt={machine["Machine Name"]}
+                                      className="w-12 h-12 object-cover rounded border"
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                                      <span className="text-gray-400 text-xs">No img</span>
+                                    </div>
+                                  )}
                                 </div>
-                                <Badge variant="outline" className="text-xs">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">{machine["Machine Name"]}</div>
+                                  <div className="text-xs text-gray-600 truncate">{machine["Company"]}</div>
+                                </div>
+                                <Badge variant="outline" className="text-xs flex-shrink-0">
                                   {machine["Category"]}
                                 </Badge>
                               </div>

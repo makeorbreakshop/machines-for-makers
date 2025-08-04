@@ -9,7 +9,8 @@ import {
   XCircle, 
   AlertTriangle, 
   Eye,
-  ExternalLink
+  ExternalLink,
+  Download
 } from "lucide-react"
 import { DiscoveredProduct } from "@/app/(admin)/admin/discovery/page"
 import { DiscoveryDetailedModal } from "./discovery-detailed-modal"
@@ -146,6 +147,26 @@ export function DiscoveryCompactGrid({ data, defaultSiteFilter }: DiscoveryCompa
     }
   }
 
+  const handleImportMachine = async (machineId: string) => {
+    try {
+      const response = await fetch(`/api/admin/discovered-machines/${machineId}/import`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to import machine')
+      }
+
+      const result = await response.json()
+      alert(`Machine "${result.machine['Machine Name']}" imported successfully!`)
+      window.location.reload()
+    } catch (error) {
+      console.error('Failed to import machine:', error)
+      alert(`Error: ${error.message}`)
+    }
+  }
+
   const openDetailModal = (product: DiscoveredProduct) => {
     setSelectedProduct(product)
     setIsDetailModalOpen(true)
@@ -276,14 +297,42 @@ export function DiscoveryCompactGrid({ data, defaultSiteFilter }: DiscoveryCompa
                         Source
                       </a>
                       {product.status === 'pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleUpdateStatus(product.id, 'approved')}
+                            className="px-2 py-1 text-xs text-green-600 hover:text-green-700 hover:border-green-300"
+                          >
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleUpdateStatus(product.id, 'rejected')}
+                            className="px-2 py-1 text-xs text-red-600 hover:text-red-700 hover:border-red-300"
+                          >
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                      {product.status === 'approved' && !product.imported_machine_id && (
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() => handleUpdateStatus(product.id, 'rejected')}
-                          className="px-2 py-1 text-xs text-red-600"
+                          variant="default"
+                          onClick={() => handleImportMachine(product.id)}
+                          className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white"
                         >
-                          Reject
+                          <Download className="h-3 w-3 mr-1" />
+                          Import
                         </Button>
+                      )}
+                      {product.status === 'imported' && (
+                        <span className="px-2 py-1 text-xs text-gray-500 bg-gray-100 rounded">
+                          Imported
+                        </span>
                       )}
                     </div>
                   </td>

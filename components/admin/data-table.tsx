@@ -66,8 +66,8 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   filterableColumns?: FilterableColumn[]
   searchableColumns?: SearchableColumn[]
-  onRowSelectionChange?: (ids: string[]) => void
   initialColumnVisibility?: VisibilityState
+  onTableReady?: (table: any) => void
 }
 
 export function DataTable<TData, TValue>({ 
@@ -75,8 +75,8 @@ export function DataTable<TData, TValue>({
   data, 
   filterableColumns = [],
   searchableColumns = [],
-  onRowSelectionChange,
   initialColumnVisibility,
+  onTableReady,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -85,7 +85,7 @@ export function DataTable<TData, TValue>({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility || {})
   const [activeFilters, setActiveFilters] = useState<{[key: string]: string[]}>({})
   
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(25)
 
   // Use initialColumnVisibility on first render if provided
   useEffect(() => {
@@ -94,22 +94,6 @@ export function DataTable<TData, TValue>({
     }
   }, [initialColumnVisibility])
 
-  // Get IDs of selected rows whenever rowSelection changes
-  useEffect(() => {
-    if (onRowSelectionChange) {
-      const table = document.querySelector('table')
-      if (!table) return
-
-      const selectedIds: string[] = []
-      Object.keys(rowSelection).forEach(idx => {
-        // Using any to bypass TypeScript error, since we can't know the shape of TData
-        const id = (data[parseInt(idx)] as any)?.id
-        if (id) selectedIds.push(id)
-      })
-      
-      onRowSelectionChange(selectedIds)
-    }
-  }, [rowSelection, data, onRowSelectionChange])
 
   const table = useReactTable({
     data,
@@ -131,6 +115,13 @@ export function DataTable<TData, TValue>({
       columnVisibility,
     },
   })
+
+  // Call onTableReady when table is created
+  useEffect(() => {
+    if (onTableReady) {
+      onTableReady(table)
+    }
+  }, [table, onTableReady])
 
   // Apply active filters to column filters
   useEffect(() => {
@@ -382,7 +373,7 @@ export function DataTable<TData, TValue>({
                 <SelectValue placeholder={itemsPerPage} />
               </SelectTrigger>
               <SelectContent side="top">
-                {[5, 10, 20, 50, 100].map((pageSize) => (
+                {[5, 10, 25, 50, 100].map((pageSize) => (
                   <SelectItem key={pageSize} value={`${pageSize}`}>
                     {pageSize}
                   </SelectItem>

@@ -7,6 +7,13 @@ interface SaveDiscoveredURLsRequest {
   manufacturer_id: string
   urls: string[]
   categories?: Record<string, string>
+  classified_urls?: {
+    auto_skip: Array<{url: string, classification: string, confidence: number, reason: string, category: string}>
+    high_confidence: Array<{url: string, classification: string, confidence: number, reason: string, category: string}>
+    needs_review: Array<{url: string, classification: string, confidence: number, reason: string, category: string}>
+    duplicate_likely: Array<{url: string, classification: string, confidence: number, reason: string, category: string}>
+  }
+  classification_summary?: any
 }
 
 export async function POST(request: NextRequest) {
@@ -14,22 +21,67 @@ export async function POST(request: NextRequest) {
     const supabase = createServerClient()
     const body: SaveDiscoveredURLsRequest = await request.json()
     
-    const { manufacturer_id, urls, categories = {} } = body
+    const { manufacturer_id, urls, categories = {}, classified_urls, classification_summary } = body
     
-    if (!manufacturer_id || !urls || urls.length === 0) {
+    if (!manufacturer_id || (!urls || urls.length === 0) && !classified_urls) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       )
     }
     
-    // Prepare URLs for insertion
-    const urlsToInsert = urls.map(url => ({
-      manufacturer_id,
-      url,
-      category: categories[url] || 'unknown',
-      status: 'pending'
-    }))
+    let urlsToInsert: any[] = []
+    let summary = {
+      total: 0,
+      auto_skip: 0,
+      high_confidence: 0,
+      needs_review: 0,
+      duplicate_likely: 0,
+      saved: 0
+    }
+    
+    // Handle classified URLs if provided
+    if (classified_urls) {
+      // Save all URLs for auditing (including auto_skip)
+      const urlsToSave = [
+        ...classified_urls.high_confidence,
+        ...classified_urls.needs_review,
+        ...classified_urls.auto_skip,
+        ...classified_urls.duplicate_likely
+      ]
+      
+      urlsToInsert = urlsToSave.map(item => ({
+        manufacturer_id,
+        url: item.url,
+        category: item.category || categories[item.url] || 'unknown',
+        status: 'pending',
+        // Add classification metadata
+        classification_status: item.classification,
+        classification_confidence: item.confidence,
+        classification_reason: item.reason,
+        auto_approved: item.classification === 'HIGH_CONFIDENCE'
+      }))
+      
+      summary = {
+        total: Object.values(classified_urls).flat().length,
+        auto_skip: classified_urls.auto_skip.length,
+        high_confidence: classified_urls.high_confidence.length,
+        needs_review: classified_urls.needs_review.length,
+        duplicate_likely: classified_urls.duplicate_likely.length,
+        saved: urlsToInsert.length
+      }
+    } else {
+      // Fallback to old method for backwards compatibility
+      urlsToInsert = urls.map(url => ({
+        manufacturer_id,
+        url,
+        category: categories[url] || 'unknown',
+        status: 'pending'
+      }))
+      
+      summary.total = urls.length
+      summary.saved = urls.length
+    }
     
     // Insert URLs (upsert to handle duplicates)
     const { data, error } = await supabase
@@ -51,7 +103,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       saved: data?.length || 0,
-      total: urls.length
+      total: summary.total,
+      classification_summary: summary,
+      auto_skip_count: summary.auto_skip,
+      high_confidence_count: summary.high_confidence,
+      needs_review_count: summary.needs_review,
+      duplicate_likely_count: summary.duplicate_likely
     })
     
   } catch (error) {

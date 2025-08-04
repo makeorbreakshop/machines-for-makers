@@ -67,7 +67,8 @@ class PriceExtractor:
         # The MCP system was just another layer of Playwright automation on top of our existing dynamic scraper
 
         # Method 1: Try dynamic extraction for sites requiring variant selection
-        if machine_name and self._requires_dynamic_extraction(url, machine_name):
+        # Skip dynamic extraction for Scrapfly sites (they already have JavaScript rendered)
+        if machine_name and self._requires_dynamic_extraction(url, machine_name) and not self._is_scrapfly_site(url):
             try:
                 logger.info(f"🌐 METHOD 1: Attempting dynamic extraction with browser automation")
                 price, method = await self._extract_with_dynamic_scraper(url, machine_name, machine_data)
@@ -83,6 +84,8 @@ class PriceExtractor:
                     logger.info(f"❌ METHOD 1 FAILED: No price found with dynamic extraction")
             except Exception as e:
                 logger.error(f"❌ METHOD 1 ERROR: Dynamic extraction failed: {str(e)}")
+        elif machine_name and self._requires_dynamic_extraction(url, machine_name) and self._is_scrapfly_site(url):
+            logger.info(f"⏭️ METHOD 1 SKIPPED: Scrapfly site - JavaScript already rendered, using static extraction methods")
         else:
             logger.info(f"⏭️ METHOD 1 SKIPPED: Dynamic extraction not required for this URL")
         
@@ -690,6 +693,40 @@ LOOK FOR:
         except Exception as e:
             logger.error(f"Error in dynamic extraction: {str(e)}")
             return None, None
+    
+    def _is_scrapfly_site(self, url):
+        """
+        Check if URL should be handled by Scrapfly (matches hybrid scraper logic).
+        
+        Args:
+            url (str): URL to check
+            
+        Returns:
+            bool: True if this is a Scrapfly site
+        """
+        from urllib.parse import urlparse
+        
+        # Scrapfly sites (matches ScrapflyService.SCRAPFLY_SITES)
+        SCRAPFLY_SITES = [
+            'xtool.com',
+            'commarker.com', 
+            'makeblock.com',
+            'anycubic.com'
+        ]
+        
+        try:
+            domain = urlparse(url).netloc.lower()
+            # Remove www. prefix if present
+            domain = domain.replace('www.', '')
+            
+            for site in SCRAPFLY_SITES:
+                if site in domain:
+                    return True
+            
+            return False
+        except Exception as e:
+            logger.warning(f"Error checking if should use Scrapfly for {url}: {e}")
+            return False
     
     def _get_variant_rules(self, url):
         """

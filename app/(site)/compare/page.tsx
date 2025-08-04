@@ -34,7 +34,10 @@ export default async function ComparePage() {
       "Focus", "Enclosure", "Wifi", "Camera", "Passthrough", "Controller",
       "Acceleration", "Laser Frequency", "Pulse Width", "Machine Size",
       "Software", "Warranty", "Published On"
-    `).limit(150)
+    `)
+    .eq("Hidden", false)
+    .not('Published On', 'is', null)  // Only show published machines
+    .limit(150)
   ])
 
   return (

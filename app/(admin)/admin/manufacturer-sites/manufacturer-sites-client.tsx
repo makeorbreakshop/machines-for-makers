@@ -47,8 +47,13 @@ interface ManufacturerSite {
   scraping_config: any
   last_crawled_at: string | null
   is_active: boolean
+  brand_id: string | null
   created_at: string
   updated_at: string
+  brands?: {
+    Name: string
+    Slug: string
+  }
 }
 
 interface Brand {
@@ -68,7 +73,8 @@ export function ManufacturerSitesClient() {
     base_url: '',
     sitemap_url: '',
     scraping_config: '{}',
-    is_active: true
+    is_active: true,
+    brand_id: ''
   })
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -100,11 +106,11 @@ export function ManufacturerSitesClient() {
 
   const fetchBrands = async () => {
     try {
-      const response = await fetch('/api/brands')
+      const response = await fetch('/api/admin/brands')
       const result = await response.json()
       
       if (response.ok) {
-        setBrands(result.data || [])
+        setBrands(result || [])
       } else {
         console.error('Failed to fetch brands:', result.error)
       }
@@ -121,7 +127,8 @@ export function ManufacturerSitesClient() {
         base_url: site.base_url,
         sitemap_url: site.sitemap_url || '',
         scraping_config: JSON.stringify(site.scraping_config, null, 2),
-        is_active: site.is_active
+        is_active: site.is_active,
+        brand_id: site.brand_id || ''
       })
     } else {
       setEditingSite(null)
@@ -137,7 +144,8 @@ export function ManufacturerSitesClient() {
           exclude_patterns: ["/blog/*", "/support/*"],
           use_sitemap: true
         }, null, 2),
-        is_active: true
+        is_active: true,
+        brand_id: ''
       })
     }
     setDialogOpen(true)
@@ -340,6 +348,7 @@ export function ManufacturerSitesClient() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>URL</TableHead>
+              <TableHead>Brand</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Last Crawled</TableHead>
               <TableHead>Actions</TableHead>
@@ -361,6 +370,15 @@ export function ManufacturerSitesClient() {
                       </Badge>
                     )}
                   </div>
+                </TableCell>
+                <TableCell>
+                  {site.brands?.Name ? (
+                    <Badge variant="outline" className="text-xs">
+                      {site.brands.Name}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">Not linked</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant={site.is_active ? 'default' : 'secondary'}>
@@ -479,6 +497,28 @@ export function ManufacturerSitesClient() {
                   onChange={(e) => setFormData({ ...formData, sitemap_url: e.target.value })}
                   placeholder="https://omtechlaser.com/sitemap.xml"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="brand_id">Link to Brand (Optional)</Label>
+                <Select
+                  value={formData.brand_id || undefined}
+                  onValueChange={(value) => setFormData({ ...formData, brand_id: value || '' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a brand or leave blank" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {brands.map((brand) => (
+                      <SelectItem key={brand.id} value={brand.id}>
+                        {brand.Name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Link this site to a brand so discovered machines are automatically assigned. Can be changed per machine later.
+                </p>
               </div>
             </div>
 

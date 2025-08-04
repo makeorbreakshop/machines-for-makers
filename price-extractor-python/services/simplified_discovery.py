@@ -146,6 +146,18 @@ class SimplifiedDiscoveryService:
         
         return results
     
+    async def extract_product_data(self, product_url: str) -> Optional[Dict]:
+        """
+        Extract product data from a URL - wrapper for extract_product method
+        
+        Args:
+            product_url: URL of product page
+            
+        Returns:
+            Extracted product data or None
+        """
+        return await self.extract_product(product_url)
+    
     async def extract_product(self, product_url: str) -> Optional[Dict]:
         """
         Extract product data using Scrapfly's AI
@@ -300,7 +312,7 @@ class SimplifiedDiscoveryService:
             # Prepare data for storage
             machine_data = {
                 'source_url': source_url,
-                'scan_log_id': scan_id,
+                'scan_log_id': scan_id,  # This can be None
                 'status': 'pending',
                 'raw_data': product_data,  # Store complete Scrapfly data
                 'normalized_data': normalized_data,  # This is the Claude-mapped data
@@ -357,3 +369,29 @@ class SimplifiedDiscoveryService:
             return 'vinyl_cutter'
         else:
             return 'other'
+    
+    async def save_discovered_machine(self, url: str, raw_data: Dict, manufacturer_id: str) -> bool:
+        """
+        Save discovered machine data to the database
+        
+        Args:
+            url: Product URL
+            raw_data: Raw product data from extraction
+            manufacturer_id: ID of the manufacturer
+            
+        Returns:
+            True if saved successfully, False otherwise
+        """
+        try:
+            # Store the machine using our existing store method, but pass None for scan_id
+            # since scan_log_id is nullable in the database
+            return await self._store_product(
+                site_id=manufacturer_id,  # Use manufacturer_id as site_id
+                scan_id=None,  # Set to None since scan_log_id is nullable
+                product_data=raw_data,
+                source_url=url
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to save discovered machine: {str(e)}")
+            return False

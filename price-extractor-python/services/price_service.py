@@ -5,7 +5,7 @@ import uuid
 from urllib.parse import urlparse
 
 from services.database import DatabaseService
-from scrapers.web_scraper import WebScraper
+from scrapers.hybrid_web_scraper import get_hybrid_scraper
 from scrapers.price_extractor import PriceExtractor
 from services.variant_verification import VariantVerificationService
 from config import (
@@ -20,11 +20,11 @@ class PriceService:
     def __init__(self):
         """Initialize dependencies."""
         self.db_service = DatabaseService()
-        # Always use regular scraper for price service - Scrapfly is discovery only
-        self.web_scraper = WebScraper()
+        # Use hybrid scraper with Scrapfly integration for difficult sites
+        self.web_scraper = get_hybrid_scraper()
         self.price_extractor = PriceExtractor()
         self.variant_verifier = None  # Will be initialized per batch
-        logger.info("Price service initialized")
+        logger.info("Price service initialized with hybrid scraper (Scrapfly integration)")
     
     def _setup_batch_logging(self, batch_id):
         """

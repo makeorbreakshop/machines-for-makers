@@ -26,7 +26,8 @@ class ScrapflyService:
         'xtool.com',
         'commarker.com',
         'makeblock.com',
-        'anycubic.com'
+        'anycubic.com',
+        'thunderlaserusa.com'  # Added: Complex Chinese e-commerce with anti-bot protection
     ]
     
     def __init__(self, api_key: Optional[str] = None):

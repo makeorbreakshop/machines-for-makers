@@ -19,6 +19,10 @@ config_discovery = ConfigDiscoveryService()
 from api.cost_routes import router as cost_router
 router.include_router(cost_router, prefix="/cost", tags=["cost-tracking"])
 
+# Include smart discovery routes
+from api.smart_discovery import router as smart_discovery_router
+router.include_router(smart_discovery_router, prefix="/smart", tags=["smart-discovery"])
+
 class MachineUpdateRequest(BaseModel):
     """Request model for updating a machine's price."""
     machine_id: str
@@ -883,9 +887,9 @@ async def scrape_discovered_urls(request: ScrapeDiscoveredURLsRequest, backgroun
         
         return {
             "success": True,
-            "message": f"Started scraping {len(request.urls)} URLs for {manufacturer['name']}",
+            "message": f"Started scraping {len(request.urls)} URLs for {manufacturer['Name']}",
             "url_count": len(request.urls),
-            "manufacturer": manufacturer['name']
+            "manufacturer": manufacturer['Name']
         }
         
     except HTTPException:
@@ -951,7 +955,7 @@ async def reset_duplicate_status():
 async def _process_discovered_urls(urls: List[str], manufacturer: dict, max_workers: Optional[int] = 3):
     """Process discovered URLs in the background."""
     try:
-        from services.discovery_service import SimplifiedDiscoveryService
+        from services.simplified_discovery import SimplifiedDiscoveryService
         
         discovery_service = SimplifiedDiscoveryService()
         
@@ -966,7 +970,7 @@ async def _process_discovered_urls(urls: List[str], manufacturer: dict, max_work
                 if product_data:
                     # Add manufacturer info
                     product_data['manufacturer_id'] = manufacturer['id']
-                    product_data['manufacturer_name'] = manufacturer['name']
+                    product_data['manufacturer_name'] = manufacturer['Name']
                     
                     # Save to discovered_machines table
                     await discovery_service.save_discovered_machine(
@@ -1082,10 +1086,11 @@ async def discover_site_configuration(request: ConfigDiscoveryRequest):
             config, request.site_name, request.base_url
         )
         
-        # Generate detailed report
+        # Generate detailed report using the already-discovered config
         report = await config_discovery.generate_discovery_report(
             base_url=request.base_url,
-            site_name=request.site_name
+            site_name=request.site_name,
+            config=config
         )
         
         return {

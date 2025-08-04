@@ -19,10 +19,22 @@ export async function POST(
 
     const supabase = createServiceClient();
 
-    // Get the discovered machine
+    // Get the discovered machine with manufacturer site and brand info
     const { data: discoveredMachine, error: fetchError } = await supabase
       .from('discovered_machines')
-      .select('*')
+      .select(`
+        *,
+        site_scan_logs (
+          manufacturer_sites (
+            name,
+            brand_id,
+            brands (
+              Name,
+              Slug
+            )
+          )
+        )
+      `)
       .eq('id', id)
       .eq('status', 'approved')
       .single();
@@ -47,28 +59,41 @@ export async function POST(
     
     console.log('Discovered machine data:', JSON.stringify(data, null, 2));
     
-    // Get the brand name from the normalized data (which should be selected from dropdown)
-    const brandName = data.company || data.brand || data.manufacturer || 'OMTech';
+    // Prioritize brand from manufacturer site, then from normalized data
+    let brandSlug = null;
+    let brandName = null;
     
-    console.log('Brand name to use:', brandName);
-    console.log('Available data fields:', Object.keys(data));
-    
-    // Find the brand slug from the brands table
-    const { data: brandData, error: brandError } = await supabase
-      .from('brands')
-      .select('Slug')
-      .eq('Name', brandName)
-      .single();
-    
-    if (brandError || !brandData) {
-      console.error('Brand not found:', brandName, brandError);
-      return NextResponse.json(
-        { error: `Brand "${brandName}" not found in brands table` },
-        { status: 400 }
-      );
+    // Check if manufacturer site has a linked brand
+    const siteInfo = discoveredMachine.site_scan_logs?.manufacturer_sites;
+    if (siteInfo?.brands?.Slug) {
+      brandSlug = siteInfo.brands.Slug;
+      brandName = siteInfo.brands.Name;
+      console.log(`Using brand from manufacturer site: ${brandName} (${brandSlug})`);
+    } else {
+      // Fallback to brand from normalized data
+      brandName = data.company || data.brand || data.manufacturer || 'OMTech';
+      console.log('Brand name from data:', brandName);
+      console.log('Available data fields:', Object.keys(data));
+      
+      // Find the brand slug from the brands table
+      const { data: brandData, error: brandError } = await supabase
+        .from('brands')
+        .select('Slug')
+        .eq('Name', brandName)
+        .single();
+      
+      if (brandError || !brandData) {
+        console.error('Brand not found:', brandName, brandError);
+        return NextResponse.json(
+          { error: `Brand "${brandName}" not found in brands table` },
+          { status: 400 }
+        );
+      }
+      
+      brandSlug = brandData.Slug;
     }
     
-    console.log('Using brand slug:', brandData.Slug);
+    console.log('Using brand slug:', brandSlug);
     
     // Helper function to ensure URLs use https
     const ensureHttps = (url: string | null): string | null => {
@@ -80,7 +105,7 @@ export async function POST(
     // Map the data to machines table format
     const machineData = {
       'Machine Name': data.name || data.title || data.machine_name || 'Imported Machine',
-      'Company': brandData.Slug,
+      'Company': brandSlug,
       'Machine Category': data.machine_category || 'laser',
       'Laser Category': data.laser_category || null,
       'Price': data.price ? parseFloat(String(data.price).replace(/[^0-9.-]/g, '')) || null : null,

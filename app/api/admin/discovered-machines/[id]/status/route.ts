@@ -37,10 +37,22 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     // If approved, automatically import the machine
     if (status === 'approved') {
       try {
-        // Get the discovered machine data
+        // Get the discovered machine data with manufacturer site and brand info
         const { data: discoveredMachine, error: fetchError } = await supabase
           .from('discovered_machines')
-          .select('*')
+          .select(`
+            *,
+            site_scan_logs (
+              manufacturer_sites (
+                name,
+                brand_id,
+                brands (
+                  Name,
+                  Slug
+                )
+              )
+            )
+          `)
           .eq('id', id)
           .single();
 
@@ -57,22 +69,57 @@ export async function PATCH(request: NextRequest, { params }: Params) {
         // Import the machine
         const data = discoveredMachine.normalized_data || discoveredMachine.raw_data;
         
-        // Get or create the brand
-        const brandName = data.company || data.brand || data.manufacturer || 'Unknown Brand';
+        // Prioritize brand from manufacturer site, then from normalized data
+        let brandSlug = null;
+        let brandName = null;
         
-        // Check if brand exists and get its slug
-        const { data: existingBrand, error: brandFetchError } = await supabase
-          .from('brands')
-          .select('Name, Slug')
-          .eq('Name', brandName)
-          .single();
+        // Check if manufacturer site has a linked brand
+        const siteInfo = discoveredMachine.site_scan_logs?.manufacturer_sites;
+        if (siteInfo?.brands?.Slug) {
+          brandSlug = siteInfo.brands.Slug;
+          brandName = siteInfo.brands.Name;
+          console.log(`Auto-import using brand from manufacturer site: ${brandName} (${brandSlug})`);
+        } else {
+          // Fallback to brand from normalized data
+          brandName = data.company || data.brand || data.manufacturer || 'Unknown Brand';
+          
+          // Try to find an exact match first
+          let { data: existingBrand, error: brandFetchError } = await supabase
+            .from('brands')
+            .select('"Name", "Slug"')
+            .eq('"Name"', brandName)
+            .single();
 
-        if (brandFetchError) {
-          console.error('Brand not found:', brandName, brandFetchError);
-          return NextResponse.json({ 
-            success: true, 
-            warning: `Approved but failed to auto-import: Brand "${brandName}" not found in brands table` 
-          });
+          // If exact match fails, try to find a partial match
+          if (brandFetchError) {
+            // For "Creality Falcon", try to match "Creality"
+            const brandWords = brandName.split(' ');
+            for (const word of brandWords) {
+              const { data: partialBrand, error: partialError } = await supabase
+                .from('brands')
+                .select('"Name", "Slug"')
+                .ilike('"Name"', word)
+                .single();
+              
+              if (!partialError && partialBrand) {
+                existingBrand = partialBrand;
+                brandFetchError = null;
+                console.log(`Found partial brand match: "${word}" matches "${partialBrand.Name}"`);
+                break;
+              }
+            }
+          }
+
+          if (brandFetchError || !existingBrand) {
+            console.error('Brand not found:', brandName, brandFetchError);
+            return NextResponse.json({ 
+              success: true, 
+              warning: `Approved but failed to auto-import: Brand "${brandName}" not found in brands table` 
+            });
+          }
+          
+          brandSlug = existingBrand.Slug;
+          brandName = existingBrand.Name; // Use the actual brand name from DB
         }
         
         // Helper function to ensure URLs use https
@@ -84,7 +131,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
         
         const machineData = {
           'Machine Name': data.name || data.title || data.machine_name || 'Imported Machine',
-          'Company': existingBrand.Slug,
+          'Company': brandSlug,
           'Machine Category': data.machine_category || 'laser',
           'Laser Category': data.laser_category || null,
           'Price': data.price ? parseFloat(String(data.price).replace(/[^0-9.-]/g, '')) || null : null,
@@ -100,6 +147,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
           'Created On': new Date().toISOString(),
           'Updated On': new Date().toISOString(),
         };
+        
+        console.log(`Importing machine "${machineData['Machine Name']}" with brand: ${brandName} (slug: ${brandSlug})`);
 
         // Insert into machines table
         const { data: newMachine, error: insertError } = await supabase

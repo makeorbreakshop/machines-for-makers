@@ -44,7 +44,6 @@ class SiteSpecificExtractor:
                             '.bundle-selection .price',
                             '.selected-package .price'
                         ],
-                        'expected_price_range': [2800, 4000],  # Updated range: $3,059 sale price to ~$3,599 regular
                         'requires_dynamic': True  # May need variant selection for exact match
                     },
                     'ComMarker B4 100W MOPA': {
@@ -54,19 +53,33 @@ class SiteSpecificExtractor:
                             '[data-price]',  # Data attribute method that worked
                             '.product-summary .price ins .amount'
                         ],
-                        'avoid_data_price_contamination': True,
-                        'expected_price_range': [6500, 6800]  # Based on manual correction
+                        'avoid_data_price_contamination': True
                     },
                     'ComMarker B6 30W': {
                         'url_patterns': ['/commarker-b6', '/b6-30w'],
                         'price_selectors': [
-                            '.entry-summary .price ins .amount',  # Sale price first
-                            '.product-summary .price ins .amount'
+                            # Target the exact structure shown in user's HTML screenshot
+                            '.woocommerce-Price-amount.amount bdi',
+                            'span.woocommerce-Price-amount.amount bdi',
+                            # Target variation/bundle selection price display area
+                            '.single_variation_wrap .woocommerce-Price-amount.amount',
+                            '.variations_form .single_variation .price .amount', 
+                            '.woocommerce-variation-price .price .amount',
+                            '.variation-price .woocommerce-Price-amount.amount',
+                            # More specific variation selectors
+                            '.single_variation .price .woocommerce-Price-amount.amount',
+                            '.single_variation_wrap .price .amount',
+                            # Only as last resort - the general selectors that pick up everything
+                            '.variations .price .amount'
+                        ],
+                        'prefer_contexts': [
+                            'wd-swatch', 'variation', 'single_variation_wrap', 'woocommerce-Price-amount'
                         ],
                         'avoid_selectors': [
-                            '.price .amount:last-child'  # This selector grabbed wrong price
+                            '.saveprice',  # Avoid discount/savings amounts
+                            '.price .amount:last-child'  # Main product price selector
                         ],
-                        'expected_price_range': [2300, 2500]  # Based on manual correction
+                        'notes': 'Extract $2,399 Basic Bundle price from WooCommerce variation selector'
                     }
                 },
                 'avoid_contexts': [
@@ -169,31 +182,23 @@ class SiteSpecificExtractor:
                 'variant_detection_rules': {
                     'EMP ST30R': {
                         'keywords': ['ST30R', 'ST 30R', '30R'],
-                        'expected_price': 4995,
                         'price_tolerance': 0.1,  # 10% tolerance
                         'variant_selector': 'li.js-option.js-radio:contains("ST30R"), li.js-option.js-radio:contains("ST 30R")',
-                        'price_range': [4500, 5500]
                     },
                     'EMP ST50R': {
                         'keywords': ['ST50R', 'ST 50R'],  # Removed risky '50R' keyword
-                        'expected_price': 6995,
                         'price_tolerance': 0.1,
                         'variant_selector': 'li.js-option.js-radio:contains("ST50R"), li.js-option.js-radio:contains("ST 50R")',
-                        'price_range': [6500, 7500]
                     },
                     'EMP ST60J': {
                         'keywords': ['ST60J', 'ST 60J', '60J'],
-                        'expected_price': 8995,
                         'price_tolerance': 0.1,
                         'variant_selector': 'li.js-option.js-radio:contains("ST60J"), li.js-option.js-radio:contains("ST 60J")',
-                        'price_range': [8500, 9500]
                     },
                     'EMP ST100J': {
                         'keywords': ['ST100J', 'ST 100J', '100J'],
-                        'expected_price': 11995,
                         'price_tolerance': 0.1,
                         'variant_selector': 'li.js-option.js-radio:contains("ST100J"), li.js-option.js-radio:contains("ST 100J")',
-                        'price_range': [11500, 12500]
                     }
                 },
                 'variant_matching_strategy': 'keyword_based',  # Match machine name to variant keywords
@@ -212,39 +217,27 @@ class SiteSpecificExtractor:
                     # EMP machines with static price table
                     'EMP ST30R': {
                         'keywords': ['ST30R', 'ST 30R', '30R'],
-                        'expected_price': 4995,
                         'table_column': 0,  # First price column
-                        'price_range': [4500, 5500]
                     },
                     'EMP ST50R': {
                         'keywords': ['ST50R', 'ST 50R'],  # Removed risky '50R' keyword
-                        'expected_price': 6995,            # Corrected price
                         'table_column': 2,                 # Corrected column (was 3, now 2)
-                        'price_range': [6500, 7500]       # Corrected range
                     },
                     'EMP ST60J': {
                         'keywords': ['ST60J', 'ST 60J', '60J'],
-                        'expected_price': 8995,
-                        'table_column': 5,  # Sixth price column (corrected)
-                        'price_range': [8500, 9500]
+                        'table_column': 4,  # Fixed: Column 4 = $8995, Column 5 was $11995
                     },
                     'EMP ST100J': {
                         'keywords': ['ST100J', 'ST 100J', '100J'],
-                        'expected_price': 11995,
                         'table_column': 6,  # Seventh price column (corrected)
-                        'price_range': [11500, 12500]
                     },
                     'EMP ST30J': {
                         'keywords': ['ST30J', 'ST 30J'],
-                        'expected_price': 6995,
                         'table_column': 3,  # Fourth price column
-                        'price_range': [6500, 7500]
                     },
                     'EMP ST50J': {
                         'keywords': ['ST50J', 'ST 50J'],
-                        'expected_price': 8495,
                         'table_column': 4,  # Fifth price column
-                        'price_range': [8000, 9000]
                     }
                 },
                 'price_selectors': [
@@ -327,7 +320,6 @@ class SiteSpecificExtractor:
                             '.product-badge-price',
                             '.product-info .price-current'
                         ],
-                        'expected_price_range': [1100, 1300]  # Based on manual correction
                     },
                     'xTool F1 Lite': {
                         'url_patterns': ['/f1', '/xtool-f1'],  # Same URL as F1, requires variant selection
@@ -378,7 +370,6 @@ class SiteSpecificExtractor:
                             '.price__current .money'
                         ],
                         'avoid_meta_tags': True,  # Meta tags inaccurate
-                        'expected_price_range': [5900, 6100]  # Based on manual correction
                     }
                 },
                 'price_selectors': [
@@ -573,29 +564,24 @@ class SiteSpecificExtractor:
                 'machine_variant_mapping': {
                     'Glowforge Pro HD': {
                         'keywords': ['pro', 'hd'], 
-                        'expected_price_range': [6500, 7500],
                         'selector_hints': ['.pro.hd', '[data-variant*="pro-hd"]']
                     },
                     'Glowforge Pro': {
                         'keywords': ['pro'], 
                         'exclude_keywords': ['hd'],
-                        'expected_price_range': [5500, 6500],
                         'selector_hints': ['.pro:not(.hd)', '[data-variant*="pro"]:not([data-variant*="hd"])']
                     },
                     'Glowforge Plus HD': {
                         'keywords': ['plus', 'hd'], 
-                        'expected_price_range': [4500, 5500],
                         'selector_hints': ['.plus.hd', '[data-variant*="plus-hd"]']
                     },
                     'Glowforge Plus': {
                         'keywords': ['plus'], 
                         'exclude_keywords': ['hd'],
-                        'expected_price_range': [4000, 5000],
                         'selector_hints': ['.plus:not(.hd)', '[data-variant*="plus"]:not([data-variant*="hd"])']
                     },
                     'Glowforge Aura': {
                         'url_contains': ['/craft', '/aura'], 
-                        'expected_price_range': [1000, 1500],
                         'separate_page': True
                     }
                 },
@@ -652,8 +638,7 @@ class SiteSpecificExtractor:
                             site_rule['price_selectors'] = specific_rules['price_selectors']
                         if 'avoid_selectors' in specific_rules:
                             site_rule['avoid_selectors'] = site_rule.get('avoid_selectors', []) + specific_rules['avoid_selectors']
-                        if 'expected_price_range' in specific_rules:
-                            site_rule['expected_price_range'] = specific_rules['expected_price_range']
+                        # Use historical price validation instead of hardcoded ranges
                         if 'avoid_meta_tags' in specific_rules:
                             site_rule['avoid_meta_tags'] = specific_rules['avoid_meta_tags']
                         if 'requires_dynamic' in specific_rules:
@@ -886,7 +871,7 @@ class SiteSpecificExtractor:
         
         # ComMarker-specific price extraction logic
         if domain == 'commarker.com':
-            price, method = self._extract_commarker_main_price(soup, rules)
+            price, method = self._extract_commarker_main_price(soup, rules, machine_data)
             if price and self._validate_price(price, rules, machine_data):
                 return price, f"ComMarker main price ({method})"
         
@@ -946,7 +931,7 @@ class SiteSpecificExtractor:
             
         return None, None
     
-    def _extract_commarker_main_price(self, soup, rules):
+    def _extract_commarker_main_price(self, soup, rules, machine_data=None):
         """Extract main product price for ComMarker, targeting main product summary."""
         logger.info("🔍 Attempting ComMarker-specific price extraction")
         
@@ -962,19 +947,29 @@ class SiteSpecificExtractor:
             logger.warning("❌ Page content too short, likely corrupted")
             # Don't return None here, continue trying
         
-        # Strategy 1: Enhanced WooCommerce price detection with context awareness
-        priority_selectors = [
-            # Most specific selectors first
-            '.summary-inner .price .woocommerce-Price-amount.amount',
-            '.entry-summary .price .woocommerce-Price-amount.amount',
-            '.product-summary .woocommerce-Price-amount.amount',
-            '.product .price .woocommerce-Price-amount.amount',
-            # Broader fallbacks
-            '.woocommerce-Price-amount.amount',
-            '.price .amount',
-            '.summary-inner .price .amount',
-            '.entry-summary .price .amount'
-        ]
+        # Strategy 1: Use machine-specific selectors if available, otherwise use defaults
+        if rules and 'price_selectors' in rules:
+            priority_selectors = rules['price_selectors']
+            logger.info(f"🎯 Using machine-specific selectors: {priority_selectors}")
+        else:
+            # Fallback to default ComMarker selectors (prioritize sale prices)
+            priority_selectors = [
+                # Sale prices first (prioritize <ins> tags for sale prices)
+                '.entry-summary .price ins .amount',
+                '.product-summary .price ins .amount',
+                '.summary-inner .price ins .amount',
+                # Regular prices as fallback
+                '.summary-inner .price .woocommerce-Price-amount.amount',
+                '.entry-summary .price .woocommerce-Price-amount.amount',
+                '.product-summary .woocommerce-Price-amount.amount',
+                '.product .price .woocommerce-Price-amount.amount',
+                # Broader fallbacks
+                '.woocommerce-Price-amount.amount',
+                '.price .amount',
+                '.summary-inner .price .amount',
+                '.entry-summary .price .amount'
+            ]
+            logger.info(f"🔧 Using default ComMarker selectors (prioritizing sale prices)")
         
         all_prices_found = []
         for selector in priority_selectors:
@@ -997,25 +992,75 @@ class SiteSpecificExtractor:
                     all_prices_found.append((price, elem, selector, parent_classes))
                     logger.info(f"  ✅ Valid price: ${price} (context: {parent_classes})")
         
-        # Sort prices and log them
-        all_prices_found.sort(key=lambda x: x[0], reverse=True)
+        # Log all found prices
         logger.info(f"🔍 All valid ComMarker prices: {[f'${p[0]}' for p in all_prices_found]}")
         
-        # Enhanced price selection logic
-        if len(all_prices_found) >= 2:
-            high_price, _, _, high_context = all_prices_found[0]
-            low_price, low_elem, low_selector, low_context = all_prices_found[1]
-            
-            # Calculate price difference
-            price_difference_percent = ((high_price - low_price) / high_price) * 100
-            
-            # Prefer sale prices when there's a reasonable discount
-            if price_difference_percent > 15 and low_price < high_price:
-                logger.info(f"✅ Selected ComMarker sale price ${low_price} (was ${high_price}, {price_difference_percent:.1f}% off)")
-                return low_price, f"sale_price:{low_selector}"
+        # Enhanced price selection logic using historical price comparison
+        if len(all_prices_found) >= 1:
+            # If we have historical price data, select the closest price
+            if machine_data and machine_data.get('old_price'):
+                historical_price = float(machine_data['old_price'])
+                logger.info(f"📊 Using historical price comparison: old_price=${historical_price}")
+                
+                # Sort by distance from historical price (closest first)
+                all_prices_found.sort(key=lambda x: abs(x[0] - historical_price))
+                
+                # Log the selection logic
+                for price, elem, selector, context in all_prices_found[:3]:  # Show top 3 choices
+                    diff = abs(price - historical_price)
+                    logger.info(f"  - ${price} (diff: ${diff:.2f}) from {selector}")
+                
+                # Select the closest price
+                best_price, best_elem, best_selector, best_context = all_prices_found[0]
+                logger.info(f"✅ Selected ComMarker price ${best_price} (closest to historical ${historical_price}) using selector: {best_selector}")
+                return best_price, f"historical_match:{best_selector}"
             else:
-                logger.info(f"✅ Selected ComMarker primary price ${high_price} (diff too small: {price_difference_percent:.1f}%)")
-                return high_price, f"primary_price:{all_prices_found[0][2]}"
+                # No historical data - sort by price descending as before
+                all_prices_found.sort(key=lambda x: x[0], reverse=True)
+                logger.info("⚠️ No historical price data - using default selection logic")
+            # Special handling for machine-specific selectors targeting sale prices (<ins> tags)
+            using_machine_specific = rules and 'price_selectors' in rules
+            if using_machine_specific:
+                # For machine-specific selectors, look for bundle/variation context first
+                # Check for prices in preferred contexts (bundle, variation, woocommerce-price-amount)
+                preferred_contexts = rules.get('prefer_contexts', [])
+                if preferred_contexts:
+                    for price, elem, selector, context in all_prices_found:
+                        if price >= 1000:  # Reasonable minimum for a laser machine price
+                            # Check if this price is in a preferred context
+                            context_lower = context.lower()
+                            if any(pref_ctx in context_lower for pref_ctx in preferred_contexts):
+                                logger.info(f"✅ Selected ComMarker price ${price} from preferred context '{context}' using selector: {selector}")
+                                return price, f"machine_specific_context:{selector}"
+                
+                
+                # Fallback: take the first valid price that's not a savings amount
+                for price, elem, selector, context in all_prices_found:
+                    if price >= 1000:  # Reasonable minimum for a laser machine price
+                        logger.info(f"✅ Selected first valid ComMarker price ${price} using machine-specific selector: {selector}")
+                        return price, f"machine_specific:{selector}"
+                
+                # If no price >= $1000, fall back to highest price
+                if all_prices_found:
+                    price, elem, selector, context = all_prices_found[0]
+                    logger.info(f"✅ Selected highest ComMarker price ${price} (fallback)")
+                    return price, f"machine_specific_fallback:{selector}"
+            
+            # Standard logic for non-machine-specific selectors
+            elif len(all_prices_found) >= 2:
+                high_price, _, _, high_context = all_prices_found[0]
+                low_price, low_elem, low_selector, low_context = all_prices_found[1]
+                
+                # Calculate price difference
+                price_difference_percent = ((high_price - low_price) / high_price) * 100
+                
+                # Prefer sale prices when there's a reasonable discount
+                if price_difference_percent > 15 and low_price < high_price:
+                    logger.info(f"✅ Selected ComMarker sale price ${low_price} (was ${high_price}, {price_difference_percent:.1f}% off)")
+                    return low_price, f"sale_price:{low_selector}"
+                else:
+                    logger.info(f"✅ Selected ComMarker primary price ${high_price} (diff too small: {price_difference_percent:.1f}%)")
+                    return high_price, f"primary_price:{all_prices_found[0][2]}"
         
         # Single price found
         elif len(all_prices_found) == 1:
@@ -1176,7 +1221,7 @@ class SiteSpecificExtractor:
         # Strategy 1: Look for variant-specific selectors
         variant_config = variant_mapping[target_variant]
         selector_hints = variant_config.get('selector_hints', [])
-        expected_range = variant_config.get('expected_price_range', [])
+        # Use historical price for validation instead of hardcoded ranges
         
         for selector_hint in selector_hints:
             elements = soup.select(selector_hint)
@@ -1372,9 +1417,9 @@ class SiteSpecificExtractor:
             logger.warning(f"No matching variant found for machine: {machine_name}")
             return None, None
         
-        expected_price = variant_config.get('expected_price')
-        price_range = variant_config.get('price_range', [])
+        # Use historical price from machine data instead of hardcoded ranges
         tolerance = variant_config.get('price_tolerance', 0.1)
+        historical_price = machine_data.get('old_price') if machine_data else None
         
         # Strategy 1: Look for price in expected range on the page
         all_prices = []
@@ -1392,7 +1437,7 @@ class SiteSpecificExtractor:
                 price_str = match.group(1).replace(',', '').replace('.', '')
                 try:
                     price = float(price_str)
-                    if price_range[0] <= price <= price_range[1]:
+                    if self._is_price_reasonable(price, historical_price):
                         all_prices.append(price)
                         logger.info(f"Found candidate price: ${price} (in range {price_range})")
                 except ValueError:
@@ -1410,7 +1455,7 @@ class SiteSpecificExtractor:
                 price_str = match.group(1).replace(',', '').replace('.', '')
                 try:
                     price = float(price_str)
-                    if price_range[0] <= price <= price_range[1]:
+                    if self._is_price_reasonable(price, historical_price):
                         all_prices.append(price)
                         logger.info(f"Found variant-specific price: ${price} near keyword '{keyword}'")
                 except ValueError:
@@ -1423,7 +1468,7 @@ class SiteSpecificExtractor:
             for element in elements:
                 price_text = element.get_text().strip()
                 price = self._parse_price_text(price_text, 'aeonlaser.us')
-                if price and price_range[0] <= price <= price_range[1]:
+                if price and self._is_price_reasonable(price, historical_price):
                     all_prices.append(price)
                     logger.info(f"Found structured price: ${price} using selector: {selector}")
         
@@ -1445,21 +1490,43 @@ class SiteSpecificExtractor:
             logger.info(f"Single price found: ${best_price}")
         else:
             # Multiple prices found - prefer the one closest to expected price
-            if expected_price:
-                best_price = min(unique_prices, key=lambda x: abs(x - expected_price))
-                logger.info(f"Selected price closest to expected ${expected_price}: ${best_price}")
+            # Use historical price from machine_data if available for closest price selection
+            if machine_data and machine_data.get('old_price'):
+                historical_price = float(machine_data['old_price'])
+                best_price = min(unique_prices, key=lambda x: abs(x - historical_price))
+                logger.info(f"Selected price closest to historical ${historical_price}: ${best_price}")
             else:
                 # No expected price, take the highest (usually the bundle/full price)
                 best_price = max(unique_prices)
                 logger.info(f"Selected highest price: ${best_price}")
         
         # Final validation
-        if best_price and price_range[0] <= best_price <= price_range[1]:
+        if best_price and self._is_price_reasonable(best_price, historical_price):
             logger.info(f"✅ Successfully extracted {matched_variant} price: ${best_price}")
             return best_price, f"variant_detection:{matched_variant}"
         else:
-            logger.warning(f"Final validation failed for {matched_variant}: ${best_price} not in range {price_range}")
+            logger.warning(f"Final validation failed for {matched_variant}: ${best_price} not reasonable compared to historical price")
             return None, None
+    
+    def _is_price_reasonable(self, price, historical_price, tolerance=0.5):
+        """
+        Check if a price is reasonable compared to historical price.
+        
+        Args:
+            price: The price to validate
+            historical_price: The historical price to compare against
+            tolerance: Allowed percentage change (default 50%)
+        
+        Returns:
+            bool: True if price is reasonable
+        """
+        if not historical_price or historical_price <= 0:
+            # No historical data, accept prices in reasonable range
+            return 100 <= price <= 100000
+        
+        # Calculate percentage change
+        change = abs(price - historical_price) / historical_price
+        return change <= tolerance
     
     def _extract_table_column_price(self, soup, rules, machine_data=None):
         """Extract price from a specific table column for structured price tables."""

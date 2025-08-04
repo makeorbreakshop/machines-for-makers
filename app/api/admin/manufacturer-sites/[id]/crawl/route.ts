@@ -82,17 +82,13 @@ export async function POST(
       
       // Save discovered URLs to database
       if (result.urls && result.urls.length > 0) {
-        // Find the corresponding brand for this manufacturer site
-        const { data: brand } = await supabase
-          .from("brands")
-          .select("id")
-          .ilike("Name", site.name)
-          .single()
-        
-        if (!brand) {
-          console.error(`No brand found matching site name: ${site.name}`)
-          throw new Error(`No brand found for manufacturer site: ${site.name}`)
+        // Use the brand_id from the manufacturer site
+        if (!site.brand_id) {
+          console.error(`No brand_id set for manufacturer site: ${site.name}`)
+          throw new Error(`No brand associated with manufacturer site: ${site.name}. Please link a brand to this site.`)
         }
+        
+        const brandId = site.brand_id
         
         // Create a map of URL to category from categorized data
         const categoryMap = new Map<string, string>()
@@ -103,7 +99,7 @@ export async function POST(
         }
         
         const urlsToInsert = result.urls.map((url: string) => ({
-          manufacturer_id: brand.id, // Use the matched brand ID
+          manufacturer_id: brandId, // Use the brand ID from manufacturer site
           url: url,
           category: categoryMap.get(url) || 'unknown',
           status: 'pending',
@@ -140,7 +136,7 @@ export async function POST(
           const duplicateResponse = await fetch('http://localhost:8000/api/v1/run-duplicate-detection', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ manufacturer_id: brand.id })
+            body: JSON.stringify({ manufacturer_id: brandId })
           })
           
           if (duplicateResponse.ok) {

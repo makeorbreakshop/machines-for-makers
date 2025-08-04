@@ -1249,6 +1249,97 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                     )}
                   />
 
+                  {/* Draft Status Display */}
+                  <div className="rounded-md border p-3 bg-slate-50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-sm">Publication Status</p>
+                        <p className="text-xs text-muted-foreground">
+                          {machine?.published_at ? 
+                            `Published on ${new Date(machine.published_at).toLocaleDateString()}` : 
+                            'Currently a draft (not published)'
+                          }
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {machine?.published_at ? (
+                          <>
+                            <div className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
+                              Published
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                if (!machine?.id) return;
+                                try {
+                                  const response = await fetch(`/api/admin/machines/${machine.id}/unpublish`, {
+                                    method: 'POST',
+                                  });
+                                  if (response.ok) {
+                                    // Update local state
+                                    if (machine) {
+                                      machine.published_at = undefined;
+                                    }
+                                    // Refresh the page to show updated status
+                                    window.location.reload();
+                                  }
+                                } catch (error) {
+                                  console.error('Error unpublishing:', error);
+                                }
+                              }}
+                              className="text-xs"
+                            >
+                              Unpublish
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
+                              Draft
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="default"
+                              onClick={async () => {
+                                if (!machine?.id) return;
+                                if (!canPublish()) {
+                                  setShowRequirements(true);
+                                  return;
+                                }
+                                try {
+                                  const response = await fetch(`/api/admin/machines/${machine.id}/publish`, {
+                                    method: 'POST',
+                                  });
+                                  if (response.ok) {
+                                    // Update local state
+                                    if (machine) {
+                                      machine.published_at = new Date().toISOString();
+                                    }
+                                    // Refresh the page to show updated status
+                                    window.location.reload();
+                                  }
+                                } catch (error) {
+                                  console.error('Error publishing:', error);
+                                }
+                              }}
+                              className="text-xs"
+                            >
+                              Publish Now
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {!machine?.published_at && (
+                      <p className="text-xs text-blue-600 mt-2">
+                        💡 This machine is a draft and won't appear on the public site regardless of the Hidden setting below.
+                      </p>
+                    )}
+                  </div>
+
                   <FormField
                     control={form.control}
                     name="hidden"
@@ -1269,8 +1360,12 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                               }}
                             />
                           </FormControl>
-                          <FormLabel className="flex-1 cursor-pointer">Hidden</FormLabel>
+                          <FormLabel className="flex-1 cursor-pointer">Hidden from Public Site</FormLabel>
                         </div>
+                        <p className="text-xs text-muted-foreground">
+                          When ON: Machine is hidden from public site even if published<br/>
+                          When OFF: Machine is visible on public site (if published)
+                        </p>
                         
                         {/* Publication requirements */}
                         {field.value === true && (

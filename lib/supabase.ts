@@ -101,7 +101,8 @@ export async function getMachines({
       let query = supabase
         .from("machines")
         .select(selectFields, { count: "exact" })
-        .eq("Hidden", false);
+        .eq("Hidden", false)
+        .not('Published On', 'is', null);  // Only show published machines
 
       // Apply filters
       if (category) {
@@ -238,6 +239,7 @@ export async function getMachineBySlug(slug: string, includeHtml: boolean = fals
         .select(selectFields)
         .ilike("Internal link", slug) // Use case-insensitive matching
         .eq("Hidden", false)
+        .not('Published On', 'is', null)  // Only show published machines
         .single()
 
       if (process.env.NODE_ENV !== 'production') {
@@ -526,6 +528,7 @@ export async function getRelatedProducts(currentProduct: Machine, limit = 6) {
         product_link
       `)
       .eq("Hidden", false)
+      .not('Published On', 'is', null)  // Only show published machines
       .neq("id", currentProduct.id)
       .eq("Laser Category", laserCategory)
       .order("Rating", { ascending: false });

@@ -80,6 +80,7 @@ export function MachineUrlScraper({
   const [forceKeepOpen, setForceKeepOpen] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
+  const [validationError, setValidationError] = useState<string>('');
   const [brands, setBrands] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   
@@ -353,30 +354,63 @@ export function MachineUrlScraper({
   function startEditing(field: string, currentValue: any) {
     setEditingField(field);
     setEditingValue(String(currentValue || ''));
+    setValidationError('');
   }
 
-  // Save edited value
+  // Save edited value with validation
   function saveEditedValue() {
     if (!editingField) return;
+    
+    // Validate the field
+    const validation = validateField(editingField, editingValue);
+    if (!validation.isValid) {
+      setValidationError(validation.message);
+      return;
+    }
+    
+    const valueToSave = validation.formattedValue || editingValue;
     
     const diffIndex = differences.findIndex(d => d.field === editingField);
     if (diffIndex !== -1) {
       const updatedDifferences = [...differences];
       updatedDifferences[diffIndex] = {
         ...updatedDifferences[diffIndex],
-        newValue: editingValue
+        newValue: valueToSave
       };
       setDifferences(updatedDifferences);
     }
     
     setEditingField(null);
     setEditingValue('');
+    setValidationError('');
   }
 
   // Cancel editing
   function cancelEditing() {
     setEditingField(null);
     setEditingValue('');
+    setValidationError('');
+  }
+
+  // Handle field value change with live validation
+  function handleFieldValueChange(value: string) {
+    setEditingValue(value);
+    
+    // Clear validation error if field becomes empty
+    if (!value.trim()) {
+      setValidationError('');
+      return;
+    }
+    
+    // Live validation for immediate feedback
+    if (editingField) {
+      const validation = validateField(editingField, value);
+      if (!validation.isValid) {
+        setValidationError(validation.message);
+      } else {
+        setValidationError('');
+      }
+    }
   }
 
   // Get dropdown options for a field
@@ -418,6 +452,50 @@ export function MachineUrlScraper({
           { value: 'Auto', label: 'Auto' },
           { value: 'Manual', label: 'Manual' }
         ];
+      case 'controller':
+        return [
+          { value: 'Ruida', label: 'Ruida' },
+          { value: 'Leetro', label: 'Leetro' },
+          { value: 'Trocen', label: 'Trocen' },
+          { value: 'DSP', label: 'DSP' },
+          { value: 'Grbl', label: 'Grbl' },
+          { value: 'Marlin', label: 'Marlin' },
+          { value: 'Other', label: 'Other' }
+        ];
+      case 'software':
+        return [
+          { value: 'LightBurn', label: 'LightBurn' },
+          { value: 'LaserGRBL', label: 'LaserGRBL' },
+          { value: 'RDWorks', label: 'RDWorks' },
+          { value: 'EzCAD', label: 'EzCAD' },
+          { value: 'K40 Whisperer', label: 'K40 Whisperer' },
+          { value: 'Other', label: 'Other' }
+        ];
+      case 'wifi':
+      case 'camera':
+      case 'passthrough':
+      case 'enclosure':
+        return [
+          { value: 'true', label: 'Yes' },
+          { value: 'false', label: 'No' }
+        ];
+      case 'award':
+        return [
+          { value: 'Editors Choice', label: 'Editors Choice' },
+          { value: 'Best Value', label: 'Best Value' },
+          { value: 'Premium Pick', label: 'Premium Pick' },
+          { value: 'Budget Pick', label: 'Budget Pick' }
+        ];
+      case 'rating':
+        return [
+          { value: '5', label: '5 Stars' },
+          { value: '4.5', label: '4.5 Stars' },
+          { value: '4', label: '4 Stars' },
+          { value: '3.5', label: '3.5 Stars' },
+          { value: '3', label: '3 Stars' },
+          { value: '2.5', label: '2.5 Stars' },
+          { value: '2', label: '2 Stars' }
+        ];
       default:
         return [];
     }
@@ -426,6 +504,79 @@ export function MachineUrlScraper({
   // Check if a field has dropdown options
   function hasDropdownOptions(field: string): boolean {
     return getDropdownOptions(field).length > 0;
+  }
+
+  // Field validation and formatting functions
+  const validateAndFormat = {
+    price: (value: string) => {
+      const num = parseFloat(value.replace(/[^0-9.-]/g, ''))
+      if (isNaN(num)) throw new Error('Price must be a valid number')
+      return num.toString()
+    },
+    laser_power_a: (value: string) => {
+      const match = value.match(/^(\d+(?:\.\d+)?)\s*([kKmM]?)W?$/i)
+      if (!match) throw new Error('Format: "40" or "5.5" (number only)')
+      const num = parseFloat(match[1])
+      const unit = match[2].toLowerCase()
+      if (unit === 'k') return `${num * 1000}`
+      if (unit === 'm') return `${num / 1000}`
+      return `${num}`
+    },
+    laser_power_b: (value: string) => {
+      const match = value.match(/^(\d+(?:\.\d+)?)\s*([kKmM]?)W?$/i)
+      if (!match) throw new Error('Format: "40" or "5.5" (number only)')
+      const num = parseFloat(match[1])
+      const unit = match[2].toLowerCase()
+      if (unit === 'k') return `${num * 1000}`
+      if (unit === 'm') return `${num / 1000}`
+      return `${num}`
+    },
+    work_area: (value: string) => {
+      const match = value.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*(mm|cm|in)?$/i)
+      if (!match) throw new Error('Format: "400x400 mm" (no spaces around x)')
+      let w = parseFloat(match[1])
+      let h = parseFloat(match[2])
+      const unit = match[3]?.toLowerCase() || 'mm'
+      
+      if (unit === 'cm') { w *= 10; h *= 10 }
+      if (unit === 'in') { w *= 25.4; h *= 25.4 }
+      
+      return `${Math.round(w)}x${Math.round(h)} mm`
+    },
+    speed: (value: string) => {
+      const match = value.match(/^(\d+(?:\.\d+)?)\s*(mm\/min|mm\/s|m\/min)?$/i)
+      if (!match) throw new Error('Format: "1200 mm/s"')
+      let speed = parseFloat(match[1])
+      const unit = match[2]?.toLowerCase() || 'mm/s'
+      
+      if (unit === 'mm/min') speed /= 60
+      if (unit === 'm/min') speed = (speed * 1000) / 60
+      
+      return `${Math.round(speed)} mm/s`
+    },
+    rating: (value: string) => {
+      const num = parseFloat(value)
+      if (isNaN(num) || num < 0 || num > 5) throw new Error('Rating must be 0-5')
+      return num.toString()
+    }
+  }
+
+  // Validate a field value
+  function validateField(field: string, value: string): { isValid: boolean; message: string; formattedValue?: string } {
+    if (!value || value.trim() === '') {
+      return { isValid: true, message: '' }
+    }
+
+    try {
+      if (field in validateAndFormat) {
+        const formatter = validateAndFormat[field as keyof typeof validateAndFormat]
+        const formattedValue = formatter(value)
+        return { isValid: true, message: '', formattedValue }
+      }
+      return { isValid: true, message: '' }
+    } catch (error) {
+      return { isValid: false, message: error instanceof Error ? error.message : 'Invalid value' }
+    }
   }
   
   // Apply the selected changes to the parent component
@@ -785,8 +936,8 @@ export function MachineUrlScraper({
                                       {editingField === diff.field ? (
                                         <div className="space-y-2">
                                           {hasDropdownOptions(diff.field) ? (
-                                            <Select value={editingValue} onValueChange={setEditingValue}>
-                                              <SelectTrigger className="w-full">
+                                            <Select value={editingValue} onValueChange={handleFieldValueChange}>
+                                              <SelectTrigger className={`w-full ${validationError ? 'border-red-500' : ''}`}>
                                                 <SelectValue placeholder="Select option" />
                                               </SelectTrigger>
                                               <SelectContent>
@@ -800,8 +951,8 @@ export function MachineUrlScraper({
                                           ) : (
                                             <Input
                                               value={editingValue}
-                                              onChange={(e) => setEditingValue(e.target.value)}
-                                              className="w-full"
+                                              onChange={(e) => handleFieldValueChange(e.target.value)}
+                                              className={`w-full ${validationError ? 'border-red-500' : ''}`}
                                               onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
                                                   saveEditedValue();
@@ -811,10 +962,17 @@ export function MachineUrlScraper({
                                               }}
                                             />
                                           )}
+                                          {validationError && (
+                                            <div className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                              <AlertCircle className="h-3 w-3" />
+                                              {validationError}
+                                            </div>
+                                          )}
                                           <div className="flex gap-1">
                                             <Button
                                               size="sm"
                                               onClick={saveEditedValue}
+                                              disabled={!!validationError}
                                               className="h-6 px-2 text-xs"
                                             >
                                               ✓
@@ -909,8 +1067,8 @@ export function MachineUrlScraper({
                                     {editingField === diff.field ? (
                                       <div className="space-y-2">
                                         {hasDropdownOptions(diff.field) ? (
-                                          <Select value={editingValue} onValueChange={setEditingValue}>
-                                            <SelectTrigger className="w-full">
+                                          <Select value={editingValue} onValueChange={handleFieldValueChange}>
+                                            <SelectTrigger className={`w-full ${validationError ? 'border-red-500' : ''}`}>
                                               <SelectValue placeholder="Select option" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -924,8 +1082,8 @@ export function MachineUrlScraper({
                                         ) : (
                                           <Input
                                             value={editingValue}
-                                            onChange={(e) => setEditingValue(e.target.value)}
-                                            className="w-full"
+                                            onChange={(e) => handleFieldValueChange(e.target.value)}
+                                            className={`w-full ${validationError ? 'border-red-500' : ''}`}
                                             onKeyDown={(e) => {
                                               if (e.key === 'Enter') {
                                                 saveEditedValue();
@@ -935,10 +1093,17 @@ export function MachineUrlScraper({
                                             }}
                                           />
                                         )}
+                                        {validationError && (
+                                          <div className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                            <AlertCircle className="h-3 w-3" />
+                                            {validationError}
+                                          </div>
+                                        )}
                                         <div className="flex gap-1">
                                           <Button
                                             size="sm"
                                             onClick={saveEditedValue}
+                                            disabled={!!validationError}
                                             className="h-6 px-2 text-xs"
                                           >
                                             ✓

@@ -19,10 +19,11 @@ export interface DiscoveredProduct {
   normalized_data: any
   validation_errors: string[]
   validation_warnings: string[]
-  status: 'pending' | 'approved' | 'rejected' | 'duplicate'
+  status: 'pending' | 'approved' | 'rejected' | 'duplicate' | 'imported'
   machine_type: string | null
   similarity_score: number | null
   created_at: string
+  imported_machine_id: string | null
   scan_log: {
     site: {
       name: string
@@ -50,10 +51,11 @@ export default async function DiscoveryPage() {
       machine_type,
       similarity_score,
       created_at,
+      imported_machine_id,
       scan_log_id,
-      site_scan_logs!inner (
+      site_scan_logs (
         site_id,
-        manufacturer_sites!inner (
+        manufacturer_sites (
           name,
           base_url
         )
@@ -74,10 +76,11 @@ export default async function DiscoveryPage() {
     machine_type: product.machine_type,
     similarity_score: product.similarity_score,
     created_at: product.created_at,
+    imported_machine_id: product.imported_machine_id,
     scan_log: {
       site: {
-        name: product.site_scan_logs.manufacturer_sites.name,
-        base_url: product.site_scan_logs.manufacturer_sites.base_url
+        name: product.site_scan_logs?.manufacturer_sites?.name || 'Unknown Site',
+        base_url: product.site_scan_logs?.manufacturer_sites?.base_url || ''
       }
     }
   }))
@@ -94,6 +97,7 @@ export default async function DiscoveryPage() {
     approved: 0,
     rejected: 0,
     duplicate: 0,
+    imported: 0,
     withErrors: 0
   })
 

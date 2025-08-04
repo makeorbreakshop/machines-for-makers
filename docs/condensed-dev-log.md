@@ -418,3 +418,10 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - ✅ MCP integration enables direct database access through Claude Code
 - ✅ Complete documentation for 24+ table database schema and dual-service architecture
 - ✅ Two-stage discovery system with 95% cost reduction and unified pipeline interface
+
+### 2025-07-29: Machine Duplication Feature & Sitemap Index Processing Fix
+- **Issue**: Users needed machine copy functionality (not duplicate detection), sitemap index files extracting 0 URLs from manufacturers like Creality
+- **Solution**: Complete duplication system with individual/bulk operations, fixed async/sync mismatch in sitemap parsing preventing URL extraction
+- **Impact**: One-click machine copying with "(Copy)" naming and draft status, sitemap index files now properly extract category URLs from sub-sitemaps
+- **Technical**: Dropdown/bulk duplication actions, timestamp-based slug generation, fixed `_extract_urls_from_sitemap` method for proper sitemap index handling
+- **Feature**: Smart copy naming, draft workflow for review, enhanced logging shows sub-sitemap processing (collections, products, pages)
