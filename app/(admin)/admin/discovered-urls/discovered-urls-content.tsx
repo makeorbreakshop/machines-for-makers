@@ -41,6 +41,11 @@ interface DiscoveredURL {
   similarity_score: number | null
   duplicate_reason: string | null
   checked_at: string | null
+  ml_classification: string | null
+  ml_confidence: number | null
+  ml_reason: string | null
+  machine_type: string | null
+  should_auto_skip: boolean
   manufacturer_sites: {
     id: string
     name: string
@@ -438,6 +443,32 @@ export function DiscoveredURLsContent({
         </div>
       </div>
 
+      {/* ML Classification Stats */}
+      {urls.some(u => u.ml_classification) && (
+        <div className="flex items-center gap-6 text-sm mb-4 p-3 bg-blue-50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-600 font-medium">AI Classification:</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-green-600">
+              <Badge variant="default" className="text-xs">MACHINE</Badge> {urls.filter(u => u.ml_classification === 'MACHINE').length}
+            </span>
+            <span className="text-red-600">
+              <Badge variant="destructive" className="text-xs">MATERIAL</Badge> {urls.filter(u => u.ml_classification === 'MATERIAL').length}
+            </span>
+            <span className="text-red-600">
+              <Badge variant="destructive" className="text-xs">ACCESSORY</Badge> {urls.filter(u => u.ml_classification === 'ACCESSORY').length}
+            </span>
+            <span className="text-yellow-600">
+              <Badge variant="secondary" className="text-xs">PACKAGE</Badge> {urls.filter(u => u.ml_classification === 'PACKAGE').length}
+            </span>
+            <span className="text-red-600">
+              <Badge variant="destructive" className="text-xs">SERVICE</Badge> {urls.filter(u => u.ml_classification === 'SERVICE').length}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Filters and Actions */}
       <Card>
         <CardHeader>
@@ -626,6 +657,27 @@ export function DiscoveredURLsContent({
                         {url.similarity_score && (
                           <Badge variant="outline" className="text-xs">
                             {Math.round(url.similarity_score * 100)}% match
+                          </Badge>
+                        )}
+                        
+                        {/* ML Classification Badge */}
+                        {url.ml_classification && (
+                          <Badge 
+                            variant={
+                              url.ml_classification === 'MACHINE' ? 'default' :
+                              url.ml_classification === 'MATERIAL' ? 'destructive' :
+                              url.ml_classification === 'ACCESSORY' ? 'destructive' :
+                              url.ml_classification === 'PACKAGE' ? 'secondary' :
+                              url.ml_classification === 'SERVICE' ? 'destructive' :
+                              'outline'
+                            }
+                            className="text-xs"
+                            title={`${url.ml_reason || 'ML Classification'} (Confidence: ${url.ml_confidence ? Math.round(url.ml_confidence * 100) : 0}%)`}
+                          >
+                            {url.ml_classification}
+                            {url.machine_type && url.ml_classification === 'MACHINE' && (
+                              <span className="ml-1 text-xs opacity-70">({url.machine_type})</span>
+                            )}
                           </Badge>
                         )}
                       </div>

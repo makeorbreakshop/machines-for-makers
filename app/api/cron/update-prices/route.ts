@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
       body: JSON.stringify({
         days_threshold: 7,    // Update machines older than 7 days
         limit: 50,           // Conservative limit for cron
-        max_workers: 3       // Conservative concurrency for cron
+        max_workers: 3,      // Conservative concurrency for cron
+        use_scrapfly: true   // Use Scrapfly pipeline by default
       })
     });
     

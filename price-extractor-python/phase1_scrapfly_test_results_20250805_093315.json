@@ -1,0 +1,166 @@
+{
+  "phase": 1,
+  "description": "Scrapfly vs Standard on 5 Problem Sites",
+  "start_time": "2025-08-05T09:30:32.098704",
+  "machines": [
+    {
+      "machine_id": "1f4a6f8d-5f34-4190-a1f3-2c33c42e7e93",
+      "machine_name": "ComMarker B4 100W MOPA",
+      "company": "commarker",
+      "url": "https://commarker.com/product/b4-100w-jpt-mopa",
+      "standard_pipeline": {
+        "success": true,
+        "price": 6666.0,
+        "method": "ComMarker main price (historical_match:.entry-summary .price ins .amount)",
+        "error": null,
+        "duration": 23.028465747833252,
+        "requires_approval": false
+      },
+      "scrapfly_pipeline": {
+        "success": true,
+        "price": 6666.0,
+        "method": "ComMarker main price (historical_match:.entry-summary .price ins .amount)",
+        "error": null,
+        "duration": 6.132043838500977,
+        "requires_approval": false
+      },
+      "comparison": {
+        "both_successful": true,
+        "price_difference": 0.0,
+        "price_difference_pct": 0.0,
+        "prices_match": true,
+        "scrapfly_improvement": "both_worked"
+      }
+    },
+    {
+      "machine_id": "24eecfc8-e606-497f-a948-7f2815e67820",
+      "machine_name": "Gweike Cloud 50W Pro",
+      "company": "gweike",
+      "url": "https://www.gweikecloud.com/products/nox?ref=NMV3sU0i",
+      "standard_pipeline": {
+        "success": true,
+        "price": 1939.0,
+        "method": "Meta tag (og:price:amount)",
+        "error": null,
+        "duration": 1.3207077980041504,
+        "requires_approval": false
+      },
+      "scrapfly_pipeline": {
+        "success": true,
+        "price": 1939.0,
+        "method": "Meta tag (og:price:amount)",
+        "error": null,
+        "duration": 4.878631114959717,
+        "requires_approval": false
+      },
+      "comparison": {
+        "both_successful": true,
+        "price_difference": 0.0,
+        "price_difference_pct": 0.0,
+        "prices_match": true,
+        "scrapfly_improvement": "both_worked"
+      }
+    },
+    {
+      "machine_id": "c33dad86-6722-49df-b28a-ea8d9ff1242c",
+      "machine_name": "Monport Effi10S 100W Laser",
+      "company": "monport",
+      "url": "https://monportlaser.com/products/monport-effi10s-upgraded-100w-co2-laser-engraver-cutter-with-autofocus-and-built-in-water-chiller?sca_ref=4770620.meSplPc0Pq",
+      "standard_pipeline": {
+        "success": true,
+        "price": 5249.99,
+        "method": "Monport base machine (json_ld_offers)",
+        "error": null,
+        "duration": 21.194544792175293,
+        "requires_approval": false
+      },
+      "scrapfly_pipeline": {
+        "success": true,
+        "price": 5249.99,
+        "method": "Monport base machine (json_ld_offers)",
+        "error": null,
+        "duration": 17.06879472732544,
+        "requires_approval": false
+      },
+      "comparison": {
+        "both_successful": true,
+        "price_difference": 0.0,
+        "price_difference_pct": 0.0,
+        "prices_match": true,
+        "scrapfly_improvement": "both_worked"
+      }
+    },
+    {
+      "machine_id": "bc4031f6-2442-48eb-b06a-c40829e5ef41",
+      "machine_name": "Thunder Aurora 8",
+      "company": "thunder",
+      "url": "https://www.thunderlaserusa.com/aurora-8",
+      "standard_pipeline": {
+        "success": true,
+        "price": 6600.0,
+        "method": "CSS Selector '.product-price'",
+        "error": null,
+        "duration": 21.13005304336548,
+        "requires_approval": false
+      },
+      "scrapfly_pipeline": {
+        "success": true,
+        "price": 6600.0,
+        "method": "CSS Selector '.product-price'",
+        "error": null,
+        "duration": 4.203680038452148,
+        "requires_approval": false
+      },
+      "comparison": {
+        "both_successful": true,
+        "price_difference": 0.0,
+        "price_difference_pct": 0.0,
+        "prices_match": true,
+        "scrapfly_improvement": "both_worked"
+      }
+    },
+    {
+      "machine_id": "1868ea18-4e44-4955-891f-acf1499e0381",
+      "machine_name": "xTool F1",
+      "company": "xtool",
+      "url": "https://www.xtool.com/products/xtool-f1?variant=46187536187631",
+      "standard_pipeline": {
+        "success": true,
+        "price": 1269.0,
+        "method": "Site-specific CSS (direct:.product-badge-price)",
+        "error": null,
+        "duration": 31.952430248260498,
+        "requires_approval": false
+      },
+      "scrapfly_pipeline": {
+        "success": true,
+        "price": 1269.0,
+        "method": "Site-specific CSS (direct:.product-badge-price)",
+        "error": null,
+        "duration": 7.091046094894409,
+        "requires_approval": false
+      },
+      "comparison": {
+        "both_successful": true,
+        "price_difference": 0.0,
+        "price_difference_pct": 0.0,
+        "prices_match": true,
+        "scrapfly_improvement": "both_worked"
+      }
+    }
+  ],
+  "summary": {
+    "total_machines": 5,
+    "standard_successes": 5,
+    "scrapfly_successes": 5,
+    "both_successful": 5,
+    "scrapfly_fixed_failures": 0,
+    "scrapfly_broke_working": 0,
+    "both_failed": 0,
+    "improvements": [],
+    "standard_success_rate": 100.0,
+    "scrapfly_success_rate": 100.0,
+    "improvement_rate": 0.0
+  },
+  "end_time": "2025-08-05T09:33:15.126906"
+}

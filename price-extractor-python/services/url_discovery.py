@@ -176,7 +176,10 @@ class URLDiscoveryService:
                     'confidence': classification.confidence,
                     'reason': classification.reason,
                     'category': classification.category_hint,
-                    'details': classification.details
+                    'details': classification.details,
+                    # Add placeholder ML fields that will be populated by smart_discovery.py
+                    'ml_classification': None,
+                    'machine_type': None
                 })
             
             categorized = self._categorize_urls(sitemap_urls)
@@ -261,6 +264,32 @@ class URLDiscoveryService:
         product_urls = list(discovered_urls)
         categorized = self._categorize_urls(product_urls)
         
+        # Classify the discovered URLs
+        classifications = self.classifier.classify_batch(product_urls)
+        summary = self.classifier.get_classification_summary(classifications)
+        
+        # Organize classified URLs
+        classified_urls = {
+            'auto_skip': [],
+            'high_confidence': [],
+            'needs_review': [],
+            'duplicate_likely': []
+        }
+        
+        for url, classification in classifications.items():
+            status_key = classification.status.lower()
+            classified_urls[status_key].append({
+                'url': url,
+                'classification': classification.status,
+                'confidence': classification.confidence,
+                'reason': classification.reason,
+                'category': classification.category_hint,
+                'details': classification.details,
+                # Add placeholder ML fields that will be populated by smart_discovery.py
+                'ml_classification': None,
+                'machine_type': None
+            })
+        
         return {
             'domain': base_domain,
             'start_url': start_url,
@@ -269,6 +298,8 @@ class URLDiscoveryService:
             'total_urls_found': len(product_urls),
             'urls': product_urls,
             'categorized': categorized,
+            'classified': classified_urls,
+            'classification_summary': summary,
             'discovery_method': 'crawling',
             'estimated_credits_per_product': 20,  # Progressive scraping average
             'estimated_total_credits': len(product_urls) * 20

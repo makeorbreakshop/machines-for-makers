@@ -233,31 +233,63 @@ export function ManufacturerSitesClient() {
 
   const triggerCrawl = async (site: ManufacturerSite, testMode: boolean = false) => {
     try {
-      const response = await fetch(`/api/admin/manufacturer-sites/${site.id}/crawl`, {
+      // Check if site has a brand_id
+      if (!site.brand_id) {
+        setError('This manufacturer site is not linked to a brand. Please edit the site and select a brand first.')
+        setTimeout(() => setError(null), 5000)
+        return
+      }
+      
+      // Use smart discovery endpoint with machine filtering
+      const response = await fetch('http://localhost:8000/api/v1/smart/smart-discover-urls', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          scan_type: 'discovery',
-          test_mode: testMode 
+        body: JSON.stringify({
+          manufacturer_id: site.brand_id, // Use brand_id for consistency
+          base_url: site.base_url,
+          manufacturer_name: site.name,
+          max_pages: 5,
+          apply_smart_filtering: true,
+          apply_machine_filtering: true
         }),
       })
 
       const result = await response.json()
 
-      if (response.ok) {
-        const message = testMode 
-          ? `Test crawl started for ${site.base_url} (no Scrapfly credits used)`
-          : `Crawl started for ${site.base_url} (Scan ID: ${result.scanLogId})`
-        setSuccess(message)
-        setTimeout(() => setSuccess(null), 5000)
+      if (response.ok && result.success) {
+        // Save the discovered URLs to database
+        const saveResponse = await fetch('/api/admin/save-discovered-urls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            manufacturer_id: site.brand_id, // Use brand_id, not site.id
+            urls: [],
+            classified_urls: result.classified_urls,
+            classification_summary: result.classification_summary
+          })
+        })
+        
+        if (saveResponse.ok) {
+          const saveResult = await saveResponse.json()
+          setSuccess(`Discovery complete: Found ${result.total_urls_found} URLs, filtered ${result.classification_summary.urls_filtered_as_non_machines || 0} non-machines`)
+          
+          // Redirect to discovered URLs page
+          setTimeout(() => {
+            window.location.href = `/admin/discovered-urls?manufacturer_id=${site.brand_id}`
+          }, 1500)
+        } else {
+          throw new Error('Failed to save discovered URLs')
+        }
       } else {
-        setError(result.error || 'Failed to trigger crawl')
+        const errorMsg = result.detail || result.error || 'Failed to start discovery'
+        setError(errorMsg)
         setTimeout(() => setError(null), 3000)
       }
     } catch (err) {
-      setError('Failed to trigger crawl')
+      console.error('Discovery error:', err)
+      setError('Failed to start discovery. Make sure the Python service is running.')
       setTimeout(() => setError(null), 3000)
     }
   }
@@ -403,11 +435,7 @@ export function ManufacturerSitesClient() {
                       <DropdownMenuContent align="start">
                         <DropdownMenuItem onClick={() => triggerCrawl(site, false)}>
                           <Play className="h-4 w-4 mr-2" />
-                          Run Discovery (uses Scrapfly credits)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => triggerCrawl(site, true)}>
-                          <FlaskConical className="h-4 w-4 mr-2" />
-                          Test Mode (no credits used)
+                          Run Discovery with ML Filtering
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

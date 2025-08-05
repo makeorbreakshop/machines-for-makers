@@ -33,6 +33,7 @@ class BatchUpdateRequest(BaseModel):
     machine_ids: Optional[List[str]] = None
     limit: Optional[int] = None
     max_workers: Optional[int] = None  # Number of concurrent workers
+    use_scrapfly: Optional[bool] = True  # Whether to use Scrapfly pipeline
 
 class UpdateResponse(BaseModel):
     """Response model for price update operation."""
@@ -142,8 +143,9 @@ async def batch_update_machines(request: dict, background_tasks: BackgroundTasks
         limit = request.get("limit", None)
         machine_ids = request.get("machine_ids", None)
         max_workers = request.get("max_workers", None)
+        use_scrapfly = request.get("use_scrapfly", True)
         
-        logger.info(f"Batch update request with days={days_threshold}, limit={limit}, max_workers={max_workers}, machine_ids={machine_ids[:5] if machine_ids and len(machine_ids) > 5 else machine_ids}")
+        logger.info(f"Batch update request with days={days_threshold}, limit={limit}, max_workers={max_workers}, use_scrapfly={use_scrapfly}, machine_ids={machine_ids[:5] if machine_ids and len(machine_ids) > 5 else machine_ids}")
         
         if background_tasks:
             # Pass the specific machine_ids to the batch update if provided
@@ -152,7 +154,8 @@ async def batch_update_machines(request: dict, background_tasks: BackgroundTasks
                 days_threshold,
                 limit,
                 machine_ids,
-                max_workers
+                max_workers,
+                use_scrapfly
             )
             return {
                 "success": True, 
@@ -162,7 +165,8 @@ async def batch_update_machines(request: dict, background_tasks: BackgroundTasks
             result = await price_service.batch_update_machines(
                 days_threshold=days_threshold, 
                 limit=limit,
-                machine_ids=machine_ids
+                machine_ids=machine_ids,
+                use_scrapfly=use_scrapfly
             )
             return result
     except Exception as e:
@@ -247,10 +251,10 @@ async def get_batch_results(batch_id: str):
             "error": f"Error fetching batch results: {str(e)}"
         }
 
-async def _process_batch_update(days_threshold: int, limit: Optional[int] = None, machine_ids: List[str] = None, max_workers: Optional[int] = None):
+async def _process_batch_update(days_threshold: int, limit: Optional[int] = None, machine_ids: List[str] = None, max_workers: Optional[int] = None, use_scrapfly: bool = True):
     """Process a batch update in the background."""
     try:
-        await price_service.batch_update_machines(days_threshold, max_workers=max_workers, limit=limit, machine_ids=machine_ids)
+        await price_service.batch_update_machines(days_threshold, max_workers=max_workers, limit=limit, machine_ids=machine_ids, use_scrapfly=use_scrapfly)
     except Exception as e:
         logger.exception(f"Error in background batch update: {str(e)}")
 

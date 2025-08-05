@@ -84,6 +84,7 @@ export function URLDiscoveryModal({
   const [maxPages, setMaxPages] = useState(5)
   const [smartClassification, setSmartClassification] = useState<any>(null)
   const [useSmartFiltering, setUseSmartFiltering] = useState(true)
+  const [useMachineFiltering, setUseMachineFiltering] = useState(true)
   const pollingInterval = useRef<NodeJS.Timeout | null>(null)
   const { toast } = useToast()
   
@@ -180,7 +181,8 @@ export function URLDiscoveryModal({
           base_url: baseUrl,
           manufacturer_name: manufacturerName,
           max_pages: maxPages,
-          apply_smart_filtering: true
+          apply_smart_filtering: true,
+          apply_machine_filtering: useMachineFiltering
         })
       } else {
         // Use regular manufacturer sites crawl endpoint
@@ -192,6 +194,13 @@ export function URLDiscoveryModal({
         })
       }
 
+      console.log('Discovery request:', {
+        endpoint,
+        useSmartFiltering,
+        useMachineFiltering,
+        body: JSON.parse(body)
+      })
+      
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -215,7 +224,9 @@ export function URLDiscoveryModal({
             selected: item.classification === 'HIGH_CONFIDENCE', // Auto-select high confidence
             classification: item.classification,
             confidence: item.confidence,
-            reason: item.reason
+            reason: item.reason,
+            ml_classification: item.ml_classification,
+            machine_type: item.machine_type
           })),
           ...data.classified_urls.needs_review.map(item => ({
             url: item.url,
@@ -223,7 +234,9 @@ export function URLDiscoveryModal({
             selected: false, // Require manual review
             classification: item.classification,
             confidence: item.confidence,
-            reason: item.reason
+            reason: item.reason,
+            ml_classification: item.ml_classification,
+            machine_type: item.machine_type
           })),
           ...data.classified_urls.auto_skip.map(item => ({
             url: item.url,
@@ -231,7 +244,9 @@ export function URLDiscoveryModal({
             selected: false, // Not selected by default for auditing
             classification: item.classification,
             confidence: item.confidence,
-            reason: item.reason
+            reason: item.reason,
+            ml_classification: item.ml_classification,
+            machine_type: item.machine_type
           })),
           ...data.classified_urls.duplicate_likely.map(item => ({
             url: item.url,
@@ -239,7 +254,9 @@ export function URLDiscoveryModal({
             selected: false, // Not selected by default
             classification: item.classification,
             confidence: item.confidence,
-            reason: item.reason
+            reason: item.reason,
+            ml_classification: item.ml_classification,
+            machine_type: item.machine_type
           }))
         ]
         
@@ -257,9 +274,13 @@ export function URLDiscoveryModal({
           discovery_method: data.discovery_method
         })
         
+        const machineFilterMsg = data.classification_summary.machine_filter_applied 
+          ? ` Filtered ${data.classification_summary.urls_filtered_as_non_machines || 0} non-machine products.`
+          : ''
+        
         toast({
           title: "Smart Discovery Complete",
-          description: `Found ${data.total_urls_found} URLs. Classified ${data.classification_summary.auto_skip} as auto-skip (showing for audit). ${urlsToShow.length} total for review.`,
+          description: `Found ${data.total_urls_found} URLs. Classified ${data.classification_summary.auto_skip} as auto-skip (showing for audit).${machineFilterMsg} ${urlsToShow.length} total for review.`,
         })
         
       } else if (!useSmartFiltering && data.results && data.results.urls) {
@@ -329,20 +350,29 @@ export function URLDiscoveryModal({
       categories[u.url] = u.category
     })
     
+    // If we have smart classification data, send it
+    let bodyData: any = {
+      manufacturer_id: manufacturerId,
+      urls: selectedUrls,
+      categories
+    }
+    
+    if (smartClassification) {
+      // Include classified URLs with machine filtering metadata
+      bodyData.classified_urls = smartClassification.classified_urls
+      bodyData.classification_summary = smartClassification.classification_summary
+    }
+    
     // Save discovered URLs to database
     const response = await fetch('/api/admin/save-discovered-urls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        manufacturer_id: manufacturerId,
-        urls: selectedUrls,
-        categories
-      })
+      body: JSON.stringify(bodyData)
     })
     
     if (response.ok) {
       const result = await response.json()
-      console.log(`Saved ${result.saved} URLs`)
+      console.log(`Saved ${result.saved} URLs with classification data`)
     }
     
     onClose()
@@ -403,6 +433,38 @@ export function URLDiscoveryModal({
               <p className="text-sm text-muted-foreground">
                 Estimated credits: {maxPages * 2} ({maxPages} pages × 2 credits)
               </p>
+            </div>
+
+            <div className="space-y-3 border rounded-lg p-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="smart-filtering"
+                  checked={useSmartFiltering}
+                  onCheckedChange={(checked) => setUseSmartFiltering(checked as boolean)}
+                />
+                <Label htmlFor="smart-filtering" className="cursor-pointer">
+                  Use Smart URL Filtering
+                  <span className="text-sm text-muted-foreground ml-2">
+                    (Filters obvious non-products by URL patterns)
+                  </span>
+                </Label>
+              </div>
+              
+              {useSmartFiltering && (
+                <div className="flex items-center space-x-2 ml-6">
+                  <Checkbox
+                    id="machine-filtering"
+                    checked={useMachineFiltering}
+                    onCheckedChange={(checked) => setUseMachineFiltering(checked as boolean)}
+                  />
+                  <Label htmlFor="machine-filtering" className="cursor-pointer">
+                    Use AI Machine Detection
+                    <span className="text-sm text-muted-foreground ml-2">
+                      (GPT-4o mini filters materials, accessories, services)
+                    </span>
+                  </Label>
+                </div>
+              )}
             </div>
 
             <Button 
@@ -562,6 +624,18 @@ export function URLDiscoveryModal({
                 </Alert>
               )}
               
+              {smartClassification?.classification_summary?.machine_filter_applied && (
+                <Alert className="border-blue-200 bg-blue-50">
+                  <Filter className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800">
+                    <strong>AI Machine Detection Applied</strong>
+                    <br />
+                    GPT-4o mini filtered {smartClassification.classification_summary.urls_filtered_as_non_machines || 0} non-machine products (materials, accessories, services).
+                    These have been moved to the auto-skip list.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
               <div className="grid grid-cols-4 gap-4">
                 <div className="border rounded p-3">
                   <p className="text-sm text-muted-foreground">Pages Crawled</p>
@@ -630,6 +704,35 @@ export function URLDiscoveryModal({
                 </Button>
               </div>
             )}
+            
+            {/* Badge Legend */}
+            {smartClassification?.classification_summary?.machine_filter_applied && (
+              <div className="text-xs text-muted-foreground space-y-1 p-3 bg-gray-50 rounded">
+                <p className="font-medium">Badge Legend:</p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="flex items-center gap-1">
+                    <Badge variant="default" className="text-xs">MACHINE</Badge>
+                    Actual equipment
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Badge variant="destructive" className="text-xs">MATERIAL</Badge>
+                    Sheets, filaments
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Badge variant="destructive" className="text-xs">ACCESSORY</Badge>
+                    Parts, upgrades
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Badge variant="secondary" className="text-xs">PACKAGE</Badge>
+                    Bundles (review)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Badge variant="destructive" className="text-xs">SERVICE</Badge>
+                    Warranties, courses
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* URL List */}
             <ScrollArea className="h-[400px] border rounded p-4">
@@ -663,6 +766,22 @@ export function URLDiscoveryModal({
                            (urlObj as any).classification === 'DUPLICATE_LIKELY' ? 'DUP' :
                            'UNK'}
                           {(urlObj as any).confidence && ` ${Math.round((urlObj as any).confidence * 100)}%`}
+                        </Badge>
+                      )}
+                      {(urlObj as any).ml_classification && (
+                        <Badge 
+                          variant={
+                            (urlObj as any).ml_classification === 'MACHINE' ? 'default' :
+                            (urlObj as any).ml_classification === 'MATERIAL' ? 'destructive' :
+                            (urlObj as any).ml_classification === 'ACCESSORY' ? 'destructive' :
+                            (urlObj as any).ml_classification === 'PACKAGE' ? 'secondary' :
+                            (urlObj as any).ml_classification === 'SERVICE' ? 'destructive' :
+                            'outline'
+                          }
+                          className="text-xs ml-1"
+                          title={(urlObj as any).machine_type || ''}
+                        >
+                          {(urlObj as any).ml_classification}
                         </Badge>
                       )}
                     </div>

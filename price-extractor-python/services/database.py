@@ -174,12 +174,19 @@ class DatabaseService:
             # Create entry data - using the correct column names from the database
             entry_data = {
                 "machine_id": machine_id,
-                "price": new_price,  # This is the current price
-                "previous_price": old_price,  # This is the old price
                 "date": datetime.utcnow().isoformat() + "Z",  # Use UTC time with Z suffix
                 "source": "auto-scraper",
                 "currency": "USD"
             }
+            
+            # Only add price fields if new_price is not None (extraction succeeded)
+            if new_price is not None:
+                entry_data["price"] = new_price  # This is the current price
+                entry_data["previous_price"] = old_price  # This is the old price
+            else:
+                # For failed extractions, use the old price as current price to satisfy not-null constraint
+                entry_data["price"] = old_price if old_price is not None else 0.0
+                entry_data["previous_price"] = old_price
             
             # Add batch_id if provided
             if batch_id:
@@ -393,7 +400,7 @@ class DatabaseService:
             return []
 
     # Batch Operations
-    async def create_batch(self, count: int, days_threshold: int = None, machine_ids: List[str] = None, limit: Optional[int] = None, max_workers: Optional[int] = None) -> str:
+    async def create_batch(self, count: int, days_threshold: int = None, machine_ids: List[str] = None, limit: Optional[int] = None, max_workers: Optional[int] = None, extraction_pipeline: str = 'standard') -> str:
         """
         Create a new batch record for batch processing.
         
@@ -403,6 +410,7 @@ class DatabaseService:
             machine_ids (List[str], optional): List of specific machine IDs for this batch.
             limit (Optional[int], optional): Limit used for this batch.
             max_workers (Optional[int], optional): Max workers used for this batch.
+            extraction_pipeline (str, optional): Pipeline type ('standard' or 'scrapfly').
             
         Returns:
             str: The ID of the created batch.
@@ -428,7 +436,8 @@ class DatabaseService:
                 "days_threshold": days_threshold,
                 "batch_type": "price_update",
                 "status": "started",
-                "metadata": json.dumps(metadata)
+                "metadata": json.dumps(metadata),
+                "extraction_pipeline": extraction_pipeline
             }
             
             logger.debug(f"Batch data being inserted: {batch_data}")

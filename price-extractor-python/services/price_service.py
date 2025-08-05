@@ -5,7 +5,7 @@ import uuid
 from urllib.parse import urlparse
 
 from services.database import DatabaseService
-from scrapers.hybrid_web_scraper import get_hybrid_scraper
+from scrapers.scrapfly_web_scraper import ScrapflyWebScraper
 from scrapers.price_extractor import PriceExtractor
 from services.variant_verification import VariantVerificationService
 from config import (
@@ -20,11 +20,11 @@ class PriceService:
     def __init__(self):
         """Initialize dependencies."""
         self.db_service = DatabaseService()
-        # Use hybrid scraper with Scrapfly integration for difficult sites
-        self.web_scraper = get_hybrid_scraper()
+        # Use Scrapfly scraper as the primary and only scraping method
+        self.scrapfly_scraper = None  # Will be initialized when needed
         self.price_extractor = PriceExtractor()
         self.variant_verifier = None  # Will be initialized per batch
-        logger.info("Price service initialized with hybrid scraper (Scrapfly integration)")
+        logger.info("Price service initialized with Scrapfly scraper as default")
     
     def _setup_batch_logging(self, batch_id):
         """
@@ -61,6 +61,22 @@ class PriceService:
         logger.info(f"======================")
         
         return log_path
+    
+    def _get_scrapfly_scraper(self):
+        """
+        Get or create Scrapfly scraper instance.
+        
+        Returns:
+            ScrapflyWebScraper: Initialized Scrapfly scraper
+        """
+        if self.scrapfly_scraper is None:
+            try:
+                self.scrapfly_scraper = ScrapflyWebScraper(database_service=self.db_service)
+                logger.info("Scrapfly scraper initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize Scrapfly scraper: {str(e)}")
+                raise
+        return self.scrapfly_scraper
     
     async def _should_require_manual_approval(self, old_price, new_price, machine_id):
         """
@@ -134,7 +150,7 @@ class PriceService:
         logger.info(f"📊 Using machines.Price as baseline: ${fallback_price}")
         return fallback_price
     
-    async def update_machine_price(self, machine_id, url=None, batch_id=None):
+    async def update_machine_price(self, machine_id, url=None, batch_id=None, use_scrapfly=True):
         """
         Update the price for a specific machine by scraping its URL.
         
@@ -142,6 +158,7 @@ class PriceService:
             machine_id (str): The ID of the machine to update.
             url (str, optional): URL to override the one in the database.
             batch_id (str, optional): The batch ID if this update is part of a batch.
+            use_scrapfly (bool, optional): Whether to use Scrapfly scraper. Always True (legacy parameter).
             
         Returns:
             dict: Update result with new price, old price, and status.
@@ -186,17 +203,21 @@ class PriceService:
                     "excluded": True
                 }
             
+            # Always use Scrapfly scraper for optimal performance and reliability
+            logger.info(f"🚀 Using Scrapfly scraper for {product_url}")
+            scraper = self._get_scrapfly_scraper()
+
             # Pre-validate URL health to catch broken links early
-            url_health = await self.web_scraper.validate_url_health(product_url)
+            url_health = await scraper.validate_url_health(product_url)
             
             if not url_health['is_healthy']:
                 logger.warning(f"URL health issues detected for {product_url}: {url_health['issues']}")
                 
                 # Try suggested URL fixes
-                url_suggestions = self.web_scraper.suggest_url_fixes(url_health)
+                url_suggestions = scraper.suggest_url_fixes(url_health)
                 for suggestion in url_suggestions[:2]:  # Try first 2 suggestions
                     logger.info(f"Trying suggested URL: {suggestion['url']} ({suggestion['reason']})")
-                    alt_health = await self.web_scraper.validate_url_health(suggestion['url'])
+                    alt_health = await scraper.validate_url_health(suggestion['url'])
                     if alt_health['is_healthy']:
                         logger.info(f"✅ Alternative URL is healthy, using: {suggestion['url']}")
                         product_url = suggestion['url']
@@ -220,7 +241,12 @@ class PriceService:
                     return {"success": False, "error": error_msg, "machine_id": machine_id, "url": product_url}
 
             # Scrape the product page with retry logic
-            html_content, soup = await self.web_scraper.get_page_content(product_url)
+            html_content, soup = await scraper.get_page_content(product_url)
+            
+            # Log credit usage if using Scrapfly
+            if use_scrapfly and hasattr(scraper, 'log_credit_usage') and batch_id:
+                # Use actual credit data from the scraper's last operation
+                await scraper.log_credit_usage(batch_id, machine_id, product_url)
             if not html_content or not soup:
                 logger.error(f"Failed to fetch content from {product_url} after retries")
                 await self.db_service.add_price_history(
@@ -417,7 +443,7 @@ class PriceService:
                 "url": product_url
             }
     
-    async def _process_machines_concurrently(self, machines, batch_id, results, max_workers):
+    async def _process_machines_concurrently(self, machines, batch_id, results, max_workers, use_scrapfly=False):
         """
         Process machines concurrently while maintaining comprehensive logging and result tracking.
         
@@ -426,6 +452,7 @@ class PriceService:
             batch_id: Batch ID for tracking
             results: Results dictionary to update (thread-safe)
             max_workers: Maximum concurrent workers
+            use_scrapfly: Whether to use Scrapfly scraper
         """
         import asyncio
         from asyncio import Semaphore
@@ -447,7 +474,7 @@ class PriceService:
                     logger.info(f"🔄 Processing machine {machine_name} (ID: {machine_id}) - Worker available")
                     
                     # Process the machine (this maintains all existing logging)
-                    result = await self.update_machine_price(machine_id, batch_id=batch_id)
+                    result = await self.update_machine_price(machine_id, batch_id=batch_id, use_scrapfly=use_scrapfly)
                     
                     # Track result in database
                     await self.db_service.add_batch_result(batch_id, machine_id, result)
@@ -508,7 +535,7 @@ class PriceService:
         
         logger.info(f"🎉 Concurrent processing completed - {results['successful']} successful, {results['failed']} failed")
     
-    async def batch_update_machines(self, days_threshold=7, max_workers=5, limit=None, machine_ids=None):
+    async def batch_update_machines(self, days_threshold=7, max_workers=5, limit=None, machine_ids=None, use_scrapfly=True):
         """
         Update prices for all machines that need an update.
         
@@ -519,11 +546,12 @@ class PriceService:
             limit (int, optional): Limit the number of machines to update.
             machine_ids (List[str], optional): Specific machine IDs to update. If provided,
                                               days_threshold is ignored.
+            use_scrapfly (bool, optional): Whether to use Scrapfly scraper. Always True (legacy parameter).
             
         Returns:
             dict: Summary of batch update operation.
         """
-        logger.info(f"Starting batch update with days_threshold={days_threshold}, limit={limit}, machine_ids={(len(machine_ids) if machine_ids else 'None')}")
+        logger.info(f"Starting batch update with days_threshold={days_threshold}, limit={limit}, machine_ids={(len(machine_ids) if machine_ids else 'None')}, use_scrapfly={use_scrapfly}")
         
         # Get machines needing update - use machine_ids if provided
         if machine_ids:
@@ -541,12 +569,14 @@ class PriceService:
         logger.info(f"Starting batch update for {len(machines)} machines")
         
         # Create a batch record
+        pipeline_type = 'scrapfly' if use_scrapfly else 'standard'
         batch_id = await self.db_service.create_batch(
             count=len(machines),
             days_threshold=days_threshold,
             machine_ids=machine_ids,
             limit=limit,
-            max_workers=max_workers
+            max_workers=max_workers,
+            extraction_pipeline=pipeline_type
         )
         
         if not batch_id:
@@ -578,7 +608,7 @@ class PriceService:
         }
         
         # Process machines concurrently with controlled concurrency
-        await self._process_machines_concurrently(machines, batch_id, results, effective_max_workers)
+        await self._process_machines_concurrently(machines, batch_id, results, effective_max_workers, use_scrapfly)
         
         # Mark batch as completed
         await self.db_service.complete_batch(batch_id)

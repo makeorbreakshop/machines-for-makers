@@ -50,17 +50,34 @@ export async function POST(request: NextRequest) {
         ...classified_urls.duplicate_likely
       ]
       
-      urlsToInsert = urlsToSave.map(item => ({
-        manufacturer_id,
-        url: item.url,
-        category: item.category || categories[item.url] || 'unknown',
-        status: 'pending',
-        // Add classification metadata
-        classification_status: item.classification,
-        classification_confidence: item.confidence,
-        classification_reason: item.reason,
-        auto_approved: item.classification === 'HIGH_CONFIDENCE'
-      }))
+      urlsToInsert = urlsToSave.map(item => {
+        // Determine if this should be auto-skipped
+        const mlClassification = (item as any).ml_classification
+        const shouldAutoSkip = mlClassification && 
+          ['MATERIAL', 'ACCESSORY', 'SERVICE'].includes(mlClassification)
+        
+        const urlData = {
+          manufacturer_id,
+          url: item.url,
+          category: item.category || categories[item.url] || 'unknown',
+          status: shouldAutoSkip ? 'skipped' : 'pending',
+          // Use the new ML columns
+          ml_classification: mlClassification || null,
+          ml_confidence: (item as any).confidence || null,
+          ml_reason: (item as any).reason || null,
+          machine_type: (item as any).machine_type || null,
+          should_auto_skip: shouldAutoSkip
+        }
+        
+        // Log what we're saving
+        if (mlClassification === 'MACHINE') {
+          console.log(`Saving MACHINE as pending: ${item.url}`)
+        } else if (shouldAutoSkip) {
+          console.log(`Saving ${mlClassification} as skipped: ${item.url}`)
+        }
+        
+        return urlData
+      })
       
       summary = {
         total: Object.values(classified_urls).flat().length,
@@ -82,6 +99,9 @@ export async function POST(request: NextRequest) {
       summary.total = urls.length
       summary.saved = urls.length
     }
+    
+    console.log(`Saving ${urlsToInsert.length} URLs to database`)
+    console.log(`Status breakdown: ${urlsToInsert.filter(u => u.status === 'pending').length} pending, ${urlsToInsert.filter(u => u.status === 'skipped').length} skipped`)
     
     // Insert URLs (upsert to handle duplicates)
     const { data, error } = await supabase
