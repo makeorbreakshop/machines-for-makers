@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Multiple CLAUDE.md Files
+This project has multiple CLAUDE.md files for different service contexts:
+- `/CLAUDE.md` - **Main project guidance** (this file) - Next.js application
+- `/price-extractor-python/CLAUDE.md` - **Python service guidance** - FastAPI price extraction service
+
+When working on Python price extraction tasks, refer to the service-specific CLAUDE.md file which contains detailed guidance about Scrapfly integration, async processing, and the critical ThreadPoolExecutor performance fixes.
+
 ## Project Overview
 
 Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D printers, and CNC machines. It features a public website with advanced filtering, comparison tools, an ink cost calculator, and a comprehensive admin panel for content management.
@@ -264,6 +271,8 @@ The application consists of two services that run independently:
 - FastAPI service for web scraping and price extraction
 - Processes price updates and maintains price history
 - Run with: `cd price-extractor-python && python main.py`
+- **Production-Ready**: ThreadPoolExecutor fix enables 1.5-minute batch processing (24x speedup)
+- **Detailed Guidance**: See `/price-extractor-python/CLAUDE.md` for service-specific instructions
 
 **Service Communication:**
 - Next.js admin panel makes HTTP requests to Python API
@@ -279,6 +288,8 @@ The application consists of two services that run independently:
 
 ### Important Files
 
+- `/CLAUDE.md` - Main project guidance (this file)
+- `/price-extractor-python/CLAUDE.md` - Python service guidance and performance fixes
 - `/docs/DATABASE_SCHEMA.md` - Complete database documentation
 - `/docs/DEVELOPMENT_GUIDELINES.md` - Detailed development protocols
 - `/app/tools/ink-calculator/README.md` - Ink calculator technical details
