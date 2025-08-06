@@ -66,7 +66,9 @@ export async function POST(request: NextRequest) {
           ml_confidence: (item as any).confidence || null,
           ml_reason: (item as any).reason || null,
           machine_type: (item as any).machine_type || null,
-          should_auto_skip: shouldAutoSkip
+          should_auto_skip: shouldAutoSkip,
+          // Explicitly set all URLs to unreviewed when bringing them in
+          reviewed: false
         }
         
         // Log what we're saving
@@ -93,7 +95,8 @@ export async function POST(request: NextRequest) {
         manufacturer_id,
         url,
         category: categories[url] || 'unknown',
-        status: 'pending'
+        status: 'pending',
+        reviewed: false
       }))
       
       summary.total = urls.length
@@ -102,13 +105,17 @@ export async function POST(request: NextRequest) {
     
     console.log(`Saving ${urlsToInsert.length} URLs to database`)
     console.log(`Status breakdown: ${urlsToInsert.filter(u => u.status === 'pending').length} pending, ${urlsToInsert.filter(u => u.status === 'skipped').length} skipped`)
+    console.log(`Sample URL being saved:`, JSON.stringify(urlsToInsert[0], null, 2))
     
-    // Insert URLs (upsert to handle duplicates)
+    // Upsert URLs but force update of key fields including reviewed status
+    // When URLs already exist, we want to reset them to unreviewed state
     const { data, error } = await supabase
       .from('discovered_urls')
       .upsert(urlsToInsert, {
         onConflict: 'manufacturer_id,url',
-        ignoreDuplicates: false
+        ignoreDuplicates: false,
+        // Update all fields on conflict to ensure reviewed is set to false
+        defaultToNull: false
       })
       .select()
     
@@ -147,6 +154,7 @@ export async function GET(request: NextRequest) {
     const manufacturer_id = searchParams.get('manufacturer_id')
     const status = searchParams.get('status')
     const duplicate_status = searchParams.get('duplicate_status')
+    const reviewed = searchParams.get('reviewed')
     
     // First get discovered URLs with duplicate detection fields
     let query = supabase
@@ -164,6 +172,10 @@ export async function GET(request: NextRequest) {
     
     if (duplicate_status) {
       query = query.eq('duplicate_status', duplicate_status)
+    }
+    
+    if (reviewed) {
+      query = query.eq('reviewed', reviewed === 'true')
     }
     
     const { data: urls, error } = await query

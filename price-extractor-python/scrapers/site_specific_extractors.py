@@ -287,6 +287,39 @@ class SiteSpecificExtractor:
                 ]
             },
             
+            'omtechlaser.com': {
+                'type': 'woocommerce',
+                'price_selectors': [
+                    '.single_variation_wrap .woocommerce-variation-price .amount',
+                    '.variations_form .single_variation .price .amount',
+                    '.product-summary .price .amount',
+                    '.summary .price .amount'
+                ],
+                'machine_specific_rules': {
+                    'OMTech Pro 2440': {
+                        'url_patterns': ['/omtech-pro-2440-80w-and-100w', '/pro-2440-80w-and-100w'],
+                        'variant_detection_rules': {
+                            '80W': {
+                                'keywords': ['80W', '80 W', '80-watt', 'USB-2440-US'],
+                                'expected_price_range': [6000, 7000]  # 80W is $6699.99
+                            },
+                            '100W': {
+                                'keywords': ['100W', '100 W', '100-watt', 'USB-2440-U1'],
+                                'expected_price_range': [7000, 8000]  # 100W is $7599.99
+                            }
+                        },
+                        'variant_matching_strategy': 'wattage_based',
+                        'requires_dynamic': True,  # May need dynamic selection for variants
+                        'notes': 'Pro 2440 comes in 80W and 100W variants on same page'
+                    }
+                },
+                'avoid_selectors': [
+                    '.bundle-price',
+                    '.package-price',
+                    '.addon-price'
+                ]
+            },
+            
             'xtool.com': {
                 'type': 'shopify',
                 'avoid_meta_tags': True,  # Meta tags often inaccurate for xTool
@@ -630,6 +663,8 @@ class SiteSpecificExtractor:
                 if machine_pattern.lower() in machine_name.lower():
                     # Check URL patterns to confirm this is the right machine
                     url_patterns = specific_rules.get('url_patterns', [])
+                    logger.info(f"Checking URL patterns for {machine_pattern}: {url_patterns}")
+                    logger.info(f"Against URL: {url.lower()}")
                     if url_patterns and any(pattern in url.lower() for pattern in url_patterns):
                         logger.info(f"🎯 Using machine-specific rules for {machine_name} (pattern: {machine_pattern})")
                         
@@ -643,7 +678,11 @@ class SiteSpecificExtractor:
                             site_rule['avoid_meta_tags'] = specific_rules['avoid_meta_tags']
                         if 'requires_dynamic' in specific_rules:
                             site_rule['requires_dynamic'] = specific_rules['requires_dynamic']
+                        if 'variant_detection_rules' in specific_rules:
+                            site_rule['variant_detection_rules'] = specific_rules['variant_detection_rules']
+                            logger.info(f"✅ Copied variant_detection_rules from machine-specific rules: {list(specific_rules['variant_detection_rules'].keys())}")
                         
+                        logger.info(f"🔍 Final site_rule keys: {list(site_rule.keys())}")
                         return site_rule
             
             return site_rule

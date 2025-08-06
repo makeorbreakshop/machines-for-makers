@@ -330,6 +330,7 @@ class DuplicateDetector:
                     'similarity_score': match.similarity_score,
                     'duplicate_reason': match.reason,
                     'checked_at': datetime.utcnow().isoformat() + 'Z'
+                    # Explicitly NOT setting reviewed=true - let user decide when to mark as reviewed
                 }
             else:
                 # Mark as unique
@@ -339,6 +340,7 @@ class DuplicateDetector:
                     'similarity_score': None,
                     'duplicate_reason': None,
                     'checked_at': datetime.utcnow().isoformat() + 'Z'
+                    # Explicitly NOT setting reviewed=true - let user decide when to mark as reviewed
                 }
             
             response = self.db_service.supabase.table("discovered_urls") \

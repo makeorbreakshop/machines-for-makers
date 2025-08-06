@@ -207,39 +207,10 @@ class PriceService:
             logger.info(f"🚀 Using Scrapfly scraper for {product_url}")
             scraper = self._get_scrapfly_scraper()
 
-            # Pre-validate URL health to catch broken links early
-            url_health = await scraper.validate_url_health(product_url)
+            # Skip URL health check to reduce failed requests
+            # The actual scraping will detect if URL is invalid
+            # This prevents unnecessary failed requests counting against rate limits
             
-            if not url_health['is_healthy']:
-                logger.warning(f"URL health issues detected for {product_url}: {url_health['issues']}")
-                
-                # Try suggested URL fixes
-                url_suggestions = scraper.suggest_url_fixes(url_health)
-                for suggestion in url_suggestions[:2]:  # Try first 2 suggestions
-                    logger.info(f"Trying suggested URL: {suggestion['url']} ({suggestion['reason']})")
-                    alt_health = await scraper.validate_url_health(suggestion['url'])
-                    if alt_health['is_healthy']:
-                        logger.info(f"✅ Alternative URL is healthy, using: {suggestion['url']}")
-                        product_url = suggestion['url']
-                        break
-                else:
-                    # No healthy alternatives found
-                    if url_health['status_code'] == 404:
-                        error_msg = f"URL not found (404): {product_url}. Tried {len(url_suggestions)} alternatives."
-                    else:
-                        error_msg = f"URL health check failed: {', '.join(url_health['issues'])}"
-                    
-                    logger.error(error_msg)
-                    await self.db_service.add_price_history(
-                        machine_id=machine_id,
-                        old_price=current_price,
-                        new_price=None,
-                        success=False,
-                        error_message=error_msg,
-                        batch_id=batch_id
-                    )
-                    return {"success": False, "error": error_msg, "machine_id": machine_id, "url": product_url}
-
             # Scrape the product page with retry logic
             html_content, soup = await scraper.get_page_content(product_url)
             

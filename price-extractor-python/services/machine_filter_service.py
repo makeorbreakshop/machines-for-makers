@@ -6,8 +6,9 @@ Runs before duplicate detection to reduce unnecessary processing
 """
 import json
 import logging
+import asyncio
 from typing import Dict, List, Tuple, Optional
-from openai import OpenAI
+from openai import AsyncOpenAI
 from config import OPENAI_API_KEY
 from loguru import logger
 
@@ -17,11 +18,12 @@ class MachineFilterService:
     def __init__(self):
         if not OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not set in environment")
-        self.client = OpenAI(api_key=OPENAI_API_KEY)
+        self.client = AsyncOpenAI(api_key=OPENAI_API_KEY)
         self.model = "gpt-4o-mini"
+        self.batch_size = 30  # Increased from 20 for better efficiency
         logger.info(f"Machine filter service initialized with model: {self.model}")
     
-    def classify_urls_batch(self, urls: List[str], manufacturer_name: str = "") -> Dict[str, Dict]:
+    async def classify_urls_batch(self, urls: List[str], manufacturer_name: str = "") -> Dict[str, Dict]:
         """
         Classify a batch of URLs as machines vs non-machines
         
@@ -35,18 +37,26 @@ class MachineFilterService:
         if not urls:
             return {}
         
-        # Process in batches of 20 URLs for efficiency
-        batch_size = 20
+        # Process in batches concurrently for efficiency
         all_results = {}
+        tasks = []
         
-        for i in range(0, len(urls), batch_size):
-            batch = urls[i:i+batch_size]
-            results = self._classify_batch(batch, manufacturer_name)
+        for i in range(0, len(urls), self.batch_size):
+            batch = urls[i:i+self.batch_size]
+            task = self._classify_batch(batch, manufacturer_name)
+            tasks.append(task)
+        
+        # Run all batches concurrently
+        logger.info(f"Running {len(tasks)} classification batches concurrently...")
+        batch_results = await asyncio.gather(*tasks)
+        
+        # Combine results
+        for results in batch_results:
             all_results.update(results)
         
         return all_results
     
-    def _classify_batch(self, urls: List[str], manufacturer_name: str) -> Dict[str, Dict]:
+    async def _classify_batch(self, urls: List[str], manufacturer_name: str) -> Dict[str, Dict]:
         """Classify a single batch of URLs"""
         
         # Create a numbered list for the prompt
@@ -77,7 +87,7 @@ For each URL, determine if it's a MACHINE, MATERIAL, ACCESSORY, PACKAGE, SERVICE
 
         try:
             # Use function calling for structured output
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},

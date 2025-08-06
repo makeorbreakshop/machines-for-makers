@@ -100,7 +100,7 @@ async def smart_discover_urls(request: SmartDiscoveryRequest):
             if urls_to_filter:
                 logger.info(f"Found {len(urls_to_filter)} URLs to filter for machine detection")
                 # Classify URLs as machines vs non-machines
-                machine_classifications = machine_filter.classify_urls_batch(
+                machine_classifications = await machine_filter.classify_urls_batch(
                     urls_to_filter, 
                     request.manufacturer_name
                 )

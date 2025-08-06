@@ -10,12 +10,35 @@ import {
   Link as LinkIcon, 
   Package,
   ArrowRight,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from "lucide-react"
 
 // Import the existing components
 import { ManufacturerSitesContent } from '../manufacturer-sites/manufacturer-sites-content'
 import { DiscoveredURLsContent } from '../discovered-urls/discovered-urls-content'
+import { DiscoveryClientWrapper } from '../discovery/discovery-client-wrapper'
+
+// Types
+interface DiscoveredProduct {
+  id: string
+  source_url: string
+  raw_data: any
+  normalized_data: any
+  validation_errors: string[]
+  validation_warnings: string[]
+  status: 'pending' | 'approved' | 'rejected' | 'duplicate' | 'imported'
+  machine_type: string | null
+  similarity_score: number | null
+  created_at: string
+  imported_machine_id: string | null
+  scan_log: {
+    site: {
+      name: string
+      base_url: string
+    }
+  }
+}
 
 export function UnifiedDiscoveryContent() {
   const searchParams = useSearchParams()
@@ -34,20 +57,46 @@ export function UnifiedDiscoveryContent() {
   // Track progress through stages
   const [discoveredUrlsCount, setDiscoveredUrlsCount] = useState(0)
   const [scrapedProductsCount, setScrapedProductsCount] = useState(0)
+  
+  // Product discovery data
+  const [discoveredProducts, setDiscoveredProducts] = useState<DiscoveredProduct[]>([])
+  const [productsLoading, setProductsLoading] = useState(false)
+
+  // Fetch discovered products when products tab is active
+  useEffect(() => {
+    if (activeTab === 'products') {
+      fetchDiscoveredProducts()
+    }
+  }, [activeTab])
+
+  const fetchDiscoveredProducts = async () => {
+    setProductsLoading(true)
+    try {
+      const response = await fetch('/api/admin/discovered-machines')
+      if (response.ok) {
+        const data = await response.json()
+        setDiscoveredProducts(data.data || [])
+        setScrapedProductsCount(data.data?.length || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching discovered products:', error)
+    } finally {
+      setProductsLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Product Discovery Pipeline</h1>
-        <p className="text-muted-foreground">
-          Complete workflow from manufacturer sites to product import
-        </p>
-      </div>
 
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value) => {
+        setActiveTab(value)
+        // Update URL to preserve tab state
+        const url = new URL(window.location.href)
+        url.searchParams.set('tab', value)
+        window.history.replaceState({}, '', url.toString())
+      }} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="sites" className="flex items-center gap-2">
             <Globe className="h-4 w-4" />
@@ -89,70 +138,37 @@ export function UnifiedDiscoveryContent() {
         </TabsContent>
 
         <TabsContent value="urls">
-          <Card>
-            <CardHeader>
-              <CardTitle>Step 2: Review & Select URLs</CardTitle>
-              <CardDescription>
-                Choose which discovered URLs to scrape for full product data
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DiscoveredURLsContent 
-                onUrlsChange={(count) => setDiscoveredUrlsCount(count)}
-                onProductsScraped={() => {
-                  setActiveTab('products')
-                }}
-                preSelectedManufacturerId={selectedManufacturerId}
-              />
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <DiscoveredURLsContent 
+              onUrlsChange={(count) => setDiscoveredUrlsCount(count)}
+              onProductsScraped={() => {
+                setActiveTab('products')
+              }}
+              preSelectedManufacturerId={selectedManufacturerId}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="products">
-          <Card>
-            <CardHeader>
-              <CardTitle>Step 3: Review & Import Products</CardTitle>
-              <CardDescription>
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-2xl font-bold">Step 3: Review & Import Products</h2>
+              <p className="text-muted-foreground">
                 Review extracted product data and import to your catalog
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">
-                  Click below to open the Product Discovery page
-                </p>
-                <a 
-                  href="/admin/discovery" 
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-                >
-                  Open Product Discovery
-                </a>
+              </p>
+            </div>
+            {productsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="ml-2">Loading discovered products...</span>
               </div>
-            </CardContent>
-          </Card>
+            ) : (
+              <DiscoveryClientWrapper data={discoveredProducts} />
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 
-      {/* Help Text */}
-      <Card>
-        <CardContent className="pt-6">
-          <h3 className="font-semibold mb-2">How the Discovery Pipeline Works:</h3>
-          <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-            <li>
-              <strong>Configure Sites:</strong> Add manufacturer websites with their product listing URLs
-            </li>
-            <li>
-              <strong>Discover URLs:</strong> Crawl sites to find product pages (uses only 1-2 credits per page)
-            </li>
-            <li>
-              <strong>Select & Scrape:</strong> Choose which products to extract (uses ~20 credits per product)
-            </li>
-            <li>
-              <strong>Review & Import:</strong> Validate extracted data and add products to your catalog
-            </li>
-          </ol>
-        </CardContent>
-      </Card>
     </div>
   )
 }

@@ -252,7 +252,7 @@ export function ManufacturerSitesClient() {
           manufacturer_name: site.name,
           max_pages: 5,
           apply_smart_filtering: true,
-          apply_machine_filtering: true
+          apply_machine_filtering: true  // Use AI classification with concurrent processing
         }),
       })
 
@@ -275,10 +275,20 @@ export function ManufacturerSitesClient() {
           const saveResult = await saveResponse.json()
           setSuccess(`Discovery complete: Found ${result.total_urls_found} URLs, filtered ${result.classification_summary.urls_filtered_as_non_machines || 0} non-machines`)
           
-          // Redirect to discovered URLs page
-          setTimeout(() => {
-            window.location.href = `/admin/discovered-urls?manufacturer_id=${site.brand_id}`
-          }, 1500)
+          // Check if we're in the unified discovery interface
+          const currentPath = window.location.pathname
+          if (currentPath.includes('discovery-unified')) {
+            // Stay in unified interface, just switch to URLs tab
+            const url = new URL(window.location.href)
+            url.searchParams.set('tab', 'urls')
+            url.searchParams.set('manufacturer_id', site.brand_id)
+            window.location.href = url.toString()
+          } else {
+            // Original redirect for standalone page
+            setTimeout(() => {
+              window.location.href = `/admin/discovered-urls?manufacturer_id=${site.brand_id}`
+            }, 1500)
+          }
         } else {
           throw new Error('Failed to save discovered URLs')
         }

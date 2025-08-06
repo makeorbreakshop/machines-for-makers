@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -46,6 +46,7 @@ interface DiscoveredURL {
   ml_reason: string | null
   machine_type: string | null
   should_auto_skip: boolean
+  reviewed: boolean
   manufacturer_sites: {
     id: string
     name: string
@@ -69,6 +70,402 @@ interface DiscoveredURLsContentProps {
   preSelectedManufacturerId?: string | null
 }
 
+// Memoized URL Row Component for performance
+interface URLRowProps {
+  url: DiscoveredURL
+  isSelected: boolean
+  isExpanded: boolean
+  onToggleSelect: (urlId: string, checked: boolean) => void
+  onToggleExpand: (urlId: string) => void
+  onSkipUrl: (urlId: string) => void
+  onUnSkipUrl: (urlId: string) => void
+  onScrapeUrl: (urlId: string) => void
+  onOverrideToSkip: (urlId: string) => void
+  onOverrideToScrape: (urlId: string) => void
+  onShowMachineSelector: (urlId: string | null) => void
+  showMachineSelector: string | null
+  machines: any[]
+  machineSearch: string
+  onMachineSearchChange: (search: string) => void
+  onLinkToMachine: (urlId: string, machineId: string) => void
+  onConfirmDuplicate: (urlId: string) => void
+  onMarkAsUnique: (urlId: string) => void
+}
+
+const URLRow = memo(({ 
+  url, 
+  isSelected, 
+  isExpanded, 
+  onToggleSelect, 
+  onToggleExpand,
+  onSkipUrl,
+  onUnSkipUrl,
+  onScrapeUrl,
+  onOverrideToSkip,
+  onOverrideToScrape,
+  onShowMachineSelector,
+  showMachineSelector,
+  machines,
+  machineSearch,
+  onMachineSearchChange,
+  onLinkToMachine,
+  onConfirmDuplicate,
+  onMarkAsUnique
+}: URLRowProps) => {
+  return (
+    <div className="hover:bg-gray-50">
+      <div className="p-4 flex items-center gap-4">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(checked) => onToggleSelect(url.id, checked as boolean)}
+        />
+        
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <Badge variant="secondary">{url.category.replace('_', ' ')}</Badge>
+            
+            {/* Scraping Status */}
+            {url.status === 'pending' && <Badge variant="default">Pending</Badge>}
+            {url.status === 'scraped' && <Badge variant="default" className="bg-green-500">Scraped</Badge>}
+            {url.status === 'skipped' && <Badge variant="secondary">Skipped</Badge>}
+            {url.status === 'failed' && <Badge variant="destructive">Failed</Badge>}
+            
+            {/* Duplicate Status */}
+            {url.duplicate_status === 'unique' && <Badge variant="default" className="bg-green-500">Unique</Badge>}
+            {url.duplicate_status === 'duplicate' && <Badge variant="destructive">Duplicate</Badge>}
+            {url.duplicate_status === 'pending' && <Badge variant="outline">Not Checked</Badge>}
+            {url.duplicate_status === 'manual_review' && <Badge variant="default" className="bg-yellow-500">Manual Review</Badge>}
+            
+            {/* Similarity Score */}
+            {url.similarity_score && (
+              <Badge variant="outline" className="text-xs">
+                {Math.round(url.similarity_score * 100)}% match
+              </Badge>
+            )}
+            
+            {/* ML Classification Badge */}
+            {url.ml_classification && (
+              <Badge 
+                variant={
+                  url.ml_classification === 'MACHINE' ? 'default' :
+                  url.ml_classification === 'MATERIAL' ? 'destructive' :
+                  url.ml_classification === 'ACCESSORY' ? 'destructive' :
+                  url.ml_classification === 'PACKAGE' ? 'secondary' :
+                  url.ml_classification === 'SERVICE' ? 'destructive' :
+                  'outline'
+                }
+                className="text-xs"
+                title={`${url.ml_reason || 'ML Classification'} (Confidence: ${url.ml_confidence ? Math.round(url.ml_confidence * 100) : 0}%)`}
+              >
+                {url.ml_classification}
+                {url.machine_type && url.ml_classification === 'MACHINE' && (
+                  <span className="ml-1 text-xs opacity-70">({url.machine_type})</span>
+                )}
+              </Badge>
+            )}
+            
+            {/* Review Status Badge */}
+            {url.reviewed && (
+              <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
+                Reviewed
+              </Badge>
+            )}
+          </div>
+          
+          <div className="text-sm font-mono text-gray-600 mb-2">{url.url}</div>
+          
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            {url.status === 'pending' && (
+              <>
+                {(url.ml_classification === 'MATERIAL' || url.ml_classification === 'ACCESSORY' || url.ml_classification === 'SERVICE') ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onOverrideToScrape(url.id)}
+                    className="flex items-center gap-1 text-green-600 border-green-300 hover:bg-green-50"
+                    title="AI suggests skipping this, but keep it for scraping"
+                  >
+                    <CheckCircle className="h-3 w-3" />
+                    Keep (Override AI)
+                  </Button>
+                ) : (url.ml_classification === 'MACHINE' || url.ml_classification === 'PACKAGE') ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onOverrideToSkip(url.id)}
+                    className="flex items-center gap-1 text-red-600 border-red-300 hover:bg-red-50"
+                    title="AI suggests scraping this, but skip it instead"
+                  >
+                    <XCircle className="h-3 w-3" />
+                    Skip (Override AI)
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onSkipUrl(url.id)}
+                      className="flex items-center gap-1 text-red-600 border-red-300 hover:bg-red-50"
+                    >
+                      <XCircle className="h-3 w-3" />
+                      Skip
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onScrapeUrl(url.id)}
+                      className="flex items-center gap-1 text-green-600 border-green-300 hover:bg-green-50"
+                    >
+                      <CheckCircle className="h-3 w-3" />
+                      Scrape
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+            
+            {url.status === 'skipped' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onUnSkipUrl(url.id)}
+                className="flex items-center gap-1 text-green-600 border-green-300 hover:bg-green-50"
+              >
+                <CheckCircle className="h-3 w-3" />
+                Unskip
+              </Button>
+            )}
+            
+            {url.status === 'scraped' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onSkipUrl(url.id)}
+                className="flex items-center gap-1 text-red-600 border-red-300 hover:bg-red-50"
+              >
+                <XCircle className="h-3 w-3" />
+                Skip
+              </Button>
+            )}
+            
+            {url.duplicate_status === 'duplicate' && url.existing_machine && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onToggleExpand(url.id)}
+                className="flex items-center gap-1"
+              >
+                {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                <Target className="h-3 w-3" />
+                View Match
+              </Button>
+            )}
+            
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onShowMachineSelector(showMachineSelector === url.id ? null : url.id)}
+              className="flex items-center gap-1"
+            >
+              <Link className="h-3 w-3" />
+              Link to Machine
+            </Button>
+            
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onToggleExpand(url.id)}
+              className="flex items-center gap-1"
+            >
+              <Eye className="h-3 w-3" />
+              Details
+            </Button>
+          </div>
+          
+          {url.error_message && (
+            <div className="text-sm text-red-600 mt-2">
+              Error: {url.error_message}
+            </div>
+          )}
+        </div>
+        
+        <a 
+          href={url.url} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-gray-400 hover:text-gray-600"
+        >
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      </div>
+
+      {/* Expandable Section */}
+      {isExpanded && (
+        <div className="px-4 pb-4 border-t bg-gray-50">
+          <div className="mt-3 p-3 bg-white border border-gray-200 rounded">
+            {url.existing_machine ? (
+              <div className="flex items-start gap-4">
+                {/* Machine Image */}
+                <div className="flex-shrink-0">
+                  <img
+                    src={url.existing_machine["Image"] || '/placeholder-machine.jpg'}
+                    alt={url.existing_machine["Machine Name"]}
+                    className="w-20 h-20 object-cover rounded border"
+                    onError={(e) => {
+                      e.currentTarget.src = '/placeholder-machine.jpg'
+                    }}
+                  />
+                </div>
+                
+                {/* Machine Details */}
+                <div className="flex-1">
+                  <div className="font-medium text-lg">{url.existing_machine["Machine Name"]}</div>
+                  <div className="text-sm text-gray-600 mb-2">by {url.existing_machine["Company"]}</div>
+                  
+                  {/* Specifications */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
+                    {url.existing_machine["Machine Category"] && (
+                      <div>
+                        <span className="text-gray-500">Category:</span> {url.existing_machine["Machine Category"]}
+                      </div>
+                    )}
+                    {url.existing_machine["Laser Power A"] && (
+                      <div>
+                        <span className="text-gray-500">Power:</span> {url.existing_machine["Laser Power A"]}W
+                      </div>
+                    )}
+                    {url.existing_machine["Price"] && (
+                      <div>
+                        <span className="text-gray-500">Price:</span> ${url.existing_machine["Price"]}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2">
+                    {url.existing_machine["Internal link"] && (
+                      <a
+                        href={`/products/${url.existing_machine["Internal link"]}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View Product
+                      </a>
+                    )}
+                    
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onMarkAsUnique(url.id)}
+                      className="flex items-center gap-1 text-orange-600 border-orange-300 hover:bg-orange-50"
+                    >
+                      <XCircle className="h-3 w-3" />
+                      Mark as Unique
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : url.duplicate_status === 'duplicate' ? (
+              <div className="text-sm text-orange-600">
+                Marked as duplicate but machine details not loaded
+              </div>
+            ) : (
+              <div className="text-sm text-gray-600">
+                No duplicate match found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Machine Selector */}
+      {showMachineSelector === url.id && (() => {
+        const filteredMachines = machines.filter(m => 
+          m["Machine Name"]?.toLowerCase().includes(machineSearch.toLowerCase()) ||
+          m["Company"]?.toLowerCase().includes(machineSearch.toLowerCase())
+        ).slice(0, 10) // Limit to 10 results
+        
+        return (
+          <div className="px-4 pb-4 border-t bg-blue-50">
+            <div className="mt-3 p-3 bg-white border border-blue-200 rounded">
+              <div className="flex items-center gap-2 mb-3">
+                <Link className="h-4 w-4 text-blue-600" />
+                <span className="font-medium">Link to Existing Machine</span>
+              </div>
+              
+              <input
+                type="text"
+                placeholder="Search machines by name or brand..."
+                value={machineSearch}
+                onChange={(e) => onMachineSearchChange(e.target.value)}
+                className="w-full p-2 border rounded mb-3 text-sm"
+              />
+              
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {filteredMachines.map(machine => (
+                  <div
+                    key={machine.id}
+                    onClick={() => onLinkToMachine(url.id, machine.id)}
+                    className="p-2 hover:bg-blue-100 cursor-pointer rounded border flex items-center gap-3"
+                  >
+                    <div className="flex-shrink-0 w-12 h-12">
+                      {machine["Image"] ? (
+                        <img
+                          src={machine["Image"]}
+                          alt={machine["Machine Name"]}
+                          className="w-12 h-12 object-cover rounded border"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                          <span className="text-gray-400 text-xs">No img</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{machine["Machine Name"]}</div>
+                      <div className="text-xs text-gray-600 truncate">{machine["Company"]}</div>
+                    </div>
+                    <Badge variant="outline" className="text-xs flex-shrink-0">
+                      {machine["Category"]}
+                    </Badge>
+                  </div>
+                ))}
+                {filteredMachines.length === 0 && machineSearch && (
+                  <div className="text-sm text-gray-500 p-2">No machines found</div>
+                )}
+              </div>
+              
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  onShowMachineSelector(null)
+                  onMachineSearchChange('')
+                }}
+                className="mt-2"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )
+      })()}
+    </div>
+  )
+}, (prevProps, nextProps) => {
+  // Custom comparison function for performance
+  return prevProps.isSelected === nextProps.isSelected &&
+         prevProps.isExpanded === nextProps.isExpanded &&
+         prevProps.url.id === nextProps.url.id &&
+         prevProps.url.status === nextProps.url.status &&
+         prevProps.url.reviewed === nextProps.url.reviewed &&
+         prevProps.showMachineSelector === nextProps.showMachineSelector &&
+         prevProps.machineSearch === nextProps.machineSearch
+})
+
 export function DiscoveredURLsContent({ 
   onUrlsChange, 
   onProductsScraped,
@@ -83,6 +480,8 @@ export function DiscoveredURLsContent({
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [duplicateFilter, setDuplicateFilter] = useState<string>('all')
+  const [mlClassificationFilter, setMlClassificationFilter] = useState<string>('all')
+  const [reviewedFilter, setReviewedFilter] = useState<string>('all')
   const [scraping, setScraping] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [runningDuplicateCheck, setRunningDuplicateCheck] = useState(false)
@@ -94,7 +493,7 @@ export function DiscoveredURLsContent({
   useEffect(() => {
     fetchURLs()
     fetchMachines()
-  }, [manufacturerId, statusFilter, duplicateFilter])
+  }, [manufacturerId, statusFilter, duplicateFilter, mlClassificationFilter, reviewedFilter])
 
   const fetchMachines = async () => {
     try {
@@ -120,6 +519,7 @@ export function DiscoveredURLsContent({
       if (manufacturerId) params.append('manufacturer_id', manufacturerId)
       if (statusFilter !== 'all') params.append('status', statusFilter)
       if (duplicateFilter !== 'all') params.append('duplicate_status', duplicateFilter)
+      if (reviewedFilter !== 'all') params.append('reviewed', reviewedFilter === 'reviewed' ? 'true' : 'false')
       
       const response = await fetch(`/api/admin/save-discovered-urls?${params}`)
       
@@ -149,24 +549,24 @@ export function DiscoveredURLsContent({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const pendingUrls = filteredUrls
-        .filter(u => u.status === 'pending')
-        .map(u => u.id)
-      setSelectedUrls(new Set(pendingUrls))
+      const allFilteredUrls = filteredUrls.map(u => u.id)
+      setSelectedUrls(new Set(allFilteredUrls))
     } else {
       setSelectedUrls(new Set())
     }
   }
 
   const handleSelectUrl = useCallback((urlId: string, checked: boolean) => {
-    const newSelected = new Set(selectedUrls)
-    if (checked) {
-      newSelected.add(urlId)
-    } else {
-      newSelected.delete(urlId)
-    }
-    setSelectedUrls(newSelected)
-  }, [selectedUrls])
+    setSelectedUrls(prev => {
+      const newSelected = new Set(prev)
+      if (checked) {
+        newSelected.add(urlId)
+      } else {
+        newSelected.delete(urlId)
+      }
+      return newSelected
+    })
+  }, [])
 
   const handleScrapeSelected = async () => {
     if (selectedUrls.size === 0) return
@@ -227,13 +627,185 @@ export function DiscoveredURLsContent({
       fetch(`/api/admin/update-url-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: 'skipped' })
+        body: JSON.stringify({ id, status: 'skipped', reviewed: true })
       })
     )
     
     await Promise.all(updatePromises)
     await fetchURLs()
     setSelectedUrls(new Set())
+  }
+
+  const handleUnskipSelected = async () => {
+    if (selectedUrls.size === 0) return
+    
+    // Update status to pending for selected URLs
+    const updatePromises = Array.from(selectedUrls).map(id => 
+      fetch(`/api/admin/update-url-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'pending', reviewed: true })
+      })
+    )
+    
+    await Promise.all(updatePromises)
+    await fetchURLs()
+    setSelectedUrls(new Set())
+  }
+
+  const handleSkipUrl = async (urlId: string) => {
+    try {
+      const response = await fetch('/api/admin/update-url-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: urlId, status: 'skipped', reviewed: true })
+      })
+      
+      if (response.ok) {
+        updateUrlInState(urlId, { status: 'skipped' as const, reviewed: true })
+      }
+    } catch (error) {
+      console.error('Error skipping URL:', error)
+    }
+  }
+
+  const handleScrapeUrl = async (urlId: string) => {
+    const url = urls.find(u => u.id === urlId)
+    if (!url) return
+
+    setScraping(true)
+    try {
+      const manufacturerIdToUse = manufacturerId || url.manufacturer_id
+      
+      const response = await fetch('http://localhost:8000/api/v1/scrape-discovered-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          urls: [url.url],
+          manufacturer_id: manufacturerIdToUse,
+          max_workers: 1
+        })
+      })
+      
+      if (response.ok) {
+        updateUrlInState(urlId, { status: 'scraped' as const, reviewed: true })
+        onProductsScraped?.()
+      } else {
+        const error = await response.json()
+        alert(`Error scraping: ${error.detail || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error scraping URL:', error)
+      alert('Failed to scrape. Make sure the Python service is running.')
+    } finally {
+      setScraping(false)
+    }
+  }
+
+  const handleOverrideToSkip = async (urlId: string) => {
+    await handleSkipUrl(urlId)
+  }
+
+  const handleOverrideToScrape = async (urlId: string) => {
+    await handleScrapeUrl(urlId)
+  }
+
+  const handleUnSkipUrl = async (urlId: string) => {
+    try {
+      const response = await fetch('/api/admin/update-url-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: urlId, status: 'pending', reviewed: true })
+      })
+      
+      if (response.ok) {
+        updateUrlInState(urlId, { status: 'pending' as const, reviewed: true })
+      }
+    } catch (error) {
+      console.error('Error unskipping URL:', error)
+    }
+  }
+
+  const handleBulkSkipAISuggestions = async () => {
+    const urlsToSkip = filteredUrls
+      .filter(u => u.status === 'pending' && (u.ml_classification === 'MATERIAL' || u.ml_classification === 'ACCESSORY' || u.ml_classification === 'SERVICE'))
+    
+    const updatePromises = urlsToSkip.map(url => 
+      fetch(`/api/admin/update-url-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: url.id, status: 'skipped', reviewed: true })
+      })
+    )
+    
+    await Promise.all(updatePromises)
+    
+    // Update state
+    urlsToSkip.forEach(url => {
+      updateUrlInState(url.id, { status: 'skipped' as const, reviewed: true })
+    })
+  }
+
+  const handleBulkScrapeAISuggestions = async () => {
+    const urlsToScrape = filteredUrls
+      .filter(u => u.status === 'pending' && (u.ml_classification === 'MACHINE' || u.ml_classification === 'PACKAGE'))
+    
+    if (urlsToScrape.length === 0) return
+    
+    setScraping(true)
+    try {
+      const manufacturerIdToUse = manufacturerId || urlsToScrape[0]?.manufacturer_id
+      
+      const response = await fetch('http://localhost:8000/api/v1/scrape-discovered-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          urls: urlsToScrape.map(u => u.url),
+          manufacturer_id: manufacturerIdToUse,
+          max_workers: 3
+        })
+      })
+      
+      if (response.ok) {
+        urlsToScrape.forEach(url => {
+          updateUrlInState(url.id, { status: 'scraped' as const, reviewed: true })
+        })
+        onProductsScraped?.()
+        alert(`Started scraping ${urlsToScrape.length} AI-suggested machine URLs.`)
+      } else {
+        const error = await response.json()
+        alert(`Error scraping: ${error.detail || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error bulk scraping:', error)
+      alert('Failed to scrape. Make sure the Python service is running.')
+    } finally {
+      setScraping(false)
+    }
+  }
+
+  // Helper function to update URL state consistently
+  const updateUrlInState = (urlId: string, updates: Partial<DiscoveredURL>) => {
+    // If filtering by pending, remove completed items for smooth UX
+    if (statusFilter === 'pending' && (updates.status === 'skipped' || updates.status === 'scraped')) {
+      setUrls(prevUrls => prevUrls.filter(url => url.id !== urlId))
+    } else {
+      // Otherwise just update the status
+      setUrls(prevUrls => 
+        prevUrls.map(url => 
+          url.id === urlId 
+            ? { ...url, ...updates }
+            : url
+        )
+      )
+    }
+    
+    // Remove from selection if selected
+    setSelectedUrls(prev => {
+      const newSelected = new Set(prev)
+      newSelected.delete(urlId)
+      return newSelected
+    })
   }
 
   const handleRunDuplicateCheck = async () => {
@@ -384,15 +956,25 @@ export function DiscoveredURLsContent({
     }
   }
 
-  const filteredUrls = urls.filter(url => {
-    if (categoryFilter !== 'all' && url.category !== categoryFilter) return false
-    return true
-  })
+  // Memoize filtered URLs to avoid recalculation on every render
+  const filteredUrls = useMemo(() => {
+    return urls.filter(url => {
+      if (categoryFilter !== 'all' && url.category !== categoryFilter) return false
+      if (mlClassificationFilter !== 'all' && url.ml_classification !== mlClassificationFilter) return false
+      if (reviewedFilter !== 'all') {
+        if (reviewedFilter === 'reviewed' && !url.reviewed) return false
+        if (reviewedFilter === 'unreviewed' && url.reviewed) return false
+      }
+      return true
+    })
+  }, [urls, categoryFilter, mlClassificationFilter, reviewedFilter])
 
-  const categories = Array.from(new Set(urls.map(u => u.category)))
-  const manufacturers = Array.from(new Set(urls.map(u => u.manufacturer_sites.name)))
+  // Memoize expensive array computations
+  const categories = useMemo(() => Array.from(new Set(urls.map(u => u.category))), [urls])
+  const manufacturers = useMemo(() => Array.from(new Set(urls.map(u => u.manufacturer_sites.name))), [urls])
 
-  const stats = {
+  // Memoize stats calculation
+  const stats = useMemo(() => ({
     total: urls.length,
     pending: urls.filter(u => u.status === 'pending').length,
     scraped: urls.filter(u => u.status === 'scraped').length,
@@ -401,11 +983,29 @@ export function DiscoveredURLsContent({
     // Duplicate detection stats
     duplicates: urls.filter(u => u.duplicate_status === 'duplicate').length,
     unique: urls.filter(u => u.duplicate_status === 'unique').length,
-    duplicate_pending: urls.filter(u => u.duplicate_status === 'pending').length
-  }
+    duplicate_pending: urls.filter(u => u.duplicate_status === 'pending').length,
+    // Review stats
+    reviewed: urls.filter(u => u.reviewed).length,
+    unreviewed: urls.filter(u => !u.reviewed).length
+  }), [urls])
 
   const estimatedCredits = selectedUrls.size * 20 // ~20 credits per product
   const estimatedCost = estimatedCredits * 0.00005 // $0.05 per 1000 credits
+
+  // Memoize bulk action availability for performance
+  const bulkActionAvailability = useMemo(() => {
+    if (selectedUrls.size === 0) {
+      return { canUnskip: false, canSkip: false, canScrape: false }
+    }
+    
+    const selectedUrlObjects = Array.from(selectedUrls).map(id => urls.find(u => u.id === id)).filter(Boolean)
+    
+    return {
+      canUnskip: selectedUrlObjects.some(url => url?.status === 'skipped'),
+      canSkip: selectedUrlObjects.some(url => ['pending', 'scraped'].includes(url?.status || '')),
+      canScrape: selectedUrlObjects.some(url => url?.status === 'pending')
+    }
+  }, [selectedUrls, urls])
 
   if (loading) {
     return (
@@ -417,12 +1017,6 @@ export function DiscoveredURLsContent({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Discovered URLs</h1>
-        <p className="text-muted-foreground">
-          Review and selectively scrape discovered product URLs
-        </p>
-      </div>
 
       {/* Compact Stats */}
       <div className="flex items-center gap-6 text-sm mb-4 p-3 bg-gray-50 rounded-lg">
@@ -534,6 +1128,31 @@ export function DiscoveredURLsContent({
               </SelectContent>
             </Select>
 
+            <Select value={mlClassificationFilter} onValueChange={setMlClassificationFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by AI type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All AI Classifications</SelectItem>
+                <SelectItem value="MACHINE">Machines Only</SelectItem>
+                <SelectItem value="MATERIAL">Materials Only</SelectItem>
+                <SelectItem value="ACCESSORY">Accessories Only</SelectItem>
+                <SelectItem value="PACKAGE">Packages Only</SelectItem>
+                <SelectItem value="SERVICE">Services Only</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={reviewedFilter} onValueChange={setReviewedFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by review status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All URLs</SelectItem>
+                <SelectItem value="unreviewed">Unreviewed Only</SelectItem>
+                <SelectItem value="reviewed">Reviewed Only</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Button 
               variant="outline" 
               onClick={handleRunDuplicateCheck}
@@ -564,20 +1183,143 @@ export function DiscoveredURLsContent({
             )}
           </div>
 
-          {/* Selection Actions */}
-          {selectedUrls.size > 0 && (
-            <Alert>
-              <DollarSign className="h-4 w-4" />
+          {/* AI Suggestion Workflows */}
+          {mlClassificationFilter === 'MATERIAL' || mlClassificationFilter === 'ACCESSORY' || mlClassificationFilter === 'SERVICE' ? (
+            /* Review AI Suggested Skips */
+            <Alert className="bg-red-50 border-red-200">
+              <XCircle className="h-4 w-4 text-red-600" />
               <AlertDescription className="flex items-center justify-between">
                 <div>
-                  <strong>{selectedUrls.size} URLs selected</strong><br/>
-                  Estimated cost: {estimatedCredits} credits (${estimatedCost.toFixed(2)})
+                  <strong>AI Suggests Skipping These URLs</strong><br/>
+                  <span className="text-sm text-red-700">Review and approve AI suggestions to skip materials, accessories, or services</span>
                 </div>
                 <div className="flex gap-2">
                   <Button 
                     size="sm" 
+                    variant="destructive"
+                    onClick={handleBulkSkipAISuggestions}
+                    disabled={!filteredUrls.some(u => u.status === 'pending')}
+                  >
+                    Skip All AI Suggestions ({filteredUrls.filter(u => u.status === 'pending').length})
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : mlClassificationFilter === 'MACHINE' || mlClassificationFilter === 'PACKAGE' ? (
+            /* Review AI Suggested Machines */
+            <Alert className="bg-green-50 border-green-200">
+              <DollarSign className="h-4 w-4 text-green-600" />
+              <AlertDescription className="flex items-center justify-between">
+                <div>
+                  <strong>AI Suggests Scraping These URLs</strong><br/>
+                  <span className="text-sm text-green-700">Review and approve AI suggestions to scrape machines and packages</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={handleBulkScrapeAISuggestions}
+                    disabled={scraping || !filteredUrls.some(u => u.status === 'pending')}
+                  >
+                    {scraping ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Scraping...
+                      </>
+                    ) : (
+                      `Scrape All AI Suggestions (${filteredUrls.filter(u => u.status === 'pending').length})`
+                    )}
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            /* Traditional Selection Actions */
+            selectedUrls.size > 0 && (
+              <Alert>
+                <DollarSign className="h-4 w-4" />
+                <AlertDescription className="flex items-center justify-between">
+                  <div>
+                    <strong>{selectedUrls.size} URLs selected</strong><br/>
+                    Estimated cost: {estimatedCredits} credits (${estimatedCost.toFixed(2)})
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      onClick={handleScrapeSelected}
+                      disabled={scraping}
+                    >
+                      {scraping ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Scraping...
+                        </>
+                      ) : (
+                        'Scrape Selected'
+                      )}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={handleSkipSelected}
+                    >
+                      Skip Selected
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )
+          )}
+
+          {/* Select All for current filtered view */}
+          {filteredUrls.length > 0 && (
+            <div className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg border">
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={selectedUrls.size === filteredUrls.length && filteredUrls.length > 0}
+                  onCheckedChange={handleSelectAll}
+                />
+                <label className="text-sm font-medium">
+                  Select all URLs in current view ({filteredUrls.length})
+                </label>
+              </div>
+              {selectedUrls.size > 0 && (
+                <span className="text-sm text-blue-700">
+                  {selectedUrls.size} selected
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Bulk Actions for Selected URLs */}
+          {selectedUrls.size > 0 && (
+            <div className="p-3 bg-gray-50 rounded-lg border">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">
+                  Bulk Actions ({selectedUrls.size} selected)
+                </div>
+                <div className="flex gap-2">
+                  {/* Show appropriate bulk actions based on selected URLs status */}
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={handleUnskipSelected}
+                    disabled={!bulkActionAvailability.canUnskip}
+                  >
+                    Unskip Selected
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={handleSkipSelected}
+                    disabled={!bulkActionAvailability.canSkip}
+                  >
+                    Skip Selected
+                  </Button>
+                  <Button 
+                    size="sm" 
                     onClick={handleScrapeSelected}
-                    disabled={scraping}
+                    disabled={scraping || !bulkActionAvailability.canScrape}
                   >
                     {scraping ? (
                       <>
@@ -588,26 +1330,8 @@ export function DiscoveredURLsContent({
                       'Scrape Selected'
                     )}
                   </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={handleSkipSelected}
-                  >
-                    Skip Selected
-                  </Button>
                 </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Select All for pending */}
-          {stats.pending > 0 && (
-            <div className="flex items-center gap-2">
-              <Checkbox 
-                checked={selectedUrls.size === stats.pending}
-                onCheckedChange={handleSelectAll}
-              />
-              <label className="text-sm">Select all pending URLs ({stats.pending})</label>
+              </div>
             </div>
           )}
         </CardContent>
@@ -623,276 +1347,29 @@ export function DiscoveredURLsContent({
             </div>
           ) : (
           <div className="divide-y">
-            {filteredUrls.map(url => {
-              const isExpanded = expandedRows.has(url.id)
-              
-              return (
-                <div key={url.id} className="hover:bg-gray-50">
-                  <div className="p-4 flex items-center gap-4">
-                    {url.status === 'pending' && (
-                      <Checkbox
-                        checked={selectedUrls.has(url.id)}
-                        onCheckedChange={(checked) => handleSelectUrl(url.id, checked as boolean)}
-                      />
-                    )}
-                    
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <Badge variant="outline">{url.manufacturer_sites.name}</Badge>
-                        <Badge variant="secondary">{url.category.replace('_', ' ')}</Badge>
-                        
-                        {/* Scraping Status */}
-                        {url.status === 'pending' && <Badge variant="default">Pending</Badge>}
-                        {url.status === 'scraped' && <Badge variant="default" className="bg-green-500">Scraped</Badge>}
-                        {url.status === 'skipped' && <Badge variant="secondary">Skipped</Badge>}
-                        {url.status === 'failed' && <Badge variant="destructive">Failed</Badge>}
-                        
-                        {/* Duplicate Status */}
-                        {url.duplicate_status === 'unique' && <Badge variant="default" className="bg-green-500">Unique</Badge>}
-                        {url.duplicate_status === 'duplicate' && <Badge variant="destructive">Duplicate</Badge>}
-                        {url.duplicate_status === 'pending' && <Badge variant="outline">Not Checked</Badge>}
-                        {url.duplicate_status === 'manual_review' && <Badge variant="default" className="bg-yellow-500">Manual Review</Badge>}
-                        
-                        {/* Similarity Score */}
-                        {url.similarity_score && (
-                          <Badge variant="outline" className="text-xs">
-                            {Math.round(url.similarity_score * 100)}% match
-                          </Badge>
-                        )}
-                        
-                        {/* ML Classification Badge */}
-                        {url.ml_classification && (
-                          <Badge 
-                            variant={
-                              url.ml_classification === 'MACHINE' ? 'default' :
-                              url.ml_classification === 'MATERIAL' ? 'destructive' :
-                              url.ml_classification === 'ACCESSORY' ? 'destructive' :
-                              url.ml_classification === 'PACKAGE' ? 'secondary' :
-                              url.ml_classification === 'SERVICE' ? 'destructive' :
-                              'outline'
-                            }
-                            className="text-xs"
-                            title={`${url.ml_reason || 'ML Classification'} (Confidence: ${url.ml_confidence ? Math.round(url.ml_confidence * 100) : 0}%)`}
-                          >
-                            {url.ml_classification}
-                            {url.machine_type && url.ml_classification === 'MACHINE' && (
-                              <span className="ml-1 text-xs opacity-70">({url.machine_type})</span>
-                            )}
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      <div className="text-sm font-mono text-gray-600 mb-2">{url.url}</div>
-                      
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-2">
-                        {url.duplicate_status === 'duplicate' && url.existing_machine && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => toggleRowExpansion(url.id)}
-                            className="flex items-center gap-1"
-                          >
-                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                            <Target className="h-3 w-3" />
-                            View Match
-                          </Button>
-                        )}
-                        
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setShowMachineSelector(showMachineSelector === url.id ? null : url.id)}
-                          className="flex items-center gap-1"
-                        >
-                          <Link className="h-3 w-3" />
-                          Link to Machine
-                        </Button>
-                        
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => toggleRowExpansion(url.id)}
-                          className="flex items-center gap-1"
-                        >
-                          <Eye className="h-3 w-3" />
-                          Details
-                        </Button>
-                      </div>
-                      
-                      {url.error_message && (
-                        <div className="text-sm text-red-600 mt-2">
-                          Error: {url.error_message}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <a 
-                      href={url.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </div>
-
-                  {/* Expandable Section */}
-                  {isExpanded && (
-                    <div className="px-4 pb-4 border-t bg-gray-50">
-                      <div className="mt-3 p-3 bg-white border border-gray-200 rounded">
-                        {url.existing_machine ? (
-                          <div className="flex items-start gap-4">
-                            {/* Machine Image */}
-                            <div className="flex-shrink-0">
-                              <img
-                                src={url.existing_machine["Image"] || '/placeholder-machine.jpg'}
-                                alt={url.existing_machine["Machine Name"]}
-                                className="w-20 h-20 object-cover rounded border"
-                                onError={(e) => {
-                                  e.currentTarget.src = '/placeholder-machine.jpg'
-                                }}
-                              />
-                            </div>
-                            
-                            {/* Machine Details */}
-                            <div className="flex-1">
-                              <div className="font-medium text-lg">{url.existing_machine["Machine Name"]}</div>
-                              <div className="text-sm text-gray-600 mb-2">by {url.existing_machine["Company"]}</div>
-                              
-                              {/* Specifications */}
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
-                                {url.existing_machine["Machine Category"] && (
-                                  <div>
-                                    <span className="text-gray-500">Category:</span> {url.existing_machine["Machine Category"]}
-                                  </div>
-                                )}
-                                {url.existing_machine["Laser Power A"] && (
-                                  <div>
-                                    <span className="text-gray-500">Power:</span> {url.existing_machine["Laser Power A"]}W
-                                  </div>
-                                )}
-                                {url.existing_machine["Price"] && (
-                                  <div>
-                                    <span className="text-gray-500">Price:</span> ${url.existing_machine["Price"]}
-                                  </div>
-                                )}
-                              </div>
-                              
-                              {/* Action Buttons */}
-                              <div className="flex items-center gap-2">
-                                {url.existing_machine["Internal link"] && (
-                                  <a
-                                    href={`/products/${url.existing_machine["Internal link"]}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    View Product
-                                  </a>
-                                )}
-                                
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleMarkAsUnique(url.id)}
-                                  className="flex items-center gap-1 text-orange-600 border-orange-300 hover:bg-orange-50"
-                                >
-                                  <XCircle className="h-3 w-3" />
-                                  Mark as Unique
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ) : url.duplicate_status === 'duplicate' ? (
-                          <div className="text-sm text-orange-600">
-                            Marked as duplicate but machine details not loaded
-                          </div>
-                        ) : (
-                          <div className="text-sm text-gray-600">
-                            No duplicate match found
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Machine Selector */}
-                  {showMachineSelector === url.id && (() => {
-                    const filteredMachines = machines.filter(m => 
-                      m["Machine Name"]?.toLowerCase().includes(machineSearch.toLowerCase()) ||
-                      m["Company"]?.toLowerCase().includes(machineSearch.toLowerCase())
-                    ).slice(0, 10) // Limit to 10 results
-                    
-                    return (
-                      <div className="px-4 pb-4 border-t bg-blue-50">
-                        <div className="mt-3 p-3 bg-white border border-blue-200 rounded">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Link className="h-4 w-4 text-blue-600" />
-                            <span className="font-medium">Link to Existing Machine</span>
-                          </div>
-                          
-                          <input
-                            type="text"
-                            placeholder="Search machines by name or brand..."
-                            value={machineSearch}
-                            onChange={(e) => setMachineSearch(e.target.value)}
-                            className="w-full p-2 border rounded mb-3 text-sm"
-                          />
-                          
-                          <div className="max-h-40 overflow-y-auto space-y-1">
-                            {filteredMachines.map(machine => (
-                              <div
-                                key={machine.id}
-                                onClick={() => handleLinkToMachine(url.id, machine.id)}
-                                className="p-2 hover:bg-blue-100 cursor-pointer rounded border flex items-center gap-3"
-                              >
-                                <div className="flex-shrink-0 w-12 h-12">
-                                  {machine["Image"] ? (
-                                    <img
-                                      src={machine["Image"]}
-                                      alt={machine["Machine Name"]}
-                                      className="w-12 h-12 object-cover rounded border"
-                                    />
-                                  ) : (
-                                    <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
-                                      <span className="text-gray-400 text-xs">No img</span>
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-sm truncate">{machine["Machine Name"]}</div>
-                                  <div className="text-xs text-gray-600 truncate">{machine["Company"]}</div>
-                                </div>
-                                <Badge variant="outline" className="text-xs flex-shrink-0">
-                                  {machine["Category"]}
-                                </Badge>
-                              </div>
-                            ))}
-                            {filteredMachines.length === 0 && machineSearch && (
-                              <div className="text-sm text-gray-500 p-2">No machines found</div>
-                            )}
-                          </div>
-                          
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setShowMachineSelector(null)
-                              setMachineSearch('')
-                            }}
-                            className="mt-2"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-              )
-            })}
+            {filteredUrls.map(url => (
+              <URLRow
+                key={url.id}
+                url={url}
+                isSelected={selectedUrls.has(url.id)}
+                isExpanded={expandedRows.has(url.id)}
+                onToggleSelect={handleSelectUrl}
+                onToggleExpand={toggleRowExpansion}
+                onSkipUrl={handleSkipUrl}
+                onUnSkipUrl={handleUnSkipUrl}
+                onScrapeUrl={handleScrapeUrl}
+                onOverrideToSkip={handleOverrideToSkip}
+                onOverrideToScrape={handleOverrideToScrape}
+                onShowMachineSelector={setShowMachineSelector}
+                showMachineSelector={showMachineSelector}
+                machines={machines}
+                machineSearch={machineSearch}
+                onMachineSearchChange={setMachineSearch}
+                onLinkToMachine={handleLinkToMachine}
+                onConfirmDuplicate={handleConfirmDuplicate}
+                onMarkAsUnique={handleMarkAsUnique}
+              />
+            ))}
           </div>
           )}
         </CardContent>

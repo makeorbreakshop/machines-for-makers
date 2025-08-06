@@ -425,3 +425,10 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: One-click machine copying with "(Copy)" naming and draft status, sitemap index files now properly extract category URLs from sub-sitemaps
 - **Technical**: Dropdown/bulk duplication actions, timestamp-based slug generation, fixed `_extract_urls_from_sitemap` method for proper sitemap index handling
 - **Feature**: Smart copy naming, draft workflow for review, enhanced logging shows sub-sitemap processing (collections, products, pages)
+
+### 2025-08-05: Scrapfly Pipeline Integration & Production Testing
+- **Issue**: JavaScript-heavy sites achieving only ~40% success rate, need more reliable scraping solution
+- **Solution**: Complete Scrapfly pipeline integration with tiered credit system (1→5→25+ credits), tier learning, and drop-in replacement architecture
+- **Impact**: 98.8% success rate on full 164-machine batch, 80% credit reduction through intelligent tier optimization, ~17 minute full dataset processing
+- **Technical**: Tiered fetching with automatic escalation, domain-based tier learning, concurrent processing optimization (8 workers), database constraint fixes
+- **Feature**: Admin UI toggle for Scrapfly, credit estimation display, tier learning system with 98 instances of optimization, production-ready at full scale

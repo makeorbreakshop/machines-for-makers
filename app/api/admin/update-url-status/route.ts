@@ -6,7 +6,7 @@ export const runtime = 'nodejs'
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerClient()
-    const { id, status } = await request.json()
+    const { id, status, reviewed } = await request.json()
     
     if (!id || !status) {
       return NextResponse.json(
@@ -15,12 +15,19 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    const updateData: any = { 
+      status,
+      updated_at: new Date().toISOString()
+    }
+    
+    // Add reviewed field if provided
+    if (reviewed !== undefined) {
+      updateData.reviewed = reviewed
+    }
+    
     const { error } = await supabase
       .from('discovered_urls')
-      .update({ 
-        status,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
     
     if (error) {

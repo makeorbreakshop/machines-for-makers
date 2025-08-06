@@ -198,9 +198,14 @@ class DatabaseService:
             elif success:
                 entry_data["status"] = "AUTO_APPLIED"
             else:
-                entry_data["status"] = "PENDING_REVIEW"
-                if error_message:
+                # Check if this is a failed extraction vs a price that needs review
+                if error_message and "Failed to extract price" in error_message:
+                    entry_data["status"] = "FAILED"
                     entry_data["failure_reason"] = error_message
+                else:
+                    entry_data["status"] = "PENDING_REVIEW"
+                    if error_message:
+                        entry_data["failure_reason"] = error_message
             
             # Add price change data if calculated
             if price_change is not None:

@@ -108,17 +108,25 @@ class PriceExtractor:
         
         # Check if machine-specific rules say to avoid meta tags
         should_skip_meta = False
+        rules = None
+        logger.debug(f"METHOD 3: machine_data exists: {machine_data is not None}, machine_name: '{machine_name}'")
         if machine_data and machine_name:
             from urllib.parse import urlparse
             domain = urlparse(url).netloc.lower()
             if domain.startswith('www.'):
                 domain = domain[4:]
             rules = self.site_extractor.get_machine_specific_rules(domain, machine_name, url)
-            if rules and rules.get('avoid_meta_tags', False):
-                logger.info(f"🚫 Skipping meta tags for {machine_name} due to machine-specific rules")
-                should_skip_meta = True
+            logger.info(f"METHOD 3: Fetched rules for {domain}/{machine_name}: {list(rules.keys()) if rules else 'None'}")
+            if rules:
+                if 'variant_detection_rules' in rules:
+                    logger.info(f"METHOD 3: Found variant detection rules: {list(rules['variant_detection_rules'].keys())}")
+                if rules.get('avoid_meta_tags', False):
+                    logger.info(f"🚫 Skipping meta tags for {machine_name} due to machine-specific rules")
+                    should_skip_meta = True
+        else:
+            logger.warning(f"METHOD 3: Skipping rules fetch - machine_data: {machine_data is not None}, machine_name: '{machine_name}'")
         
-        price, method = self._extract_from_structured_data(soup, skip_meta_tags=should_skip_meta)
+        price, method = self._extract_from_structured_data(soup, skip_meta_tags=should_skip_meta, url=url, machine_name=machine_name, machine_data=machine_data, rules=rules)
         if price is not None:
             # Validate the price against expected ranges and old price
             if self._validate_extracted_price(price, url, old_price, machine_name):
@@ -173,13 +181,16 @@ class PriceExtractor:
         
         return None, None
     
-    def _extract_from_structured_data(self, soup, skip_meta_tags=False):
+    def _extract_from_structured_data(self, soup, skip_meta_tags=False, url=None, machine_name=None, machine_data=None, rules=None):
         """
         Extract price from structured data like JSON-LD or microdata.
         
         Args:
             soup (BeautifulSoup): Parsed HTML content.
             skip_meta_tags (bool): Whether to skip meta tag extraction.
+            url (str, optional): Page URL for domain-specific logic.
+            machine_name (str, optional): Machine name for variant selection.
+            machine_data (dict, optional): Machine record with specifications.
             
         Returns:
             tuple: (price as float, method used) or (None, None) if not found.
@@ -277,39 +288,135 @@ class PriceExtractor:
                         
                         # Check offers array if present
                         if 'offers' in item and isinstance(item['offers'], list):
+                            # Check if we need variant matching for this machine
+                            variant_rules = None
+                            machine_wattage = None
+                            
+                            # Get machine wattage from database if available
+                            if machine_data:
+                                # Check for wattage in the Wattage column
+                                if 'Wattage' in machine_data and machine_data['Wattage']:
+                                    machine_wattage = f"{machine_data['Wattage']}W"
+                                    logger.info(f"Found wattage in database: {machine_wattage}")
+                                # Check for Laser Power A column (used by OMTech)
+                                elif 'Laser Power A' in machine_data and machine_data['Laser Power A']:
+                                    machine_wattage = f"{machine_data['Laser Power A']}W"
+                                    logger.info(f"Found wattage in Laser Power A column: {machine_wattage}")
+                                # Fallback to specifications
+                                elif 'specifications' in machine_data:
+                                    specs = machine_data.get('specifications', {})
+                                    if isinstance(specs, dict) and 'wattage' in specs:
+                                        machine_wattage = specs['wattage']
+                                # Last resort - extract from machine name
+                                elif machine_name:
+                                    wattage_match = re.search(r'(\d+)W', machine_name)
+                                    if wattage_match:
+                                        machine_wattage = f"{wattage_match.group(1)}W"
+                            
+                            logger.debug(f"In JSON-LD extraction - Rules passed: {list(rules.keys()) if rules else 'None'}")
+                            if rules and 'variant_detection_rules' in rules:
+                                variant_rules = rules['variant_detection_rules']
+                                logger.info(f"🎯 Using variant detection rules for {machine_name}: {list(variant_rules.keys())}")
+                            elif machine_name and url and not rules:
+                                # Fallback: fetch rules if not provided
+                                from urllib.parse import urlparse
+                                domain = urlparse(url).netloc.lower()
+                                if domain.startswith('www.'):
+                                    domain = domain[4:]
+                                logger.debug(f"Checking variant rules for domain: {domain}, machine: {machine_name}")
+                                fetched_rules = self.site_extractor.get_machine_specific_rules(domain, machine_name, url)
+                                if fetched_rules:
+                                    logger.debug(f"Found machine-specific rules: {list(fetched_rules.keys())}")
+                                    if 'variant_detection_rules' in fetched_rules:
+                                        variant_rules = fetched_rules['variant_detection_rules']
+                                        logger.info(f"🎯 Found variant detection rules for {machine_name}: {list(variant_rules.keys())}")
+                                    else:
+                                        logger.debug("No variant_detection_rules in machine rules")
+                                else:
+                                    logger.debug("No machine-specific rules found")
+                                    
+                                    logger.info(f"🔋 Machine wattage from database: {machine_wattage}")
+                            
+                            # Collect all offers with their prices and names
+                            offers_with_prices = []
                             for offer_idx, offer in enumerate(item['offers']):
                                 if 'price' in offer:
                                     value = offer['price']
                                     logger.debug(f"Found price in offer {offer_idx}: {repr(value)}")
                                     
-                                    # Same validation as above
+                                    # Parse price
                                     if isinstance(value, (int, float)):
-                                        logger.debug(f"JSON-LD offer price is numeric type {type(value)}: {value}")
-                                        
-                                        # Check if the price might be off by a factor of 10
-                                        price_as_str = str(value)
-                                        if '.' in price_as_str:
-                                            # Get the length before decimal point
-                                            int_part_length = len(price_as_str.split('.')[0])
-                                            decimal_part = price_as_str.split('.')[1]
-                                            
-                                            # If very short integer part with suspiciously round decimal
-                                            if int_part_length < 3 and (decimal_part.endswith('0') or decimal_part.endswith('9')):
-                                                logger.warning(f"Possibly truncated price value {value} from offer. If this looks wrong, please check the JSON-LD data.")
-                                        
-                                        # Use the value directly
                                         price = float(value)
                                     else:
-                                        # Parse string values
                                         price = self._parse_price(value)
+                                    
+                                    if price is not None and 10 <= price <= 100000:
+                                        # Get offer name/description if available
+                                        offer_name = offer.get('name', '')
+                                        offer_sku = offer.get('sku', '')
+                                        offer_description = offer.get('description', '')
                                         
-                                    if price is not None:
-                                        # Verify price is in a reasonable range
-                                        if 10 <= price <= 100000:  # Price should be between $10 and $100,000
-                                            logger.info(f"Extracted price {price} using JSON-LD offers array")
-                                            return price, "JSON-LD offers"
-                                        else:
-                                            logger.warning(f"Price {price} from JSON-LD offer is outside reasonable range, ignoring")
+                                        offers_with_prices.append({
+                                            'price': price,
+                                            'name': offer_name,
+                                            'sku': offer_sku,
+                                            'description': offer_description,
+                                            'index': offer_idx
+                                        })
+                                        logger.debug(f"Valid offer {offer_idx}: price=${price}, name='{offer_name}', sku='{offer_sku}'")
+                            
+                            # Log offers found
+                            logger.info(f"Found {len(offers_with_prices)} valid offers in JSON-LD")
+                            
+                            # If no variant rules or only one offer, return the first valid price
+                            if not variant_rules or len(offers_with_prices) <= 1:
+                                if offers_with_prices:
+                                    selected = offers_with_prices[0]
+                                    if not variant_rules:
+                                        logger.info(f"Extracted price ${selected['price']} using JSON-LD offers array (no variant rules found)")
+                                    else:
+                                        logger.info(f"Extracted price ${selected['price']} using JSON-LD offers array (only one offer found)")
+                                    return selected['price'], "JSON-LD offers"
+                            else:
+                                # Apply variant matching logic
+                                logger.info(f"🔍 Applying variant matching logic to {len(offers_with_prices)} offers")
+                                
+                                # Try to match based on machine wattage if available
+                                if machine_wattage:
+                                    for variant_key, variant_rule in variant_rules.items():
+                                        if variant_key == machine_wattage:
+                                            # Check price range
+                                            expected_range = variant_rule.get('expected_price_range', [])
+                                            if expected_range:
+                                                min_price, max_price = expected_range
+                                                # Find offers within the expected range
+                                                matching_offers = [o for o in offers_with_prices if min_price <= o['price'] <= max_price]
+                                                if matching_offers:
+                                                    selected = matching_offers[0]
+                                                    logger.info(f"✅ Matched variant {variant_key} by wattage and price range: ${selected['price']}")
+                                                    return selected['price'], f"JSON-LD offers (variant: {variant_key})"
+                                
+                                # Try keyword matching in offer names/descriptions
+                                for variant_key, variant_rule in variant_rules.items():
+                                    keywords = variant_rule.get('keywords', [])
+                                    for offer in offers_with_prices:
+                                        # Check if any keyword matches the offer
+                                        offer_text = f"{offer['name']} {offer['sku']} {offer['description']}".lower()
+                                        for keyword in keywords:
+                                            if keyword.lower() in offer_text:
+                                                logger.info(f"✅ Matched variant {variant_key} by keyword '{keyword}': ${offer['price']}")
+                                                return offer['price'], f"JSON-LD offers (variant: {variant_key})"
+                                
+                                # If no specific match found, log all offers and fall back to first one
+                                logger.warning(f"⚠️ Could not match specific variant. Available offers:")
+                                for offer in offers_with_prices:
+                                    logger.warning(f"  - ${offer['price']}: '{offer['name']}' (SKU: {offer['sku']})")
+                                
+                                # Return first offer as fallback
+                                if offers_with_prices:
+                                    selected = offers_with_prices[0]
+                                    logger.warning(f"⚠️ Using first offer as fallback: ${selected['price']}")
+                                    return selected['price'], "JSON-LD offers (fallback)"
                 
                 except (json.JSONDecodeError, AttributeError) as e:
                     logger.debug(f"Error parsing JSON-LD: {str(e)}")
