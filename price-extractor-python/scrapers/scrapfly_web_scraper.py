@@ -7,6 +7,8 @@ from typing import Dict, Optional, Tuple, Any
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from loguru import logger
+import time
+from datetime import datetime, timedelta
 
 from scrapfly import ScrapflyClient, ScrapeConfig, ScrapeApiResponse
 from scrapfly import (
@@ -41,7 +43,7 @@ class ScrapflyWebScraper:
         
         self.client = ScrapflyClient(
             key=self.api_key,
-            max_concurrency=10  # Allow higher concurrency for batch processing
+            max_concurrency=5  # Reduced to prevent 429 throttling in production
         )
         
         self.db_service = database_service or DatabaseService()
@@ -53,7 +55,14 @@ class ScrapflyWebScraper:
             'success': False
         }
         
-        logger.info("Scrapfly web scraper initialized with tiered fetching")
+        # Rate limiting for failed requests and concurrency control
+        self.failed_requests = []  # List of timestamps for failed requests
+        self.max_failed_per_minute = 15  # Stay well under Scrapfly's 25/min limit
+        self.throttle_until = None  # Timestamp when throttling ends
+        self.concurrent_requests = 0  # Track active concurrent requests
+        self.max_concurrent = 3  # Limit concurrent requests to prevent 429s
+        
+        logger.info("Scrapfly web scraper initialized with tiered fetching and rate limiting")
     
     async def get_page_content(self, url: str) -> Tuple[Optional[str], Optional[BeautifulSoup]]:
         """
@@ -156,6 +165,29 @@ class ScrapflyWebScraper:
         # Could be enhanced later to suggest domain variations
         return []
     
+    async def _check_rate_limit(self) -> None:
+        """Check and enforce rate limiting for failed requests and concurrency."""
+        # If we're currently throttled, wait
+        if self.throttle_until and datetime.now() < self.throttle_until:
+            wait_seconds = (self.throttle_until - datetime.now()).total_seconds()
+            logger.warning(f"⏱️ Rate limited - waiting {wait_seconds:.1f}s before next request")
+            await asyncio.sleep(wait_seconds)
+            self.throttle_until = None
+        
+        # Clean up old failed requests (older than 60 seconds)
+        cutoff_time = datetime.now() - timedelta(seconds=60)
+        self.failed_requests = [ts for ts in self.failed_requests if ts > cutoff_time]
+        
+        # If we're approaching the failed request limit, add delay
+        if len(self.failed_requests) >= self.max_failed_per_minute - 5:
+            logger.warning(f"⚠️ Approaching rate limit ({len(self.failed_requests)} failed requests in last minute)")
+            await asyncio.sleep(3)  # Slow down
+        
+        # Enforce concurrency limit to prevent 429 errors
+        while self.concurrent_requests >= self.max_concurrent:
+            logger.info(f"⏳ Waiting for concurrent request slot ({self.concurrent_requests}/{self.max_concurrent})")
+            await asyncio.sleep(0.5)  # Wait for a slot to open
+    
     async def _fetch_with_tier(self, url: str, tier: int) -> Tuple[Optional[str], Dict]:
         """
         Fetch URL using specific tier configuration
@@ -167,30 +199,120 @@ class ScrapflyWebScraper:
         Returns:
             Tuple of (html_content, metadata)
         """
+        # Check rate limiting and get request slot
+        await self._check_rate_limit()
+        
+        # Increment concurrent request counter
+        self.concurrent_requests += 1
+        
         try:
             config = self._get_tier_config(url, tier)
-            response: ScrapeApiResponse = self.client.scrape(config)
             
-            # Extract results
+            # Run the synchronous scrape method in thread pool to avoid blocking event loop
+            # This enables true concurrent processing while maintaining response integrity
+            try:
+                loop = asyncio.get_event_loop()
+                response: ScrapeApiResponse = await loop.run_in_executor(
+                    None,  # Use default thread pool executor
+                    self.client.scrape,
+                    config
+                )
+                
+                # Debug logging for thread pool response
+                if response is None:
+                    logger.error(f"Thread pool returned None response for {url}")
+                    return None, {
+                        'tier': tier,
+                        'status_code': None,
+                        'success': False,
+                        'error': 'Thread pool returned None response',
+                        'cost': 0,
+                        'url': url
+                    }
+                    
+            except Exception as e:
+                logger.error(f"Scrapfly request failed for {url} (tier {tier}): {str(e)}")
+                return None, {
+                    'tier': tier,
+                    'status_code': None,
+                    'success': False,
+                    'error': f"Request failed: {str(e)}",
+                    'cost': 0,
+                    'url': url
+                }
+            
+            # Extract results with safety checks
+            if not response or not hasattr(response, 'scrape_result'):
+                logger.error(f"Invalid response object from Scrapfly for {url}")
+                return None, {
+                    'tier': tier,
+                    'status_code': None,
+                    'success': False,
+                    'error': 'Invalid response object',
+                    'cost': 0,
+                    'url': url
+                }
+            
             result = response.scrape_result
+            if result is None:
+                logger.error(f"No scrape result in response for {url}")
+                return None, {
+                    'tier': tier,
+                    'status_code': None,
+                    'success': False,
+                    'error': 'No scrape result in response',
+                    'cost': 0,
+                    'url': url
+                }
+            
+            # Ensure result is a dict before calling .get()
+            if not isinstance(result, dict):
+                logger.error(f"scrape_result is not a dict for {url}: {type(result)}")
+                return None, {
+                    'tier': tier,
+                    'status_code': None,
+                    'success': False,
+                    'error': f'scrape_result is {type(result)}, not dict',
+                    'cost': 0,
+                    'url': url
+                }
+            
             html_content = result.get('content', '')
             
-            # Build metadata
-            metadata = {
-                'tier': tier,
-                'status_code': response.upstream_status_code,
-                'success': response.upstream_status_code == 200,
-                'url': result.get('url', url),
-                'cost': response.cost,
-                'asp_used': result.get('asp', {}).get('enabled', False),
-                'js_rendered': result.get('browser_data') is not None,
-                'duration': result.get('duration'),
-                'error': None
-            }
+            # Build metadata - with safe access to response attributes
+            try:
+                metadata = {
+                    'tier': tier,
+                    'status_code': getattr(response, 'upstream_status_code', None),
+                    'success': getattr(response, 'upstream_status_code', None) == 200,
+                    'url': result.get('url', url),
+                    'cost': getattr(response, 'cost', 0),
+                    'asp_used': result.get('asp', {}).get('enabled', False) if isinstance(result.get('asp'), dict) else False,
+                    'js_rendered': result.get('browser_data') is not None,
+                    'duration': result.get('duration'),
+                    'error': None
+                }
+            except Exception as meta_error:
+                logger.error(f"Error building metadata for {url}: {meta_error}")
+                # Return basic metadata on error
+                metadata = {
+                    'tier': tier,
+                    'status_code': None,
+                    'success': False,
+                    'url': url,
+                    'cost': 0,
+                    'asp_used': False,
+                    'js_rendered': False,
+                    'duration': None,
+                    'error': f'Metadata error: {meta_error}'
+                }
             
             return html_content, metadata
             
         except UpstreamHttpClientError as e:
+            # Track failed request
+            self.failed_requests.append(datetime.now())
+            
             return None, {
                 'tier': tier,
                 'status_code': e.http_status_code,
@@ -201,6 +323,9 @@ class ScrapflyWebScraper:
             }
             
         except UpstreamHttpServerError as e:
+            # Track failed request
+            self.failed_requests.append(datetime.now())
+            
             return None, {
                 'tier': tier,
                 'status_code': e.http_status_code,
@@ -211,6 +336,15 @@ class ScrapflyWebScraper:
             }
             
         except ScrapflyScrapeError as e:
+            # Track failed request
+            self.failed_requests.append(datetime.now())
+            
+            # Check if it's a 429 throttling error
+            if "429" in str(e) or "throttled" in str(e).lower():
+                logger.error(f"🚫 Scrapfly throttling detected: {e.message}")
+                # Set throttle until 60 seconds from now
+                self.throttle_until = datetime.now() + timedelta(seconds=60)
+            
             return None, {
                 'tier': tier,
                 'status_code': None,
@@ -221,6 +355,15 @@ class ScrapflyWebScraper:
             }
             
         except Exception as e:
+            # Track failed request
+            self.failed_requests.append(datetime.now())
+            
+            # Check if it's a 429 throttling error
+            if "429" in str(e) or "throttled" in str(e).lower():
+                logger.error(f"🚫 Throttling detected: {str(e)}")
+                # Set throttle until 60 seconds from now
+                self.throttle_until = datetime.now() + timedelta(seconds=60)
+            
             return None, {
                 'tier': tier,
                 'status_code': None,
@@ -229,6 +372,9 @@ class ScrapflyWebScraper:
                 'cost': 0,
                 'url': url
             }
+        finally:
+            # Always decrement concurrent request counter
+            self.concurrent_requests = max(0, self.concurrent_requests - 1)
     
     def _get_tier_config(self, url: str, tier: int) -> ScrapeConfig:
         """
@@ -250,6 +396,7 @@ class ScrapflyWebScraper:
                 country='US',
                 cost_budget=5,  # Safety limit
                 retry=True
+                # timeout not allowed with retry=True
             )
         elif tier == 2:
             # Tier 2: JavaScript rendering - 5 credits
@@ -262,6 +409,7 @@ class ScrapflyWebScraper:
                 retry=True,
                 wait_for_selector=None,  # Could be optimized with learned selectors
                 auto_scroll=False  # Keep costs down
+                # timeout not allowed with retry=True
             )
         elif tier == 3:
             # Tier 3: Full anti-bot protection - 25+ credits
@@ -274,6 +422,7 @@ class ScrapflyWebScraper:
                 retry=True,
                 auto_scroll=True,  # Load lazy content
                 wait_for_selector=None
+                # timeout not allowed with retry=True
             )
         else:
             raise ValueError(f"Invalid tier: {tier}")
