@@ -57,29 +57,38 @@ class SiteSpecificExtractor:
                     },
                     'ComMarker B6 30W': {
                         'url_patterns': ['/commarker-b6', '/b6-30w'],
+                        'requires_dynamic': True,  # MUST select 30W variant first
+                        'variant_selection': {
+                            'wattage_selector': 'input[value="30W"]',  # Select 30W radio button
+                            'wait_for_update': '.wd-swatch-tooltip .price',  # Wait for bundle prices to update
+                        },
                         'price_selectors': [
-                            # Target the exact structure shown in user's HTML screenshot
-                            '.woocommerce-Price-amount.amount bdi',
-                            'span.woocommerce-Price-amount.amount bdi',
-                            # Target variation/bundle selection price display area
-                            '.single_variation_wrap .woocommerce-Price-amount.amount',
-                            '.variations_form .single_variation .price .amount', 
-                            '.woocommerce-variation-price .price .amount',
-                            '.variation-price .woocommerce-Price-amount.amount',
-                            # More specific variation selectors
-                            '.single_variation .price .woocommerce-Price-amount.amount',
-                            '.single_variation_wrap .price .amount',
-                            # Only as last resort - the general selectors that pick up everything
-                            '.variations .price .amount'
+                            # PRIORITY: Look for sale price first (ins tag)
+                            '.price ins .woocommerce-Price-amount bdi',
+                            'ins .woocommerce-Price-amount bdi',
+                            '.price ins .amount bdi',
+                            # Then try bundle-specific selectors
+                            '.wd-swatch-tooltip:has(.wd-swatch-text:contains("B6 Basic Bundle")) .price ins bdi',
+                            '.wd-swatch-tooltip:has(.wd-swatch-text:contains("B6 Basic Bundle")) .price bdi',
+                            # Fallback to variation price
+                            '.single_variation_wrap .price ins .amount',
+                            '.variations_form .price ins .amount'
                         ],
                         'prefer_contexts': [
-                            'wd-swatch', 'variation', 'single_variation_wrap', 'woocommerce-Price-amount'
+                            'wd-swatch-tooltip', 'wd-swatch-info'
                         ],
                         'avoid_selectors': [
+                            '.entry-summary > .price',  # AVOID header price (static 20W price)
+                            '.summary > .price',  # AVOID summary header price
                             '.saveprice',  # Avoid discount/savings amounts
-                            '.price .amount:last-child'  # Main product price selector
+                            '.product-navigation',  # Avoid header/navigation prices
+                            'header .price'  # Avoid any header prices
                         ],
-                        'notes': 'Extract $2,399 Basic Bundle price from WooCommerce variation selector'
+                        'price_validation': {
+                            'min': 2300,  # ComMarker B6 30W should be at least $2300
+                            'max': 2500   # And no more than $2500
+                        },
+                        'notes': 'MUST select 30W variant then extract B6 Basic Bundle price ($2,399). Header shows static 20W price.'
                     }
                 },
                 'avoid_contexts': [
@@ -738,6 +747,8 @@ class SiteSpecificExtractor:
                 # SPECIAL BLACKLIST: Skip generic selectors for sites with variant detection
                 if domain == 'aeonlaser.us':
                     bad_selector_patterns.extend(['.price', '.amount', '.total'])  # Too generic for Aeon variants
+                elif domain == 'commarker.com':
+                    bad_selector_patterns.extend(['.woocommerce-Price-amount'])  # Too generic, catches wrong prices
                 
                 is_bad_selector = any(bad_pattern in selector.lower() for bad_pattern in bad_selector_patterns)
                 
@@ -1036,8 +1047,23 @@ class SiteSpecificExtractor:
         
         # Enhanced price selection logic using historical price comparison
         if len(all_prices_found) >= 1:
-            # If we have historical price data, select the closest price
-            if machine_data and machine_data.get('old_price'):
+            # First check if we have price_validation rules
+            if rules and 'price_validation' in rules:
+                price_validation = rules['price_validation']
+                min_price = price_validation.get('min', 0)
+                max_price = price_validation.get('max', float('inf'))
+                logger.info(f"🎯 Using price validation rules: ${min_price} - ${max_price}")
+                
+                # Filter prices within validation range
+                valid_prices = [(p, e, s, c) for p, e, s, c in all_prices_found if min_price <= p <= max_price]
+                if valid_prices:
+                    # Return the first valid price (they're already ordered by selector priority)
+                    best_price, best_elem, best_selector, best_context = valid_prices[0]
+                    logger.info(f"✅ Selected ComMarker price ${best_price} within validation range using selector: {best_selector}")
+                    return best_price, f"validation_range:{best_selector}"
+            
+            # Fallback to historical price comparison
+            elif machine_data and machine_data.get('old_price'):
                 historical_price = float(machine_data['old_price'])
                 logger.info(f"📊 Using historical price comparison: old_price=${historical_price}")
                 
