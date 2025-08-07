@@ -1,4 +1,5 @@
-import { TrendingDown, DollarSign, Clock, Award } from 'lucide-react';
+import { TrendingDown, DollarSign, Clock, Award, Mail } from 'lucide-react';
+import { DealAlertsExpander } from '@/components/email/deal-alerts-expander';
 
 interface PriceDropsHeroProps {
   stats?: {
@@ -11,22 +12,27 @@ interface PriceDropsHeroProps {
 
 export function PriceDropsHero({ stats }: PriceDropsHeroProps) {
   return (
-    <div className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-primary/5 to-background rounded-xl p-8 mb-8">
-      <div className="relative z-10">
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-          Price Drops & Deals
-        </h1>
-        <p className="text-lg text-gray-600 dark:text-gray-300 mb-6 max-w-2xl">
-          Track real-time price drops on laser cutters, 3D printers, and CNC machines. 
-          Never miss a deal with our automated price monitoring system.
-        </p>
+    <div className="bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
+      <div className="max-w-4xl mx-auto px-6 py-12">
+        {/* Main Content */}
+        <div className="text-center mb-10">
+          <h1 className="text-5xl font-semibold text-gray-900 dark:text-white mb-4 tracking-tight">
+            Price Drops & Deals
+          </h1>
+          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed">
+            Track real-time price drops on laser cutters, 3D printers, and CNC machines. 
+            Never miss a deal with our automated price monitoring system.
+          </p>
+        </div>
 
-      </div>
-
-      {/* Background decoration */}
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute -top-4 -right-4 w-72 h-72 bg-primary rounded-full blur-3xl" />
-        <div className="absolute -bottom-4 -left-4 w-96 h-96 bg-primary rounded-full blur-3xl" />
+        {/* Call to Action */}
+        <div className="max-w-2xl mx-auto text-center">
+          <DealAlertsExpander />
+          
+          <p className="text-sm text-gray-500 mt-4">
+            Set it and forget it - we'll watch prices while you work
+          </p>
+        </div>
       </div>
     </div>
   );
