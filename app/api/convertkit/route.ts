@@ -1,4 +1,6 @@
-export const runtime = 'edge';
+export const runtime = 'nodejs'; // Changed to nodejs for Supabase access
+
+import { createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
   try {
@@ -52,6 +54,33 @@ export async function POST(request: Request) {
     }
 
     console.log("ConvertKit subscription success:", data);
+
+    // Store in our database for tracking
+    const supabase = createServiceClient();
+    
+    try {
+      const { error: dbError } = await supabase
+        .from('email_subscribers')
+        .insert({
+          email: email.toLowerCase(),
+          first_name: null, // Material library doesn't collect first name
+          convertkit_subscriber_id: data.subscription?.subscriber?.id || null,
+          tags: ['laser-material-library'],
+          status: 'active',
+          source: 'material-library',
+          referrer: referrer,
+          form_id: process.env.CONVERTKIT_FORM_ID || null,
+          form_name: 'Laser Material Library',
+        });
+      
+      if (dbError) {
+        console.error("Failed to save subscriber to database:", dbError);
+        // Don't fail the request if database save fails
+      }
+    } catch (dbError) {
+      console.error("Database save error:", dbError);
+      // Don't fail the request if database save fails
+    }
 
     return new Response(JSON.stringify({ success: true, data }), {
       status: 200,
