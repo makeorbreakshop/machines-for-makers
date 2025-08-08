@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 
-import { createServerClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmailSignupsChart } from './email-signups-chart';
 import { SourceBreakdownChart } from './source-breakdown-chart';
@@ -8,7 +8,7 @@ import { RecentSignupsTable } from './recent-signups-table';
 import { Users, TrendingUp, Calendar, Mail } from 'lucide-react';
 
 export default async function EmailSignupsPage() {
-  const supabase = createServerClient();
+  const supabase = createServiceClient();
   
   // Get total subscribers
   const { count: totalSubscribers } = await supabase
