@@ -1,0 +1,2 @@
+2025-08-06 13:40:41 | INFO     | services.machine_filter_service:__init__:22 - Machine filter service initialized with model: gpt-4o-mini
+2025-08-06 13:40:53 | INFO     | services.machine_filter_service:_classify_batch:152 - Classified 5 URLs: 2 machines, 2 to skip

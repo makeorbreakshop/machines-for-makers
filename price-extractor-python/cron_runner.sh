@@ -40,7 +40,7 @@ echo "✅ Server is ready"
 echo "🔄 Starting batch price update for ALL machines..."
 RESPONSE=$(curl -X POST http://localhost:8000/api/v1/batch-update \
   -H "Content-Type: application/json" \
-  -d '{"batch_size": 20, "days_threshold": 0}' \
+  -d '{"days_threshold": 0, "max_workers": 8, "use_scrapfly": true}' \
   -s)
 
 echo "📊 Batch started: $RESPONSE"

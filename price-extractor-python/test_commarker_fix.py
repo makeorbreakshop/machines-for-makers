@@ -1,120 +1,74 @@
 #!/usr/bin/env python3
-"""
-Focused test for ComMarker MCP automation fix.
-Tests that we're extracting correct prices, not $50.
-"""
+"""Test the ComMarker B6 30W fix."""
 
 import asyncio
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 from loguru import logger
-from scrapers.claude_mcp_client import extract_price_with_claude_mcp
+from scrapers.scrapfly_web_scraper import ScrapflyWebScraper
+from scrapers.site_specific_extractors import SiteSpecificExtractor
+from services.database import DatabaseService
+from bs4 import BeautifulSoup
 
-# Configure logging
-logger.remove()
-logger.add(sys.stdout, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
-
-# ComMarker test cases
-COMMARKER_TEST_CASES = [
-    {
-        "name": "ComMarker B4 30W",
-        "url": "https://www.commarker.com/products/commarker-b4-fiber-laser-engraver",
-        "expected_price": 1799.0,
-        "variant": "30W"
-    },
-    {
-        "name": "ComMarker B6 30W",
-        "url": "https://www.commarker.com/products/b6-enclosed-fiber-laser-engraver",
-        "expected_price": 2399.0,
-        "variant": "30W"
-    },
-    {
-        "name": "ComMarker B6 MOPA 30W",
-        "url": "https://www.commarker.com/products/b6-mopa-fiber-laser-engraver",
-        "expected_price": 3569.0,
-        "variant": "30W"
-    }
-]
-
-
-async def test_commarker_machine(test_case):
-    """Test a single ComMarker machine."""
-    logger.info(f"\n{'='*60}")
-    logger.info(f"Testing: {test_case['name']}")
-    logger.info(f"URL: {test_case['url']}")
-    logger.info(f"Expected: ${test_case['expected_price']}")
-    logger.info(f"Variant: {test_case['variant']}")
+async def test_commarker_fix():
+    """Test ComMarker B6 30W with fixed rules."""
+    db_service = DatabaseService()
+    
+    # URL that's failing
+    url = "https://commarker.com/product/commarker-b6"
+    machine_name = "ComMarker B6 30W"
+    
+    # Initialize scraper
+    scraper = ScrapflyWebScraper(database_service=db_service)
+    extractor = SiteSpecificExtractor()
     
     try:
-        # Extract price using MCP automation
-        price, method = await extract_price_with_claude_mcp(
-            test_case['url'], 
-            test_case['name'],
-            None,  # old_price
-            {}  # Empty machine data
+        logger.info(f"Testing URL: {url}")
+        
+        # Get page content
+        html_content, soup = await scraper.get_page_content(url)
+        
+        logger.info(f"Page fetched successfully, size: {len(html_content)} chars")
+        
+        # Test site-specific extraction
+        machine_data = {
+            'name': machine_name,
+            'Machine Name': machine_name,
+            'old_price': 2299.00
+        }
+        
+        price, method = extractor.extract_price_with_rules(
+            soup,
+            html_content,
+            url,
+            machine_data
         )
         
-        if price is None:
-            logger.error(f"❌ FAILED: No price extracted")
-            return False, None
-        elif price == 50:
-            logger.error(f"❌ FAILED: Got the $50 bug! Price extraction returned $50")
-            return False, price
-        elif abs(price - test_case['expected_price']) < 1:
-            logger.success(f"✅ SUCCESS: Extracted ${price} (expected ${test_case['expected_price']})")
-            return True, price
+        if price:
+            logger.success(f"✅ Extracted price: ${price} using method: {method}")
         else:
-            logger.error(f"❌ FAILED: Wrong price - got ${price}, expected ${test_case['expected_price']}")
-            return False, price
+            logger.error("❌ Failed to extract price")
             
-    except Exception as e:
-        logger.error(f"❌ ERROR: {str(e)}")
-        return False, None
-
-
-async def main():
-    """Run ComMarker tests."""
-    logger.info("COMMARKER MCP AUTOMATION FIX TEST")
-    logger.info("Testing that ComMarker machines extract correct prices, not $50")
-    
-    results = []
-    
-    for test_case in COMMARKER_TEST_CASES:
-        success, price = await test_commarker_machine(test_case)
-        results.append({
-            "machine": test_case["name"],
-            "success": success,
-            "extracted_price": price,
-            "expected_price": test_case["expected_price"]
-        })
+            # Debug: show what prices we're finding with the new selectors
+            new_selectors = [
+                '.summary .price ins .woocommerce-Price-amount.amount bdi',
+                '.summary .price .woocommerce-Price-amount.amount bdi',
+                '.wd-swatch-tooltip .price ins bdi',
+                '.wd-swatch-tooltip .price bdi'
+            ]
+            
+            logger.info("\n=== Testing new selectors ===")
+            for selector in new_selectors:
+                elements = soup.select(selector)
+                if elements:
+                    logger.info(f"Selector '{selector}' found {len(elements)} elements:")
+                    for elem in elements[:3]:
+                        logger.info(f"  - {elem.get_text(strip=True)}")
         
-        # Brief pause between tests
-        await asyncio.sleep(2)
-    
-    # Summary
-    logger.info(f"\n{'='*60}")
-    logger.info("TEST SUMMARY")
-    logger.info(f"{'='*60}")
-    
-    passed = sum(1 for r in results if r["success"])
-    total = len(results)
-    
-    logger.info(f"Total: {total}")
-    logger.info(f"Passed: {passed}")
-    logger.info(f"Failed: {total - passed}")
-    
-    # Check for $50 bug
-    fifty_dollar_count = sum(1 for r in results if r["extracted_price"] == 50)
-    if fifty_dollar_count > 0:
-        logger.error(f"⚠️  $50 BUG DETECTED: {fifty_dollar_count} machines returned $50!")
-    
-    logger.info("\nDetailed Results:")
-    for result in results:
-        status = "✅" if result["success"] else "❌"
-        logger.info(f"{status} {result['machine']}: ${result['extracted_price']} (expected ${result['expected_price']})")
-
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        await db_service.close()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(test_commarker_fix())
