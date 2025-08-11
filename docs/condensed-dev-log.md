@@ -467,3 +467,10 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Successfully extracts $2,399 (was getting $55/$5555), launched deal alerts landing page with ConvertKit integration
 - **Technical**: Blacklisted `.woocommerce-Price-amount`, prioritized `.price ins .woocommerce-Price-amount bdi`, created email_subscribers table
 - **Feature**: Complete email workflow - landing page, API endpoint, admin generator, HTML template with stats, integrated into price tracker
+
+### 2025-08-08: Cron Job Performance Investigation & System Sleep Fix
+- **Issue**: Cron job taking 9291 seconds (2.5 hours) vs manual admin taking 931 seconds (15.5 minutes) for similar operations
+- **Solution**: Root cause analysis revealed Mac system in low-power state at 3 AM causing Puppeteer timeouts, fixed with caffeinate wrapper
+- **Impact**: Fixed 10x performance difference - next 3 AM run should complete in 15-20 minutes instead of 2.5 hours
+- **Technical**: Modified launchd plist with `caffeinate -dis`, updated cron_runner.sh parameters (8 workers, use_scrapfly: true)
+- **Discovery**: Local macOS launchd configuration (not Vercel!), system sleep causing browser automation failures, parameter inconsistencies

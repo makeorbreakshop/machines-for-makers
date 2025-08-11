@@ -1,24 +1,14 @@
 "use client"
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-
 interface SourceBreakdownChartProps {
   data: Array<{
     source: string | null
   }>
 }
 
-const COLORS = {
-  'deals-page': 'hsl(var(--chart-1))',
-  'material-library': 'hsl(var(--chart-2))',
-  'settings-library': 'hsl(var(--chart-3))',
-  'other': 'hsl(var(--chart-4))',
-}
-
 const SOURCE_LABELS = {
   'deals-page': 'Deal Alerts',
-  'material-library': 'Material Library',
+  'material-library': 'Material Library', 
   'settings-library': 'Settings Library',
   'other': 'Other',
 }
@@ -34,43 +24,23 @@ export function SourceBreakdownChart({ data }: SourceBreakdownChartProps) {
     return acc
   }, {} as Record<string, number>)
 
-  // Convert to array format for recharts
-  const chartData = Object.entries(sourceCounts)
+  // Convert to array format and sort by count
+  const sortedSources = Object.entries(sourceCounts)
     .map(([source, count]) => ({
-      name: SOURCE_LABELS[source as keyof typeof SOURCE_LABELS] || source,
-      value: count,
-      fill: COLORS[source as keyof typeof COLORS] || COLORS.other,
+      source,
+      label: SOURCE_LABELS[source as keyof typeof SOURCE_LABELS] || source,
+      count,
     }))
-    .sort((a, b) => b.value - a.value)
-
-  const config = Object.entries(SOURCE_LABELS).reduce((acc, [key, label]) => {
-    acc[key] = {
-      label,
-      color: COLORS[key as keyof typeof COLORS],
-    }
-    return acc
-  }, {} as any)
+    .sort((a, b) => b.count - a.count)
 
   return (
-    <ChartContainer config={config} className="h-[300px]">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <Pie
-            data={chartData}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-            outerRadius={80}
-            dataKey="value"
-          >
-            {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-    </ChartContainer>
+    <div className="space-y-3">
+      {sortedSources.map(({ source, label, count }) => (
+        <div key={source} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
+          <span className="font-medium">{label}</span>
+          <span className="text-2xl font-bold">{count}</span>
+        </div>
+      ))}
+    </div>
   )
 }
