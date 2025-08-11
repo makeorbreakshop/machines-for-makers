@@ -49,7 +49,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
+      <body suppressHydrationWarning>
         {GA_MEASUREMENT_ID && (
           <>
             <Script
@@ -64,16 +64,12 @@ export default function RootLayout({
                   window.dataLayer = window.dataLayer || [];
                   function gtag(){dataLayer.push(arguments);}
                   gtag('js', new Date());
-                  gtag('config', '${GA_MEASUREMENT_ID}', {
-                    page_path: window.location.pathname,
-                  });
+                  gtag('config', '${GA_MEASUREMENT_ID}');
                 `,
               }}
             />
           </>
         )}
-      </head>
-      <body suppressHydrationWarning>
         {children}
         <GoogleAnalytics />
         <Analytics />
