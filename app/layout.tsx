@@ -47,6 +47,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  console.log('GA_MEASUREMENT_ID in layout:', GA_MEASUREMENT_ID);
+  
   return (
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
@@ -61,6 +63,7 @@ export default function RootLayout({
               strategy="afterInteractive"
               dangerouslySetInnerHTML={{
                 __html: `
+                  console.log('GA script loading with ID:', '${GA_MEASUREMENT_ID}');
                   window.dataLayer = window.dataLayer || [];
                   function gtag(){dataLayer.push(arguments);}
                   gtag('js', new Date());
