@@ -1684,9 +1684,12 @@ export default function PriceTrackerAdmin() {
   }, [pythonApiReady, refreshing])
   
   // Get batch status badge
-  const getBatchStatusBadge = (status: string) => {
+  const getBatchStatusBadge = (status: string, hasIssues: boolean = false) => {
     switch (status.toLowerCase()) {
       case 'completed':
+        if (hasIssues) {
+          return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">⚠️ Completed (Blocked)</Badge>
+        }
         return <Badge className="bg-green-100 text-green-800 border-green-300">Completed</Badge>
       case 'in_progress':
       case 'started':
@@ -2104,8 +2107,12 @@ export default function PriceTrackerAdmin() {
                               </Badge>
                             )}
                             {record.status === 'FAILED' && (
-                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                Failed
+                              <Badge 
+                                variant="outline" 
+                                className="bg-red-50 text-red-700 border-red-200 cursor-help"
+                                title={record.failure_reason || 'No failure reason available'}
+                              >
+                                Failed{record.failure_reason ? `: ${record.failure_reason.length > 20 ? record.failure_reason.substring(0, 20) + '...' : record.failure_reason}` : ''}
                               </Badge>
                             )}
                           </div>
@@ -2632,8 +2639,12 @@ export default function PriceTrackerAdmin() {
                                 </Badge>
                               )}
                               {record.status === 'FAILED' && record.failure_reason && !record.failure_reason.includes('Pending review') && (
-                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                  Failed
+                                <Badge 
+                                  variant="outline" 
+                                  className="bg-red-50 text-red-700 border-red-200 cursor-help"
+                                  title={record.failure_reason}
+                                >
+                                  Failed: {record.failure_reason.length > 30 ? record.failure_reason.substring(0, 30) + '...' : record.failure_reason}
                                 </Badge>
                               )}
                               
@@ -2819,6 +2830,7 @@ export default function PriceTrackerAdmin() {
                       <TableHead>Batch ID</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Machines</TableHead>
+                      <TableHead>Issues</TableHead>
                       <TableHead>Start Time</TableHead>
                       <TableHead>Duration</TableHead>
                       <TableHead>Actions</TableHead>
@@ -2834,8 +2846,24 @@ export default function PriceTrackerAdmin() {
                       return (
                         <TableRow key={batch.id}>
                           <TableCell className="font-mono text-xs">{batch.id}</TableCell>
-                          <TableCell>{getBatchStatusBadge(batch.status)}</TableCell>
+                          <TableCell>{getBatchStatusBadge(batch.status, batch.has_issues || batch.variant_blocked)}</TableCell>
                           <TableCell>{batch.total_machines || 'N/A'}</TableCell>
+                          <TableCell>
+                            {batch.variant_blocked ? (
+                              <div className="flex items-center space-x-1">
+                                <Badge variant="destructive" className="text-xs">
+                                  🚫 Variant Issues
+                                </Badge>
+                                {batch.variant_alerts && batch.variant_alerts.length > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    ({batch.variant_alerts.length} alerts)
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">None</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             {batch.start_time 
                               ? <span title={new Date(batch.start_time).toLocaleString()}>

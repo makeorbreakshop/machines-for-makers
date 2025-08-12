@@ -474,3 +474,10 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Fixed 10x performance difference - next 3 AM run should complete in 15-20 minutes instead of 2.5 hours
 - **Technical**: Modified launchd plist with `caffeinate -dis`, updated cron_runner.sh parameters (8 workers, use_scrapfly: true)
 - **Discovery**: Local macOS launchd configuration (not Vercel!), system sleep causing browser automation failures, parameter inconsistencies
+
+### 2025-08-11: Google Analytics 4 Integration & Environment Configuration
+- **Issue**: No comprehensive web analytics beyond basic Vercel Analytics for building custom traffic dashboards
+- **Solution**: Complete Google Analytics 4 integration with Next.js Script optimization, environment variable configuration, route tracking
+- **Impact**: Full user behavior tracking, custom events capability, demographics data, API access for future dashboards
+- **Technical**: Created `/lib/analytics.ts` utilities, `/components/analytics/google-analytics.tsx` with Suspense boundary for Next.js 15 compatibility
+- **Critical Fix**: Environment variable mismatch (G-6CS88FPF34 vs G-6CS89FPF34) and deprecated `page_path` parameter resolved with proper GA4 event tracking
