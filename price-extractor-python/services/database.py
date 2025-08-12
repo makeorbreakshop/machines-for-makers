@@ -477,12 +477,13 @@ class DatabaseService:
             logger.exception(f"Error creating batch: {str(e)}")
             return None
             
-    async def complete_batch(self, batch_id):
+    async def complete_batch(self, batch_id, completion_metadata=None):
         """
         Mark a batch as completed.
         
         Args:
             batch_id (str): ID of the batch to complete.
+            completion_metadata (dict): Additional metadata to store with completion (variant alerts, etc.)
             
         Returns:
             bool: True if updated successfully, False otherwise.
@@ -492,6 +493,30 @@ class DatabaseService:
                 "end_time": datetime.utcnow().isoformat() + "Z",
                 "status": "completed"
             }
+            
+            # If we have completion metadata, merge it with existing metadata
+            if completion_metadata:
+                # First get existing metadata
+                try:
+                    response = self.supabase.table("batches") \
+                        .select("metadata") \
+                        .eq("id", batch_id) \
+                        .execute()
+                    
+                    existing_metadata = {}
+                    if response.data and len(response.data) > 0:
+                        metadata_str = response.data[0].get("metadata", "{}")
+                        if metadata_str and metadata_str != "{}":
+                            import json
+                            existing_metadata = json.loads(metadata_str)
+                    
+                    # Merge completion metadata
+                    existing_metadata.update(completion_metadata)
+                    update_data["metadata"] = json.dumps(existing_metadata)
+                    
+                except Exception as meta_error:
+                    logger.warning(f"Error handling metadata for batch {batch_id}: {meta_error}")
+                    # Still proceed with completion, just without metadata update
             
             response = self.supabase.table("batches") \
                 .update(update_data) \

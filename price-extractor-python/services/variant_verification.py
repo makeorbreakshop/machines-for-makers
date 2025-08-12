@@ -12,7 +12,7 @@ class VariantVerificationService:
         self.variant_prices = defaultdict(dict)
         self.alerts = []
     
-    def record_price(self, machine_name, price, batch_id=None):
+    def record_price(self, machine_name, price, batch_id=None, machine_id=None):
         """
         Record a price for a machine variant.
         
@@ -20,6 +20,7 @@ class VariantVerificationService:
             machine_name (str): Full machine name including variant (e.g., "ComMarker B6 MOPA 30W")
             price (float): The extracted price
             batch_id (str): Optional batch ID for tracking
+            machine_id (str): Optional machine ID for tracking failed machines
         """
         # Extract base machine name and variant
         base_name, variant = self._parse_machine_variant(machine_name)
@@ -28,6 +29,7 @@ class VariantVerificationService:
             self.variant_prices[base_name][variant] = {
                 'price': price,
                 'machine_name': machine_name,
+                'machine_id': machine_id,
                 'batch_id': batch_id,
                 'timestamp': datetime.now()
             }

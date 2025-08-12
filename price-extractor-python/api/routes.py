@@ -324,7 +324,7 @@ async def get_batches():
         # Query all batches from the database, ordered by start_time (newest first)
         # Note: Supabase client is synchronous, no await needed
         response = price_service.db_service.supabase.table("batches") \
-            .select("id, status, start_time, end_time, total_machines, days_threshold") \
+            .select("id, status, start_time, end_time, total_machines, days_threshold, metadata") \
             .order("start_time", desc=True) \
             .limit(20) \
             .execute()
@@ -338,13 +338,34 @@ async def get_batches():
         
         logger.info(f"Found {len(response.data)} batch jobs")
         
+        # Process batch data to add variant blocking information
+        processed_batches = []
+        for batch in response.data:
+            # Parse metadata if it exists
+            metadata = {}
+            if batch.get('metadata'):
+                try:
+                    import json
+                    metadata = json.loads(batch['metadata'])
+                except (json.JSONDecodeError, TypeError):
+                    metadata = {}
+            
+            # Add processed batch data
+            processed_batch = {
+                **batch,
+                'variant_blocked': metadata.get('variant_blocked', False),
+                'variant_alerts': metadata.get('variant_alerts', []),
+                'has_issues': metadata.get('variant_blocked', False)
+            }
+            processed_batches.append(processed_batch)
+        
         # Log the first batch to help with debugging
-        if response.data and len(response.data) > 0:
-            logger.info(f"Most recent batch: {response.data[0]}")
+        if processed_batches and len(processed_batches) > 0:
+            logger.info(f"Most recent batch: {processed_batches[0]}")
             
         return {
             "success": True,
-            "batches": response.data
+            "batches": processed_batches
         }
     except Exception as e:
         logger.exception(f"Error fetching batch jobs: {str(e)}")

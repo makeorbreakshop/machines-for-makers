@@ -293,7 +293,7 @@ class PriceService:
             # Record price for variant verification (if in batch mode)
             if batch_id and self.variant_verifier:
                 machine_name = machine.get("Machine Name", "Unknown")
-                self.variant_verifier.record_price(machine_name, new_price, batch_id)
+                self.variant_verifier.record_price(machine_name, new_price, batch_id, machine_id)
             
             # Skip update if the price hasn't changed
             if old_price == new_price:
@@ -581,20 +581,30 @@ class PriceService:
         # Process machines concurrently with controlled concurrency
         await self._process_machines_concurrently(machines, batch_id, results, effective_max_workers, use_scrapfly)
         
-        # Mark batch as completed
-        await self.db_service.complete_batch(batch_id)
-        
         logger.info(f"Batch update completed. Results: {results['successful']} successful, {results['failed']} failed")
         
         # Generate and log variant verification report
+        completion_metadata = {}
+        variant_blocked = False
+        
         if self.variant_verifier:
             variant_report = self.variant_verifier.generate_report()
             logger.info("\n" + variant_report)
             
             # Check if we should block the batch due to variant issues
             if self.variant_verifier.should_block_batch():
+                variant_blocked = True
                 logger.error("🛑 CRITICAL: Batch has variant price issues that indicate broken extraction!")
                 results['variant_alerts'] = self.variant_verifier.get_alerts()
+                completion_metadata['variant_blocked'] = True
+                completion_metadata['variant_alerts'] = self.variant_verifier.get_alerts()
+                completion_metadata['variant_report'] = variant_report
+                
+                # Record individual variant machines as failed entries
+                await self._record_variant_failures(batch_id, self.variant_verifier.get_alerts())
+        
+        # Mark batch as completed with metadata
+        await self.db_service.complete_batch(batch_id, completion_metadata)
         
         # Log batch completion details
         logger.info(f"======================")
@@ -761,6 +771,48 @@ class PriceService:
         except Exception as e:
             logger.exception(f"Error parsing batch failures for {batch_id}: {str(e)}")
             return []
+    
+    async def _record_variant_failures(self, batch_id, variant_alerts):
+        """
+        Record individual machines with variant issues as failed entries.
+        
+        Args:
+            batch_id (str): The batch ID
+            variant_alerts (list): List of variant alert dictionaries
+        """
+        try:
+            for alert in variant_alerts:
+                if alert.get('severity') == 'HIGH' and 'details' in alert:
+                    # Extract machine IDs from the alert details
+                    details = alert.get('details', {})
+                    base_name = alert.get('base_name', 'Unknown')
+                    same_price = alert.get('same_price', 0)
+                    
+                    # Process each variant in the details
+                    for variant_name, variant_info in details.items():
+                        machine_id = variant_info.get('machine_id')
+                        machine_name = variant_info.get('machine_name', 'Unknown')
+                        
+                        if machine_id:
+                            failure_reason = f"Variant pricing issue: {base_name} variants all have same price ${same_price}. Expected different pricing for {variant_name} variant."
+                            
+                            logger.info(f"Recording variant failure for machine {machine_id} ({machine_name}): {failure_reason}")
+                            
+                            # Add price history entry with failed status
+                            await self.db_service.add_price_history(
+                                machine_id=machine_id,
+                                old_price=None,
+                                new_price=same_price,  # Use the same price that was detected
+                                success=False,
+                                error_message=failure_reason,
+                                batch_id=batch_id,
+                                status="FAILED"
+                            )
+                        else:
+                            logger.warning(f"No machine_id found for variant {variant_name} in alert details")
+                        
+        except Exception as e:
+            logger.exception(f"Error recording variant failures: {str(e)}")
     
     async def get_batch_manual_corrections(self, batch_id):
         """

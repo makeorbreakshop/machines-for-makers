@@ -1030,11 +1030,30 @@ class SiteSpecificExtractor:
                 price_text = elem.get_text().strip()
                 logger.info(f"  Element {i+1} text: '{price_text}'")
                 
-                # Check element context to avoid bundle/addon prices
+                # Check element context - ComMarker B6 MOPA special handling
                 context = self._get_element_context(elem)
-                if any(avoid in context.lower() for avoid in ['bundle', 'package', 'addon', 'extra', 'accessory']):
-                    logger.info(f"  ❌ Skipping price in bundle/addon context: {context}")
-                    continue
+                
+                # For ComMarker B6 MOPA machines, bundle prices are the CORRECT prices
+                # because the page shows pre-selected bundles as the default configuration
+                is_b6_mopa = machine_data and 'ComMarker B6 MOPA' in machine_data.get('machine_name', '')
+                
+                if is_b6_mopa:
+                    # For B6 MOPA, prioritize bundle prices over crossed-out prices
+                    if any(bundle_term in context.lower() for bundle_term in ['bundle', 'package']):
+                        logger.info(f"  🎯 B6 MOPA: PRIORITIZING bundle price in context: {context}")
+                        # Mark this as a high-priority bundle price
+                        price = self._parse_price_text(price_text, 'commarker.com')
+                        if price and 3000 <= price <= 4000:  # B6 MOPA price range
+                            parent_classes = ' '.join(elem.parent.get('class', []) if elem.parent else [])
+                            # Insert at beginning to prioritize bundle prices
+                            all_prices_found.insert(0, (price, elem, f"{selector}(bundle)", parent_classes))
+                            logger.info(f"  ✅ B6 MOPA Bundle Price (HIGH PRIORITY): ${price} (context: {parent_classes})")
+                            continue
+                else:
+                    # For other machines, skip bundle/addon prices as usual
+                    if any(avoid in context.lower() for avoid in ['bundle', 'package', 'addon', 'extra', 'accessory']):
+                        logger.info(f"  ❌ Skipping price in bundle/addon context: {context}")
+                        continue
                 
                 price = self._parse_price_text(price_text, 'commarker.com')
                 if price and 500 <= price <= 15000:  # Reasonable ComMarker price range
