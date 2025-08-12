@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, Eye, Loader2, TrendingDown, DollarSign, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
 
 interface PriceDrop {
   id: string;
@@ -43,7 +44,7 @@ export function EmailGeneratorContent() {
   const [loading, setLoading] = useState(false);
   const [drops, setDrops] = useState<PriceDrop[]>([]);
   const [selectedDrops, setSelectedDrops] = useState<PriceDrop[]>([]);
-  const [emailHtml, setEmailHtml] = useState('');
+  const [emailContent, setEmailContent] = useState('');
   const [emailStats, setEmailStats] = useState<EmailStats | null>(null);
   const [dateRange, setDateRange] = useState('10');
   const [minDiscount, setMinDiscount] = useState('10');
@@ -102,7 +103,7 @@ export function EmailGeneratorContent() {
         setPreviewText(`Save up to $${Math.abs(topDeal.priceChange).toFixed(0)} on laser cutters this week`);
       }
       
-      generateEmailHtml(selected);
+      generateEmailContent(selected);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -110,116 +111,62 @@ export function EmailGeneratorContent() {
     }
   };
 
-  // Generate email HTML
-  const generateEmailHtml = (deals: PriceDrop[]) => {
+  // Generate email markdown
+  const generateEmailContent = (deals: PriceDrop[]) => {
     if (deals.length === 0) {
-      setEmailHtml('');
+      setEmailContent('');
       return;
     }
 
     const heroDeal = deals[0];
     const otherDeals = deals.slice(1);
 
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>This Week's Laser Cutter Deals</title>
-  <style>
-    body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f6f6f6; }
-    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
-    .header { background-color: #1a1a1a; color: #ffffff; padding: 30px 20px; text-align: center; }
-    .header h1 { margin: 0; font-size: 28px; }
-    .stats-bar { background-color: #f0f0f0; padding: 20px; text-align: center; }
-    .stat { display: inline-block; margin: 0 15px; }
-    .stat-number { font-size: 24px; font-weight: bold; color: #1a1a1a; }
-    .stat-label { font-size: 14px; color: #666; }
-    .hero-deal { padding: 30px 20px; border-bottom: 2px solid #eee; }
-    .deal-badge { background-color: #ff4444; color: white; padding: 5px 10px; border-radius: 20px; font-size: 14px; display: inline-block; margin-bottom: 10px; }
-    .deal-title { font-size: 24px; margin: 10px 0; }
-    .price-info { margin: 20px 0; }
-    .old-price { text-decoration: line-through; color: #999; font-size: 18px; }
-    .new-price { color: #ff4444; font-size: 28px; font-weight: bold; margin-left: 10px; }
-    .savings { color: #22c55e; font-size: 18px; margin-left: 10px; }
-    .cta-button { background-color: #1a1a1a; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0; }
-    .deals-grid { padding: 20px; }
-    .deal-card { border: 1px solid #eee; border-radius: 8px; padding: 20px; margin-bottom: 15px; }
-    .footer { background-color: #f0f0f0; padding: 30px 20px; text-align: center; font-size: 14px; color: #666; }
-    .footer a { color: #666; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <!-- Header -->
-    <div class="header">
-      <h1>🛠️ Machines for Makers Deal Alert</h1>
-      <p style="margin: 10px 0 0 0; font-size: 16px;">Your weekly digest of laser cutter deals</p>
-    </div>
-    
-    <!-- Stats Bar -->
-    <div class="stats-bar">
-      <div class="stat">
-        <div class="stat-number">${emailStats?.totalDeals || 0}</div>
-        <div class="stat-label">Deals</div>
-      </div>
-      <div class="stat">
-        <div class="stat-number">$${emailStats?.totalSavings.toFixed(0) || 0}</div>
-        <div class="stat-label">Total Savings</div>
-      </div>
-      <div class="stat">
-        <div class="stat-number">${emailStats?.avgDiscount || 0}%</div>
-        <div class="stat-label">Avg Discount</div>
-      </div>
-    </div>
-    
-    <!-- Hero Deal -->
-    <div class="hero-deal">
-      ${heroDeal.isAllTimeLow ? '<span class="deal-badge">🏆 ALL-TIME LOW</span>' : '<span class="deal-badge">HOT DEAL</span>'}
-      <h2 class="deal-title">${heroDeal.company} ${heroDeal.machineName}</h2>
-      <div class="price-info">
-        <span class="old-price">$${heroDeal.previousPrice.toFixed(2)}</span>
-        <span class="new-price">$${heroDeal.currentPrice.toFixed(2)}</span>
-        <span class="savings">Save $${Math.abs(heroDeal.priceChange).toFixed(0)} (${Math.abs(heroDeal.percentageChange)}% off)</span>
-      </div>
-      <p>${heroDeal.category} • ${heroDeal.workArea || 'Various sizes available'}</p>
-      <a href="https://www.machinesformakers.com${heroDeal.productLink}" class="cta-button">View Deal →</a>
-    </div>
-    
-    <!-- Other Deals -->
-    <div class="deals-grid">
-      <h3 style="margin-bottom: 20px;">More Deals This Week</h3>
-      ${otherDeals.map(deal => `
-        <div class="deal-card">
-          <h4 style="margin: 0 0 10px 0;">${deal.company} ${deal.machineName}</h4>
-          <div style="margin-bottom: 10px;">
-            <span class="old-price">$${deal.previousPrice.toFixed(2)}</span>
-            <span style="color: #ff4444; font-size: 20px; font-weight: bold; margin-left: 10px;">$${deal.currentPrice.toFixed(2)}</span>
-          </div>
-          <p style="margin: 5px 0; color: #22c55e; font-weight: bold;">${Math.abs(deal.percentageChange)}% off - Save $${Math.abs(deal.priceChange).toFixed(0)}</p>
-          ${deal.isAllTimeLow ? '<p style="margin: 5px 0; color: #ff4444;">🏆 All-Time Low Price!</p>' : ''}
-          <a href="https://www.machinesformakers.com${deal.productLink}" style="color: #1a1a1a; font-weight: bold;">View Deal →</a>
-        </div>
-      `).join('')}
-    </div>
-    
-    <!-- Footer -->
-    <div class="footer">
-      <p>You're receiving this because you signed up for deal alerts at Machines for Makers.</p>
-      <p><a href="https://www.machinesformakers.com/deals">View all deals</a> • <a href="{unsubscribe_link}">Unsubscribe</a></p>
-      <p style="margin-top: 20px; font-size: 12px;">© ${new Date().getFullYear()} Machines for Makers. All rights reserved.</p>
-    </div>
-  </div>
-</body>
-</html>`;
+    const markdown = `# 🔥 This Week's Laser Cutter Deals - Machines for Makers
 
-    setEmailHtml(html);
+## 📊 Deal Summary
+- **${emailStats?.totalDeals || 0}** total deals
+- **$${emailStats?.totalSavings.toFixed(0) || 0}** total savings
+- **${emailStats?.avgDiscount || 0}%** average discount${emailStats?.allTimeLows ? `\n- **${emailStats.allTimeLows}** all-time low${emailStats.allTimeLows > 1 ? 's' : ''}` : ''}
+
+---
+
+## 🎯 BIGGEST DISCOUNT THIS WEEK
+
+### ${heroDeal.company} ${heroDeal.machineName}
+**💰 $${heroDeal.currentPrice.toFixed(0)}** *(was $${heroDeal.previousPrice.toFixed(0)})*
+
+🏷️ **${Math.abs(heroDeal.percentageChange)}% OFF** - Save $${Math.abs(heroDeal.priceChange).toFixed(0)}${heroDeal.isAllTimeLow ? ' ⭐ **ALL-TIME LOW!**' : ''}
+
+${heroDeal.category} • ${heroDeal.workArea || 'Various sizes available'}
+
+**[👉 VIEW DEAL](https://www.machinesformakers.com${heroDeal.productLink})**
+
+---
+
+## 💰 More Great Deals
+
+${otherDeals.map(deal => `**${deal.company} ${deal.machineName}**  
+💰 **$${deal.currentPrice.toFixed(0)}** *(was $${deal.previousPrice.toFixed(0)})* • **${Math.abs(deal.percentageChange)}% OFF**${deal.isAllTimeLow ? ' ⭐' : ''}  
+**[👉 VIEW DEAL](https://www.machinesformakers.com${deal.productLink})**
+
+`).join('')}
+
+---
+
+Happy making!  
+**The Machines for Makers Team**
+
+[Visit our website: https://machinesformakers.com](https://machinesformakers.com)
+
+[Unsubscribe]({unsubscribe_link})`;
+
+    setEmailContent(markdown);
   };
 
-  // Copy HTML to clipboard
-  const copyHtml = async () => {
+  // Copy markdown to clipboard
+  const copyContent = async () => {
     try {
-      await navigator.clipboard.writeText(emailHtml);
+      await navigator.clipboard.writeText(emailContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -355,22 +302,34 @@ export function EmailGeneratorContent() {
       <Card>
         <CardHeader>
           <CardTitle>Email Preview</CardTitle>
-          <CardDescription>Preview the generated email HTML</CardDescription>
+          <CardDescription>Preview the generated email markdown</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="preview" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="preview">Preview</TabsTrigger>
-              <TabsTrigger value="html">HTML Code</TabsTrigger>
+              <TabsTrigger value="markdown">Markdown Code</TabsTrigger>
             </TabsList>
             <TabsContent value="preview" className="mt-4">
-              {emailHtml ? (
-                <div className="border rounded-lg overflow-hidden">
-                  <iframe
-                    srcDoc={emailHtml}
-                    className="w-full h-[600px]"
-                    title="Email Preview"
-                  />
+              {emailContent ? (
+                <div className="border rounded-lg p-6 bg-white max-h-[600px] overflow-y-auto">
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown 
+                      components={{
+                        h1: ({...props}) => <h1 className="text-2xl font-bold mb-4 text-gray-900" {...props} />,
+                        h2: ({...props}) => <h2 className="text-xl font-bold mb-3 mt-6 text-gray-900" {...props} />,
+                        h3: ({...props}) => <h3 className="text-lg font-bold mb-2 mt-4 text-gray-900" {...props} />,
+                        p: ({...props}) => <p className="mb-4 text-gray-700 leading-relaxed" {...props} />,
+                        strong: ({...props}) => <strong className="font-bold text-gray-900" {...props} />,
+                        a: ({...props}) => <a className="text-blue-600 hover:text-blue-800 font-medium" {...props} />,
+                        ul: ({...props}) => <ul className="mb-4 space-y-1" {...props} />,
+                        li: ({...props}) => <li className="text-gray-700" {...props} />,
+                        hr: ({...props}) => <hr className="my-6 border-gray-300" {...props} />,
+                      }}
+                    >
+                      {emailContent}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
@@ -378,11 +337,11 @@ export function EmailGeneratorContent() {
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="html" className="mt-4">
-              {emailHtml ? (
+            <TabsContent value="markdown" className="mt-4">
+              {emailContent ? (
                 <div className="relative">
                   <Textarea
-                    value={emailHtml}
+                    value={emailContent}
                     readOnly
                     className="font-mono text-sm"
                     rows={20}
@@ -391,14 +350,14 @@ export function EmailGeneratorContent() {
                     size="sm"
                     variant="outline"
                     className="absolute top-2 right-2"
-                    onClick={copyHtml}
+                    onClick={copyContent}
                   >
-                    {copied ? 'Copied!' : <><Copy className="h-4 w-4 mr-2" /> Copy HTML</>}
+                    {copied ? 'Copied!' : <><Copy className="h-4 w-4 mr-2" /> Copy Markdown</>}
                   </Button>
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
-                  No HTML generated yet
+                  No markdown generated yet
                 </div>
               )}
             </TabsContent>
@@ -437,9 +396,9 @@ export function EmailGeneratorContent() {
             <AlertDescription>
               <strong>To send this email:</strong>
               <ol className="mt-2 space-y-1 list-decimal list-inside">
-                <li>Copy the HTML using the button above</li>
+                <li>Copy the markdown using the button above</li>
                 <li>Go to ConvertKit and create a new broadcast</li>
-                <li>Paste the HTML in the email editor</li>
+                <li>Paste the markdown in the email editor</li>
                 <li>Set the subject line and preview text from above</li>
                 <li>Schedule for Tuesday at 10am ET</li>
               </ol>

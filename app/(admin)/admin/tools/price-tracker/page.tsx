@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import ReactMarkdown from "react-markdown"
 
 // Add type definitions for the window object with priceTrackerAPI
 declare global {
@@ -1186,7 +1187,9 @@ export default function PriceTrackerAdmin() {
             "product_link",
             "Affiliate Link",
             "Laser Power A",
-            "LaserPower B"
+            "LaserPower B",
+            "Laser Type A",
+            "Laser Type B"
           )
         `)
         .in('status', ['AUTO_APPLIED', 'MANUAL_CORRECTION', 'SUCCESS'])
@@ -1259,6 +1262,8 @@ export default function PriceTrackerAdmin() {
           productLink: record.machines.product_link,
           productUrl: record.machines.product_link,
           affiliateLink: record.machines["Affiliate Link"],
+          laserTypeA: record.machines["Laser Type A"],
+          laserTypeB: record.machines["Laser Type B"],
           laserPower: record.machines["Laser Power A"] ? 
             (record.machines["LaserPower B"] ? 
               `${record.machines["Laser Power A"]}W / ${record.machines["LaserPower B"]}W` : 
@@ -1316,14 +1321,14 @@ export default function PriceTrackerAdmin() {
       return;
     }
 
-    // Sort by percentage discount (biggest first)
-    selectedDeals.sort((a, b) => (a.percentageChange || 0) - (b.percentageChange || 0));
+    // Sort by dollar savings (biggest first)
+    selectedDeals.sort((a, b) => Math.abs(b.priceChange || 0) - Math.abs(a.priceChange || 0));
 
     // Calculate stats
     const stats = {
       totalDeals: selectedDeals.length,
       totalSavings: selectedDeals.reduce((sum, deal) => sum + Math.abs(deal.priceChange || 0), 0),
-      avgDiscount: Math.round(selectedDeals.reduce((sum, deal) => sum + Math.abs(deal.percentageChange || 0), 0) / selectedDeals.length),
+      avgSavings: Math.round(selectedDeals.reduce((sum, deal) => sum + Math.abs(deal.priceChange || 0), 0) / selectedDeals.length),
       allTimeLows: selectedDeals.filter(deal => deal.is_all_time_low).length
     };
 
@@ -1332,8 +1337,8 @@ export default function PriceTrackerAdmin() {
     // Generate subject line
     const topDeal = selectedDeals[0];
     if (topDeal) {
-      const discount = Math.abs(topDeal.percentageChange || 0).toFixed(0);
-      setSubjectLine(`🔥 ${topDeal.company} ${topDeal.machineName} now ${discount}% off (+ ${stats.totalDeals - 1} more deals)`);
+      const dollarSavings = Math.abs(topDeal.priceChange || 0).toLocaleString();
+      setSubjectLine(`🔥 ${topDeal.company} ${topDeal.machineName} save $${dollarSavings} (+ ${stats.totalDeals - 1} more deals)`);
       setPreviewText(`Save up to $${Math.abs(topDeal.priceChange || 0).toLocaleString()} on laser cutters this week`);
     }
 
@@ -1367,114 +1372,84 @@ export default function PriceTrackerAdmin() {
     const heroItem = deals[0];
     const additionalItems = deals.slice(1, 10);
 
-    return `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>This Week's Laser Cutter Deals</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-        <!-- Header -->
-        <div style="background-color: #1a1a1a; color: #ffffff; padding: 40px 20px; text-align: center;">
-            <h1 style="margin: 0; font-size: 28px; font-weight: 700;">Machines for Makers</h1>
-            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">This Week's Best Deals</p>
-        </div>
+    let text = `# 🔥 This Week's Laser Cutter Deals - Machines for Makers
 
-        <!-- Stats Bar -->
-        <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-bottom: 1px solid #e9ecef;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                    <td style="text-align: center; padding: 0 10px;">
-                        <div style="font-size: 24px; font-weight: bold; color: #2563eb;">${stats.totalDeals}</div>
-                        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">Total Deals</div>
-                    </td>
-                    <td style="text-align: center; padding: 0 10px;">
-                        <div style="font-size: 24px; font-weight: bold; color: #059669;">$${stats.totalSavings.toLocaleString()}</div>
-                        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">Total Savings</div>
-                    </td>
-                    <td style="text-align: center; padding: 0 10px;">
-                        <div style="font-size: 24px; font-weight: bold; color: #dc2626;">${stats.avgDiscount}%</div>
-                        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">Avg Discount</div>
-                    </td>
-                    ${stats.allTimeLows > 0 ? `
-                    <td style="text-align: center; padding: 0 10px;">
-                        <div style="font-size: 24px; font-weight: bold; color: #7c3aed;">${stats.allTimeLows}</div>
-                        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">All-Time Lows</div>
-                    </td>
-                    ` : ''}
-                </tr>
-            </table>
-        </div>
+## 📊 Deal Summary
+- **${stats.totalDeals}** total deals
+- **$${stats.totalSavings.toLocaleString()}** total savings
+- **$${stats.avgSavings.toLocaleString()}** average savings`;
 
-        <!-- Hero Deal -->
-        ${heroItem ? `
-        <div style="padding: 40px 20px; background-color: #fef3c7; border-radius: 8px; margin: 20px;">
-            <h2 style="margin: 0 0 10px 0; font-size: 20px; color: #92400e;">🔥 BIGGEST DISCOUNT THIS WEEK</h2>
-            <h3 style="margin: 0 0 15px 0; font-size: 24px; font-weight: bold;">
-                ${heroItem.company} ${heroItem.machineName}
-            </h3>
-            <div style="margin-bottom: 20px;">
-                <span style="font-size: 32px; font-weight: bold; color: #dc2626;">
-                    $${heroItem.price ? heroItem.price.toLocaleString() : 'N/A'}
-                </span>
-                <span style="font-size: 18px; color: #6b7280; text-decoration: line-through; margin-left: 10px;">
-                    $${heroItem.recordedPrice ? heroItem.recordedPrice.toLocaleString() : 'N/A'}
-                </span>
-                <span style="display: inline-block; background-color: #dc2626; color: white; padding: 4px 12px; border-radius: 4px; margin-left: 10px; font-weight: bold;">
-                    ${Math.abs(heroItem.percentageChange || 0).toFixed(0)}% OFF
-                </span>
-                ${heroItem.is_all_time_low ? '<span style="display: inline-block; background-color: #059669; color: white; padding: 4px 12px; border-radius: 4px; margin-left: 10px; font-weight: bold;">ALL-TIME LOW</span>' : ''}
-            </div>
-            <a href="${heroItem.affiliateLink || heroItem.productLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                View Deal →
-            </a>
-        </div>
-        ` : ''}
+    if (stats.allTimeLows > 0) {
+      text += `\n- **${stats.allTimeLows}** all-time low${stats.allTimeLows > 1 ? 's' : ''}`;
+    }
 
-        <!-- Additional Deals -->
-        ${additionalItems.length > 0 ? `
-        <div style="padding: 20px;">
-            <h2 style="font-size: 22px; margin-bottom: 20px;">More Great Deals</h2>
-            ${additionalItems.map(item => `
-            <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 15px;">
-                <h3 style="margin: 0 0 10px 0; font-size: 18px;">
-                    ${item.company} ${item.machineName}
-                </h3>
-                <div style="margin-bottom: 15px;">
-                    <span style="font-size: 24px; font-weight: bold; color: #2563eb;">
-                        $${item.price ? item.price.toLocaleString() : 'N/A'}
-                    </span>
-                    <span style="font-size: 16px; color: #6b7280; text-decoration: line-through; margin-left: 10px;">
-                        $${item.recordedPrice ? item.recordedPrice.toLocaleString() : 'N/A'}
-                    </span>
-                    <span style="display: inline-block; background-color: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; margin-left: 10px; font-size: 14px; font-weight: bold;">
-                        ${Math.abs(item.percentageChange || 0).toFixed(0)}% OFF
-                    </span>
-                    ${item.is_all_time_low ? '<span style="display: inline-block; background-color: #059669; color: white; padding: 2px 8px; border-radius: 4px; margin-left: 10px; font-size: 14px; font-weight: bold;">ALL-TIME LOW</span>' : ''}
-                </div>
-                <a href="${item.affiliateLink || item.productLink}" style="color: #2563eb; text-decoration: none; font-weight: 500;">
-                    View Deal →
-                </a>
-            </div>
-            `).join('')}
-        </div>
-        ` : ''}
+    text += `\n\n---\n\n`;
 
-        <!-- Footer -->
-        <div style="background-color: #f9fafb; padding: 30px 20px; text-align: center; margin-top: 40px;">
-            <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">
-                You're receiving this because you signed up for deal alerts at Machines for Makers.
-            </p>
-            <p style="margin: 0; font-size: 14px;">
-                <a href="https://www.machinesformakers.com/deals" style="color: #2563eb; text-decoration: none;">View all deals</a> • 
-                <a href="{{unsubscribe_url}}" style="color: #6b7280; text-decoration: none;">Unsubscribe</a>
-            </p>
-        </div>
-    </div>
-</body>
-</html>`;
+    // Hero deal section
+    if (heroItem) {
+      text += `## 🎯 BIGGEST SAVINGS THIS WEEK
+
+**${heroItem.machineName}**  
+💰 **$${heroItem.price ? heroItem.price.toLocaleString() : 'N/A'}** *(was $${heroItem.recordedPrice ? heroItem.recordedPrice.toLocaleString() : 'N/A'})*
+
+🏷️ **SAVE $${Math.abs(heroItem.priceChange || 0).toLocaleString()}**`;
+
+      if (heroItem.is_all_time_low) {
+        text += ` ⭐ **ALL-TIME LOW!**`;
+      }
+
+      text += `\n\n**[👉 VIEW DEAL](${heroItem.affiliateLink || heroItem.productLink})**\n\n---\n\n`;
+    }
+
+    // Group additional deals by laser type
+    if (additionalItems.length > 0) {
+      text += `## 💰 More Great Deals\n\n`;
+      
+      const groupedDeals = {
+        'FIBER LASERS': additionalItems.filter(item => {
+          const laserType = item.laserTypeA || '';
+          return laserType === 'Fiber' || laserType === 'MOPA';
+        }),
+        'CO2 LASERS': additionalItems.filter(item => {
+          const laserType = item.laserTypeA || '';
+          return laserType === 'CO2-Glass' || laserType.includes('CO2');
+        }),
+        'DIODE LASERS': additionalItems.filter(item => {
+          const laserType = item.laserTypeA || '';
+          return laserType === 'Diode';
+        }),
+        'OTHER LASERS': additionalItems.filter(item => {
+          const laserType = item.laserTypeA || '';
+          return laserType !== 'Fiber' && 
+                 laserType !== 'MOPA' && 
+                 laserType !== 'CO2-Glass' && 
+                 laserType !== 'Diode' &&
+                 !laserType.includes('CO2');
+        })
+      };
+
+      Object.entries(groupedDeals).forEach(([laserType, items]) => {
+        if (items.length > 0) {
+          text += `### 🔸 ${laserType.toUpperCase()} LASERS\n\n`;
+          items.forEach((item) => {
+            text += `**${item.machineName}**  
+💰 **$${item.price ? item.price.toLocaleString() : 'N/A'}** *(was $${item.recordedPrice ? item.recordedPrice.toLocaleString() : 'N/A'})* • **SAVE $${Math.abs(item.priceChange || 0).toLocaleString()}**`;
+            if (item.is_all_time_low) {
+              text += ` ⭐`;
+            }
+            text += `  
+**[👉 VIEW DEAL](${item.affiliateLink || item.productLink})**\n\n`;
+          });
+          text += `\n`;
+        }
+      });
+    }
+
+    // Footer
+    text += `---\n\nHappy making!  
+**The Machines for Makers Team**\n\n[Visit our website: https://machinesformakers.com](https://machinesformakers.com)\n\n[Unsubscribe]({{unsubscribe_url}})`;
+
+    return text;
   };
 
   // Bulk selection functions
@@ -2407,6 +2382,7 @@ export default function PriceTrackerAdmin() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="0">Any change</SelectItem>
                               <SelectItem value="5">5% or more</SelectItem>
                               <SelectItem value="10">10% or more</SelectItem>
                               <SelectItem value="15">15% or more</SelectItem>
@@ -3070,26 +3046,28 @@ export default function PriceTrackerAdmin() {
                           <div className="w-3 h-3 rounded-full bg-green-500"></div>
                         </div>
                       </div>
-                      <div className="bg-white p-4">
-                        <iframe
-                          srcDoc={emailHtml}
-                          className="w-full h-[600px] border-0"
-                          title="Email Preview"
-                        />
+                      <div className="bg-white p-6 max-h-[600px] overflow-y-auto">
+                        <div className="prose prose-sm max-w-none">
+                          <ReactMarkdown 
+                            components={{
+                              h1: ({...props}) => <h1 className="text-2xl font-bold mb-4 text-gray-900" {...props} />,
+                              h2: ({...props}) => <h2 className="text-xl font-bold mb-3 mt-6 text-gray-900" {...props} />,
+                              h3: ({...props}) => <h3 className="text-lg font-bold mb-2 mt-4 text-gray-900" {...props} />,
+                              p: ({...props}) => <p className="mb-4 text-gray-700 leading-relaxed" {...props} />,
+                              strong: ({...props}) => <strong className="font-bold text-gray-900" {...props} />,
+                              a: ({...props}) => <a className="text-blue-600 hover:text-blue-800 font-medium" {...props} />,
+                              ul: ({...props}) => <ul className="mb-4 space-y-1" {...props} />,
+                              li: ({...props}) => <li className="text-gray-700" {...props} />,
+                              hr: ({...props}) => <hr className="my-6 border-gray-300" {...props} />,
+                            }}
+                          >
+                            {emailHtml}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* HTML Source */}
-                  <div className="space-y-2">
-                    <h4 className="font-semibold">HTML Source</h4>
-                    <Textarea
-                      value={emailHtml}
-                      onChange={(e) => setEmailHtml(e.target.value)}
-                      className="font-mono text-xs"
-                      rows={10}
-                    />
-                  </div>
                 </>
               ) : (
                 <div className="text-center py-16 text-gray-500">
