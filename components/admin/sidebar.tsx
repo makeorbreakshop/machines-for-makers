@@ -11,6 +11,8 @@ const navItems = [
   { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/reviews", label: "Reviews", icon: Star },
   { href: "/admin/brands", label: "Brands", icon: Building },
+  { href: "/admin/links", label: "Short Links", icon: LinkIcon },
+  { href: "/admin/email-signups", label: "Email Signups", icon: Mail },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/tools/machine-scraper", label: "Machine Scraper", icon: Wrench },
   { href: "/admin/tools/price-tracker", label: "Price Tracker", icon: LineChart },
