@@ -14,65 +14,31 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const minDiscount = parseFloat(searchParams.get('minDiscount') || '0');
     
-    // Build the query - get all recent price history and calculate drops in code
-    let query = supabase
-      .from('price_history')
-      .select(`
-        id,
-        machine_id,
-        price,
-        previous_price,
-        date,
-        is_all_time_low,
-        machines!inner (
-          id,
-          "Machine Name",
-          "Company",
-          "Price",
-          "product_link",
-          "Affiliate Link",
-          "Image",
-          "Machine Category",
-          "Price Category",
-          "Award",
-          "Work Area",
-          "price_tracking_enabled"
-        )
-      `)
-      .in('status', ['AUTO_APPLIED', 'MANUAL_CORRECTION', 'SUCCESS'])
-      .gte('date', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
-      .not('previous_price', 'is', null)
-      .not('price', 'is', null)
-      .eq('machines.price_tracking_enabled', true)
-      .order('date', { ascending: false });
-
-    // Apply category filter if provided
-    if (category && category !== 'all') {
-      query = query.eq('machines."Machine Category"', category);
-    }
-
-
-    // Execute query with larger limit for processing
-    const { data, error } = await query.limit(1000);
+    // Use RPC function to efficiently get price drops
+    const { data, error } = await supabase.rpc('get_price_drops', {
+      days_back: days,
+      category_filter: category && category !== 'all' ? category : null
+    });
 
     if (error) {
       console.error('Error fetching price drops:', error);
       return NextResponse.json({ error: 'Failed to fetch price drops' }, { status: 500 });
     }
 
+
     // Transform the data and calculate real price drops
     const allPriceChanges = data?.map(drop => {
       const historicalCurrentPrice = parseFloat(drop.price);
       const previousPrice = parseFloat(drop.previous_price);
-      const actualCurrentPrice = parseFloat(drop.machines.Price); // Current price from machines table
+      const actualCurrentPrice = parseFloat(drop.current_price); // Current price from machines table
       const priceChange = historicalCurrentPrice - previousPrice;
       const percentageChange = previousPrice > 0 ? (priceChange / previousPrice) * 100 : 0;
       
       return {
         id: drop.id,
         machineId: drop.machine_id,
-        machineName: drop.machines['Machine Name'],
-        company: drop.machines.Company,
+        machineName: drop.machine_name,
+        company: drop.company,
         currentPrice: actualCurrentPrice, // Use current price from machines table
         historicalCurrentPrice, // The price at the time of the drop
         previousPrice,
@@ -80,13 +46,13 @@ export async function GET(request: NextRequest) {
         percentageChange,
         dropDate: drop.date,
         isAllTimeLow: drop.is_all_time_low,
-        productLink: drop.machines.product_link,
-        affiliateLink: drop.machines['Affiliate Link'],
-        imageUrl: drop.machines.Image,
-        category: drop.machines['Machine Category'],
-        priceCategory: drop.machines['Price Category'],
-        award: drop.machines.Award,
-        workArea: drop.machines['Work Area'],
+        productLink: drop.product_link,
+        affiliateLink: drop.affiliate_link,
+        imageUrl: drop.image_url,
+        category: drop.machine_category,
+        priceCategory: drop.price_category,
+        award: drop.award,
+        workArea: drop.work_area,
         dropType: getDropType(percentageChange, drop.is_all_time_low)
       };
     }) || [];
@@ -98,6 +64,7 @@ export async function GET(request: NextRequest) {
       Math.abs(drop.percentageChange) >= 1.0 &&
       drop.currentPrice <= drop.historicalCurrentPrice * 1.01 // Allow 1% tolerance for minor price fluctuations
     );
+
 
     // Apply additional minimum discount filter if provided
     if (minDiscount > 1.0) {

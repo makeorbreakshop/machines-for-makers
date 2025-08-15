@@ -12,7 +12,7 @@ export const metadata = {
 
 async function getStats() {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/price-drops?days=7&limit=100`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/price-drops?days=30&limit=100`, {
       cache: 'no-store'
     });
 
@@ -51,9 +51,9 @@ export default async function PriceDropsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <PriceDropsHero stats={stats || undefined} />
-        
+      <PriceDropsHero stats={stats || undefined} />
+      
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
         <Suspense fallback={<PriceDropsSkeleton />}>
           <PriceDropsContent />
         </Suspense>

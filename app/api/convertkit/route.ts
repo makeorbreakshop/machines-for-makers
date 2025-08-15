@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
+    const { email, utmParams } = await request.json();
     const referrer = request.headers.get('referer') || 'direct';
 
     if (!email || !validateEmail(email)) {
@@ -58,6 +58,28 @@ export async function POST(request: Request) {
     // Store in our database for tracking
     const supabase = createServiceClient();
     
+    // Prepare tracking data - only store if we have UTM parameters
+    let trackingDataToStore: any = referrer; // Default to storing the referrer URL
+    
+    if (utmParams && Object.keys(utmParams).length > 0) {
+      // If we have UTM params, store them as JSON
+      trackingDataToStore = JSON.stringify({
+        referrer: referrer,
+        utm_source: utmParams.utm_source || null,
+        utm_medium: utmParams.utm_medium || null,
+        utm_campaign: utmParams.utm_campaign || null,
+        utm_term: utmParams.utm_term || null,
+        utm_content: utmParams.utm_content || null,
+        landing_page: utmParams.landing_page || null,
+      });
+    }
+    
+    // Determine source based on UTM parameters or default
+    let source = 'material-library';
+    if (utmParams?.utm_source) {
+      source = `material-library-${utmParams.utm_source}`;
+    }
+    
     try {
       const { error: dbError } = await supabase
         .from('email_subscribers')
@@ -67,8 +89,8 @@ export async function POST(request: Request) {
           convertkit_subscriber_id: data.subscription?.subscriber?.id || null,
           tags: ['laser-material-library'],
           status: 'active',
-          source: 'material-library',
-          referrer: referrer,
+          source: source,
+          referrer: trackingDataToStore, // Store either URL or JSON depending on UTM presence
           form_id: process.env.CONVERTKIT_FORM_ID || null,
           form_name: 'Laser Material Library',
         });

@@ -40,15 +40,15 @@ export function PriceDropCard({ drop }: PriceDropCardProps) {
     const percentage = Math.abs(savingsPercentage);
     
     if (drop.isAllTimeLow) {
-      return 'bg-gradient-to-r from-purple-500 to-purple-600 text-white border-purple-400';
+      return 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-0 hover:from-indigo-500 hover:to-purple-600';
     } else if (percentage >= 25) {
-      return 'bg-gradient-to-r from-red-500 to-red-600 text-white border-red-400';
+      return 'bg-red-500 text-white border-0 hover:bg-red-500';
     } else if (percentage >= 15) {
-      return 'bg-gradient-to-r from-orange-500 to-orange-600 text-white border-orange-400';
+      return 'bg-orange-500 text-white border-0 hover:bg-orange-500';
     } else if (percentage >= 10) {
-      return 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-400';
+      return 'bg-amber-500 text-white border-0 hover:bg-amber-500';
     } else {
-      return 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-emerald-400';
+      return 'bg-emerald-500 text-white border-0 hover:bg-emerald-500';
     }
   };
 
@@ -60,31 +60,29 @@ export function PriceDropCard({ drop }: PriceDropCardProps) {
   const detailsUrl = `/products/${machineSlug}`;
 
   return (
-    <div className="group relative bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 hover:-translate-y-1">
-      {/* Price Drop Badge */}
-      <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
-        <Badge className={cn('font-bold text-xs px-3 py-1 shadow-lg transform -rotate-1', getDropBadgeColor())}>
-          <TrendingDown className="w-3 h-3 mr-1" />
-          {savingsPercentage.toFixed(0)}% OFF
-        </Badge>
-        {drop.isAllTimeLow && (
-          <Badge className="bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-lg font-bold text-xs px-3 py-1">
+    <div className="group relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-200 dark:border-gray-700">
+      {/* All Time Low Badge Only */}
+      {drop.isAllTimeLow && (
+        <div className="absolute top-2 right-2 z-10">
+          <Badge className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-sm font-semibold text-xs px-2.5 py-1">
             <Award className="w-3 h-3 mr-1" />
             All Time Low
           </Badge>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Image */}
-      <Link href={detailsUrl} className="block aspect-square relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <Link href={detailsUrl} className="block aspect-[4/3] relative overflow-hidden">
         {drop.imageUrl ? (
-          <Image
-            src={drop.imageUrl}
-            alt={drop.machineName}
-            fill
-            className="object-contain p-6 group-hover:scale-110 transition-transform duration-300 ease-out"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          />
+          <div className="absolute inset-0 bg-white dark:bg-gray-800">
+            <Image
+              src={drop.imageUrl}
+              alt={drop.machineName}
+              fill
+              className="object-contain p-3 group-hover:scale-105 transition-transform duration-200 ease-out"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -95,42 +93,42 @@ export function PriceDropCard({ drop }: PriceDropCardProps) {
       </Link>
 
       {/* Content - with proper padding */}
-      <div className="p-4 space-y-3">
+      <div className="p-3 space-y-2">
         {/* Title */}
         <Link href={detailsUrl} className="block">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200 text-base leading-tight">
+          <h3 className="font-medium text-gray-900 dark:text-gray-100 line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200 text-sm">
             {drop.machineName}
           </h3>
         </Link>
 
         {/* Price Section */}
-        <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+            <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
               ${drop.currentPrice.toLocaleString()}
             </span>
-            <span className="text-base text-gray-500 line-through font-medium">
+            <span className="text-sm text-gray-500 line-through">
               ${drop.previousPrice.toLocaleString()}
             </span>
           </div>
-          <p className="text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full inline-block">
-            Save ${savingsAmount.toLocaleString()}
-          </p>
+          <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-0 font-semibold text-sm px-2 py-0.5">
+            ${Math.round(savingsAmount).toLocaleString()}
+          </Badge>
         </div>
 
         {/* Metadata */}
-        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-1.5 text-sm text-gray-500">
           <Calendar className="w-3 h-3" />
           <span>{formatDistanceToNow(new Date(drop.dropDate), { addSuffix: true })}</span>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 pt-1">
+        <div className="flex gap-2 pt-0.5">
           <Button
             asChild
             size="sm"
             variant="outline"
-            className="flex-1 hover:bg-gray-50 dark:hover:bg-gray-800 border-2 hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 rounded-lg font-semibold h-9"
+            className="flex-1 hover:bg-gray-50 dark:hover:bg-gray-800 h-8 text-sm font-medium border-gray-200 dark:border-gray-600"
           >
             <Link href={drop.affiliateLink || drop.productLink} target="_blank" rel="noopener noreferrer">
               View Deal
@@ -144,7 +142,7 @@ export function PriceDropCard({ drop }: PriceDropCardProps) {
             <Button
               size="sm"
               variant="outline"
-              className="hover:bg-gray-50 dark:hover:bg-gray-800 border-2 hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 rounded-lg font-semibold text-xs h-9"
+              className="hover:bg-gray-50 dark:hover:bg-gray-800 h-8 text-sm font-medium border-gray-200 dark:border-gray-600"
             >
               Price History
             </Button>

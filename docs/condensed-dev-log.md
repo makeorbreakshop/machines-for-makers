@@ -481,3 +481,11 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Full user behavior tracking, custom events capability, demographics data, API access for future dashboards
 - **Technical**: Created `/lib/analytics.ts` utilities, `/components/analytics/google-analytics.tsx` with Suspense boundary for Next.js 15 compatibility
 - **Critical Fix**: Environment variable mismatch (G-6CS88FPF34 vs G-6CS89FPF34) and deprecated `page_path` parameter resolved with proper GA4 event tracking
+
+### 2025-08-13: Google Analytics Admin Dashboard & Funnel Tab Implementation
+- **Issue**: Needed analytics dashboard in admin panel with GA4 integration and conversion funnel tracking
+- **Solution**: Built comprehensive analytics dashboard with Google Analytics Data API service account integration, created funnel visualization tab
+- **Impact**: Real-time metrics display (page views, users, engagement), traffic trends visualization, conversion funnel tracking for email signups
+- **Technical**: Service account authentication for server-side GA4 access, cookie-based admin auth consistency, proper runtime='nodejs' for Supabase
+- **Critical Fixes**: Single-line JSON credentials for .env.local, JSX comment syntax errors, funnel page path mismatches (/deals vs /deals-alerts)
+- **Known Issue**: Funnel tab showing 0 page views despite GA connection - requires debugging exact page paths recorded in Analytics

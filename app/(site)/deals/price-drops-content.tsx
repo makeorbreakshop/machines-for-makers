@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { PriceDropCard } from '@/components/price-drops/price-drop-card';
+import { PriceDropTableRow } from '@/components/price-drops/price-drop-table-row';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Grid3X3, List } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface PriceDrop {
@@ -38,6 +39,15 @@ export function PriceDropsContent() {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState(defaultFilters);
   const [filteredDrops, setFilteredDrops] = useState<PriceDrop[]>([]);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Load view preference from localStorage on mount
+  useEffect(() => {
+    const savedView = localStorage.getItem('priceDropsView') as 'grid' | 'list';
+    if (savedView) {
+      setViewMode(savedView);
+    }
+  }, []);
   
 
   // Fetch price drops
@@ -117,6 +127,34 @@ export function PriceDropsContent() {
           {loading ? 'Loading deals...' : `${filteredDrops.length} Deals Found`}
         </h2>
         <div className="flex items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex border rounded-md overflow-hidden">
+            <Button
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none h-9"
+              onClick={() => {
+                setViewMode("grid");
+                localStorage.setItem('priceDropsView', 'grid');
+              }}
+            >
+              <Grid3X3 className="h-4 w-4" />
+              <span className="sr-only">Grid View</span>
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none h-9"
+              onClick={() => {
+                setViewMode("list");
+                localStorage.setItem('priceDropsView', 'list');
+              }}
+            >
+              <List className="h-4 w-4" />
+              <span className="sr-only">List View</span>
+            </Button>
+          </div>
+          
           <span className="text-sm text-gray-600 dark:text-gray-400">Sort by:</span>
           <Select value={filters.sortBy} onValueChange={handleSortChange}>
             <SelectTrigger className="w-48">
@@ -158,16 +196,42 @@ export function PriceDropsContent() {
         </div>
       )}
 
-      {/* Price Drop Cards Grid */}
+      {/* Price Drop Cards Grid or Table */}
       {!loading && !error && filteredDrops.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredDrops.map((drop) => (
-            <PriceDropCard 
-              key={drop.id} 
-              drop={drop}
-            />
-          ))}
-        </div>
+        viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredDrops.map((drop) => (
+              <PriceDropCard 
+                key={drop.id} 
+                drop={drop}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Product</th>
+                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Current Price</th>
+                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Was</th>
+                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Savings</th>
+                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Discount</th>
+                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">When</th>
+                  <th className="text-center p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDrops.map((drop) => (
+                  <PriceDropTableRow
+                    key={drop.id}
+                    drop={drop}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {/* Load More Info */}

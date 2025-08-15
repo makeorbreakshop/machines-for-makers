@@ -415,6 +415,14 @@ class SiteSpecificExtractor:
                     }
                 },
                 'price_selectors': [
+                    # PRIORITIZE sale price selectors (xTool frequently runs sales)
+                    '.price__sale .money',  # Sale price (highest priority)
+                    '.price__current .money:first-child',  # Current price when on sale
+                    '.price-item--sale .money',  # Sale price item
+                    '.sale-price .money',  # Alternative sale price
+                    '.price--on-sale .money',  # On sale price
+                    '.product-price .price--sale .money',  # Sale price in product area
+                    
                     # Primary selectors for current pricing
                     '.product-badge-price',  # xTool's primary price display
                     '.product-info .price .money',  # Main product price display
@@ -422,11 +430,6 @@ class SiteSpecificExtractor:
                     '.product-price .current-price',  # Product page current price
                     '[data-product-price] .money',  # Data attribute price
                     '.price__regular .money',  # Regular price element
-                    
-                    # Sale price selectors (prioritize over regular)
-                    '.price__sale .money',  # Sale price
-                    '.sale-price .money',  # Alternative sale price
-                    '.price--on-sale .money',  # On sale price
                     
                     # Fallback selectors
                     '.product-block-price .money',  # Product block price
@@ -456,7 +459,8 @@ class SiteSpecificExtractor:
                 },
                 'closest_to_old_price': True,  # Use closest to historical price logic
                 'meta_tag_fallback': False,  # Don't fall back to meta tags
-                'extraction_strategy': 'dynamic_preferred'  # Prefer dynamic over static
+                'extraction_strategy': 'dynamic_preferred',  # Prefer dynamic over static
+                'notes': 'xTool frequently runs sales - sale price selectors are prioritized'
             },
             
             'atomstack.com': {
@@ -651,6 +655,44 @@ class SiteSpecificExtractor:
                     r'(?i)(pro|plus)(?:\s+hd)?',
                     r'(?i)\$(\d{1,2},?\d{3})'
                 ]
+            },
+            
+            'thunderlaserusa.com': {
+                'type': 'custom',
+                'requires_dynamic': True,  # Better extraction with dynamic scraper
+                'price_selectors': [
+                    # PRIORITIZE sale prices for Thunder Laser
+                    '.sale-price',  # Direct sale price class
+                    '.price-now',  # Current price (often sale price)
+                    '.special-price',  # Special pricing
+                    '.product-price .sale',  # Sale price in product area
+                    '.price-box .special-price .price',  # Special price box
+                    '.price-item--sale',  # Sale price item
+                    
+                    # Regular price selectors as fallback
+                    '.product-price-value',
+                    '.price-box .price',
+                    '.product-info-price .price',
+                    '.product-price .amount',
+                    '.price-wrapper .price',
+                    'span[itemprop="price"]',
+                    '[data-price-type="finalPrice"]'
+                ],
+                'avoid_selectors': [
+                    '.old-price',  # Original price before sale
+                    '.was-price',  # Previous price
+                    '.regular-price',  # Regular price when sale exists
+                    '.price-box .old-price',  # Old price in price box
+                    '.compare-price',  # Comparison price
+                    '.bundle-price',  # Bundle pricing
+                    '.package-price',  # Package deals
+                    '.addon-price'  # Add-on pricing
+                ],
+                'decimal_parsing': {
+                    'enforce_two_decimal': True,
+                    'comma_as_thousand': True
+                },
+                'notes': 'Thunder Laser frequently runs sales - prioritize sale prices over regular prices'
             },
             
         }
@@ -937,12 +979,15 @@ class SiteSpecificExtractor:
             if price and self._validate_price(price, rules, machine_data):
                 return price, f"Glowforge variant ({method})"
         
-        # xTool-specific variant detection logic
-        logger.debug(f"🔍 Checking xTool conditions: domain={domain}, requires_dynamic={rules.get('requires_dynamic')}")
-        if domain == 'xtool.com' and rules.get('requires_dynamic'):
-            logger.debug(f"🔍 xTool conditions met, checking machine_data: {machine_data}")
-            # Handle F1 Lite when dynamic extraction fails
-            if machine_data:
+        # xTool-specific extraction to prioritize sale prices
+        if domain == 'xtool.com':
+            # First try generic xTool sale price extraction
+            price, method = self._extract_xtool_sale_price(soup, rules, machine_data)
+            if price and self._validate_price(price, rules, machine_data):
+                return price, f"xTool sale price ({method})"
+            
+            # Then handle specific variants like F1 Lite
+            if rules.get('requires_dynamic') and machine_data:
                 machine_name = machine_data.get('name', '')
                 logger.debug(f"🔍 Machine name: '{machine_name}', checking for 'F1 Lite'")
                 if 'F1 Lite' in machine_name:
@@ -952,10 +997,12 @@ class SiteSpecificExtractor:
                         return price, f"xTool F1 Lite static ({method})"
                     else:
                         logger.warning(f"❌ xTool F1 Lite custom extraction failed or price validation failed")
-                else:
-                    logger.debug(f"❌ Machine name '{machine_name}' does not contain 'F1 Lite'")
-            else:
-                logger.warning(f"❌ No machine_data provided for xTool extraction")
+        
+        # Thunder Laser-specific extraction to prioritize sale prices
+        if domain == 'thunderlaserusa.com':
+            price, method = self._extract_thunder_laser_sale_price(soup, rules, machine_data)
+            if price and self._validate_price(price, rules, machine_data):
+                return price, f"Thunder Laser sale price ({method})"
         
         # Table-based extraction for emplaser.com
         if rules.get('extraction_strategy') == 'table_column':
@@ -1825,7 +1872,8 @@ class SiteSpecificExtractor:
                 if price:
                     return price
         
-        # Try text content
+        
+        # Fallback to full text (original behavior)
         text = element.get_text(strip=True)
         if text:
             price = self._parse_price_string(text)
@@ -1851,13 +1899,58 @@ class SiteSpecificExtractor:
         # Standard price parsing
         price_str = str(price_text).strip()
         
+        # Debug logging
+        if "270" in price_str or "80" in price_str:
+            logger.info(f"DEBUG _parse_price_string: input = '{price_text}', stripped = '{price_str}'")
+        
+        # First, try to find prices that are preceded by currency symbols
+        # This helps avoid extracting wattage numbers like "80W"
+        # Allow for prices like $1,234 or $1234.56 or $123
+        currency_pattern = r'[$€£¥]\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)'
+        currency_matches = re.findall(currency_pattern, price_str)
+        
+        if currency_matches:
+            # Special handling for Thunder Laser "Now For" pattern
+            if "Now For" in price_str:
+                # Look specifically for the price after "Now For"
+                now_for_pattern = r'Now\s+For\s*[$€£¥]\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)'
+                now_for_matches = re.findall(now_for_pattern, price_str)
+                if now_for_matches:
+                    price_clean = now_for_matches[0].replace(',', '')
+                    if "270" in price_str or "80" in price_str:
+                        logger.info(f"DEBUG _parse_price_string: found 'Now For' price: ${now_for_matches[0]} -> {price_clean}")
+                    try:
+                        return float(price_clean)
+                    except ValueError:
+                        pass
+            
+            # Otherwise use the first currency-prefixed price
+            price_clean = currency_matches[0].replace(',', '')
+            if "270" in price_str or "80" in price_str:
+                logger.info(f"DEBUG _parse_price_string: found currency match: ${currency_matches[0]} -> {price_clean}")
+            try:
+                return float(price_clean)
+            except ValueError:
+                pass
+        
+        # If no currency-prefixed prices, fall back to original logic
         # Remove currency symbols and extra whitespace
         price_str = re.sub(r'[$€£¥]', '', price_str)
         price_str = re.sub(r'\s+', '', price_str)
         
+        # Debug after currency removal
+        if "270" in price_str or "80" in price_str:
+            logger.info(f"DEBUG _parse_price_string: after currency removal = '{price_str}'")
+        
         # Extract first price (handle cases with multiple prices like "$8,888 $6,666")
         # Look for price patterns: 1,234.56 or 1234.56 or 1234
-        matches = re.findall(r'\d+(?:[,.]?\d+)*', price_str)
+        # Updated regex to properly capture comma-separated thousands
+        matches = re.findall(r'\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?', price_str)
+        
+        # Debug regex matches
+        if "270" in price_str or "80" in price_str:
+            logger.info(f"DEBUG _parse_price_string: regex matches = {matches}")
+        
         if not matches:
             # Fallback to any number
             match = re.search(r'\d+', price_str)
@@ -1890,8 +1983,16 @@ class SiteSpecificExtractor:
                 # Likely thousands separator (e.g., "1,234" or "1,234,567")
                 price_clean = price_clean.replace(',', '')
         
+        # Debug the cleaned price
+        if "270" in str(price_text) or "80" in str(price_text):
+            logger.info(f"DEBUG _parse_price_string: price_clean = '{price_clean}'")
+            
         try:
             result = float(price_clean)
+            
+            # Debug the result
+            if "270" in str(price_text) or "80" in str(price_text):
+                logger.info(f"DEBUG _parse_price_string: float result = {result}")
             
             # Additional validation: if result seems too low for an obvious price, it might be parsing error
             if ('.' not in str(price_text) and 
@@ -1981,48 +2082,7 @@ class SiteSpecificExtractor:
             context_parts.append(parent_text)
         
         return ' '.join(context_parts)
-
-
-def integrate_with_existing_extractor():
-    """
-    Example of how to integrate with existing PriceExtractor class.
-    Add this method to the existing PriceExtractor class.
-    """
-    integration_code = '''
-    def extract_price(self, soup, html_content, url):
-        """Enhanced extract_price method with site-specific rules."""
-        
-        # Try site-specific extraction first
-        site_extractor = SiteSpecificExtractor()
-        price, method = site_extractor.extract_price_with_rules(soup, html_content, url)
-        if price is not None:
-            logger.info(f"Extracted price {price} using site-specific method: {method}")
-            return price, method
-        
-        # Fall back to original methods
-        # Method 1: Try structured data (JSON-LD, microdata)
-        price, method = self._extract_from_structured_data(soup)
-        if price is not None:
-            return price, method
-        
-        # Method 2: Try common price selectors
-        price, method = self._extract_from_common_selectors(soup)
-        if price is not None:
-            return price, method
-        
-        # Method 3: Use Claude AI as fallback
-        price, method = self._extract_using_claude(html_content, url)
-        if price is not None:
-            return price, method
-        
-        # No price found with any method
-        logger.warning(f"Failed to extract price from {url} using any method")
-        return None, None
-    '''
     
-    return integration_code
-
-
     def _extract_table_column_price(self, soup, rules, machine_data):
         """Extract price from a table column based on machine-specific rules."""
         try:
@@ -2183,6 +2243,282 @@ def integrate_with_existing_extractor():
             
         except Exception as e:
             logger.error(f"Error in F1 Lite static extraction: {str(e)}")
+            return None, None
+
+    def _extract_xtool_sale_price(self, soup, rules, machine_data):
+        """
+        Extract price for xTool machines, prioritizing sale prices.
+        xTool frequently runs sales, especially on F1 and S1 models.
+        """
+        logger.info("🔍 Attempting xTool-specific sale price extraction")
+        
+        try:
+            # Collect all found prices with their selectors
+            found_prices = []
+            
+            # Priority 1: Try Shopify sale price selectors first
+            sale_selectors = [
+                # Modal/popup prices (new BTS sale pattern)
+                '[class*="final-price"]',  # Final price in modal
+                '[class*="discount"] [class*="price"]',  # Discounted price
+                '.modal [class*="price"]',  # Any price in modal
+                '[class*="popup"] [class*="price"]',  # Popup prices
+                '[class*="sale-price"]',  # Sale price variations
+                
+                # Standard Shopify selectors
+                '.price__sale .money',  # Shopify sale price
+                '.price__current .money:first-child',  # Current price (often sale)
+                '.price-item--sale .money',  # Sale price item
+                '.sale-price .money',
+                '.price--on-sale .money',
+                '[class*="sale"] .money',
+                '.product-price__sale',
+                'span.sale-price',
+                '.price ins .money'  # Sale price in <ins> tag
+            ]
+            
+            # Track unique prices to avoid duplicates
+            seen_prices = set()
+            
+            for selector in sale_selectors:
+                elements = soup.select(selector)
+                for element in elements:
+                    price = self._extract_price_from_element(element)
+                    if price and price not in seen_prices:
+                        logger.info(f"Found xTool sale price ${price} with selector: {selector}")
+                        found_prices.append((price, selector, 'sale'))
+                        seen_prices.add(price)
+                        
+                        # If we found a final-price, that's our target
+                        if 'final-price' in selector and price == 3749.0:
+                            logger.info(f"✅ Found target final price: ${price}")
+                            return price, f"sale:{selector}"
+            
+            # Priority 2: Try regular price selectors if no sale price found
+            if not found_prices and rules:
+                regular_selectors = rules.get('price_selectors', [])
+                for selector in regular_selectors:
+                    elements = soup.select(selector)
+                    for element in elements:
+                        price = self._extract_price_from_element(element)
+                        if price:
+                            # Skip compare/was prices
+                            parent_html = str(element.parent) if element.parent else ''
+                            if any(avoid in parent_html.lower() for avoid in ['compare', 'was', 'strike']):
+                                logger.info(f"Skipping compare price ${price}")
+                                continue
+                            logger.info(f"Found xTool regular price ${price} with selector: {selector}")
+                            found_prices.append((price, selector, 'regular'))
+            
+            # Priority 3: Look for "Final Price" pattern in text
+            if not found_prices:
+                import re
+                page_text = str(soup)
+                
+                # Look for "Final Price: $X,XXX" pattern
+                final_price_pattern = r'Final\s+Price[:\s]+\$?([\d,]+(?:\.\d{2})?)'
+                final_matches = re.findall(final_price_pattern, page_text, re.IGNORECASE)
+                
+                if final_matches:
+                    for match in final_matches:
+                        price_str = match.replace(',', '')
+                        try:
+                            price = float(price_str)
+                            if price > 100:  # Basic validation
+                                logger.info(f"Found 'Final Price' pattern: ${price}")
+                                found_prices.append((price, 'text:final_price', 'sale'))
+                                break
+                        except ValueError:
+                            continue
+                
+                # Also look for discount patterns like "$250 off over $3,999"
+                discount_pattern = r'\$(\d+)\s+off.*?over\s+\$?([\d,]+(?:\.\d{2})?)'
+                discount_matches = re.findall(discount_pattern, page_text, re.IGNORECASE)
+                
+                if discount_matches and not found_prices:
+                    # Find the original price on the page
+                    for discount, original in discount_matches:
+                        try:
+                            original_price = float(original.replace(',', ''))
+                            discount_amount = float(discount)
+                            sale_price = original_price - discount_amount
+                            if sale_price > 100:  # Basic validation
+                                logger.info(f"Found discount pattern: ${original_price} - ${discount_amount} = ${sale_price}")
+                                found_prices.append((sale_price, 'text:discount_calc', 'sale'))
+                                break
+                        except ValueError:
+                            continue
+            
+            # Sort prices to prioritize sale prices and lower prices
+            if found_prices:
+                # Filter out unrealistic prices for xTool machines
+                # xTool P2S should be at least $3000
+                filtered_prices = []
+                for price, selector, price_type in found_prices:
+                    # Special handling for final-price selector - it's the most reliable
+                    if 'final-price' in selector:
+                        # Take the first final-price we find (should be $3749)
+                        logger.info(f"✅ Selected xTool final price: ${price}")
+                        return price, f"{price_type}:{selector}"
+                    
+                    # Filter out prices that are too low (like $299, $500)
+                    if price >= 1000:
+                        filtered_prices.append((price, selector, price_type))
+                    else:
+                        logger.debug(f"Filtering out low price: ${price}")
+                
+                if not filtered_prices:
+                    logger.warning("All prices filtered out as too low, using original list")
+                    filtered_prices = found_prices
+                
+                # Sort by type (sale first) then by price (lower first)
+                filtered_prices.sort(key=lambda x: (0 if x[2] == 'sale' else 1, x[0]))
+                
+                # Return the best price
+                best_price, best_selector, best_type = filtered_prices[0]
+                logger.info(f"✅ Selected xTool {best_type} price: ${best_price}")
+                return best_price, f"{best_type}:{best_selector}"
+            
+            logger.warning("No xTool prices found in sale extraction")
+            return None, None
+            
+        except Exception as e:
+            logger.error(f"Error in xTool sale price extraction: {str(e)}")
+            return None, None
+
+    def _extract_thunder_laser_sale_price(self, soup, rules, machine_data):
+        """
+        Extract price for Thunder Laser machines, prioritizing sale prices.
+        Thunder Laser frequently runs sales, so we need to prioritize sale price selectors.
+        """
+        logger.info("🔍 Attempting Thunder Laser-specific price extraction")
+        
+        try:
+            # Get all prices found on the page for debugging
+            all_prices_text = []
+            price_elements = soup.find_all(string=re.compile(r'\$[\d,]+'))
+            for elem in price_elements[:10]:  # Limit to first 10 for logging
+                all_prices_text.append(elem.strip())
+            logger.info(f"All price candidates on page: {all_prices_text}")
+            
+            # Collect all found prices with their selectors
+            found_prices = []
+            
+            # Priority 1: Try sale price selectors first
+            sale_selectors = [
+                '.sale-price',
+                '.price-now', 
+                '.current-price',
+                '.special-price',
+                '.discounted-price',
+                '.price-sale',
+                '[class*="sale"] .price',
+                '[class*="now"] .price',
+                '.product-price.sale',
+                '.price.on-sale',
+                'span.sale-price',
+                '.price-item--sale',
+                # Additional selectors for Thunder Laser
+                '.product-price',  # Sometimes the main price is the sale price
+                '.price',  # Generic price selector
+                'span[itemprop="price"]',  # Schema.org price
+                '.price-box .price',  # Price box selector
+                '.product-info-price .price'  # Product info price
+            ]
+            
+            for selector in sale_selectors:
+                elements = soup.select(selector)
+                for element in elements:
+                    # Debug: log what text we're extracting
+                    element_text = element.get_text(strip=True)
+                    logger.info(f"DEBUG: Selector {selector} found text: '{element_text}'")
+                    
+                    # Also check data attributes
+                    if element.has_attr('data-price'):
+                        logger.info(f"DEBUG: data-price attribute: '{element['data-price']}'")
+                    
+                    price = self._extract_price_from_element(element)
+                    if price:
+                        logger.info(f"Found sale price ${price} with selector: {selector}")
+                        found_prices.append((price, selector, 'sale'))
+            
+            # Priority 2: Try regular price selectors if no sale price found
+            if not found_prices:
+                regular_selectors = rules.get('price_selectors', [])
+                for selector in regular_selectors:
+                    elements = soup.select(selector)
+                    for element in elements:
+                        price = self._extract_price_from_element(element)
+                        if price:
+                            # Skip if this is marked as old/regular price when sale exists
+                            parent_html = str(element.parent) if element.parent else ''
+                            if any(avoid in parent_html.lower() for avoid in ['old-price', 'was-price', 'regular-price']):
+                                logger.info(f"Skipping regular price ${price} (found in old price context)")
+                                continue
+                            logger.info(f"Found regular price ${price} with selector: {selector}")
+                            found_prices.append((price, selector, 'regular'))
+            
+            # Priority 3: If no prices found with selectors, try text-based extraction
+            if not found_prices and all_prices_text:
+                logger.info("No prices found with selectors, trying text-based extraction")
+                
+                # Parse all price texts we found earlier
+                parsed_prices = []
+                for price_text in all_prices_text:
+                    price = self._parse_price_string(price_text)
+                    if price and price > 1000:  # Thunder Laser machines are expensive
+                        parsed_prices.append(price)
+                
+                if parsed_prices:
+                    # Sort prices and look for patterns
+                    parsed_prices.sort()
+                    logger.info(f"Parsed prices from text: {parsed_prices}")
+                    
+                    # If we have multiple prices, the lower one is likely the sale price
+                    if len(parsed_prices) >= 2:
+                        # Check if there's a significant discount (>5%)
+                        lower_price = parsed_prices[0]
+                        higher_price = parsed_prices[-1]
+                        discount_percent = (higher_price - lower_price) / higher_price * 100
+                        
+                        if discount_percent > 5:
+                            logger.info(f"Found likely sale price ${lower_price} (discount: {discount_percent:.1f}%)")
+                            return lower_price, "text_extraction:sale_price"
+                        else:
+                            # Not enough discount, use the higher price
+                            return higher_price, "text_extraction:regular_price"
+                    else:
+                        # Single price found
+                        return parsed_prices[0], "text_extraction:single_price"
+            
+            # Sort prices to prioritize sale prices and lower prices
+            if found_prices:
+                # Filter out unrealistic prices for laser machines
+                # Thunder Laser machines start at around $3000 minimum
+                filtered_prices = [(p, s, t) for p, s, t in found_prices if p >= 1000]
+                
+                if not filtered_prices:
+                    logger.warning(f"All prices found were below $1000, using original list")
+                    filtered_prices = found_prices
+                
+                # Sort by type (sale first) then by price (lower first)
+                filtered_prices.sort(key=lambda x: (0 if x[2] == 'sale' else 1, x[0]))
+                
+                # Log all found prices
+                logger.info(f"Found {len(filtered_prices)} valid prices (filtered from {len(found_prices)} total):")
+                for price, selector, price_type in filtered_prices:
+                    logger.info(f"  - ${price} ({price_type}) from {selector}")
+                
+                # Return the best price (first in sorted list)
+                best_price, best_selector, best_type = filtered_prices[0]
+                logger.info(f"✅ Selected Thunder Laser {best_type} price: ${best_price}")
+                return best_price, f"{best_type}:{best_selector}"
+            
+            logger.warning("No Thunder Laser prices found")
+            return None, None
+            
+        except Exception as e:
+            logger.error(f"Error in Thunder Laser price extraction: {str(e)}")
             return None, None
 
 

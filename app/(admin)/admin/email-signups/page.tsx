@@ -67,7 +67,7 @@ export default async function EmailSignupsPage() {
     .from('email_subscribers')
     .select('source');
   
-  // Get recent signups
+  // Get recent signups (last 10)
   const { data: recentSignups } = await supabase
     .from('email_subscribers')
     .select('*')
