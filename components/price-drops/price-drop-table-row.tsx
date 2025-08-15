@@ -77,21 +77,21 @@ export function PriceDropTableRow({ drop }: PriceDropTableRowProps) {
       {/* Current Price */}
       <td className="p-2">
         <span className="text-base font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
-          ${drop.currentPrice.toLocaleString()}
+          ${Math.round(drop.currentPrice).toLocaleString()}
         </span>
       </td>
 
-      {/* Was */}
+      {/* Previous Price */}
       <td className="p-2">
         <span className="text-sm text-gray-500 line-through tabular-nums">
-          ${drop.previousPrice.toLocaleString()}
+          ${Math.round(drop.previousPrice).toLocaleString()}
         </span>
       </td>
 
       {/* Savings */}
       <td className="p-2">
         <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-0 font-semibold text-sm">
-          ${Math.round(savingsAmount).toLocaleString()}
+          ${Math.round(savingsAmount).toLocaleString()} Off
         </Badge>
       </td>
 

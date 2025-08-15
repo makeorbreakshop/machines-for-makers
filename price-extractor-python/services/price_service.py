@@ -100,19 +100,19 @@ class PriceService:
         # Check if this price was recently manually corrected
         try:
             # Query recent price history for this machine
-            response = self.db_service.supabase.table("price_history").select("*").eq("machine_id", machine_id).order("created_at", desc=True).limit(10).execute()
+            response = self.db_service.supabase.table("price_history").select("*").eq("machine_id", machine_id).order("date", desc=True).limit(10).execute()
             
             if response.data:
                 for entry in response.data:
                     # Check if there's a recent manual correction to this exact price
                     if (entry.get("status") == "MANUAL_CORRECTION" and 
-                        entry.get("new_price") == new_price and
-                        entry.get("created_at")):
+                        entry.get("price") == new_price and
+                        entry.get("date")):
                         # Check if correction was made within last 7 days
                         from datetime import datetime, timedelta
-                        correction_date = datetime.fromisoformat(entry["created_at"].replace('Z', '+00:00'))
+                        correction_date = datetime.fromisoformat(entry["date"].replace('Z', '+00:00'))
                         if datetime.now(correction_date.tzinfo) - correction_date < timedelta(days=7):
-                            logger.info(f"Price ${new_price} matches recent manual correction from {entry['created_at']}, auto-approving")
+                            logger.info(f"Price ${new_price} matches recent manual correction from {entry['date']}, auto-approving")
                             return False, None
                             
         except Exception as e:

@@ -112,7 +112,7 @@ export function PriceDropCard({ drop }: PriceDropCardProps) {
             </span>
           </div>
           <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-0 font-semibold text-sm px-2 py-0.5">
-            ${Math.round(savingsAmount).toLocaleString()}
+            ${Math.round(savingsAmount).toLocaleString()} Off
           </Badge>
         </div>
 

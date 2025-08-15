@@ -57,6 +57,8 @@ price-extractor-python/**/__pycache__/
 price-extractor-python/**/*.pyc
 
 # Price extractor logs
-price-extractor-python/logs/# Google Analytics credentials
+price-extractor-python/logs/
+
+# Google Analytics credentials
 ga-credentials-single-line.txt
 google-credentials-for-vercel.txt

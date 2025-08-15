@@ -40,6 +40,8 @@ export function PriceDropsContent() {
   const [filters, setFilters] = useState(defaultFilters);
   const [filteredDrops, setFilteredDrops] = useState<PriceDrop[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortColumn, setSortColumn] = useState<string>('savings');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Load view preference from localStorage on mount
   useEffect(() => {
@@ -80,34 +82,61 @@ export function PriceDropsContent() {
   useEffect(() => {
     let sorted = [...drops];
 
-    // Apply sorting
-    switch (filters.sortBy) {
-      case 'discount-percent':
-        sorted.sort((a, b) => a.percentageChange - b.percentageChange); // More negative = bigger discount
-        break;
-      case 'discount-amount':
-        sorted.sort((a, b) => a.priceChange - b.priceChange); // More negative = bigger savings
-        break;
-      case 'price-low':
-        sorted.sort((a, b) => a.currentPrice - b.currentPrice);
-        break;
-      case 'price-high':
-        sorted.sort((a, b) => b.currentPrice - a.currentPrice);
-        break;
-      case 'all-time-lows':
-        sorted.sort((a, b) => {
-          if (a.isAllTimeLow && !b.isAllTimeLow) return -1;
-          if (!a.isAllTimeLow && b.isAllTimeLow) return 1;
-          return a.percentageChange - b.percentageChange; // Then by biggest discount
-        });
-        break;
-      case 'recent':
-      default:
-        sorted.sort((a, b) => new Date(b.dropDate).getTime() - new Date(a.dropDate).getTime());
+    // Apply sorting based on view mode
+    if (viewMode === 'list') {
+      // Table view - use column sorting
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      
+      switch (sortColumn) {
+        case 'product':
+          sorted.sort((a, b) => direction * a.machineName.localeCompare(b.machineName));
+          break;
+        case 'currentPrice':
+          sorted.sort((a, b) => direction * (a.currentPrice - b.currentPrice));
+          break;
+        case 'previousPrice':
+          sorted.sort((a, b) => direction * (a.previousPrice - b.previousPrice));
+          break;
+        case 'savings':
+          sorted.sort((a, b) => direction * (Math.abs(a.priceChange) - Math.abs(b.priceChange)));
+          break;
+        case 'discount':
+          sorted.sort((a, b) => direction * (Math.abs(a.percentageChange) - Math.abs(b.percentageChange)));
+          break;
+        case 'when':
+          sorted.sort((a, b) => direction * (new Date(a.dropDate).getTime() - new Date(b.dropDate).getTime()));
+          break;
+      }
+    } else {
+      // Grid view - use dropdown sorting
+      switch (filters.sortBy) {
+        case 'discount-percent':
+          sorted.sort((a, b) => a.percentageChange - b.percentageChange); // More negative = bigger discount
+          break;
+        case 'discount-amount':
+          sorted.sort((a, b) => a.priceChange - b.priceChange); // More negative = bigger savings
+          break;
+        case 'price-low':
+          sorted.sort((a, b) => a.currentPrice - b.currentPrice);
+          break;
+        case 'price-high':
+          sorted.sort((a, b) => b.currentPrice - a.currentPrice);
+          break;
+        case 'all-time-lows':
+          sorted.sort((a, b) => {
+            if (a.isAllTimeLow && !b.isAllTimeLow) return -1;
+            if (!a.isAllTimeLow && b.isAllTimeLow) return 1;
+            return a.percentageChange - b.percentageChange; // Then by biggest discount
+          });
+          break;
+        case 'recent':
+        default:
+          sorted.sort((a, b) => new Date(b.dropDate).getTime() - new Date(a.dropDate).getTime());
+      }
     }
 
     setFilteredDrops(sorted);
-  }, [drops, filters.sortBy]);
+  }, [drops, filters.sortBy, viewMode, sortColumn, sortDirection]);
 
   // Fetch drops on mount and filter changes
   useEffect(() => {
@@ -116,6 +145,17 @@ export function PriceDropsContent() {
 
   const handleSortChange = (value: string) => {
     setFilters(prev => ({ ...prev, sortBy: value }));
+  };
+
+  const handleColumnSort = (column: string) => {
+    if (sortColumn === column) {
+      // If clicking the same column, toggle direction
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If clicking a different column, set it as the sort column with desc direction
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
   };
 
 
@@ -212,12 +252,42 @@ export function PriceDropsContent() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Product</th>
-                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Current Price</th>
-                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Was</th>
-                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Savings</th>
-                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Discount</th>
-                  <th className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300">When</th>
+                  <th 
+                    className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
+                    onClick={() => handleColumnSort('product')}
+                  >
+                    Product {sortColumn === 'product' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
+                    onClick={() => handleColumnSort('currentPrice')}
+                  >
+                    Current Price {sortColumn === 'currentPrice' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
+                    onClick={() => handleColumnSort('previousPrice')}
+                  >
+                    Previous Price {sortColumn === 'previousPrice' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
+                    onClick={() => handleColumnSort('savings')}
+                  >
+                    Savings {sortColumn === 'savings' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
+                    onClick={() => handleColumnSort('discount')}
+                  >
+                    Discount {sortColumn === 'discount' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
+                    onClick={() => handleColumnSort('when')}
+                  >
+                    When {sortColumn === 'when' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </th>
                   <th className="text-center p-2 text-sm font-medium text-gray-700 dark:text-gray-300">Actions</th>
                 </tr>
               </thead>

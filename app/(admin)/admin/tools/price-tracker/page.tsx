@@ -269,6 +269,8 @@ export default function PriceTrackerAdmin() {
   const [loadingBatches, setLoadingBatches] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [batchFilter, setBatchFilter] = useState<string>("all")
+  const [approvalTypeFilter, setApprovalTypeFilter] = useState<string>("all")
+  const [priceChangeFilter, setPriceChangeFilter] = useState<string>("all")
   
   // Bulk selection state
   const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set())
@@ -362,26 +364,33 @@ export default function PriceTrackerAdmin() {
       // Apply database-level filtering based on status
       if (statusFilter !== "all") {
         switch(statusFilter) {
-          case 'PENDING_REVIEW':
+          case 'pending':
             query = query.eq('status', 'PENDING_REVIEW')
             break
-          case 'AUTO_APPLIED':
+          case 'approved':
+            // Include all approved statuses
+            query = query.or('status.eq.AUTO_APPLIED,status.eq.SUCCESS,status.eq.MANUAL_CORRECTION,and(status.eq.REVIEWED,review_result.eq.APPROVED)')
+            break
+          case 'failed':
+            query = query.eq('status', 'FAILED').not('failure_reason', 'like', '%Pending review%')
+            break
+          case 'rejected':
+            query = query.or('and(status.eq.REVIEWED,review_result.eq.REJECTED)')
+            break
+        }
+      }
+      
+      // Apply approval type filter (only when status is approved)
+      if (statusFilter === 'approved' && approvalTypeFilter !== 'all') {
+        switch(approvalTypeFilter) {
+          case 'auto':
             query = query.eq('status', 'AUTO_APPLIED')
             break
-          case 'SUCCESS':
-            query = query.eq('status', 'SUCCESS')
+          case 'manual':
+            query = query.or('status.eq.SUCCESS,and(status.eq.REVIEWED,review_result.eq.APPROVED)')
             break
-          case 'MANUAL_CORRECTION':
+          case 'corrected':
             query = query.eq('status', 'MANUAL_CORRECTION')
-            break
-          case 'REVIEWED_APPROVED':
-            query = query.eq('status', 'REVIEWED').eq('review_result', 'APPROVED')
-            break
-          case 'REVIEWED_REJECTED':
-            query = query.eq('status', 'REVIEWED').eq('review_result', 'REJECTED')
-            break
-          case 'FAILED':
-            query = query.eq('status', 'FAILED').not('failure_reason', 'like', '%Pending review%')
             break
         }
       }
@@ -394,6 +403,9 @@ export default function PriceTrackerAdmin() {
           query = query.eq('batch_id', batchFilter)
         }
       }
+      
+      // Note: Price change filtering will be done client-side after fetching data
+      // because we need to calculate percentage changes
       
       // Apply pagination
       const { data: recentEntries, error } = await query.range(offset, offset + recordsPerPage - 1)
@@ -479,11 +491,28 @@ export default function PriceTrackerAdmin() {
             }
           }))
           
+        // Apply price change filter client-side
+        let filteredData = combinedData
+        if (priceChangeFilter !== "all") {
+          filteredData = combinedData.filter(item => {
+            switch(priceChangeFilter) {
+              case 'no_change':
+                return item.priceChange === 0
+              case 'decreased':
+                return item.priceChange < 0
+              case 'increased':
+                return item.priceChange > 0
+              default:
+                return true
+            }
+          })
+        }
+        
         // Combine and set the data
         if (append) {
-          setRecentlyUpdated(prev => [...prev, ...combinedData])
+          setRecentlyUpdated(prev => [...prev, ...filteredData])
         } else {
-          setRecentlyUpdated(combinedData)
+          setRecentlyUpdated(filteredData)
         }
       } else {
         if (!append) {
@@ -513,7 +542,7 @@ export default function PriceTrackerAdmin() {
   
   useEffect(() => {
     fetchRecentlyUpdated()
-  }, [refreshing, statusFilter, batchFilter])
+  }, [refreshing, statusFilter, batchFilter, approvalTypeFilter, priceChangeFilter])
   
   // Clear selection when data changes
   useEffect(() => {
@@ -2227,28 +2256,10 @@ export default function PriceTrackerAdmin() {
                   Refresh
                 </Button>
               </div>
-              <div className="flex gap-4 mt-4">
+              <div className="flex gap-4 mt-4 flex-wrap">
+                {/* Batch Filter */}
                 <div className="flex items-center space-x-2">
-                  <Label htmlFor="status-filter">Filter by Status:</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="All statuses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="PENDING_REVIEW">Pending Review</SelectItem>
-                      <SelectItem value="AUTO_APPLIED">Auto-Applied</SelectItem>
-                      <SelectItem value="SUCCESS">Manually Approved</SelectItem>
-                      <SelectItem value="MANUAL_CORRECTION">Manually Corrected</SelectItem>
-                      <SelectItem value="REVIEWED_APPROVED">Approved & Applied</SelectItem>
-                      <SelectItem value="REVIEWED_REJECTED">Rejected</SelectItem>
-                      <SelectItem value="FAILED">Failed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="batch-filter">Filter by Batch:</Label>
+                  <Label htmlFor="batch-filter">Batch:</Label>
                   <Select value={batchFilter} onValueChange={setBatchFilter}>
                     <SelectTrigger className="w-64">
                       <SelectValue placeholder="All batches" />
@@ -2261,6 +2272,63 @@ export default function PriceTrackerAdmin() {
                           {batch.id.slice(0, 8)}... ({format(new Date(batch.start_time), "MMM d, h:mm a")}) - {batch.price_history_count} records
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Status Filter */}
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="status-filter">Status:</Label>
+                  <Select value={statusFilter} onValueChange={(value) => {
+                    setStatusFilter(value)
+                    // Reset approval type filter when status changes
+                    if (value !== 'approved') {
+                      setApprovalTypeFilter('all')
+                    }
+                  }}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="pending">Pending Review</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Approval Type Filter - Only show when status is approved */}
+                {statusFilter === 'approved' && (
+                  <div className="flex items-center space-x-2">
+                    <Label htmlFor="approval-type-filter">Approval Type:</Label>
+                    <Select value={approvalTypeFilter} onValueChange={setApprovalTypeFilter}>
+                      <SelectTrigger className="w-48">
+                        <SelectValue placeholder="All approved" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Approved</SelectItem>
+                        <SelectItem value="auto">Auto-Applied</SelectItem>
+                        <SelectItem value="manual">Manually Approved</SelectItem>
+                        <SelectItem value="corrected">Manually Corrected</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {/* Price Change Filter */}
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="price-change-filter">Price Change:</Label>
+                  <Select value={priceChangeFilter} onValueChange={setPriceChangeFilter}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="All changes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Changes</SelectItem>
+                      <SelectItem value="no_change">No Change</SelectItem>
+                      <SelectItem value="increased">Increased</SelectItem>
+                      <SelectItem value="decreased">Decreased</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -2512,7 +2580,22 @@ export default function PriceTrackerAdmin() {
                         <TableCell colSpan={emailGenerationMode ? 10 : 9} className="text-center py-8">
                           {emailGenerationMode 
                             ? (loadingEmailDeals ? "Loading deals..." : "No deals found matching your filters. Try adjusting the date range, discount threshold, or other filters.")
-                            : (statusFilter === "all" ? "No recent updates found." : `No updates found with status: ${statusFilter}`)}
+                            : (() => {
+                              // Build a more informative message based on active filters
+                              const filters = [];
+                              if (statusFilter !== "all") filters.push(`status: ${statusFilter}`);
+                              if (statusFilter === "approved" && approvalTypeFilter !== "all") filters.push(`type: ${approvalTypeFilter}`);
+                              if (priceChangeFilter !== "all") filters.push(`price change: ${priceChangeFilter.replace('_', ' ')}`);
+                              if (batchFilter !== "all") filters.push(batchFilter === "no-batch" ? "no batch" : "specific batch");
+                              
+                              if (filters.length === 0) {
+                                return "No recent updates found.";
+                              } else if (priceChangeFilter !== "all" && recentlyUpdated.length < 50) {
+                                return `No updates found with ${filters.join(", ")}. Price change filters only apply to loaded records - try clicking "Load More Records" below to find more matching results.`;
+                              } else {
+                                return `No updates found with ${filters.join(", ")}.`;
+                              }
+                            })()}
                         </TableCell>
                       </TableRow>
                     ) : (

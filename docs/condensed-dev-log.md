@@ -489,3 +489,33 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Technical**: Service account authentication for server-side GA4 access, cookie-based admin auth consistency, proper runtime='nodejs' for Supabase
 - **Critical Fixes**: Single-line JSON credentials for .env.local, JSX comment syntax errors, funnel page path mismatches (/deals vs /deals-alerts)
 - **Known Issue**: Funnel tab showing 0 page views despite GA connection - requires debugging exact page paths recorded in Analytics
+
+### 2025-08-14: Analytics Dashboard Enhancements & UTM Tracking Implementation
+- **Issue**: Needed date filtering, funnel trends, lead source tracking, and UTM builder for marketing campaigns
+- **Solution**: Added 24-hour filter, funnel trends visualization, complete UTM parameter tracking system, integrated UTM builder tab
+- **Impact**: Full marketing attribution tracking, visual lead source breakdowns, standardized UTM generation for YouTube/affiliate links
+- **Technical**: Lead sources stored as JSON in referrer field, dual-axis trend charts, YouTube API integration for video selection
+- **Critical Fixes**: Environment variable name consistency (GOOGLE_APPLICATION_CREDENTIALS_JSON), funnel showing 0 views fixed
+- **Features**: Period comparison metrics, source/medium/campaign breakdowns, visual YouTube video selector with thumbnails
+
+### 2025-08-14: Price Tracker Sale Detection Enhancement
+- **Issue**: Thunder Laser and xTool machines extracting regular prices instead of sale prices, complex parsing issues
+- **Solution**: Implemented currency-first parsing and manufacturer-specific extraction methods with smart filtering
+- **Impact**: Thunder Nova 35 now extracts $8,270 (was $80), xTool P2S extracts $3,749 modal price (was $3,999)
+- **Technical**: Fixed text concatenation parsing "80W" as $80, added modal/popup selectors, price deduplication logic
+- **Critical Fix**: Python class structure broken by syntax error at line 2068 - removed broken code to restore method recognition
+- **Key Learning**: Simple domain knowledge (laser machines > $1000) more effective than complex parsing algorithms
+
+### 2025-08-14: Deals Page Query Optimization
+- **Issue**: EM Smart machines with valid price drops not appearing in deals list due to date range and query inefficiency
+- **Solution**: Extended date range to 30 days, created partial index for price changes, implemented RPC function for efficient querying
+- **Impact**: Deals page now shows 29 results (was 10), all EM Smart machines with drops displayed, query performance improved dramatically
+- **Technical**: Partial index on price_history WHERE price IS DISTINCT FROM previous_price, get_price_drops RPC function
+- **Key Learning**: Database indexing strategy crucial for scalability - 5000 record limit insufficient with daily price checks
+
+### 2025-08-15: Deals Page Design Improvements & Typography Unification
+- **Issue**: Header background different from site gradient, cards too tall vertically, inconsistent typography across components
+- **Solution**: Made header transparent, reduced card height with 4:3 aspect ratio, unified all font sizes to consistent text-sm system
+- **Impact**: Professional appearance with seamless header blend, compact cards, unified typography improving readability
+- **Technical**: Removed price-drops-hero background, standardized text-sm/text-base sizing, rounded savings to nearest dollar
+- **Features**: Added grid/table view toggle with localStorage persistence, removed "Save" text from badges for cleaner display
