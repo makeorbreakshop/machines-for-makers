@@ -1,14 +1,15 @@
 export const runtime = 'nodejs';
 
-import { createServerClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createServerClient();
+    const { id } = await params;
+    const supabase = createServiceClient();
     const body = await request.json();
 
     // Validate required fields
@@ -23,7 +24,7 @@ export async function PUT(
     const { data: existing } = await supabase
       .from('short_links')
       .select('id, slug')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (!existing) {
@@ -67,7 +68,7 @@ export async function PUT(
         metadata: body.metadata || {},
         updated_at: new Date().toISOString(),
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -87,16 +88,17 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createServerClient();
+    const { id } = await params;
+    const supabase = createServiceClient();
 
     // First delete all clicks for this link
     const { error: clicksError } = await supabase
       .from('link_clicks')
       .delete()
-      .eq('short_link_id', params.id);
+      .eq('link_id', id);
 
     if (clicksError) {
       throw clicksError;
@@ -106,7 +108,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('short_links')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (error) {
       throw error;

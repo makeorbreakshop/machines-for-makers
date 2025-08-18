@@ -1,11 +1,11 @@
 export const runtime = 'nodejs';
 
-import { createServerClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   try {
-    const supabase = createServerClient();
+    const supabase = createServiceClient();
     
     const { data: links, error } = await supabase
       .from('short_links')
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = createServerClient();
+    const supabase = createServiceClient();
     const body = await request.json();
 
     // Validate required fields

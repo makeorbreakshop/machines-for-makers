@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 
-import { createServerClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceClient();
     
     const { data } = await supabase
       .from('short_links')
