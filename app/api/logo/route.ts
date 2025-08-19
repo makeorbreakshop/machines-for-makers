@@ -24,7 +24,14 @@ export async function GET() {
       return NextResponse.json({ url: null })
     }
 
-    return NextResponse.json({ url: data.value })
+    return NextResponse.json(
+      { url: data.value },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+        },
+      }
+    )
   } catch (error) {
     console.error("Error fetching logo:", error)
     return NextResponse.json({ url: null, error: "Failed to fetch logo" })

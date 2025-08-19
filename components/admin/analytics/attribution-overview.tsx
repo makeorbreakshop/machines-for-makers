@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { TrendingUp, Loader2, AlertCircle, Mail } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatDistanceToNow } from 'date-fns';
+import { TimeSeriesChart } from './time-series-chart';
 
 interface AttributionData {
   overview: {
@@ -183,6 +184,9 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Time Series Chart - Full Width */}
+      <TimeSeriesChart dateRange={dateRange} />
 
       {/* Top Conversion Paths */}
       <div className="grid gap-6 md:grid-cols-2">

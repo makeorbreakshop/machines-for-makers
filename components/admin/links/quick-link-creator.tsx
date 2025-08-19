@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Copy, Loader2 } from 'lucide-react';
 import { YouTubeVideoSelector } from '@/components/admin/analytics/youtube-video-selector';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 interface YouTubeVideo {
   id: string;
@@ -16,6 +17,13 @@ interface YouTubeVideo {
   description?: string;
 }
 
+interface LeadMagnet {
+  id: string;
+  name: string;
+  slug: string;
+  landing_page_url: string;
+}
+
 interface QuickLinkCreatorProps {
   onLinkCreated: () => void; // Callback to refresh the links list
 }
@@ -23,9 +31,12 @@ interface QuickLinkCreatorProps {
 export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
   // Campaign type and common fields
   const [campaignType, setCampaignType] = useState('youtube');
-  const [leadMagnet, setLeadMagnet] = useState('material-library');
+  const [leadMagnet, setLeadMagnet] = useState('');
   const [linkPlacement, setLinkPlacement] = useState('description-link-1');
   const [isLoading, setIsLoading] = useState(false);
+  const [leadMagnets, setLeadMagnets] = useState<LeadMagnet[]>([]);
+  const [loadingMagnets, setLoadingMagnets] = useState(true);
+  const supabase = createClientComponentClient();
 
   // YouTube specific
   const [selectedVideo, setSelectedVideo] = useState('');
@@ -40,6 +51,34 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
   
   // General campaign
   const [campaignName, setCampaignName] = useState('');
+
+  // Fetch lead magnets from database
+  useEffect(() => {
+    const fetchLeadMagnets = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('lead_magnets')
+          .select('id, name, slug, landing_page_url')
+          .eq('active', true)
+          .order('position', { ascending: true });
+
+        if (error) throw error;
+
+        setLeadMagnets(data || []);
+        // Set default to first magnet if available
+        if (data && data.length > 0) {
+          setLeadMagnet(data[0].slug);
+        }
+      } catch (error) {
+        console.error('Error fetching lead magnets:', error);
+        toast.error('Failed to load lead magnets');
+      } finally {
+        setLoadingMagnets(false);
+      }
+    };
+
+    fetchLeadMagnets();
+  }, [supabase]);
 
   // Campaign type definitions matching UTM builder
   const campaignTypes = {
@@ -88,7 +127,9 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
   const currentCampaignType = campaignTypes[campaignType as keyof typeof campaignTypes];
 
   const generateSlug = (destination: string) => {
-    const destinationSlug = destination === 'material-library' ? 'material' : 'deals';
+    // Generate a short slug based on the lead magnet slug
+    const magnet = leadMagnets.find(m => m.slug === destination);
+    const destinationSlug = magnet ? magnet.slug.split('-')[0] : destination.substring(0, 10);
     const timestamp = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD format
     
     switch (campaignType) {
@@ -189,8 +230,9 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
     }
   };
 
-  const getDestinationUrl = (magnet: string) => {
-    return magnet === 'material-library' ? '/laser-material-library' : '/deals';
+  const getDestinationUrl = (magnetSlug: string) => {
+    const magnet = leadMagnets.find(m => m.slug === magnetSlug);
+    return magnet ? magnet.landing_page_url : '/';
   };
 
   const createLink = async (destination: string) => {
@@ -298,8 +340,9 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
     setIsLoading(true);
 
     try {
-      const linksToCreate = leadMagnet === 'both' 
-        ? ['material-library', 'deal-alerts']
+      // If 'all' is selected, create links for all lead magnets
+      const linksToCreate = leadMagnet === 'all' 
+        ? leadMagnets.map(m => m.slug)
         : [leadMagnet];
 
       const createdLinks = [];
@@ -336,7 +379,7 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
 
   const resetForm = () => {
     // Reset common fields
-    setLeadMagnet('material-library');
+    setLeadMagnet(leadMagnets[0]?.slug || '');
     setLinkPlacement(currentCampaignType.contentOptions[0]?.value || '');
     
     // Reset campaign-specific fields
@@ -433,8 +476,8 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
   };
 
   const getPreviewSlug = () => {
-    const destination = leadMagnet === 'both' ? 'material-library' : leadMagnet;
-    return generateSlug(destination);
+    const destination = leadMagnet === 'all' ? leadMagnets[0]?.slug : leadMagnet;
+    return destination ? generateSlug(destination) : '';
   };
 
   const shouldShowPreview = () => {
@@ -490,14 +533,23 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
 
         {/* Lead Magnet */}
         <div className="min-w-[200px]">
-          <Select value={leadMagnet} onValueChange={setLeadMagnet}>
+          <Select 
+            value={leadMagnet} 
+            onValueChange={setLeadMagnet}
+            disabled={loadingMagnets || leadMagnets.length === 0}
+          >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder={loadingMagnets ? "Loading..." : "Select destination"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="material-library">→ Material Library</SelectItem>
-              <SelectItem value="deal-alerts">→ Deal Alerts</SelectItem>
-              <SelectItem value="both">→ Both Lead Magnets</SelectItem>
+              {leadMagnets.map((magnet) => (
+                <SelectItem key={magnet.id} value={magnet.slug}>
+                  → {magnet.name}
+                </SelectItem>
+              ))}
+              {leadMagnets.length > 1 && (
+                <SelectItem value="all">→ All Lead Magnets</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -526,7 +578,7 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
       {shouldShowPreview() && (
         <div className="mt-3 text-sm text-gray-600">
           <strong>Preview:</strong> /go/{getPreviewSlug()}
-          {leadMagnet === 'both' && ' (+ deal alerts version)'}
+          {leadMagnet === 'all' && ` (+ ${leadMagnets.length - 1} more versions)`}
         </div>
       )}
     </div>
