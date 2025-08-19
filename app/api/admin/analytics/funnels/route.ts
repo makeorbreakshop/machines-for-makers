@@ -273,6 +273,23 @@ export async function GET(request: NextRequest) {
     // If still showing 0, let's check the terminal logs
     console.log('Funnel API - GA returned page views:', pageViews);
     
+    // Get click data from short links
+    const { data: materialLibraryClicks } = await supabase
+      .from('link_clicks')
+      .select('*, short_links!inner(destination_url)')
+      .eq('short_links.destination_url', '/laser-material-library')
+      .gte('clicked_at', startDate.toISOString())
+      .lt('clicked_at', endDate.toISOString())
+      .eq('is_bot', false);
+    
+    const { data: dealAlertsClicks } = await supabase
+      .from('link_clicks')
+      .select('*, short_links!inner(destination_url)')
+      .eq('short_links.destination_url', '/deals')
+      .gte('clicked_at', startDate.toISOString())
+      .lt('clicked_at', endDate.toISOString())
+      .eq('is_bot', false);
+
     // Get email submissions from database for current period
     const { data: materialLibrarySubmissions } = await supabase
       .from('email_subscribers')
@@ -392,12 +409,14 @@ export async function GET(request: NextRequest) {
     const funnels = [
       {
         name: 'Material Library',
+        clicks: materialLibraryClicks?.length || 0,
         pageViews: pageViews.materialLibrary,
         submissions: materialLibrarySubmissions?.length || 0,
         confirmed: materialLibraryActive,
       },
       {
         name: 'Deal Alerts',
+        clicks: dealAlertsClicks?.length || 0,
         pageViews: pageViews.dealAlerts,
         submissions: dealAlertsSubmissions?.length || 0,
         confirmed: dealAlertsActive,

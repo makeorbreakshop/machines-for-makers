@@ -24,6 +24,26 @@ export async function POST(request: Request) {
       });
     }
 
+    // Build tags based on UTM parameters for source tracking
+    const tags = ['deal-alerts'];
+    
+    // Add source-specific tags based on UTM parameters
+    if (utmParams?.utm_source) {
+      tags.push(`source:${utmParams.utm_source}`);
+    }
+    if (utmParams?.utm_campaign) {
+      // Extract video ID from campaign if it's a YouTube campaign
+      const videoIdMatch = utmParams.utm_campaign.match(/yt-([a-zA-Z0-9_-]+)/);
+      if (videoIdMatch) {
+        tags.push(`video:${videoIdMatch[1]}`);
+      }
+      tags.push(`campaign:${utmParams.utm_campaign}`);
+    }
+    if (utmParams?.utm_content) {
+      // utm_content contains the placement info (description-link-1, pinned-comment, etc.)
+      tags.push(`placement:${utmParams.utm_content}`);
+    }
+
     // Subscribe the user to the deal alerts form
     const response = await fetch(
       `https://api.convertkit.com/v3/forms/${CONVERTKIT_DEAL_ALERTS_FORM_ID}/subscribe`,
@@ -36,7 +56,7 @@ export async function POST(request: Request) {
           api_key: CONVERTKIT_API_KEY,
           email,
           first_name: firstName,
-          tags: ['deal-alerts'], // Tag for deal alerts subscribers
+          tags, // Use the dynamic tags array
           source: 'machines-for-makers-deals', 
           referrer,
         }),
@@ -87,12 +107,21 @@ export async function POST(request: Request) {
           email: email.toLowerCase(),
           first_name: firstName || null,
           convertkit_subscriber_id: data.subscription?.subscriber?.id || null,
-          tags: ['deal-alerts'],
+          tags: tags, // Store all tags including source tracking
           status: 'active',
           source: source,
           referrer: trackingDataToStore, // Store either URL or JSON depending on UTM presence
           form_id: process.env.CONVERTKIT_DEAL_ALERTS_FORM_ID || null,
           form_name: 'Deal Alerts',
+          // Add UTM parameters to dedicated columns
+          utm_source: utmParams?.utm_source || null,
+          utm_medium: utmParams?.utm_medium || null,
+          utm_campaign: utmParams?.utm_campaign || null,
+          utm_content: utmParams?.utm_content || null,
+          utm_term: utmParams?.utm_term || null,
+          // Track first touch source
+          first_touch_source: utmParams?.utm_source || 'direct',
+          first_touch_date: new Date().toISOString(),
         });
       
       if (dbError) {

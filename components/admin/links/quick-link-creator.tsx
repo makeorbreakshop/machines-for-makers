@@ -94,10 +94,20 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
     switch (campaignType) {
       case 'youtube':
         if (selectedVideoData) {
-          // Format: yt-{videoId}-{destination}
-          return `yt-${selectedVideoData.id}-${destinationSlug}`;
+          // Format: yt-{videoId}-{placement}-{destination}
+          // Convert linkPlacement to short format for URL
+          const placementMap: Record<string, string> = {
+            'description-link-1': 'desc1',
+            'description-link-2': 'desc2',
+            'pinned-comment': 'pinned',
+            'video-card': 'card',
+          };
+          const placement = placementMap[linkPlacement] || 'link';
+          return `yt-${selectedVideoData.id}-${placement}-${destinationSlug}`;
         }
-        return `yt-${timestamp}-${destinationSlug}`;
+        // Fallback with placement
+        const placement = linkPlacement ? linkPlacement.substring(0, 10).replace(/[^a-z0-9]+/g, '') : 'link';
+        return `yt-${timestamp}-${placement}-${destinationSlug}`;
         
       case 'email':
         if (emailSubject) {

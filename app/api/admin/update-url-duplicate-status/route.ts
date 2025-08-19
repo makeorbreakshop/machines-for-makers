@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Prepare update data based on the new status
-    let updateData: any = {
+    const updateData: any = {
       duplicate_status,
       checked_at: new Date().toISOString()
     }

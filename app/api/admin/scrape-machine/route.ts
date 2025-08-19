@@ -355,7 +355,7 @@ async function extractImagesWithPuppeteer(page: Page, url: string): Promise<stri
       '.thumbnails', '.product-thumbnails'
     ];
     
-    let galleryImages: ImageData[] = [];
+    const galleryImages: ImageData[] = [];
     
     for (const selector of gallerySelectors) {
       try {

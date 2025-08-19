@@ -207,6 +207,13 @@ async function logClick(
     const vid = searchParams.get('vid') || null;
     const campaign = searchParams.get('campaign') || searchParams.get('utm_campaign') || null;
 
+    // Extract all UTM parameters
+    const utm_source = searchParams.get('utm_source') || null;
+    const utm_medium = searchParams.get('utm_medium') || null;
+    const utm_campaign = searchParams.get('utm_campaign') || null;
+    const utm_content = searchParams.get('utm_content') || null;
+    const utm_term = searchParams.get('utm_term') || null;
+
     // Prepare click data
     const clickData = {
       link_id: link.id,
@@ -227,6 +234,12 @@ async function logClick(
       campaign: campaign?.substring(0, 200) || null,
       is_bot: isBot,
       bot_reason: botReason?.substring(0, 200) || null,
+      // Add UTM parameters to dedicated columns
+      utm_source: utm_source?.substring(0, 255) || null,
+      utm_medium: utm_medium?.substring(0, 255) || null,
+      utm_campaign: utm_campaign?.substring(0, 255) || null,
+      utm_content: utm_content?.substring(0, 255) || null,
+      utm_term: utm_term?.substring(0, 255) || null,
     };
 
     if (isDev) {

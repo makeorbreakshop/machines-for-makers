@@ -80,7 +80,7 @@ export function PriceDropsContent() {
 
   // Sort drops
   useEffect(() => {
-    let sorted = [...drops];
+    const sorted = [...drops];
 
     // Apply sorting based on view mode
     if (viewMode === 'list') {

@@ -16,6 +16,7 @@ import { FunnelChart } from '@/components/admin/analytics/funnel-chart';
 import { FunnelTrends } from '@/components/admin/analytics/funnel-trends';
 import { LeadSourcesChart } from '@/components/admin/analytics/lead-sources-chart';
 import { UTMBuilder } from '@/components/admin/analytics/utm-builder';
+import { AttributionOverview } from '@/components/admin/analytics/attribution-overview';
 
 interface AnalyticsData {
   overview?: {
@@ -287,7 +288,7 @@ export default function AnalyticsContent() {
   const [data, setData] = useState<AnalyticsData>({});
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('30d');
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('attribution');
 
   const fetchAnalytics = useCallback(async (metric: string = 'overview') => {
     setLoading(true);
@@ -457,12 +458,14 @@ export default function AnalyticsContent() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="flex items-center justify-between">
           <TabsList className="flex h-auto flex-wrap">
+            <TabsTrigger value="attribution" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Attribution
+            </TabsTrigger>
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <Activity className="h-4 w-4" />
               Overview
             </TabsTrigger>
-            <TabsTrigger value="traffic">Traffic</TabsTrigger>
-            <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="email-signups" className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
               Email
@@ -498,6 +501,10 @@ export default function AnalyticsContent() {
             </Badge>
           )}
         </div>
+
+        <TabsContent value="attribution" className="space-y-4">
+          <AttributionOverview dateRange={dateRange} />
+        </TabsContent>
 
         <TabsContent value="overview" className="space-y-4">
           <Card>
@@ -660,69 +667,6 @@ export default function AnalyticsContent() {
                   <div className="text-center">
                     <BarChart3 className="h-12 w-12 mx-auto mb-4" />
                     <p>Loading chart data...</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="traffic" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Traffic Sources</CardTitle>
-              <CardDescription>
-                Connect Google Analytics to view traffic source data
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="text-center text-muted-foreground py-8">
-                  <p>Traffic source data requires Google Analytics API integration</p>
-                  <Button className="mt-4" variant="outline" size="sm">
-                    View GA Setup Guide
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="events" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>User Events</CardTitle>
-              <CardDescription>
-                Key user interactions in the selected period
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <p className="font-medium">Review Submissions</p>
-                      <p className="text-sm text-muted-foreground">User reviews posted</p>
-                    </div>
-                    <div className="text-2xl font-bold">{data.events?.reviews || 0}</div>
-                  </div>
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <p className="font-medium">Machine Comparisons</p>
-                      <p className="text-sm text-muted-foreground">Comparison tool usage</p>
-                    </div>
-                    <div className="text-2xl font-bold">{data.events?.comparisons || 0}</div>
-                  </div>
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <p className="font-medium">Calculator Usage</p>
-                      <p className="text-sm text-muted-foreground">Ink calculator sessions</p>
-                    </div>
-                    <div className="text-2xl font-bold">{data.events?.calculatorUsage || 0}</div>
                   </div>
                 </div>
               )}

@@ -30,27 +30,16 @@ export default function LinksPage() {
   const fetchLinks = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('short_links')
-        .select(`
-          *,
-          click_count:link_clicks(count)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching links:', error);
-        setError('Error loading links. Please refresh to try again.');
-        return;
+      
+      // Fetch links with stats from the admin API
+      const response = await fetch('/api/admin/links');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch links');
       }
 
-      // Transform the data to include click counts
-      const linksWithStats = data?.map(link => ({
-        ...link,
-        click_count: link.click_count?.[0]?.count || 0
-      })) || [];
-
-      setLinks(linksWithStats);
+      const linksData = await response.json();
+      setLinks(linksData);
       setError(null);
     } catch (err) {
       console.error('Error fetching links:', err);

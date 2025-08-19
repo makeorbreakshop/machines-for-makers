@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -15,7 +15,7 @@ import {
   CommandInput,
   CommandItem,
 } from '@/components/ui/command';
-import { Check, ExternalLink, FileText, Tag, Home, ShoppingBag, Wrench, BookOpen, Search, Box } from 'lucide-react';
+import { Check, ExternalLink, FileText, Tag, Home, ShoppingBag, Wrench, BookOpen, Search, Box, Gift, Package, Star, Zap, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface Destination {
@@ -26,22 +26,27 @@ export interface Destination {
   category?: string;
 }
 
-const POPULAR_DESTINATIONS: Destination[] = [
-  // Lead Magnets
-  {
-    url: '/laser-material-library',
-    title: 'Laser Material Library',
-    description: 'Free guide to laser cutting materials',
-    icon: <BookOpen className="h-4 w-4" />,
-    category: 'Lead Magnets',
-  },
-  {
-    url: '/deals',
-    title: 'Deal Alerts',
-    description: 'Sign up for machine deal notifications',
-    icon: <Tag className="h-4 w-4" />,
-    category: 'Lead Magnets',
-  },
+interface LeadMagnet {
+  id: string;
+  name: string;
+  landing_page_url: string;
+  description: string | null;
+  icon: string;
+  active: boolean;
+}
+
+const iconMap: Record<string, React.ReactNode> = {
+  'book-open': <BookOpen className="h-4 w-4" />,
+  'tag': <Tag className="h-4 w-4" />,
+  'gift': <Gift className="h-4 w-4" />,
+  'file-text': <FileText className="h-4 w-4" />,
+  'package': <Package className="h-4 w-4" />,
+  'star': <Star className="h-4 w-4" />,
+  'zap': <Zap className="h-4 w-4" />,
+  'target': <Target className="h-4 w-4" />,
+};
+
+const STATIC_DESTINATIONS: Destination[] = [
   // Main Pages
   {
     url: '/',
@@ -110,9 +115,40 @@ export function DestinationSelector({
 }: DestinationSelectorProps) {
   const [open, setOpen] = useState(false);
   const [customUrl, setCustomUrl] = useState(value || '');
-  const [showCustom, setShowCustom] = useState(!POPULAR_DESTINATIONS.find(d => d.url === value));
+  const [leadMagnets, setLeadMagnets] = useState<LeadMagnet[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const selectedDestination = POPULAR_DESTINATIONS.find(d => d.url === value);
+  useEffect(() => {
+    // Fetch lead magnets from the database
+    const fetchLeadMagnets = async () => {
+      try {
+        const response = await fetch('/api/admin/lead-magnets');
+        if (response.ok) {
+          const data = await response.json();
+          setLeadMagnets(data.leadMagnets.filter((m: LeadMagnet) => m.active));
+        }
+      } catch (error) {
+        console.error('Failed to fetch lead magnets:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLeadMagnets();
+  }, []);
+
+  // Combine lead magnets with static destinations
+  const allDestinations: Destination[] = [
+    ...leadMagnets.map(magnet => ({
+      url: magnet.landing_page_url,
+      title: magnet.name,
+      description: magnet.description || undefined,
+      icon: iconMap[magnet.icon] || <Gift className="h-4 w-4" />,
+      category: 'Lead Magnets',
+    })),
+    ...STATIC_DESTINATIONS,
+  ];
+
+  const selectedDestination = allDestinations.find(d => d.url === value);
 
   const handleSelect = (destination: Destination) => {
     onChange(destination.url);
@@ -129,7 +165,7 @@ export function DestinationSelector({
     }
   };
 
-  const groupedDestinations = POPULAR_DESTINATIONS.reduce((acc, dest) => {
+  const groupedDestinations = allDestinations.reduce((acc, dest) => {
     const category = dest.category || 'Other';
     if (!acc[category]) {
       acc[category] = [];

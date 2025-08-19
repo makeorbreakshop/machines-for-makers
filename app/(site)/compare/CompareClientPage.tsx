@@ -71,8 +71,8 @@ function matchesLaserType(product: Machine, laserType: string): boolean {
   const normalizedType = laserType.toLowerCase().trim().replace(/ /g, '-');
   
   // Get the product's laser types and normalize them the same way
-  let productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
-  let productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
+  const productLaserTypeA = (product["Laser Type A"] || "").toLowerCase().trim();
+  const productLaserTypeB = (product["Laser Type B"] || "").toLowerCase().trim();
   
   // Direct matching on Laser Type fields (case-insensitive with normalized format)
   return productLaserTypeA === normalizedType || productLaserTypeB === normalizedType;

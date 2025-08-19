@@ -7,23 +7,50 @@ export async function GET(request: Request) {
   try {
     const supabase = createServiceClient();
     
-    const { data: links, error } = await supabase
+    // Get all links with their complete data
+    const { data: links, error: linksError } = await supabase
       .from('short_links')
-      .select(`
-        *,
-        click_count:link_clicks(count)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      throw error;
+    if (linksError) {
+      console.error('Error fetching links:', linksError);
+      throw linksError;
     }
 
-    // Transform the data to include click counts
-    const linksWithStats = links?.map(link => ({
-      ...link,
-      click_count: link.click_count?.[0]?.count || 0
-    })) || [];
+    if (!links || links.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    // Get stats from the view
+    const { data: stats, error: statsError } = await supabase
+      .from('short_links_stats')
+      .select('id, total_clicks, human_clicks, bot_clicks, unique_sources, last_click_at');
+
+    if (statsError) {
+      console.warn('Error fetching stats:', statsError);
+    }
+
+    // Create a map of stats by ID
+    const statsMap = new Map();
+    if (stats) {
+      stats.forEach(stat => {
+        statsMap.set(stat.id, stat);
+      });
+    }
+
+    // Combine links with their stats
+    const linksWithStats = links.map(link => {
+      const stat = statsMap.get(link.id);
+      return {
+        ...link,
+        click_count: stat?.total_clicks || 0,
+        human_clicks: stat?.human_clicks || 0,
+        bot_clicks: stat?.bot_clicks || 0,
+        unique_sources: stat?.unique_sources || 0,
+        last_click_at: stat?.last_click_at || null
+      };
+    });
 
     return NextResponse.json(linksWithStats);
   } catch (error) {

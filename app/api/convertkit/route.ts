@@ -24,6 +24,26 @@ export async function POST(request: Request) {
       });
     }
 
+    // Build tags based on UTM parameters for source tracking
+    const tags = ['laser-material-library'];
+    
+    // Add source-specific tags based on UTM parameters
+    if (utmParams?.utm_source) {
+      tags.push(`source:${utmParams.utm_source}`);
+    }
+    if (utmParams?.utm_campaign) {
+      // Extract video ID from campaign if it's a YouTube campaign
+      const videoIdMatch = utmParams.utm_campaign.match(/yt-([a-zA-Z0-9_-]+)/);
+      if (videoIdMatch) {
+        tags.push(`video:${videoIdMatch[1]}`);
+      }
+      tags.push(`campaign:${utmParams.utm_campaign}`);
+    }
+    if (utmParams?.utm_content) {
+      // utm_content contains the placement info (description-link-1, pinned-comment, etc.)
+      tags.push(`placement:${utmParams.utm_content}`);
+    }
+
     // Subscribe the user to the form
     const response = await fetch(
       `https://api.convertkit.com/v3/forms/${CONVERTKIT_FORM_ID}/subscribe`,
@@ -35,7 +55,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           api_key: CONVERTKIT_API_KEY,
           email,
-          tags: ['laser-material-library'], // Optional tags to apply
+          tags, // Use the dynamic tags array
           first_name: '', // Optional: Add this if you want to collect first names
           source: 'machines-for-makers-website', // Identify your source
           referrer, // Add the referrer information
@@ -87,12 +107,21 @@ export async function POST(request: Request) {
           email: email.toLowerCase(),
           first_name: null, // Material library doesn't collect first name
           convertkit_subscriber_id: data.subscription?.subscriber?.id || null,
-          tags: ['laser-material-library'],
+          tags: tags, // Store all tags including source tracking
           status: 'active',
           source: source,
           referrer: trackingDataToStore, // Store either URL or JSON depending on UTM presence
           form_id: process.env.CONVERTKIT_FORM_ID || null,
           form_name: 'Laser Material Library',
+          // Add UTM parameters to dedicated columns
+          utm_source: utmParams?.utm_source || null,
+          utm_medium: utmParams?.utm_medium || null,
+          utm_campaign: utmParams?.utm_campaign || null,
+          utm_content: utmParams?.utm_content || null,
+          utm_term: utmParams?.utm_term || null,
+          // Track first touch source
+          first_touch_source: utmParams?.utm_source || 'direct',
+          first_touch_date: new Date().toISOString(),
         });
       
       if (dbError) {

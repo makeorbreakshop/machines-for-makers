@@ -107,7 +107,7 @@ export async function getProductPromoCodes(product: any): Promise<PromoCodeDispl
       }
     } else {
       // Regular approach for non-xTool products - parallel queries for efficiency
-      let queries = [];
+      const queries = [];
 
       // Machine-specific codes
       if (product.id) {
@@ -150,7 +150,7 @@ export async function getProductPromoCodes(product: any): Promise<PromoCodeDispl
     }
 
     // Format codes for display
-    let displayCodes = fetchedPromoCodes.map(formatPromoCodeForDisplay);
+    const displayCodes = fetchedPromoCodes.map(formatPromoCodeForDisplay);
 
     // Remove duplicates (by code)
     const uniqueCodes = displayCodes.filter((code, index, self) =>

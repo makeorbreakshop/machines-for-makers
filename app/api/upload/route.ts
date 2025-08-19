@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     
     // Process the image with Sharp
     let optimizedBuffer: Buffer;
-    let processingInfo = {
+    const processingInfo = {
       resized: false,
       format: file.type
     };

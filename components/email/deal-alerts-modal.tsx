@@ -1,18 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Bell, Mail, CheckCircle2, TrendingDown, DollarSign, Clock } from 'lucide-react';
 
 export function DealAlertsModal() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [submittedEmail, setSubmittedEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [utmParams, setUtmParams] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    
+    // Capture all UTM parameters
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].forEach(param => {
+      const value = searchParams.get(param);
+      if (value) params[param] = value;
+    });
+    
+    // Also capture the full landing page URL
+    if (Object.keys(params).length > 0) {
+      params.landing_page = window.location.href;
+    }
+    
+    setUtmParams(params);
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +45,7 @@ export function DealAlertsModal() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, utmParams }),
       });
 
       const data = await response.json();

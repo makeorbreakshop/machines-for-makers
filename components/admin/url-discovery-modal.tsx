@@ -351,7 +351,7 @@ export function URLDiscoveryModal({
     })
     
     // If we have smart classification data, send it
-    let bodyData: any = {
+    const bodyData: any = {
       manufacturer_id: manufacturerId,
       urls: selectedUrls,
       categories

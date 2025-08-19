@@ -3,10 +3,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { ArrowDown, Users, Mail } from 'lucide-react';
+import { ArrowDown, Users, Mail, Link2 } from 'lucide-react';
 
 interface FunnelData {
   name: string;
+  clicks?: number;
   pageViews: number;
   submissions: number;
   confirmed: number;
@@ -46,15 +47,54 @@ export function FunnelChart({ data, loading }: FunnelChartProps) {
     );
   }
 
-  const conversionRate = parseFloat(calculateConversionRate(data.submissions, data.pageViews));
+  // Calculate conversion rates for each step
+  const clickToPageRate = data.clicks ? parseFloat(calculateConversionRate(data.pageViews, data.clicks)) : 0;
+  const pageToSignupRate = parseFloat(calculateConversionRate(data.submissions, data.pageViews));
+  
+  // Calculate overall conversion rate
+  const overallConversionRate = data.clicks 
+    ? calculateConversionRate(data.submissions, data.clicks)
+    : calculateConversionRate(data.submissions, data.pageViews);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>{data.name}</CardTitle>
-        <CardDescription>Conversion funnel from page view to email signup</CardDescription>
+        <CardDescription>
+          {data.clicks ? 'Conversion funnel from link click to email signup' : 'Conversion funnel from page view to email signup'}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Clicks - only show if we have click data */}
+        {data.clicks !== undefined && data.clicks > 0 && (
+          <>
+            <div className="relative">
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-full">
+                    <Link2 className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Link Clicks</p>
+                    <p className="text-2xl font-bold">{data.clicks.toLocaleString()}</p>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-xs">100%</Badge>
+              </div>
+            </div>
+
+            {/* Arrow and conversion rate */}
+            <div className="flex items-center justify-center">
+              <div className="text-center">
+                <ArrowDown className="h-5 w-5 mx-auto text-muted-foreground" />
+                <p className={`text-sm font-medium mt-1 ${getStepColor(clickToPageRate)}`}>
+                  {clickToPageRate}% to page view
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Page Views */}
         <div className="relative">
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
@@ -67,7 +107,9 @@ export function FunnelChart({ data, loading }: FunnelChartProps) {
                 <p className="text-2xl font-bold">{data.pageViews.toLocaleString()}</p>
               </div>
             </div>
-            <Badge variant="secondary" className="text-xs">100%</Badge>
+            <Badge variant="secondary" className="text-xs">
+              {data.clicks ? `${clickToPageRate}%` : '100%'}
+            </Badge>
           </div>
         </div>
 
@@ -75,8 +117,8 @@ export function FunnelChart({ data, loading }: FunnelChartProps) {
         <div className="flex items-center justify-center">
           <div className="text-center">
             <ArrowDown className="h-5 w-5 mx-auto text-muted-foreground" />
-            <p className={`text-sm font-medium mt-1 ${getStepColor(conversionRate)}`}>
-              {conversionRate}% conversion
+            <p className={`text-sm font-medium mt-1 ${getStepColor(pageToSignupRate)}`}>
+              {pageToSignupRate}% conversion
             </p>
           </div>
         </div>
@@ -94,11 +136,11 @@ export function FunnelChart({ data, loading }: FunnelChartProps) {
               </div>
             </div>
             <Badge variant="secondary" className="text-xs">
-              {conversionRate}%
+              {pageToSignupRate}%
             </Badge>
           </div>
           <Progress 
-            value={conversionRate} 
+            value={pageToSignupRate} 
             className="mt-2"
           />
         </div>
@@ -108,7 +150,7 @@ export function FunnelChart({ data, loading }: FunnelChartProps) {
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Conversion Rate</span>
             <span className="font-medium">
-              {conversionRate}%
+              {overallConversionRate}%
             </span>
           </div>
           <div className="flex justify-between text-sm">
