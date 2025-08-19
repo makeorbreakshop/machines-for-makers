@@ -1,6 +1,5 @@
 export const runtime = 'nodejs';
 
-import { Suspense } from 'react';
 import { UltraSimpleContent } from './ultra-simple-content';
 
 export const metadata = {
@@ -32,9 +31,7 @@ export default async function OptimizedDealsPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
-      <Suspense fallback={<div className="p-8 text-center">Loading deals...</div>}>
-        <UltraSimpleContent initialDrops={drops} />
-      </Suspense>
+      <UltraSimpleContent initialDrops={drops} />
     </div>
   );
 }

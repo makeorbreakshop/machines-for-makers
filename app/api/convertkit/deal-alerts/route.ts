@@ -101,9 +101,10 @@ export async function POST(request: Request) {
     }
     
     try {
+      // Use UPSERT to handle existing emails gracefully
       const { error: dbError } = await supabase
         .from('email_subscribers')
-        .insert({
+        .upsert({
           email: email.toLowerCase(),
           first_name: firstName || null,
           convertkit_subscriber_id: data.subscription?.subscriber?.id || null,
@@ -113,20 +114,24 @@ export async function POST(request: Request) {
           referrer: trackingDataToStore, // Store either URL or JSON depending on UTM presence
           form_id: process.env.CONVERTKIT_DEAL_ALERTS_FORM_ID || null,
           form_name: 'Deal Alerts',
-          // Add UTM parameters to dedicated columns
+          // Add UTM parameters to dedicated columns (update latest)
           utm_source: utmParams?.utm_source || null,
           utm_medium: utmParams?.utm_medium || null,
           utm_campaign: utmParams?.utm_campaign || null,
           utm_content: utmParams?.utm_content || null,
           utm_term: utmParams?.utm_term || null,
-          // Track first touch source
-          first_touch_source: utmParams?.utm_source || 'direct',
-          first_touch_date: new Date().toISOString(),
+          // Update timestamp for last seen
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'email',
+          ignoreDuplicates: false // We want to update existing records
         });
       
       if (dbError) {
         console.error("Failed to save subscriber to database:", dbError);
         // Don't fail the request if database save fails
+      } else {
+        console.log("Subscriber saved/updated successfully");
       }
     } catch (dbError) {
       console.error("Database save error:", dbError);
