@@ -94,6 +94,14 @@ export async function POST(request: NextRequest) {
     // Store in our database for tracking
     const supabase = createServiceClient();
     
+    // Get the Comparison Chart lead magnet ID
+    const { data: leadMagnet } = await supabase
+      .from('lead_magnets')
+      .select('id')
+      .eq('landing_page_url', '/laser-comparison')
+      .eq('active', true)
+      .single();
+    
     try {
       const { error: dbError } = await supabase
         .from('email_subscribers')
@@ -107,6 +115,7 @@ export async function POST(request: NextRequest) {
           referrer: referrer || 'direct',
           form_id: CONVERTKIT_FORM_ID,
           form_name: 'Comparison Chart',
+          lead_magnet_id: leadMagnet?.id || null, // Add the lead magnet ID
           // Add UTM parameters
           utm_source: utmParams.utm_source || null,
           utm_medium: utmParams.utm_medium || null,

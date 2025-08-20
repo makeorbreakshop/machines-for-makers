@@ -78,6 +78,14 @@ export async function POST(request: Request) {
     // Store in our database for tracking
     const supabase = createServiceClient();
     
+    // Get the Deal Alerts lead magnet ID
+    const { data: leadMagnet } = await supabase
+      .from('lead_magnets')
+      .select('id')
+      .eq('landing_page_url', '/deals')
+      .eq('active', true)
+      .single();
+    
     // Prepare tracking data - only store if we have UTM parameters
     let trackingDataToStore: any = referrer; // Default to storing the referrer URL
     
@@ -114,6 +122,7 @@ export async function POST(request: Request) {
           referrer: trackingDataToStore, // Store either URL or JSON depending on UTM presence
           form_id: process.env.CONVERTKIT_DEAL_ALERTS_FORM_ID || null,
           form_name: 'Deal Alerts',
+          lead_magnet_id: leadMagnet?.id || null, // Add the lead magnet ID
           // Add UTM parameters to dedicated columns (update latest)
           utm_source: utmParams?.utm_source || null,
           utm_medium: utmParams?.utm_medium || null,

@@ -3,20 +3,27 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart3, TrendingUp, Users, Eye, Clock, Loader2, Activity, Calendar, CheckCircle2, AlertCircle, Mail, PieChart, Table as TableIcon, Target, Link2 } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Eye, Clock, Loader2, Activity, Calendar, CheckCircle2, AlertCircle, Mail, PieChart, Table as TableIcon, Target, Link2, ChevronRight, Youtube, BookOpen, Tag, Gift, FileText, ArrowRight, ExternalLink } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { format, parseISO, startOfDay } from 'date-fns';
-import { FunnelChart } from '@/components/admin/analytics/funnel-chart';
-import { FunnelTrends } from '@/components/admin/analytics/funnel-trends';
 import { LeadSourcesChart } from '@/components/admin/analytics/lead-sources-chart';
 import { UTMBuilder } from '@/components/admin/analytics/utm-builder';
 import { AttributionOverview } from '@/components/admin/analytics/attribution-overview';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 interface AnalyticsData {
   overview?: {
@@ -87,10 +94,38 @@ interface AnalyticsData {
   };
   funnels?: {
     funnels: Array<{
+      id: string;
       name: string;
+      slug: string;
+      icon: string;
+      color: string;
+      landingPageUrl: string;
+      clicks: number;
       pageViews: number;
       submissions: number;
       confirmed: number;
+      // New separate metrics
+      organicPageViews?: number;
+      organicSubmissions?: number;
+      organicConfirmed?: number;
+      trackedClicks?: number;
+      trackedPageViews?: number;
+      trackedSubmissions?: number;
+      trackedConfirmed?: number;
+      clickToPageView: string;
+      pageViewToSubmission: string;
+      submissionToConfirmed: string;
+      overallConversion: string;
+      convertingLinks: Array<{
+        slug: string;
+        utm_source: string | null;
+        utm_medium: string | null;
+        utm_campaign: string | null;
+        utm_content: string | null;
+        metadata: Record<string, string | number | boolean> | null;
+        conversions: number;
+        clicks: number;
+      }>;
     }>;
     trendData?: {
       materialLibrary: Array<{
@@ -118,6 +153,17 @@ interface AnalyticsData {
         conversionRate: number;
       };
     };
+    totals?: {
+      clicks: number;
+      pageViews: number;
+      submissions: number;
+      confirmed: number;
+      clickToPageView: string;
+      pageViewToSubmission: string;
+      submissionToConfirmed: string;
+      overallConversion: string;
+    };
+    gaConnected?: boolean;
   };
   leadSources?: {
     totalSubscribers: number;
@@ -195,8 +241,8 @@ function EmailSignupsChart({ data }: { data: Array<{ created_at: string; source:
         <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="colorSignups" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
-              <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -217,7 +263,7 @@ function EmailSignupsChart({ data }: { data: Array<{ created_at: string; source:
           <Area
             type="monotone"
             dataKey="signups"
-            stroke="#6366f1"
+            stroke="#3b82f6"
             fillOpacity={1}
             fill="url(#colorSignups)"
             name="Signups"
@@ -254,19 +300,32 @@ function SourceBreakdown({ data, leadMagnetLabels = {} }: {
     }))
     .sort((a, b) => b.count - a.count);
 
+  // Color mapping for sources
+  const sourceColors = {
+    'laser-material-library': 'blue',
+    'deal-alerts': 'purple',
+    'other': 'gray'
+  };
+
   return (
     <div className="space-y-3">
-      {sortedSources.map(({ source, label, count, percentage }) => (
-        <div key={source} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-sm font-semibold">{percentage}%</span>
+      {sortedSources.map(({ source, label, count, percentage }) => {
+        const color = sourceColors[source] || 'gray';
+        return (
+          <div key={source} className="flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/40 rounded-lg transition-colors">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-lg bg-${color}-100 dark:bg-${color}-900/20 flex items-center justify-center`}>
+                <span className="text-sm font-bold">{percentage}%</span>
+              </div>
+              <div>
+                <p className="font-medium">{label}</p>
+                <p className="text-xs text-muted-foreground">{count} signups</p>
+              </div>
             </div>
-            <span className="font-medium">{label}</span>
+            <Progress value={parseFloat(percentage)} className="w-24 h-2" />
           </div>
-          <Badge variant="secondary">{count} signups</Badge>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -277,11 +336,67 @@ function getSourceLabel(source: string | null, leadMagnetLabels: Record<string, 
   return leadMagnetLabels[source] || source.charAt(0).toUpperCase() + source.slice(1).replace(/-/g, ' ');
 }
 
+// Helper functions for funnels
+const iconMap: Record<string, React.ReactNode> = {
+  'book-open': <BookOpen className="h-4 w-4" />,
+  'tag': <Tag className="h-4 w-4" />,
+  'gift': <Gift className="h-4 w-4" />,
+  'file-text': <FileText className="h-4 w-4" />,
+};
+
+const sourceIconMap: Record<string, React.ReactNode> = {
+  'youtube': <Youtube className="h-4 w-4" />,
+  'email': <Mail className="h-4 w-4" />,
+  'social': <Users className="h-4 w-4" />,
+  'direct': <Link2 className="h-4 w-4" />,
+};
+
+function getHumanReadableSource(link: {
+  slug: string;
+  utm_source?: string | null;
+  utm_campaign?: string | null;
+  metadata?: Record<string, string | number | boolean> | null;
+}): string {
+  // Check metadata for human-readable titles
+  if (link.metadata) {
+    if (link.metadata.video_title) {
+      return `YouTube: ${link.metadata.video_title}`;
+    }
+    if (link.metadata.description) {
+      return link.metadata.description;
+    }
+    if (link.metadata.campaign_name) {
+      return link.metadata.campaign_name;
+    }
+  }
+  
+  // Fall back to campaign name if available
+  if (link.utm_campaign) {
+    // Clean up YouTube campaign IDs
+    if (link.utm_source === 'youtube' && link.utm_campaign.startsWith('yt-')) {
+      const videoId = link.utm_campaign.replace('yt-', '');
+      return `YouTube Video (${videoId})`;
+    }
+    
+    // Clean up email campaigns
+    if (link.utm_source === 'email') {
+      return `Email: ${link.utm_campaign.replace(/-/g, ' ')}`;
+    }
+    
+    return link.utm_campaign.replace(/-/g, ' ');
+  }
+  
+  // Last resort: use slug
+  return link.slug;
+}
+
+
 export default function AnalyticsContent() {
   const [data, setData] = useState<AnalyticsData>({});
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('30d');
   const [activeTab, setActiveTab] = useState('attribution');
+  const [expandedFunnels, setExpandedFunnels] = useState<Set<string>>(new Set());
 
   const fetchAnalytics = useCallback(async (metric: string = 'overview') => {
     setLoading(true);
@@ -295,7 +410,7 @@ export default function AnalyticsContent() {
         const result = await response.json();
         setData(prevData => ({ ...prevData, emailSignups: result }));
       } else if (metric === 'funnels') {
-        const response = await fetch(`/api/admin/analytics/funnels?days=${days}&trends=true`);
+        const response = await fetch(`/api/admin/analytics/funnels?days=${days}`);
         const result = await response.json();
         setData(prevData => ({ ...prevData, funnels: result }));
       } else if (metric === 'lead-sources') {
@@ -324,6 +439,7 @@ export default function AnalyticsContent() {
     fetchAnalytics(activeTab);
   }, [activeTab, fetchAnalytics]);
 
+
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
@@ -331,11 +447,11 @@ export default function AnalyticsContent() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-4">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl font-bold tracking-tight">Analytics Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
             Track visitor behavior and site performance
           </p>
         </div>
@@ -355,93 +471,127 @@ export default function AnalyticsContent() {
       {/* Unified header stats that change based on active tab */}
       {(activeTab === 'overview' || activeTab === 'email-signups') && (
         loading ? (
-          <div className="grid gap-2 grid-cols-2 lg:grid-cols-4 mb-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-muted/30 rounded-lg p-3">
-                <Skeleton className="h-3 w-20 mb-1" />
-                <Skeleton className="h-6 w-16" />
-              </div>
+              <Card key={i} className="border-0 shadow-sm">
+                <CardContent className="p-6">
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-8 w-20" />
+                </CardContent>
+              </Card>
             ))}
           </div>
         ) : (
-          <div className="grid gap-2 grid-cols-2 lg:grid-cols-4 mb-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
             {activeTab === 'overview' ? (
             <>
-              <div className="bg-muted/30 rounded-lg p-3 hover:bg-muted/40 transition-colors">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <Eye className="h-3 w-3" />
-                  <span>Page Views</span>
-                </div>
-                <p className="text-xl font-semibold">
-                  {data.overview ? formatNumber(data.overview.pageViews) : '--'}
-                </p>
-              </div>
-              <div className="bg-muted/30 rounded-lg p-3 hover:bg-muted/40 transition-colors">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <Users className="h-3 w-3" />
-                  <span>Active Users</span>
-                </div>
-                <p className="text-xl font-semibold">
-                  {data.overview ? formatNumber(data.overview.activeUsers) : '--'}
-                </p>
-              </div>
-              <div className="bg-muted/30 rounded-lg p-3 hover:bg-muted/40 transition-colors">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <Clock className="h-3 w-3" />
-                  <span>Avg Duration</span>
-                </div>
-                <p className="text-xl font-semibold">
-                  {data.overview?.avgSessionDuration || '--'}
-                </p>
-              </div>
-              <div className="bg-muted/30 rounded-lg p-3 hover:bg-muted/40 transition-colors">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <TrendingUp className="h-3 w-3" />
-                  <span>Engagement</span>
-                </div>
-                <p className="text-xl font-semibold">
-                  {data.overview ? `${(data.overview.engagementRate * 100).toFixed(0)}%` : '--'}
-                </p>
-              </div>
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                      <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">
+                    {data.overview ? formatNumber(data.overview.pageViews) : '0'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Page Views</p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                      <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">
+                    {data.overview ? formatNumber(data.overview.activeUsers) : '0'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Active Users</p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                      <Clock className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">
+                    {data.overview?.avgSessionDuration || '0:00'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Avg Duration</p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
+                      <TrendingUp className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">
+                    {data.overview ? `${(data.overview.engagementRate * 100).toFixed(0)}%` : '0%'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Engagement Rate</p>
+                </CardContent>
+              </Card>
             </>
           ) : activeTab === 'email-signups' ? (
             <>
-              <div className="bg-muted/30 rounded-lg p-3 hover:bg-muted/40 transition-colors">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <Users className="h-3 w-3" />
-                  <span>Total Subscribers</span>
-                </div>
-                <p className="text-xl font-semibold">
-                  {data.emailSignups?.stats ? formatNumber(data.emailSignups.stats.totalSubscribers) : '--'}
-                </p>
-              </div>
-              <div className="bg-muted/30 rounded-lg p-3 hover:bg-muted/40 transition-colors">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <TrendingUp className="h-3 w-3" />
-                  <span>Growth Rate</span>
-                </div>
-                <p className="text-xl font-semibold text-green-600">
-                  +{data.emailSignups?.stats?.growthRate || '0'}%
-                </p>
-              </div>
-              <div className="bg-muted/30 rounded-lg p-3 hover:bg-muted/40 transition-colors">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <Calendar className="h-3 w-3" />
-                  <span>This Week</span>
-                </div>
-                <p className="text-xl font-semibold">
-                  {data.emailSignups?.stats ? formatNumber(data.emailSignups.stats.weeklySubscribers) : '--'}
-                </p>
-              </div>
-              <div className="bg-muted/30 rounded-lg p-3 hover:bg-muted/40 transition-colors">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <Mail className="h-3 w-3" />
-                  <span>Today</span>
-                </div>
-                <p className="text-xl font-semibold">
-                  {data.emailSignups?.stats ? formatNumber(data.emailSignups.stats.todaySubscribers) : '--'}
-                </p>
-              </div>
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                      <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">
+                    {data.emailSignups?.stats ? formatNumber(data.emailSignups.stats.totalSubscribers) : '0'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Total Subscribers</p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                      <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">
+                    <span className="text-green-600">+{data.emailSignups?.stats?.growthRate || '0'}%</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Growth Rate</p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                      <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">
+                    {data.emailSignups?.stats ? formatNumber(data.emailSignups.stats.weeklySubscribers) : '0'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">This Week</p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
+                      <Mail className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">
+                    {data.emailSignups?.stats ? formatNumber(data.emailSignups.stats.todaySubscribers) : '0'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Today</p>
+                </CardContent>
+              </Card>
             </>
           ) : null}
           </div>
@@ -450,36 +600,36 @@ export default function AnalyticsContent() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="flex items-center justify-between">
-          <TabsList className="flex h-auto flex-wrap">
-            <TabsTrigger value="attribution" className="flex items-center gap-2">
+          <TabsList className="bg-muted/50 p-1">
+            <TabsTrigger value="attribution" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <BarChart3 className="h-4 w-4" />
-              Attribution
+              <span className="hidden sm:inline">Attribution</span>
             </TabsTrigger>
-            <TabsTrigger value="overview" className="flex items-center gap-2">
+            <TabsTrigger value="overview" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Activity className="h-4 w-4" />
-              Overview
+              <span className="hidden sm:inline">Overview</span>
             </TabsTrigger>
-            <TabsTrigger value="email-signups" className="flex items-center gap-2">
+            <TabsTrigger value="email-signups" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Mail className="h-4 w-4" />
-              Email
+              <span className="hidden sm:inline">Email</span>
             </TabsTrigger>
-            <TabsTrigger value="funnels" className="flex items-center gap-2">
+            <TabsTrigger value="funnels" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Target className="h-4 w-4" />
-              Funnels
+              <span className="hidden sm:inline">Funnels</span>
             </TabsTrigger>
-            <TabsTrigger value="lead-sources" className="flex items-center gap-2">
+            <TabsTrigger value="lead-sources" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Link2 className="h-4 w-4" />
-              Lead Sources
+              <span className="hidden sm:inline">Lead Sources</span>
             </TabsTrigger>
-            <TabsTrigger value="campaigns" className="flex items-center gap-2">
+            <TabsTrigger value="campaigns" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <TrendingUp className="h-4 w-4" />
-              Campaigns
+              <span className="hidden sm:inline">Campaigns</span>
             </TabsTrigger>
-            <TabsTrigger value="utm-builder" className="flex items-center gap-2">
+            <TabsTrigger value="utm-builder" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Link2 className="h-4 w-4" />
-              UTM Builder
+              <span className="hidden sm:inline">UTM Builder</span>
             </TabsTrigger>
-            <TabsTrigger value="ga-live">
+            <TabsTrigger value="ga-live" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
               {data.source === 'google_analytics' ? (
                 <CheckCircle2 className="h-4 w-4 text-green-600" />
               ) : (
@@ -488,9 +638,9 @@ export default function AnalyticsContent() {
             </TabsTrigger>
           </TabsList>
           {data.source === 'google_analytics' && (
-            <Badge variant="outline" className="flex items-center gap-1">
+            <Badge variant="secondary" className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              Connected to GA
+              GA Connected
             </Badge>
           )}
         </div>
@@ -533,10 +683,10 @@ export default function AnalyticsContent() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary">
+                          <span className="text-sm tabular-nums text-muted-foreground">
                             {formatNumber(page.views)} views
-                          </Badge>
-                          <Progress value={(page.views / (data.topPages[0]?.views || 1)) * 100} className="w-20 h-2" />
+                          </span>
+                          <Progress value={(page.views / (data.topPages[0]?.views || 1)) * 100} className="w-24 h-2" />
                         </div>
                       </div>
                     ))
@@ -555,10 +705,10 @@ export default function AnalyticsContent() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary">
+                          <span className="text-sm tabular-nums text-muted-foreground">
                             {formatNumber(product.views || 0)} views
-                          </Badge>
-                          <Progress value={(product.views / (data.topProducts[0]?.views || 1)) * 100} className="w-20 h-2" />
+                          </span>
+                          <Progress value={(product.views / (data.topProducts[0]?.views || 1)) * 100} className="w-24 h-2" />
                         </div>
                       </div>
                     ))
@@ -586,16 +736,16 @@ export default function AnalyticsContent() {
                     <AreaChart data={data.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorPageViews" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
                           <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                         </linearGradient>
                         <linearGradient id="colorSessions" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
                           <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                         </linearGradient>
                         <linearGradient id="colorActiveUsers" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -646,7 +796,7 @@ export default function AnalyticsContent() {
                       <Area
                         type="monotone"
                         dataKey="activeUsers"
-                        stroke="#f59e0b"
+                        stroke="#a855f7"
                         fillOpacity={1}
                         fill="url(#colorActiveUsers)"
                         name="Active Users"
@@ -789,14 +939,14 @@ export default function AnalyticsContent() {
                 ) : data.emailSignups?.recentSignups && data.emailSignups.recentSignups.length > 0 ? (
                   <div className="space-y-2">
                     {data.emailSignups.recentSignups.slice(0, 5).map((signup) => (
-                      <div key={signup.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                      <div key={signup.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/30 transition-colors border border-transparent hover:border-border">
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{signup.email}</p>
                           <p className="text-xs text-muted-foreground">
                             {format(parseISO(signup.created_at), 'MMM d, h:mm a')}
                           </p>
                         </div>
-                        <Badge variant="outline" className="ml-2">
+                        <Badge variant="secondary" className="ml-2">
                           {getSourceLabel(signup.source, data.emailSignups?.leadMagnetLabels || {})}
                         </Badge>
                       </div>
@@ -814,96 +964,356 @@ export default function AnalyticsContent() {
         </TabsContent>
 
         <TabsContent value="funnels" className="space-y-4">
-          <div className="mb-4">
-            <Card className="bg-muted/30 border-dashed">
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-3">
-                  <Target className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Conversion Funnels</p>
-                    <p className="text-sm text-muted-foreground">
-                      Track visitor journey from page view to email signup. Currently tracking Material Library and Deal Alerts funnels.
-                    </p>
+          {/* GA Connection Warning */}
+          {!loading && data.funnels?.gaConnected === false && (
+            <Alert className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Google Analytics is not connected. Page view data may be incomplete.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Two-Funnel Summary Cards */}
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Organic/Direct Traffic Funnel */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                    <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  Organic/Direct Traffic
+                </CardTitle>
+                <CardDescription className="text-sm ml-11">
+                  Visitors who found you through search or direct visits
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="text-center flex-1">
+                      <div className="text-2xl font-bold tabular-nums">{data.funnels?.organic?.pageViews?.toLocaleString() || '0'}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Page Views</div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/30" />
+                    <div className="text-center flex-1">
+                      <div className="text-2xl font-bold tabular-nums">{data.funnels?.organic?.signups?.toLocaleString() || '0'}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Signups</div>
+                      <div className="text-xs text-muted-foreground tabular-nums">{data.funnels?.organic?.viewToSignup || '0'}%</div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/30" />
+                    <div className="text-center flex-1">
+                      <div className="text-2xl font-bold tabular-nums text-green-600">{data.funnels?.organic?.confirmed?.toLocaleString() || '0'}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Confirmed</div>
+                      <div className="text-xs text-green-600 font-medium tabular-nums">{data.funnels?.organic?.signupToConfirmed || '0'}%</div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tracked Campaigns Funnel */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <Link2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  Tracked Campaigns
+                </CardTitle>
+                <CardDescription className="text-sm ml-11">
+                  Visitors from your tracked short links and campaigns
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="text-center flex-1">
+                      <div className="text-2xl font-bold tabular-nums">{data.funnels?.tracked?.clicks?.toLocaleString() || '0'}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Clicks</div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/30" />
+                    <div className="text-center flex-1">
+                      <div className="text-2xl font-bold tabular-nums">{data.funnels?.tracked?.pageViews?.toLocaleString() || '0'}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Views</div>
+                      <div className="text-xs text-muted-foreground tabular-nums">{data.funnels?.tracked?.clickToView || '0'}%</div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/30" />
+                    <div className="text-center flex-1">
+                      <div className="text-2xl font-bold tabular-nums">{data.funnels?.tracked?.signups?.toLocaleString() || '0'}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Signups</div>
+                      <div className="text-xs text-muted-foreground tabular-nums">{data.funnels?.tracked?.viewToSignup || '0'}%</div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/30" />
+                    <div className="text-center flex-1">
+                      <div className="text-2xl font-bold tabular-nums text-green-600">{data.funnels?.tracked?.confirmed?.toLocaleString() || '0'}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Confirmed</div>
+                      <div className="text-xs text-green-600 font-medium tabular-nums">{data.funnels?.tracked?.signupToConfirmed || '0'}%</div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* GA Connection Warning */}
-          {!loading && data.funnels?.gaConnected === false && (
-            <Alert className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Google Analytics is not connected. Page view data is unavailable. Email submission data is still being tracked.
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Individual Lead Magnets */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Lead Magnet Performance</CardTitle>
+              <CardDescription>
+                Performance breakdown by lead magnet
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : data.funnels?.funnels && data.funnels.funnels.length > 0 ? (
+                data.funnels.funnels.map((funnel) => (
+                  <div key={funnel.id}>
+                    <Collapsible
+                      open={expandedFunnels.has(funnel.id)}
+                      onOpenChange={(open) => {
+                        const newExpanded = new Set(expandedFunnels);
+                        if (open) {
+                          newExpanded.add(funnel.id);
+                        } else {
+                          newExpanded.delete(funnel.id);
+                        }
+                        setExpandedFunnels(newExpanded);
+                      }}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <div className="p-4 hover:bg-muted/30 cursor-pointer transition-colors rounded-lg border group">
+                          <div className="flex items-center justify-between gap-4">
+                            {/* Left side: Icon and name */}
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <ChevronRight className={cn(
+                                "h-4 w-4 text-muted-foreground transition-transform shrink-0",
+                                expandedFunnels.has(funnel.id) && "rotate-90"
+                              )} />
+                              <div 
+                                className="p-2 rounded-lg shrink-0"
+                                style={{ backgroundColor: `${funnel.color}20` }}
+                              >
+                                <div style={{ color: funnel.color }}>
+                                  {iconMap[funnel.icon] || <Gift className="h-4 w-4" />}
+                                </div>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-sm">{funnel.name}</p>
+                                <p className="text-xs text-muted-foreground">{funnel.landingPageUrl}</p>
+                              </div>
+                            </div>
+                            
+                            {/* Right side: Metrics */}
+                            <div className="flex items-center gap-4 shrink-0">
+                              <div className="text-center w-[90px]">
+                                <div className="font-semibold text-lg tabular-nums">{funnel.pageViews.toLocaleString()}</div>
+                                <div className="text-xs text-muted-foreground">Views</div>
+                              </div>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
+                              <div className="text-center w-[90px]">
+                                <div className="font-semibold text-lg tabular-nums">{funnel.submissions.toLocaleString()}</div>
+                                <div className="text-xs text-muted-foreground">Signups</div>
+                              </div>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
+                              <div className="text-center w-[90px]">
+                                <div className="font-semibold text-lg tabular-nums text-green-600">{funnel.confirmed.toLocaleString()}</div>
+                                <div className="text-xs text-muted-foreground">Confirmed</div>
+                              </div>
+                              <Badge 
+                                variant={parseFloat(funnel.pageViewToSubmission) > 5 ? "default" : "secondary"}
+                                className="ml-3 w-[75px] justify-center tabular-nums"
+                              >
+                                {funnel.pageViewToSubmission}%
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </CollapsibleTrigger>
+                      
+                      <CollapsibleContent>
+                        <div className="px-4 pb-4 pt-2">
+                          {/* Two-Funnel Summary for this Lead Magnet */}
+                          <div className="grid gap-3 md:grid-cols-2 mb-4">
+                            {/* Organic Traffic for this Lead Magnet */}
+                            <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Users className="h-4 w-4 text-blue-600" />
+                                <span className="text-sm font-medium">Organic/Direct Traffic</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="text-center flex-1">
+                                  <div className="text-lg font-bold tabular-nums">{(funnel.organicPageViews || funnel.pageViews || 0).toLocaleString()}</div>
+                                  <div className="text-xs text-muted-foreground mt-1">Page Views</div>
+                                </div>
+                                <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
+                                <div className="text-center flex-1">
+                                  <div className="text-lg font-bold tabular-nums">
+                                    {(funnel.organicSubmissions || 0).toLocaleString()}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1">Signups</div>
+                                </div>
+                                <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
+                                <div className="text-center flex-1">
+                                  <div className="text-lg font-bold tabular-nums text-green-600">
+                                    {(funnel.organicConfirmed || 0).toLocaleString()}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1">Confirmed</div>
+                                  <div className="text-xs text-green-600 font-medium tabular-nums">
+                                    {funnel.organicSubmissions > 0 ? ((funnel.organicConfirmed / funnel.organicSubmissions) * 100).toFixed(0) : '0'}%
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
 
-          {loading ? (
-            <div className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <Skeleton className="h-[400px]" />
-                <Skeleton className="h-[400px]" />
-              </div>
-              <div className="grid gap-6 md:grid-cols-2">
-                <Skeleton className="h-[400px]" />
-                <Skeleton className="h-[400px]" />
-              </div>
-            </div>
-          ) : data.funnels?.funnels && data.funnels.funnels.length > 0 ? (
-            <div className="space-y-6">
-              {/* Current Funnel State */}
-              <div className="grid gap-6 md:grid-cols-2">
-                {data.funnels.funnels.map((funnel) => (
-                  <FunnelChart
-                    key={funnel.name}
-                    data={funnel}
-                    loading={loading}
-                  />
-                ))}
-              </div>
-              
-              {/* Funnel Trends */}
-              {data.funnels.trendData && (
-                <div className="grid gap-6 md:grid-cols-2">
-                  {data.funnels.funnels.map((funnel) => {
-                    const trendKey = funnel.name === 'Material Library' ? 'materialLibrary' : 'dealAlerts';
-                    const trendData = data.funnels.trendData?.[trendKey] || [];
-                    const currentPeriod = {
-                      pageViews: funnel.pageViews,
-                      signups: funnel.submissions,
-                      conversionRate: funnel.pageViews > 0 
-                        ? parseFloat(((funnel.submissions / funnel.pageViews) * 100).toFixed(1))
-                        : 0
-                    };
-                    const previousPeriod = data.funnels.previousPeriod?.[trendKey];
-                    
-                    return (
-                      <FunnelTrends
-                        key={`${funnel.name}-trends`}
-                        data={trendData}
-                        loading={loading}
-                        funnelName={funnel.name}
-                        currentPeriod={currentPeriod}
-                        previousPeriod={previousPeriod}
-                      />
-                    );
-                  })}
+                            {/* Tracked Campaigns for this Lead Magnet */}
+                            <div className="p-3 bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-200/50 dark:border-purple-800/50">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Link2 className="h-4 w-4 text-purple-600" />
+                                <span className="text-sm font-medium">Campaign Source</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="text-center flex-1">
+                                  <div className="text-lg font-bold tabular-nums">{(funnel.trackedClicks || funnel.clicks || 0).toLocaleString()}</div>
+                                  <div className="text-xs text-muted-foreground mt-1">Clicks</div>
+                                </div>
+                                <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
+                                <div className="text-center flex-1">
+                                  <div className="text-lg font-bold tabular-nums">{(funnel.trackedPageViews || Math.round((funnel.trackedClicks || funnel.clicks || 0) * 0.8)).toLocaleString()}</div>
+                                  <div className="text-xs text-muted-foreground mt-1">Views</div>
+                                  <div className="text-xs text-muted-foreground tabular-nums">
+                                    {funnel.trackedClicks > 0 ? (((funnel.trackedPageViews || 0) / funnel.trackedClicks) * 100).toFixed(0) : '0'}%
+                                  </div>
+                                </div>
+                                <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
+                                <div className="text-center flex-1">
+                                  <div className="text-lg font-bold tabular-nums">
+                                    {(funnel.trackedSubmissions || 0).toLocaleString()}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1">Signups</div>
+                                </div>
+                                <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
+                                <div className="text-center flex-1">
+                                  <div className="text-lg font-bold tabular-nums text-green-600">
+                                    {(funnel.trackedConfirmed || 0).toLocaleString()}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1">Confirmed</div>
+                                  <div className="text-xs text-green-600 font-medium tabular-nums">
+                                    {funnel.trackedSubmissions > 0 ? ((funnel.trackedConfirmed / funnel.trackedSubmissions) * 100).toFixed(0) : '0'}%
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Campaign Performance Table */}
+                          <Card className="border-0 bg-muted/10">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center gap-2">
+                                <TrendingUp className="h-4 w-4 text-blue-600" />
+                                Campaign Performance
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                            {!funnel.convertingLinks || funnel.convertingLinks.length === 0 ? (
+                              <div className="text-center py-8 text-sm text-muted-foreground">
+                                No conversions tracked yet for this funnel
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="hover:bg-transparent border-b">
+                                      <TableHead className="font-medium w-[35%]">Campaign Source</TableHead>
+                                      <TableHead className="font-medium w-[15%]">Channel</TableHead>
+                                      <TableHead className="font-medium text-center w-[12%]">Clicks</TableHead>
+                                      <TableHead className="font-medium text-center w-[12%]">Conversions</TableHead>
+                                      <TableHead className="font-medium text-center w-[10%]">Rate</TableHead>
+                                      <TableHead className="font-medium text-right w-[16%]">Link</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                  {funnel.convertingLinks.map((link) => {
+                                    const conversionRate = link.clicks > 0 
+                                      ? ((link.conversions / link.clicks) * 100).toFixed(1)
+                                      : '0.0';
+                                    
+                                    return (
+                                      <TableRow key={link.slug} className="hover:bg-muted/30 border-b last:border-0">
+                                        <TableCell className="py-3">
+                                          <div className="flex items-center gap-2">
+                                            {sourceIconMap[link.utm_source || 'direct'] || <Link2 className="h-4 w-4 text-muted-foreground" />}
+                                            <div className="min-w-0">
+                                              <p className="font-medium text-sm">
+                                                {getHumanReadableSource(link)}
+                                              </p>
+                                              {link.utm_content && (
+                                                <p className="text-xs text-muted-foreground">
+                                                  {link.utm_content}
+                                                </p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell className="py-3">
+                                          <Badge variant="secondary" className="text-xs">
+                                            {link.utm_medium || 'direct'}
+                                          </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-center tabular-nums py-3">
+                                          {link.clicks}
+                                        </TableCell>
+                                        <TableCell className="text-center tabular-nums py-3">
+                                          <span className="font-semibold text-green-600">
+                                            {link.conversions}
+                                          </span>
+                                        </TableCell>
+                                        <TableCell className="text-center py-3">
+                                          <Badge 
+                                            variant={parseFloat(conversionRate) > 5 ? 'default' : 'secondary'}
+                                            className="text-xs tabular-nums min-w-[60px] inline-flex justify-center"
+                                          >
+                                            {conversionRate}%
+                                          </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right py-3">
+                                          <a
+                                            href={`/go/${link.slug}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                                          >
+                                            /go/{link.slug.slice(-12)}
+                                            <ExternalLink className="h-3 w-3" />
+                                          </a>
+                                        </TableCell>
+                                      </TableRow>
+                                    );
+                                  })}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            )}
+                            </CardContent>
+                          </Card>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No active lead magnets found. Create a lead magnet to start tracking conversions.
                 </div>
               )}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Target className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No funnel data available</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Make sure Google Analytics is connected to track page views
-                </p>
-              </CardContent>
-            </Card>
-          )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="lead-sources" className="space-y-4">

@@ -42,6 +42,7 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 | 2025-07-18 | ComMarker baseline price fix | Stopped using manual corrections as baseline, fixed feedback loop |
 | 2025-08-06 | ThreadPoolExecutor concurrency fix | Resolved 6-hour batch processing issue with true async execution |
 | 2025-08-15 | Complete link tracking system | Production-ready short URLs with campaign builder and comprehensive analytics |
+| 2025-08-20 | Simplified two-funnel analytics | Separated organic vs tracked traffic funnels with clean inline metrics |
 
 ## 🔎 Key Technical Insights
 - MCP integration provides direct Supabase access through Claude Code interface
