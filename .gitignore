@@ -62,3 +62,7 @@ price-extractor-python/logs/
 # Google Analytics credentials
 ga-credentials-single-line.txt
 google-credentials-for-vercel.txt
+
+# Claude context files - data and analysis
+.claude/context/*.csv
+.claude/context/*.json
