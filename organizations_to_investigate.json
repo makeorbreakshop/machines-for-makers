@@ -1,0 +1,1295 @@
+{
+  "total_domains": 6796,
+  "categories": {
+    "education": [
+      [
+        "umich.edu",
+        6
+      ],
+      [
+        "vt.edu",
+        5
+      ],
+      [
+        "cornell.edu",
+        4
+      ],
+      [
+        "ncsu.edu",
+        4
+      ],
+      [
+        "oregonstate.edu",
+        3
+      ],
+      [
+        "kent.edu",
+        3
+      ],
+      [
+        "ucsd.edu",
+        3
+      ],
+      [
+        "mtu.edu",
+        3
+      ],
+      [
+        "psu.edu",
+        2
+      ],
+      [
+        "berkeley.edu",
+        2
+      ],
+      [
+        "tamu.edu",
+        2
+      ],
+      [
+        "yale.edu",
+        2
+      ],
+      [
+        "bulldogs.mgccc.edu",
+        2
+      ],
+      [
+        "smumn.edu",
+        2
+      ],
+      [
+        "twu.edu",
+        2
+      ],
+      [
+        "georgiasouthern.edu",
+        2
+      ],
+      [
+        "uabc.edu.mx",
+        2
+      ],
+      [
+        "auburn.edu",
+        2
+      ],
+      [
+        "ohio.edu",
+        2
+      ],
+      [
+        "uchicago.edu",
+        2
+      ]
+    ],
+    "government": [
+      [
+        "nasa.gov",
+        2
+      ],
+      [
+        "us.navy.mil",
+        2
+      ],
+      [
+        "education.nsw.gov.au",
+        2
+      ],
+      [
+        "blm.gov",
+        1
+      ],
+      [
+        "ssd5.nrl.navy.mil",
+        1
+      ],
+      [
+        "state.gov",
+        1
+      ],
+      [
+        "us.af.mil",
+        1
+      ],
+      [
+        "wodonga.vic.gov.au",
+        1
+      ],
+      [
+        "opm.gov.gy",
+        1
+      ],
+      [
+        "orangebeachal.gov",
+        1
+      ],
+      [
+        "dearborn.gov",
+        1
+      ],
+      [
+        "ncc.nsw.gov.au",
+        1
+      ],
+      [
+        "socom.mil",
+        1
+      ],
+      [
+        "louisvilleky.gov",
+        1
+      ],
+      [
+        "student.fortbendisd.gov",
+        1
+      ],
+      [
+        "cdcr.ca.gov",
+        1
+      ],
+      [
+        "deped.gov.ph",
+        1
+      ],
+      [
+        "amarillo.gov",
+        1
+      ],
+      [
+        "cityofportlandtn.gov",
+        1
+      ],
+      [
+        "dac.nc.gov",
+        1
+      ]
+    ],
+    "nonprofit": [
+      [
+        "mailbox.org",
+        8
+      ],
+      [
+        "bluehills.org",
+        7
+      ],
+      [
+        "students.mentorschools.org",
+        4
+      ],
+      [
+        "temp.mailbox.org",
+        4
+      ],
+      [
+        "students.lrsd.org",
+        3
+      ],
+      [
+        "ieee.org",
+        3
+      ],
+      [
+        "highlineschools.org",
+        2
+      ],
+      [
+        "lanepl.org",
+        2
+      ],
+      [
+        "thedaring.org",
+        2
+      ],
+      [
+        "yeidc.org",
+        2
+      ],
+      [
+        "makeannapolis.org",
+        2
+      ],
+      [
+        "kirtlandschools.org",
+        1
+      ],
+      [
+        "finestudio.org",
+        1
+      ],
+      [
+        "gtcounty.org",
+        1
+      ],
+      [
+        "eddy.org",
+        1
+      ],
+      [
+        "easdpa.org",
+        1
+      ],
+      [
+        "fuku.org",
+        1
+      ],
+      [
+        "fclspa.org",
+        1
+      ],
+      [
+        "martindale.org",
+        1
+      ],
+      [
+        "thrallisd.org",
+        1
+      ]
+    ],
+    "design_studio": [
+      [
+        "mediacombb.net",
+        2
+      ],
+      [
+        "lhpdesign.dk",
+        2
+      ],
+      [
+        "thecreativeelement.com.au",
+        2
+      ],
+      [
+        "mikehilldesign.com",
+        1
+      ],
+      [
+        "cubitcreative.com",
+        1
+      ],
+      [
+        "twitchmedia.com",
+        1
+      ],
+      [
+        "graphic-designer.com",
+        1
+      ],
+      [
+        "studioarqs.com",
+        1
+      ],
+      [
+        "hardigital.com",
+        1
+      ],
+      [
+        "219design.com",
+        1
+      ],
+      [
+        "thepointmedia.com",
+        1
+      ],
+      [
+        "studioteknik.com",
+        1
+      ],
+      [
+        "avokadodesign.com",
+        1
+      ],
+      [
+        "eastgradcreative.com",
+        1
+      ],
+      [
+        "hooraystudios.com",
+        1
+      ],
+      [
+        "designdrawbuild.com",
+        1
+      ],
+      [
+        "eldain-design.com",
+        1
+      ],
+      [
+        "alouisecreative.com",
+        1
+      ],
+      [
+        "designbundles.net",
+        1
+      ],
+      [
+        "manxmedia.com.au",
+        1
+      ]
+    ],
+    "manufacturer": [
+      [
+        "thunderlaser.com",
+        2
+      ],
+      [
+        "troteclaser.com",
+        2
+      ],
+      [
+        "rampagelaser.com",
+        1
+      ],
+      [
+        "lasercraftedgoods.com",
+        1
+      ],
+      [
+        "cidanmachinery.com",
+        1
+      ],
+      [
+        "getlit3d.com",
+        1
+      ],
+      [
+        "endurancelasersusa.com",
+        1
+      ],
+      [
+        "laserranchtx.com",
+        1
+      ],
+      [
+        "jdtool.com",
+        1
+      ],
+      [
+        "dry3ducks.com",
+        1
+      ],
+      [
+        "3dallee.de",
+        1
+      ],
+      [
+        "industrialmachineprod.com",
+        1
+      ],
+      [
+        "qds-mfg.com",
+        1
+      ],
+      [
+        "craftsbylaser.co.za",
+        1
+      ],
+      [
+        "treecitylaser.com",
+        1
+      ],
+      [
+        "zotlasers.com",
+        1
+      ],
+      [
+        "3dcrafted.nl",
+        1
+      ],
+      [
+        "forged3d.co",
+        1
+      ],
+      [
+        "alphatoolingsg.com",
+        1
+      ],
+      [
+        "dc3dp.uk",
+        1
+      ]
+    ],
+    "retailer": [
+      [
+        "makeorbreakshop.com",
+        4
+      ],
+      [
+        "deansworkshop.net",
+        1
+      ],
+      [
+        "guyswoodshop.com",
+        1
+      ],
+      [
+        "thephoenixwoodshop.com",
+        1
+      ],
+      [
+        "thestore.com",
+        1
+      ],
+      [
+        "poshops.io",
+        1
+      ],
+      [
+        "oodworkingshop.com",
+        1
+      ],
+      [
+        "federsworkshop.com",
+        1
+      ],
+      [
+        "poppiebillswoodshop.com",
+        1
+      ],
+      [
+        "workshop-hi.com",
+        1
+      ],
+      [
+        "sim-shop.ch",
+        1
+      ],
+      [
+        "moorewoodshop.com",
+        1
+      ],
+      [
+        "dsgsupply.com",
+        1
+      ],
+      [
+        "mygraveershop.nl",
+        1
+      ],
+      [
+        "storesr.com",
+        1
+      ],
+      [
+        "farwest.store",
+        1
+      ],
+      [
+        "thebassshop.com",
+        1
+      ],
+      [
+        "contoursupplyco.com",
+        1
+      ],
+      [
+        "viseworkshop.com",
+        1
+      ],
+      [
+        "bezalelworkshop.com",
+        1
+      ]
+    ],
+    "service_provider": [
+      [
+        "ameritech.net",
+        4
+      ],
+      [
+        "foxxconsulting.com",
+        2
+      ],
+      [
+        "dtstechnology.com",
+        1
+      ],
+      [
+        "coinoptech.com",
+        1
+      ],
+      [
+        "wavefourconsulting.com",
+        1
+      ],
+      [
+        "vartechnologiesllc.com",
+        1
+      ],
+      [
+        "focaltech.com",
+        1
+      ],
+      [
+        "reliablenetworksolutionsllc.com",
+        1
+      ],
+      [
+        "rco.tech",
+        1
+      ],
+      [
+        "aquilatech.net",
+        1
+      ],
+      [
+        "odiconsulting.com",
+        1
+      ],
+      [
+        "gatech.com",
+        1
+      ],
+      [
+        "isatechnologies.com",
+        1
+      ],
+      [
+        "estar-tech.cn",
+        1
+      ],
+      [
+        "locusconsulting.net.au",
+        1
+      ],
+      [
+        "kedasolutions.com",
+        1
+      ],
+      [
+        "nahetech.com",
+        1
+      ],
+      [
+        "wildman.tech",
+        1
+      ],
+      [
+        "rightechfabs.com",
+        1
+      ],
+      [
+        "seitechinc.com",
+        1
+      ]
+    ],
+    "tech_company": [
+      [
+        "tuta.io",
+        3
+      ],
+      [
+        "busysignal.io",
+        2
+      ],
+      [
+        "szabos.io",
+        2
+      ],
+      [
+        "uramaki.io",
+        1
+      ],
+      [
+        "engle.io",
+        1
+      ],
+      [
+        "ecomedge.io",
+        1
+      ],
+      [
+        "megalab.io",
+        1
+      ],
+      [
+        "nbhr.io",
+        1
+      ],
+      [
+        "coho.ai",
+        1
+      ],
+      [
+        "tiz.io",
+        1
+      ],
+      [
+        "debeer.io",
+        1
+      ],
+      [
+        "chas.io",
+        1
+      ],
+      [
+        "bluenso.io",
+        1
+      ],
+      [
+        "antonbrams.io",
+        1
+      ],
+      [
+        "habib.io",
+        1
+      ],
+      [
+        "wearebeta.io",
+        1
+      ],
+      [
+        "ottermail.app",
+        1
+      ],
+      [
+        "hosthero.ai",
+        1
+      ],
+      [
+        "zeriouh.io",
+        1
+      ],
+      [
+        "boltoro.dev",
+        1
+      ]
+    ],
+    "unknown_business": [
+      [
+        "seznam.cz",
+        62
+      ],
+      [
+        "wp.pl",
+        57
+      ],
+      [
+        "telenet.be",
+        41
+      ],
+      [
+        "live.nl",
+        39
+      ],
+      [
+        "live.co.uk",
+        39
+      ],
+      [
+        "abv.bg",
+        36
+      ],
+      [
+        "libero.it",
+        32
+      ],
+      [
+        "usa.com",
+        32
+      ],
+      [
+        "o2.pl",
+        32
+      ],
+      [
+        "ntlworld.com",
+        29
+      ],
+      [
+        "passmail.net",
+        24
+      ],
+      [
+        "freemail.hu",
+        24
+      ],
+      [
+        "live.fr",
+        24
+      ],
+      [
+        "bluewin.ch",
+        23
+      ],
+      [
+        "live.ca",
+        22
+      ],
+      [
+        "nbmbb.com",
+        21
+      ],
+      [
+        "cazlg.com",
+        19
+      ],
+      [
+        "byom.de",
+        19
+      ],
+      [
+        "hthlm.com",
+        17
+      ],
+      [
+        "poplk.com",
+        16
+      ]
+    ]
+  },
+  "investigation_priority": [
+    {
+      "priority": 1,
+      "domain": "seznam.cz",
+      "employee_count": 62,
+      "sample_emails": [
+        "fakovaci@seznam.cz",
+        "s.sklafany@seznam.cz",
+        "vlcek84@seznam.cz"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "wp.pl",
+      "employee_count": 57,
+      "sample_emails": [
+        "klamor1@wp.pl",
+        "yangus2013@wp.pl",
+        "2001sebek@wp.pl"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "telenet.be",
+      "employee_count": 41,
+      "sample_emails": [
+        "wim.maris@telenet.be",
+        "emre.dede@telenet.be",
+        "kenny.stevens@telenet.be"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "live.nl",
+      "employee_count": 39,
+      "sample_emails": [
+        "petervanderbeek@live.nl",
+        "123rob@live.nl",
+        "bzaunbrecher@live.nl"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "live.co.uk",
+      "employee_count": 39,
+      "sample_emails": [
+        "joe-slater@live.co.uk",
+        "saitken@live.co.uk",
+        "cii@live.co.uk"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "abv.bg",
+      "employee_count": 36,
+      "sample_emails": [
+        "rusev_vasil@abv.bg",
+        "blade777@abv.bg",
+        "the.insane@abv.bg"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "libero.it",
+      "employee_count": 32,
+      "sample_emails": [
+        "proge.ma@libero.it",
+        "guidosil@libero.it",
+        "sergiorendano@libero.it"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "usa.com",
+      "employee_count": 32,
+      "sample_emails": [
+        "fayadtimoh@usa.com",
+        "miniseepaul@usa.com",
+        "dinoram@usa.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "o2.pl",
+      "employee_count": 32,
+      "sample_emails": [
+        "przemlewan@o2.pl",
+        "freebsd@o2.pl",
+        "p_a_k_o_2@o2.pl"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "ntlworld.com",
+      "employee_count": 29,
+      "sample_emails": [
+        "adaptoruk@ntlworld.com",
+        "keren.howell@ntlworld.com",
+        "pam.dark@ntlworld.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "passmail.net",
+      "employee_count": 24,
+      "sample_emails": [
+        "makeorbreakshop.myka.anime588@passmail.net",
+        "pages.makeorbreaksho.99550@passmail.net",
+        "pages.makeorbreaksho.enroll806@passmail.net"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "freemail.hu",
+      "employee_count": 24,
+      "sample_emails": [
+        "kelekkem@freemail.hu",
+        "fuszi@freemail.hu",
+        "nagyantal0811@freemail.hu"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "live.fr",
+      "employee_count": 24,
+      "sample_emails": [
+        "quintina-nina@live.fr",
+        "ayoub525@live.fr",
+        "franck.63@live.fr"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "bluewin.ch",
+      "employee_count": 23,
+      "sample_emails": [
+        "genoud@bluewin.ch",
+        "npolliand@bluewin.ch",
+        "sr1@bluewin.ch"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "live.ca",
+      "employee_count": 22,
+      "sample_emails": [
+        "alemieux@live.ca",
+        "chimpfunk@live.ca",
+        "jmercier@live.ca"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "nbmbb.com",
+      "employee_count": 21,
+      "sample_emails": [
+        "qsfhjfvvqyxkdkjblr@nbmbb.com",
+        "flobdjofsrigqtmkbd@nbmbb.com",
+        "mwbxaesokomyvmgngi@nbmbb.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "cazlg.com",
+      "employee_count": 19,
+      "sample_emails": [
+        "fvwuptxhlbmequxkaa@cazlg.com",
+        "ibzurvixvcyilcwvkn@cazlg.com",
+        "uzxkwvzwrxggagvuyc@cazlg.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "byom.de",
+      "employee_count": 19,
+      "sample_emails": [
+        "laserchief@byom.de",
+        "decke@byom.de",
+        "ryan@byom.de"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "hthlm.com",
+      "employee_count": 17,
+      "sample_emails": [
+        "gbdyipbfvmneoxwgyx@hthlm.com",
+        "fjklojbpfwrqthrzzt@hthlm.com",
+        "alsdfiyhkjtutrkdgx@hthlm.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "poplk.com",
+      "employee_count": 16,
+      "sample_emails": [
+        "mlbcjbbuwwudpcpcfx@poplk.com",
+        "lzqoauvjnuvfyefkdi@poplk.com",
+        "oujimlqshjewrrqulb@poplk.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "centrum.cz",
+      "employee_count": 16,
+      "sample_emails": [
+        "dedyk1945@centrum.cz",
+        "kuty.jiri@centrum.cz",
+        "guerrero@centrum.cz"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "tiscali.it",
+      "employee_count": 16,
+      "sample_emails": [
+        "mas.dessi@tiscali.it",
+        "zarkt@tiscali.it",
+        "tornillog@tiscali.it"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "cazlp.com",
+      "employee_count": 15,
+      "sample_emails": [
+        "blclztxfchctnmttkk@cazlp.com",
+        "vssnydatfvbubrkodb@cazlp.com",
+        "uvcodjwvaqpqwovywt@cazlp.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "sapo.pt",
+      "employee_count": 15,
+      "sample_emails": [
+        "pubeafins@sapo.pt",
+        "as5735436@sapo.pt",
+        "pggmarques@sapo.pt"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "cfl.rr.com",
+      "employee_count": 15,
+      "sample_emails": [
+        "jfreeman@cfl.rr.com",
+        "vicmagill@cfl.rr.com",
+        "ehodge@cfl.rr.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "roadrunner.com",
+      "employee_count": 15,
+      "sample_emails": [
+        "ah3339@roadrunner.com",
+        "sgyoung@roadrunner.com",
+        "mayday47@roadrunner.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "sasktel.net",
+      "employee_count": 14,
+      "sample_emails": [
+        "g.neigum@sasktel.net",
+        "doug.bennett@sasktel.net",
+        "mcc@sasktel.net"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "email.cz",
+      "employee_count": 14,
+      "sample_emails": [
+        "matej.pavlu@email.cz",
+        "adam.hlavac23@email.cz",
+        "pivok@email.cz"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "cazlv.com",
+      "employee_count": 14,
+      "sample_emails": [
+        "ildysozwuztgmybmfv@cazlv.com",
+        "gopwqcindhxmtxdhng@cazlv.com",
+        "phlxsieohlqledkmuv@cazlv.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "ckptr.com",
+      "employee_count": 14,
+      "sample_emails": [
+        "wlgedkedhmvtuuuzjo@ckptr.com",
+        "vvzaymvwfpfgasgdms@ckptr.com",
+        "agvsdfhdcebpbwqkfu@ckptr.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "optonline.net",
+      "employee_count": 14,
+      "sample_emails": [
+        "richardd1970@optonline.net",
+        "vincenzo@optonline.net",
+        "hahnman@optonline.net"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "blueyonder.co.uk",
+      "employee_count": 14,
+      "sample_emails": [
+        "jm007a3516@blueyonder.co.uk",
+        "allangreen444@blueyonder.co.uk",
+        "aevans01@blueyonder.co.uk"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "interia.pl",
+      "employee_count": 14,
+      "sample_emails": [
+        "lukasz_pasek@interia.pl",
+        "konradleonhard@interia.pl",
+        "muszka001@interia.pl"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "pobox.com",
+      "employee_count": 14,
+      "sample_emails": [
+        "cxp@pobox.com",
+        "rcfoto@pobox.com",
+        "mrniles@pobox.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "pacbell.net",
+      "employee_count": 12,
+      "sample_emails": [
+        "bregher@pacbell.net",
+        "tmorris9@pacbell.net",
+        "jrutten@pacbell.net"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "home.nl",
+      "employee_count": 12,
+      "sample_emails": [
+        "jackenhella@home.nl",
+        "monmak@home.nl",
+        "tvkampen@home.nl"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "inbox.lv",
+      "employee_count": 12,
+      "sample_emails": [
+        "dd.dd@inbox.lv",
+        "agrisbrx@inbox.lv",
+        "luxferre@inbox.lv"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "op.pl",
+      "employee_count": 12,
+      "sample_emails": [
+        "viper_66@op.pl",
+        "bezpieczan@op.pl",
+        "emaras@op.pl"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "aon.at",
+      "employee_count": 12,
+      "sample_emails": [
+        "flying-robsn@aon.at",
+        "zirbisegger@aon.at",
+        "markus.nigsch@aon.at"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "gmai.com",
+      "employee_count": 11,
+      "sample_emails": [
+        "walawekarrahul19@gmai.com",
+        "boko@gmai.com",
+        "spam208@gmai.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "live.de",
+      "employee_count": 11,
+      "sample_emails": [
+        "p25maike1985@live.de",
+        "felix_hh@live.de",
+        "flotti1@live.de"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "opayq.com",
+      "employee_count": 10,
+      "sample_emails": [
+        "4g2ciuyo8bjg@opayq.com",
+        "9tkksz5b7q0f@opayq.com",
+        "q2h3wt5j0zp@opayq.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "live.it",
+      "employee_count": 10,
+      "sample_emails": [
+        "fps2@live.it",
+        "igors80@live.it",
+        "mp90@live.it"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "vusra.com",
+      "employee_count": 10,
+      "sample_emails": [
+        "biydosospe@vusra.com",
+        "yikkukurke@vusra.com",
+        "pugnesostu@vusra.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "tampabay.rr.com",
+      "employee_count": 10,
+      "sample_emails": [
+        "tedwards@tampabay.rr.com",
+        "hlaplant@tampabay.rr.com",
+        "jmoore330@tampabay.rr.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "bell.net",
+      "employee_count": 10,
+      "sample_emails": [
+        "doug@bell.net",
+        "chris.sydney@bell.net",
+        "jbm_g@bell.net"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "cazlq.com",
+      "employee_count": 10,
+      "sample_emails": [
+        "hatvxlbpcldoziljyp@cazlq.com",
+        "drcznarlkeevjhiecx@cazlq.com",
+        "jiwhzyaujzbjehlkzg@cazlq.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "alice.it",
+      "employee_count": 10,
+      "sample_emails": [
+        "andreafinocchiaro@alice.it",
+        "romanots@alice.it",
+        "a.russo55@alice.it"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "gufum.com",
+      "employee_count": 10,
+      "sample_emails": [
+        "sispisuspo@gufum.com",
+        "jistibispe@gufum.com",
+        "kuydekekka@gufum.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    },
+    {
+      "priority": 1,
+      "domain": "twc.com",
+      "employee_count": 10,
+      "sample_emails": [
+        "markgraves@twc.com",
+        "j.boome@twc.com",
+        "mjcarchidi@twc.com"
+      ],
+      "reason": "Multiple employees - likely legitimate organization"
+    }
+  ]
+}

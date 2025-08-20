@@ -8,9 +8,9 @@ export async function POST(request: NextRequest) {
     const { email, firstName, source, referrer } = await request.json();
 
     // Validate inputs
-    if (!email || !firstName) {
+    if (!email) {
       return NextResponse.json(
-        { error: 'Email and first name are required' },
+        { error: 'Email is required' },
         { status: 400 }
       );
     }
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           api_key: CONVERTKIT_API_KEY,
           email,
-          first_name: firstName,
+          first_name: firstName || '',
           tags,
           source: 'laser-comparison-chart',
           referrer: referrer || 'direct',
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         .from('email_subscribers')
         .insert({
           email: email.toLowerCase(),
-          first_name: firstName,
+          first_name: firstName || '',
           convertkit_subscriber_id: convertkitData.subscription?.subscriber?.id || null,
           tags,
           status: 'active',
