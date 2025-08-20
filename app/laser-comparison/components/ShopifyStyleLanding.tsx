@@ -20,13 +20,16 @@ export default function ShopifyStyleLanding({ machines, logoUrl, totalLasers, su
     setIsLoading(true);
     
     try {
+      // Include the current URL with UTM parameters
+      const currentUrl = window.location.href;
+      
       const response = await fetch('/api/laser-comparison/capture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           email, 
-          source: 'laser-comparison',
-          referrer: document.referrer,
+          source: 'comparison-chart',
+          referrer: currentUrl, // Send current URL instead of document.referrer
         }),
       });
 

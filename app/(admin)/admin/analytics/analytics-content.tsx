@@ -83,6 +83,7 @@ interface AnalyticsData {
       created_at: string;
       status: string | null;
     }>;
+    leadMagnetLabels?: Record<string, string>;
   };
   funnels?: {
     funnels: Array<{
@@ -229,14 +230,10 @@ function EmailSignupsChart({ data }: { data: Array<{ created_at: string; source:
 }
 
 // Source breakdown component
-function SourceBreakdown({ data }: { data: Array<{ source: string | null }> }) {
-  const SOURCE_LABELS = {
-    'deals-page': 'Deal Alerts',
-    'material-library': 'Material Library',
-    'settings-library': 'Settings Library',
-    'other': 'Other',
-  };
-
+function SourceBreakdown({ data, leadMagnetLabels = {} }: { 
+  data: Array<{ source: string | null }>,
+  leadMagnetLabels?: Record<string, string>
+}) {
   // Count by source
   const sourceCounts = data.reduce((acc, item) => {
     const source = item.source || 'other';
@@ -251,7 +248,7 @@ function SourceBreakdown({ data }: { data: Array<{ source: string | null }> }) {
   const sortedSources = Object.entries(sourceCounts)
     .map(([source, count]) => ({
       source,
-      label: SOURCE_LABELS[source as keyof typeof SOURCE_LABELS] || source,
+      label: leadMagnetLabels[source] || source.charAt(0).toUpperCase() + source.slice(1).replace(/-/g, ' '),
       count,
       percentage: ((count / data.length) * 100).toFixed(1),
     }))
@@ -275,13 +272,9 @@ function SourceBreakdown({ data }: { data: Array<{ source: string | null }> }) {
 }
 
 // Helper function to get source label
-function getSourceLabel(source: string | null): string {
-  const SOURCE_LABELS = {
-    'deals-page': 'Deal Alerts',
-    'material-library': 'Material Library',
-    'settings-library': 'Settings Library',
-  };
-  return SOURCE_LABELS[source as keyof typeof SOURCE_LABELS] || source || 'Unknown';
+function getSourceLabel(source: string | null, leadMagnetLabels: Record<string, string> = {}): string {
+  if (!source) return 'Unknown';
+  return leadMagnetLabels[source] || source.charAt(0).toUpperCase() + source.slice(1).replace(/-/g, ' ');
 }
 
 export default function AnalyticsContent() {
@@ -764,7 +757,10 @@ export default function AnalyticsContent() {
                     ))}
                   </div>
                 ) : data.emailSignups?.sourceData && data.emailSignups.sourceData.length > 0 ? (
-                  <SourceBreakdown data={data.emailSignups.sourceData} />
+                  <SourceBreakdown 
+                    data={data.emailSignups.sourceData} 
+                    leadMagnetLabels={data.emailSignups.leadMagnetLabels || {}}
+                  />
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <PieChart className="h-12 w-12 mx-auto mb-4" />
@@ -801,7 +797,7 @@ export default function AnalyticsContent() {
                           </p>
                         </div>
                         <Badge variant="outline" className="ml-2">
-                          {getSourceLabel(signup.source)}
+                          {getSourceLabel(signup.source, data.emailSignups?.leadMagnetLabels || {})}
                         </Badge>
                       </div>
                     ))}

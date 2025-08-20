@@ -86,6 +86,17 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(10);
 
+    // Get lead magnet mappings for proper labels
+    const { data: leadMagnets } = await supabase
+      .from('lead_magnets')
+      .select('slug, name');
+    
+    // Create a mapping of slugs to names
+    const leadMagnetLabels = leadMagnets?.reduce((acc, lm) => {
+      acc[lm.slug] = lm.name;
+      return acc;
+    }, {} as Record<string, string>) || {};
+
     return NextResponse.json({
       stats: {
         totalSubscribers,
@@ -96,7 +107,8 @@ export async function GET(request: NextRequest) {
       },
       chartData,
       sourceData,
-      recentSignups
+      recentSignups,
+      leadMagnetLabels
     });
 
   } catch (error) {
