@@ -1,0 +1,136 @@
+{
+  "searchResults": [
+    {
+      "id": "lb-001",
+      "title": "Setting Power and Speed for Different Materials",
+      "snippet": "The power and speed settings are the most critical parameters for achieving clean cuts and engravings. For 3mm birch plywood, start with 15mm/s at 80% power for cutting. For engraving, use 100mm/s at 20% power. Always perform a test cut on scrap material first, as settings can vary based on your specific laser's actual output power and the moisture content of the wood.",
+      "source": {
+        "type": "official",
+        "manufacturer": "LightBurn",
+        "documentTitle": "LightBurn Software Manual v1.4",
+        "url": "https://docs.lightburnsoftware.com/materials/power-speed-guide",
+        "lastUpdated": "2024-01-15",
+        "section": "Chapter 4: Material Settings",
+        "pageNumber": 47
+      },
+      "relevanceScore": 0.95,
+      "matchedKeywords": ["power", "speed", "settings", "materials", "birch", "plywood"],
+      "helpfulnessMetrics": {
+        "views": 15234,
+        "helpful": 14200,
+        "resolved": 13500
+      }
+    },
+    {
+      "id": "xt-002",
+      "title": "D1 Pro Connection Troubleshooting",
+      "snippet": "If your XTool D1 Pro is not connecting to LightBurn, first ensure the CH340 drivers are installed. On Windows, check Device Manager for any warning signs. The D1 Pro uses a serial connection at 115200 baud rate. In LightBurn, manually create a device selecting 'GRBL' as the device type. If auto-detection fails, try different USB ports and avoid USB hubs.",
+      "source": {
+        "type": "official",
+        "manufacturer": "XTool",
+        "documentTitle": "D1 Pro User Manual",
+        "url": "https://support.xtool.com/d1-pro/connection",
+        "lastUpdated": "2024-02-20",
+        "section": "Connectivity Guide",
+        "pageNumber": 23
+      },
+      "relevanceScore": 0.92,
+      "matchedKeywords": ["connection", "D1 Pro", "LightBurn", "troubleshooting", "USB"],
+      "helpfulnessMetrics": {
+        "views": 8453,
+        "helpful": 7890,
+        "resolved": 7200
+      }
+    },
+    {
+      "id": "gf-003",
+      "title": "Understanding Kerf and Material Thickness Compensation",
+      "snippet": "Kerf is the width of material removed by the laser beam during cutting. Typical kerf width ranges from 0.1mm to 0.3mm depending on focal length and material. To achieve precise fitting parts, offset your cut lines by half the kerf width. In LightBurn, use the 'Offset Shapes' tool with outward offset for external cuts and inward for internal cuts.",
+      "source": {
+        "type": "community",
+        "manufacturer": "Generic",
+        "documentTitle": "Laser Cutting Best Practices",
+        "url": "https://community.lightburnsoftware.com/kerf-compensation",
+        "lastUpdated": "2024-03-01",
+        "author": "LaserMaster_John",
+        "upvotes": 342
+      },
+      "relevanceScore": 0.88,
+      "matchedKeywords": ["kerf", "compensation", "offset", "precision", "fitting"],
+      "helpfulnessMetrics": {
+        "views": 5234,
+        "helpful": 4900,
+        "resolved": 4500
+      }
+    },
+    {
+      "id": "lb-004",
+      "title": "Camera Alignment and Calibration Process",
+      "snippet": "Proper camera alignment is crucial for accurate positioning. Start by mounting the camera at least 24 inches above your work surface. In LightBurn, go to Tools > Calibrate Camera Lens. Print the calibration pattern at 100% scale. Capture the pattern from multiple angles as prompted. After lens calibration, perform the alignment process using the target markers to map the camera view to your laser bed.",
+      "source": {
+        "type": "official",
+        "manufacturer": "LightBurn",
+        "documentTitle": "LightBurn Camera Guide",
+        "url": "https://docs.lightburnsoftware.com/camera/calibration",
+        "lastUpdated": "2024-01-30",
+        "section": "Camera Setup",
+        "pageNumber": 12,
+        "hasVideo": true,
+        "videoUrl": "https://www.youtube.com/watch?v=ONnH1l3W1h8"
+      },
+      "relevanceScore": 0.85,
+      "matchedKeywords": ["camera", "alignment", "calibration", "positioning"],
+      "helpfulnessMetrics": {
+        "views": 6234,
+        "helpful": 5800,
+        "resolved": 5200
+      }
+    },
+    {
+      "id": "at-005",
+      "title": "Air Assist Setup and Importance",
+      "snippet": "Air assist is essential for clean cuts and preventing fires. It blows smoke and debris away from the cutting area, reducing charring and improving cut quality. Connect your air pump to deliver 10-30 PSI at the nozzle. For acrylic, use lower pressure (10-15 PSI) to prevent melting. For wood, use higher pressure (20-30 PSI) to clear smoke. Always ensure air assist is running before starting any cut.",
+      "source": {
+        "type": "official",
+        "manufacturer": "Atomstack",
+        "documentTitle": "Safety and Best Practices Guide",
+        "url": "https://atomstack.com/guides/air-assist",
+        "lastUpdated": "2024-02-10",
+        "section": "Accessories Setup",
+        "warningLevel": "critical",
+        "safetyNote": "Never operate without air assist when cutting flammable materials"
+      },
+      "relevanceScore": 0.82,
+      "matchedKeywords": ["air assist", "safety", "smoke", "quality", "pressure"],
+      "helpfulnessMetrics": {
+        "views": 9123,
+        "helpful": 8900,
+        "resolved": 8700
+      }
+    }
+  ],
+  "suggestedQueries": [
+    "How to focus the laser properly",
+    "Best settings for acrylic cutting",
+    "Why are my cuts not going through",
+    "Cleaning and maintenance schedule",
+    "Converting images for engraving"
+  ],
+  "commonIssues": [
+    {
+      "issue": "Laser not cutting through material",
+      "frequency": "Very Common",
+      "quickFix": "Check focus, slow down speed, increase power, clean lens"
+    },
+    {
+      "issue": "Burned edges on wood",
+      "frequency": "Common",
+      "quickFix": "Increase speed, reduce power, ensure air assist is working"
+    },
+    {
+      "issue": "Inconsistent engraving depth",
+      "frequency": "Common", 
+      "quickFix": "Level the bed, check belt tension, clean rails"
+    }
+  ]
+}

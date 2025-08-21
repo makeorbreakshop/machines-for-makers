@@ -569,3 +569,25 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Multi-method subscriber recognition (localStorage + ConvertKit param + direct access)
 - Complete attribution flow: YouTube → Short URL → Landing Page → ConvertKit → Database
 - Fixed date range bugs in time series charts properly including today's data
+
+### 2025-08-20: Laser Comparison Table Redesign & Advanced Copywriting Framework
+- **Issue**: Comparison table "looked bad" with mock data, poor UX with redundant text, missing copywriting principles causing low conversion
+- **Solution**: Complete table redesign with real database data, sophisticated fade effect, 8-column responsive layout + comprehensive copywriting framework
+- **Impact**: Professional comparison table with 6 real machines, dynamic content integration, Trust Velocity System unifying 20+ copywriting experts
+- **Technical**: Server-side data fetching, progressive opacity fade, responsive column visibility, dynamic subscriber count from ConvertKit API
+- **Features**: Fade-to-email effect with "151 more machines" prompt, first-person CTAs, awareness-based copy, Alex Hormozi value equation integration
+
+**Key Components Delivered:**
+1. **Table Redesign**: 8 columns (Machine/Price/Work Area/Power/Type/Speed/Software/Autofocus/Camera) with progressive mobile visibility
+2. **Database Integration**: Real-time data from Supabase with proper image display, badge styling, responsive breakpoints
+3. **Copywriting Framework**: Trust Velocity System with 5 Laws, Master Sequence, technical audience modifiers, VoC mining methodology
+4. **Landing Page Migration**: Moved v2 to production with dynamic laser count, subscriber count, optimized CTAs
+5. **Attribution Fixes**: Corrected source mismatch (laser-comparison vs comparison-chart), UTM capture via window.location.href
+6. **Analytics Dashboard UI Overhaul**: Consolidated color palette, fixed alignment with tabular-nums, professional design system
+
+**Technical Improvements:**
+- Progressive fade implementation: rows 4-6 fade from 100% to 20% opacity with scroll-based calculations
+- Dynamic content: Real laser count from database, live subscriber count from ConvertKit (54,826 with 1-hour cache)
+- Conversion tracking fix: Removed lead_magnet_id dependency, implemented multiple matching strategies
+- UI alignment: tabular-nums for all metrics, consistent Card components, limited color palette (blue/green/purple/gray)
+- Documentation viewer: Split-view with independent scrolling, rich article styling, auto-scroll to highlighted snippets

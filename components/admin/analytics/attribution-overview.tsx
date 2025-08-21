@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, Loader2, AlertCircle, Mail } from 'lucide-react';
+import { TrendingUp, Loader2, AlertCircle, Mail, Users, MousePointer } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatDistanceToNow } from 'date-fns';
 import { TimeSeriesChart } from './time-series-chart';
@@ -187,74 +187,6 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
 
       {/* Time Series Chart - Full Width */}
       <TimeSeriesChart dateRange={dateRange} />
-
-      {/* Top Conversion Paths */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Conversion Paths</CardTitle>
-            <CardDescription>
-              Most common pages in the conversion journey
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.topPaths.map((path, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <div className="font-medium">{path.path}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {path.count} visits • {path.conversions} conversions
-                      </div>
-                    </div>
-                  </div>
-                  <Badge variant="outline">
-                    {formatPercentage(path.conversions / path.count)}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Customer Journeys */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Customer Journeys</CardTitle>
-            <CardDescription>
-              Track individual paths to conversion
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {data.recentJourneys.slice(0, 3).map((journey) => (
-                <div key={journey.id} className="border rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline">{journey.source}</Badge>
-                    {journey.campaign && (
-                      <Badge variant="secondary">{journey.campaign}</Badge>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    {journey.steps.map((step, stepIndex) => (
-                      <div key={stepIndex} className="flex items-center gap-2 text-sm">
-                        {step.type === 'visit' && <Users className="h-3 w-3" />}
-                        {step.type === 'click' && <MousePointer className="h-3 w-3" />}
-                        {step.type === 'lead' && <Mail className="h-3 w-3" />}
-                        <span className="text-muted-foreground">{step.details}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

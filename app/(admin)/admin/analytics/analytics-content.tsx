@@ -3,15 +3,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart3, TrendingUp, Users, Eye, Clock, Loader2, Activity, Calendar, CheckCircle2, AlertCircle, Mail, PieChart, Table as TableIcon, Target, Link2, ChevronRight, Youtube, BookOpen, Tag, Gift, FileText, ArrowRight, ExternalLink } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Eye, Clock, Loader2, Activity, Calendar, CheckCircle2, AlertCircle, Mail, PieChart, Table as TableIcon, Target, Link2, ChevronRight, Youtube, BookOpen, Tag, Gift, FileText, ArrowRight, ExternalLink, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { format, parseISO, startOfDay } from 'date-fns';
-import { LeadSourcesChart } from '@/components/admin/analytics/lead-sources-chart';
 import { UTMBuilder } from '@/components/admin/analytics/utm-builder';
 import { AttributionOverview } from '@/components/admin/analytics/attribution-overview';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -164,10 +164,6 @@ interface AnalyticsData {
       overallConversion: string;
     };
     gaConnected?: boolean;
-  };
-  leadSources?: {
-    totalSubscribers: number;
-    sources: { name: string; count: number }[];
     mediums: { name: string; count: number }[];
     campaigns: { name: string; count: number }[];
     detailedSources: {
@@ -397,6 +393,7 @@ export default function AnalyticsContent() {
   const [dateRange, setDateRange] = useState('30d');
   const [activeTab, setActiveTab] = useState('attribution');
   const [expandedFunnels, setExpandedFunnels] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchAnalytics = useCallback(async (metric: string = 'overview') => {
     setLoading(true);
@@ -413,10 +410,6 @@ export default function AnalyticsContent() {
         const response = await fetch(`/api/admin/analytics/funnels?days=${days}`);
         const result = await response.json();
         setData(prevData => ({ ...prevData, funnels: result }));
-      } else if (metric === 'lead-sources') {
-        const response = await fetch(`/api/admin/analytics/lead-sources?days=${days}`);
-        const result = await response.json();
-        setData(prevData => ({ ...prevData, leadSources: result }));
       } else if (metric === 'campaigns') {
         const response = await fetch(`/api/admin/analytics/campaigns?days=${days}`);
         const result = await response.json();
@@ -439,6 +432,28 @@ export default function AnalyticsContent() {
     fetchAnalytics(activeTab);
   }, [activeTab, fetchAnalytics]);
 
+  const handleRefreshData = async () => {
+    setRefreshing(true);
+    try {
+      const response = await fetch('/api/admin/analytics/refresh', {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        // Wait a moment for the refresh to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Reload the current tab data
+        await fetchAnalytics(activeTab);
+      } else {
+        console.error('Failed to refresh analytics data');
+      }
+    } catch (error) {
+      console.error('Error refreshing analytics:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -455,17 +470,29 @@ export default function AnalyticsContent() {
             Track visitor behavior and site performance
           </p>
         </div>
-        <Select value={dateRange} onValueChange={setDateRange}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select date range" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1d">Last 24 hours</SelectItem>
-            <SelectItem value="7d">Last 7 days</SelectItem>
-            <SelectItem value="30d">Last 30 days</SelectItem>
-            <SelectItem value="90d">Last 90 days</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshData}
+            disabled={refreshing}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            {refreshing ? "Refreshing..." : "Refresh Data"}
+          </Button>
+          <Select value={dateRange} onValueChange={setDateRange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select date range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1d">Last 24 hours</SelectItem>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Unified header stats that change based on active tab */}
@@ -616,10 +643,6 @@ export default function AnalyticsContent() {
             <TabsTrigger value="funnels" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Target className="h-4 w-4" />
               <span className="hidden sm:inline">Funnels</span>
-            </TabsTrigger>
-            <TabsTrigger value="lead-sources" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <Link2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Lead Sources</span>
             </TabsTrigger>
             <TabsTrigger value="campaigns" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <TrendingUp className="h-4 w-4" />
@@ -1314,59 +1337,6 @@ export default function AnalyticsContent() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="lead-sources" className="space-y-4">
-          {/* Lead Sources Information */}
-          <div className="mb-4">
-            <Card className="bg-muted/30 border-dashed">
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-3">
-                  <Link2 className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">UTM Parameter Tracking</p>
-                    <p className="text-sm text-muted-foreground">
-                      Track where your email signups come from using UTM parameters. Add these to your links:
-                    </p>
-                    <div className="bg-background rounded-md p-3 mt-2 font-mono text-xs">
-                      <p className="text-muted-foreground mb-1">Example for YouTube:</p>
-                      <p className="break-all">?utm_source=youtube&utm_medium=video&utm_campaign=laser-basics</p>
-                      <p className="text-muted-foreground mt-2 mb-1">Example for Affiliates:</p>
-                      <p className="break-all">?utm_source=affiliate&utm_medium=referral&utm_campaign=partner-name</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {loading ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Lead Sources</CardTitle>
-                <CardDescription>Loading lead source data...</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4 animate-pulse">
-                  <div className="h-8 bg-muted rounded w-3/4" />
-                  <div className="h-8 bg-muted rounded w-1/2" />
-                  <div className="h-8 bg-muted rounded w-2/3" />
-                </div>
-              </CardContent>
-            </Card>
-          ) : data.leadSources ? (
-            <LeadSourcesChart data={data.leadSources} loading={false} />
-          ) : (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Link2 className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No lead source data available</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Start tracking by adding UTM parameters to your marketing links
-                </p>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         <TabsContent value="campaigns" className="space-y-4">

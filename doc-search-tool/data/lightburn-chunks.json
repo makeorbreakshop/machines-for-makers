@@ -1,0 +1,145 @@
+{
+  "chunks": [
+    {
+      "id": "lb-001",
+      "text": "For cutting 3mm birch plywood, the recommended settings are 15mm/s at 80% power. Ensure proper ventilation as birch can produce significant smoke. Multiple passes may be needed for cleaner cuts. Air assist should be set to 20-30 PSI for optimal results.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 47,
+      "title": "Material Settings - Wood",
+      "section": "Birch Plywood",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-002", 
+      "text": "When engraving on birch plywood, use 100mm/s at 20% power for light engraving, or 80mm/s at 30% power for deeper marks. The grain direction can affect the final appearance, so test on scrap material first.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 47,
+      "title": "Material Settings - Wood",
+      "section": "Birch Plywood - Engraving",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-003",
+      "text": "For 3mm cast acrylic, optimal cutting settings are 20mm/s at 60% power. Cast acrylic cuts cleaner than extruded acrylic. Use lower air assist pressure (10-15 PSI) to prevent melting and achieve crystal-clear edges.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 52,
+      "title": "Material Settings - Acrylic",
+      "section": "Cast Acrylic",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-004",
+      "text": "Focus distance is critical for clean cuts. The laser beam should create the smallest possible dot on the material surface. For most diode lasers, the standard focal length is 50-60mm. Some users prefer to focus slightly into the material (1-2mm) for cleaner cuts.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 23,
+      "title": "Laser Setup and Calibration",
+      "section": "Focus Adjustment",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-005",
+      "text": "If your laser is not cutting through material: 1) Increase power by 10%, 2) Decrease speed by 20%, 3) Check focus distance, 4) Clean lens and mirrors, 5) Verify air assist is working properly. Dirty optics can reduce effective power by 30% or more.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 89,
+      "title": "Troubleshooting Guide",
+      "section": "Cutting Issues",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-006",
+      "text": "Camera alignment requires proper lens calibration first. Mount the camera directly above the center of the bed at a height where the entire work area is visible. Use the 'Calibrate Camera Lens' wizard before attempting alignment.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 134,
+      "title": "Camera Setup",
+      "section": "Camera Calibration",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-007",
+      "text": "Power and speed settings vary significantly between different laser types. CO2 lasers typically require less power than diode lasers for the same material. A 40W CO2 laser can cut 3mm plywood at 15mm/s, while a 10W diode might need 5mm/s.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 18,
+      "title": "Understanding Your Laser",
+      "section": "Laser Types Comparison",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-008",
+      "text": "To set up rotary attachment: 1) Enable rotary mode in Tools menu, 2) Enter roller diameter or steps per rotation, 3) Set object diameter, 4) Test with the 'Test' button to verify one complete rotation. Chuck-style rotaries require different settings than roller-style.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 156,
+      "title": "Rotary Setup",
+      "section": "Configuration",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-009",
+      "text": "Kerf offset compensates for the material removed by the laser beam. Typical kerf width ranges from 0.1mm to 0.3mm depending on material and focus. Enable 'Kerf Offset' in cut settings and enter half the measured kerf width.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 71,
+      "title": "Advanced Cut Settings",
+      "section": "Kerf Compensation",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-010",
+      "text": "For leather engraving, use low power (10-15%) and high speed (150-200mm/s). Leather is very sensitive to heat and can shrink or warp. Always test on scraps first. Vegetable-tanned leather engraves better than chrome-tanned.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 61,
+      "title": "Material Settings - Leather",
+      "section": "Engraving Settings",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-011",
+      "text": "Excessive charring on wood indicates too much power or too slow speed. Reduce power by 10-20% or increase speed. Masking the surface with paper tape can help reduce char marks. Ensure air assist is properly directed at the cut point.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 91,
+      "title": "Troubleshooting Guide",
+      "section": "Burn Marks and Charring",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-012",
+      "text": "The Material Test feature creates a grid of squares with varying power and speed settings. This helps find optimal settings for new materials. Access via Laser Tools > Material Test. Start with low power/high speed and gradually increase.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 43,
+      "title": "Material Testing",
+      "section": "Test Matrix Setup",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-013",
+      "text": "Image engraving modes: Threshold is best for simple black/white logos. Dither provides good results for photographs. Grayscale requires a laser that supports true power modulation. Adjust gamma and contrast for optimal results.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 102,
+      "title": "Image Engraving",
+      "section": "Engraving Modes",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-014",
+      "text": "Safety reminder: Never leave your laser unattended while operating. Keep a fire extinguisher within reach. Ensure proper ventilation for all materials. Some materials like PVC and vinyl release toxic fumes and should never be laser cut.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 8,
+      "title": "Safety Guidelines",
+      "section": "Operating Safety",
+      "manufacturer": "LightBurn"
+    },
+    {
+      "id": "lb-015",
+      "text": "To optimize cut order: Use 'Optimize Cut Path' with 'Order by Layer' and 'Order by Groups' enabled. Set inner shapes to cut first using 'Order by Priority'. This prevents pieces from falling and disrupting the cut.",
+      "source_url": "https://lightburnsoftware.github.io/NewDocs/",
+      "page": 78,
+      "title": "Optimization Settings",
+      "section": "Cut Planning",
+      "manufacturer": "LightBurn"
+    }
+  ],
+  "metadata": {
+    "source": "LightBurn Software Documentation v2.0",
+    "extracted_date": "2024-01-15",
+    "total_pages": 200,
+    "disclaimer": "Sample extraction for demonstration purposes"
+  }
+}
