@@ -418,7 +418,7 @@ class ScrapflyWebScraper:
                 asp=True,  # Anti-bot protection
                 render_js=True,
                 country='US',
-                cost_budget=50,  # Higher limit for difficult sites
+                cost_budget=75,  # Increased limit for difficult sites (was 50, but Thunder Laser needs 56+)
                 retry=True,
                 auto_scroll=True,  # Load lazy content
                 wait_for_selector=None

@@ -238,7 +238,7 @@ class SiteSpecificExtractor:
                     },
                     'EMP ST100J': {
                         'keywords': ['ST100J', 'ST 100J', '100J'],
-                        'table_column': 6,  # Seventh price column (corrected)
+                        'table_column': 5,  # Column 5 = $11,995 (was incorrectly 6 which had warranty prices)
                     },
                     'EMP ST30J': {
                         'keywords': ['ST30J', 'ST 30J'],

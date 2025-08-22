@@ -67,8 +67,24 @@ class PriceExtractor:
         # The MCP system was just another layer of Playwright automation on top of our existing dynamic scraper
 
         # Method 1: Try dynamic extraction for sites requiring variant selection
-        # Skip dynamic extraction for Scrapfly sites (they already have JavaScript rendered)
-        if machine_name and self._requires_dynamic_extraction(url, machine_name) and not self._is_scrapfly_site(url):
+        # Check if we need dynamic extraction
+        needs_dynamic = False
+        if machine_name and self._requires_dynamic_extraction(url, machine_name):
+            # Extract domain for rules lookup
+            from urllib.parse import urlparse
+            domain = urlparse(url).netloc.lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            
+            # Check if force_dynamic is set - this overrides Scrapfly check
+            rules = self.site_extractor.get_machine_specific_rules(domain, machine_name, url)
+            if rules and rules.get('force_dynamic', False):
+                needs_dynamic = True  # Force dynamic even for Scrapfly sites
+                logger.info(f"🔧 force_dynamic is set for {machine_name} - will use dynamic extraction for variant selection")
+            elif not self._is_scrapfly_site(url):
+                needs_dynamic = True  # Use dynamic for non-Scrapfly sites
+        
+        if needs_dynamic:
             try:
                 logger.info(f"🌐 METHOD 1: Attempting dynamic extraction with browser automation")
                 price, method = await self._extract_with_dynamic_scraper(url, machine_name, machine_data)
@@ -84,10 +100,23 @@ class PriceExtractor:
                     logger.info(f"❌ METHOD 1 FAILED: No price found with dynamic extraction")
             except Exception as e:
                 logger.error(f"❌ METHOD 1 ERROR: Dynamic extraction failed: {str(e)}")
-        elif machine_name and self._requires_dynamic_extraction(url, machine_name) and self._is_scrapfly_site(url):
-            logger.info(f"⏭️ METHOD 1 SKIPPED: Scrapfly site - JavaScript already rendered, using static extraction methods")
         else:
-            logger.info(f"⏭️ METHOD 1 SKIPPED: Dynamic extraction not required for this URL")
+            # Check if dynamic is required but being skipped
+            if machine_name and self._requires_dynamic_extraction(url, machine_name) and self._is_scrapfly_site(url):
+                # Extract domain for rules lookup
+                from urllib.parse import urlparse
+                domain = urlparse(url).netloc.lower()
+                if domain.startswith('www.'):
+                    domain = domain[4:]
+                    
+                # Don't skip if force_dynamic is set - variant selection still needed!
+                rules = self.site_extractor.get_machine_specific_rules(domain, machine_name, url)
+                if rules and rules.get('force_dynamic', False):
+                    logger.warning(f"⚠️ force_dynamic is set for {machine_name} but dynamic extraction was not available")
+                else:
+                    logger.info(f"⏭️ METHOD 1 SKIPPED: Scrapfly site - JavaScript already rendered, using static extraction methods")
+            else:
+                logger.info(f"⏭️ METHOD 1 SKIPPED: Dynamic extraction not required for this URL")
         
         # Method 2: Try site-specific extraction (static) - now includes learned selectors!
         logger.info(f"🎯 METHOD 2: Attempting site-specific extraction with rules and learned selectors")
