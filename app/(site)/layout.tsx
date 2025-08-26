@@ -2,7 +2,7 @@ import React from "react"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import Navbar from "@/components/navbar"
+import NavbarWrapper from "@/components/navbar-wrapper"
 import Footer from "@/components/footer"
 import { ComparisonProvider } from "@/context/comparison-context"
 import ComparisonBar from "@/components/comparison-bar"
@@ -21,7 +21,7 @@ export default function SiteLayout({
         <Providers>
           <ComparisonProvider>
             <div className="flex min-h-screen flex-col">
-              <Navbar />
+              <NavbarWrapper />
               <main className="flex-1">{children}</main>
               <Footer />
               <ComparisonBar />

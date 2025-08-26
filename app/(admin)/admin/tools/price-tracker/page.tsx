@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { 
@@ -24,7 +23,7 @@ import { ArrowUpDown } from "lucide-react"
 import { PriceHistoryChart } from "@/components/product/price-history-chart"
 import { format, formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
-import { Check, RefreshCw, Rocket, LineChart, Trash2, AlertCircle, Bug, XCircle, ExternalLink, CheckCircle, X, Search, Eye, Code, TestTube, Zap, Mail, Copy, TrendingDown, DollarSign } from "lucide-react"
+import { Check, RefreshCw, LineChart, Trash2, AlertCircle, Bug, ExternalLink, CheckCircle, Eye, TestTube, Mail, Copy, DollarSign, Loader2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -300,6 +299,13 @@ export default function PriceTrackerAdmin() {
   const [emailStats, setEmailStats] = useState<any>(null)
   const [subjectLine, setSubjectLine] = useState('')
   const [previewText, setPreviewText] = useState('')
+  const [emailTabDeals, setEmailTabDeals] = useState<any[]>([])
+  const [selectedEmailDeals, setSelectedEmailDeals] = useState<Set<string>>(new Set())
+  const [emailDateRange, setEmailDateRange] = useState('30')
+  const [emailMinDiscount, setEmailMinDiscount] = useState('5')
+  const [emailAllTimeLows, setEmailAllTimeLows] = useState(false)
+  const [loadingEmailTabDeals, setLoadingEmailTabDeals] = useState(false)
+  const [activeTab, setActiveTab] = useState('machines')
   const [copied, setCopied] = useState(false)
   const [priceDropsOnly, setPriceDropsOnly] = useState(true)
   const [minDiscountThreshold, setMinDiscountThreshold] = useState('5')
@@ -1194,7 +1200,18 @@ export default function PriceTrackerAdmin() {
   };
 
   // Fetch ALL deals that match email filters (not limited to 50)
-  const fetchEmailDeals = async () => {
+  const fetchEmailDeals = async (
+    currentDateRangeFilter?: string,
+    currentAllTimeLowsOnly?: boolean,
+    currentPriceDropsOnly?: boolean,
+    currentMinDiscountThreshold?: string
+  ) => {
+    // Use passed values or fall back to current state
+    const dateRange = currentDateRangeFilter ?? dateRangeFilter;
+    const allTimeLows = currentAllTimeLowsOnly ?? allTimeLowsOnly;
+    const priceDrops = currentPriceDropsOnly ?? priceDropsOnly;
+    const minDiscount = currentMinDiscountThreshold ?? minDiscountThreshold;
+
     try {
       // Build query for email generation with all filters applied
       let query = supabase
@@ -1226,13 +1243,13 @@ export default function PriceTrackerAdmin() {
         .not('price', 'is', null);
 
       // Apply date range filter
-      const daysAgo = parseInt(dateRangeFilter);
+      const daysAgo = parseInt(dateRange);
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
       query = query.gte('date', cutoffDate.toISOString());
 
       // Apply all-time lows filter
-      if (allTimeLowsOnly) {
+      if (allTimeLows) {
         query = query.eq('is_all_time_low', true);
       }
 
@@ -1257,22 +1274,22 @@ export default function PriceTrackerAdmin() {
           : 0;
 
         // Apply price drops only filter
-        if (priceDropsOnly && priceChange <= 0) {
+        if (priceDrops && priceChange <= 0) {
           return null;
         }
 
         // Apply minimum discount filter
-        if (Math.abs(percentageChange) < parseInt(minDiscountThreshold)) {
+        if (Math.abs(percentageChange) < parseInt(minDiscount)) {
           return null;
         }
 
         // Apply 1% minimum for price drops
-        if (priceDropsOnly && Math.abs(percentageChange) < 1) {
+        if (priceDrops && Math.abs(percentageChange) < 1) {
           return null;
         }
 
         // Validate deal is still active (current price hasn't gone back up)
-        if (priceDropsOnly && record.machines.Price > record.price * 1.01) {
+        if (priceDrops && record.machines.Price > record.price * 1.01) {
           return null;
         }
 
@@ -1319,7 +1336,12 @@ export default function PriceTrackerAdmin() {
     if (emailGenerationMode) {
       const refetchDeals = async () => {
         setLoadingEmailDeals(true);
-        const deals = await fetchEmailDeals();
+        const deals = await fetchEmailDeals(
+          dateRangeFilter,
+          allTimeLowsOnly,
+          priceDropsOnly,
+          minDiscountThreshold
+        );
         console.log('Email deals fetched:', deals.length, 'deals');
         console.log('First few deals:', deals.slice(0, 3));
         setEmailDeals(deals);
@@ -1338,6 +1360,118 @@ export default function PriceTrackerAdmin() {
       setSelectedDealsForEmail(new Set());
     }
   }, [emailGenerationMode, priceDropsOnly, minDiscountThreshold, dateRangeFilter, allTimeLowsOnly]);
+
+  // Fetch deals for Email Template tab
+  const fetchEmailTabDeals = async () => {
+    setLoadingEmailTabDeals(true);
+    try {
+      const response = await fetch(
+        `/api/price-drops?days=${emailDateRange}&minDiscount=${parseFloat(emailMinDiscount)}&limit=200`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch deals');
+      }
+      
+      const data = await response.json();
+      let deals = data.priceDrops || [];
+      
+      // Filter for all-time lows if needed
+      if (emailAllTimeLows) {
+        deals = deals.filter((deal: any) => deal.isAllTimeLow);
+      }
+      
+      // Fetch laser type data for these machines
+      if (deals.length > 0) {
+        const machineIds = deals.map((d: any) => d.machineId);
+        const { data: machineData } = await supabase
+          .from('machines')
+          .select('id, "Laser Type A"')
+          .in('id', machineIds);
+        
+        // Create a map of machine ID to laser type
+        const laserTypeMap = new Map();
+        if (machineData) {
+          machineData.forEach(m => {
+            laserTypeMap.set(m.id, m['Laser Type A']);
+          });
+        }
+        
+        // Add laser type to each deal
+        deals = deals.map((deal: any) => ({
+          ...deal,
+          laserType: laserTypeMap.get(deal.machineId) || null
+        }));
+      }
+      
+      setEmailTabDeals(deals);
+      
+      // Auto-select top 10 deals
+      if (deals.length > 0) {
+        const topDeals = deals.slice(0, Math.min(10, deals.length));
+        setSelectedEmailDeals(new Set(topDeals.map((d: any) => d.id)));
+      }
+    } catch (error) {
+      console.error('Error fetching email deals:', error);
+      toast.error('Failed to fetch deals');
+      setEmailTabDeals([]);
+    } finally {
+      setLoadingEmailTabDeals(false);
+    }
+  };
+  
+  // Auto-fetch deals when Email Template tab is selected
+  useEffect(() => {
+    if (activeTab === 'email-template' && emailTabDeals.length === 0) {
+      fetchEmailTabDeals();
+    }
+  }, [activeTab]);
+  
+  // Generate email preview from selected deals
+  const generateEmailPreview = () => {
+    const selectedDeals = emailTabDeals.filter(deal => 
+      selectedEmailDeals.has(deal.id)
+    );
+    
+    if (selectedDeals.length === 0) {
+      toast.error('Please select at least one deal');
+      return;
+    }
+    
+    // Sort deals by savings amount (biggest first) to ensure hero deal is the best one
+    selectedDeals.sort((a, b) => Math.abs(b.priceChange || 0) - Math.abs(a.priceChange || 0));
+    
+    // Calculate stats
+    const totalSavings = selectedDeals.reduce((sum, deal) => 
+      sum + Math.abs(deal.priceChange), 0
+    );
+    const avgDiscount = selectedDeals.reduce((sum, deal) => 
+      sum + Math.abs(deal.percentageChange), 0
+    ) / selectedDeals.length;
+    const allTimeLows = selectedDeals.filter(deal => deal.isAllTimeLow).length;
+    
+    const stats = {
+      totalDeals: selectedDeals.length,
+      totalSavings: Math.round(totalSavings),
+      avgSavings: Math.round(totalSavings / selectedDeals.length),
+      avgDiscount: avgDiscount.toFixed(1),
+      allTimeLows: allTimeLows
+    };
+    
+    setEmailStats(stats);
+    
+    // Generate subject and preview text
+    const heroItem = selectedDeals[0];
+    setSubjectLine(`🔥 ${heroItem.company} ${heroItem.machineName} save $${Math.abs(Math.round(heroItem.priceChange))} (+ ${selectedDeals.length - 1} more deals)`);
+    setPreviewText(`Save up to $${Math.abs(Math.round(heroItem.priceChange))} on laser cutters this week`);
+    
+    // Always regenerate email HTML with current selection
+    const html = generateEmailHtml(selectedDeals, stats);
+    setEmailHtml(html);
+    
+    // Show success message
+    toast.success('Email preview updated!');
+  };
 
   // Generate email from selected deals
   const generateEmailFromSelected = async () => {
@@ -1399,13 +1533,15 @@ export default function PriceTrackerAdmin() {
   // Generate email HTML
   const generateEmailHtml = (deals: any[], stats: any) => {
     const heroItem = deals[0];
-    const additionalItems = deals.slice(1, 10);
+    const additionalItems = deals.slice(1); // Show all remaining deals, not just 9
 
     let text = `# 🔥 This Week's Laser Cutter Deals - Machines for Makers
 
+**[→ View All Deals on Website](https://www.machinesformakers.com/deals?utm_source=convertkit&utm_medium=email&utm_campaign=weekly-deals)**
+
 ## 📊 Deal Summary
 - **${stats.totalDeals}** total deals
-- **$${stats.totalSavings.toLocaleString()}** total savings
+- **${stats.avgDiscount}%** average discount
 - **$${stats.avgSavings.toLocaleString()}** average savings`;
 
     if (stats.allTimeLows > 0) {
@@ -1419,57 +1555,61 @@ export default function PriceTrackerAdmin() {
       text += `## 🎯 BIGGEST SAVINGS THIS WEEK
 
 **${heroItem.machineName}**  
-💰 **$${heroItem.price ? heroItem.price.toLocaleString() : 'N/A'}** *(was $${heroItem.recordedPrice ? heroItem.recordedPrice.toLocaleString() : 'N/A'})*
+💰 **$${heroItem.currentPrice ? heroItem.currentPrice.toLocaleString() : 'N/A'}** *(was $${heroItem.previousPrice ? heroItem.previousPrice.toLocaleString() : 'N/A'})*
 
 🏷️ **SAVE $${Math.abs(heroItem.priceChange || 0).toLocaleString()}**`;
 
-      if (heroItem.is_all_time_low) {
+      if (heroItem.isAllTimeLow) {
         text += ` ⭐ **ALL-TIME LOW!**`;
       }
 
       text += `\n\n**[👉 VIEW DEAL](${heroItem.affiliateLink || heroItem.productLink})**\n\n---\n\n`;
     }
 
-    // Group additional deals by laser type
+    // Group deals by laser type
     if (additionalItems.length > 0) {
-      text += `## 💰 More Great Deals\n\n`;
+      // Sort items by savings descending (biggest discounts first)
+      additionalItems.sort((a, b) => Math.abs(b.priceChange || 0) - Math.abs(a.priceChange || 0));
       
-      const groupedDeals = {
-        'FIBER LASERS': additionalItems.filter(item => {
-          const laserType = item.laserTypeA || '';
-          return laserType === 'Fiber' || laserType === 'MOPA';
-        }),
-        'CO2 LASERS': additionalItems.filter(item => {
-          const laserType = item.laserTypeA || '';
-          return laserType === 'CO2-Glass' || laserType.includes('CO2');
-        }),
-        'DIODE LASERS': additionalItems.filter(item => {
-          const laserType = item.laserTypeA || '';
-          return laserType === 'Diode';
-        }),
-        'OTHER LASERS': additionalItems.filter(item => {
-          const laserType = item.laserTypeA || '';
-          return laserType !== 'Fiber' && 
-                 laserType !== 'MOPA' && 
-                 laserType !== 'CO2-Glass' && 
-                 laserType !== 'Diode' &&
-                 !laserType.includes('CO2');
-        })
-      };
-
-      Object.entries(groupedDeals).forEach(([laserType, items]) => {
-        if (items.length > 0) {
-          text += `### 🔸 ${laserType.toUpperCase()} LASERS\n\n`;
-          items.forEach((item) => {
-            text += `**${item.machineName}**  
-💰 **$${item.price ? item.price.toLocaleString() : 'N/A'}** *(was $${item.recordedPrice ? item.recordedPrice.toLocaleString() : 'N/A'})* • **SAVE $${Math.abs(item.priceChange || 0).toLocaleString()}**`;
-            if (item.is_all_time_low) {
-              text += ` ⭐`;
-            }
-            text += `  
-**[👉 VIEW DEAL](${item.affiliateLink || item.productLink})**\n\n`;
+      // Group by laser type using actual database values
+      const dealsByType: { [key: string]: any[] } = {};
+      
+      additionalItems.forEach(item => {
+        // Use the actual laser type from database, or 'Other' if not available
+        let type = item.laserType || 'Other';
+        
+        // Normalize laser type names for display
+        if (type === 'CO2-Glass' || type === 'CO2-RF' || type === 'CO2') {
+          type = 'CO2';
+        } else if (type === 'MOPA' || type === 'Fiber') {
+          type = 'Fiber';
+        } else if (type === 'Infrared' || type === 'UV') {
+          type = 'Specialty';
+        }
+        
+        if (!dealsByType[type]) {
+          dealsByType[type] = [];
+        }
+        dealsByType[type].push(item);
+      });
+      
+      // Output grouped deals in a logical order
+      const typeOrder = ['CO2', 'Diode', 'Fiber', 'Specialty', 'Other'];
+      
+      typeOrder.forEach(type => {
+        const typeDeals = dealsByType[type];
+        if (typeDeals && typeDeals.length > 0) {
+          text += `## 💰 ${type} Laser Deals\n\n`;
+          
+          typeDeals.forEach((item) => {
+            const nowPrice = item.currentPrice ? item.currentPrice.toLocaleString() : 'N/A';
+            const savings = Math.abs(item.priceChange || 0).toLocaleString();
+            const dealLink = item.affiliateLink || item.productLink || '#';
+            
+            // Professional format with clickable machine names
+            text += `**[${item.machineName}](${dealLink})**  \n`;
+            text += `$${nowPrice} • **Save $${savings}**  \n\n`;
           });
-          text += `\n`;
         }
       });
     }
@@ -2182,7 +2322,7 @@ export default function PriceTrackerAdmin() {
         Manage and test the price tracking feature. You can update prices manually or view price history.
       </p>
       
-      <Tabs defaultValue="machines">
+      <Tabs defaultValue="machines" value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="machines">Machines</TabsTrigger>
           <TabsTrigger value="recent">Recent Updates</TabsTrigger>
@@ -2362,7 +2502,12 @@ export default function PriceTrackerAdmin() {
                         } else {
                           // Fetch all deals that match email filters
                           setLoadingEmailDeals(true);
-                          const deals = await fetchEmailDeals();
+                          const deals = await fetchEmailDeals(
+                            dateRangeFilter,
+                            allTimeLowsOnly,
+                            priceDropsOnly,
+                            minDiscountThreshold
+                          );
                           setEmailDeals(deals);
                           setLoadingEmailDeals(false);
                         }
@@ -2993,16 +3138,212 @@ export default function PriceTrackerAdmin() {
         </TabsContent>
         
         <TabsContent value="email-template">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Template</CardTitle>
-              <CardDescription>
-                Generated email template for your weekly deal digest
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {emailHtml ? (
-                <>
+          <div className="space-y-6">
+            {/* Deal Selection Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Email Deal Selection</CardTitle>
+                <CardDescription>
+                  Select deals to include in your weekly email digest
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Filters */}
+                <div className="flex flex-wrap gap-4">
+                  <div>
+                    <Label htmlFor="email-date-range" className="text-sm">Date Range</Label>
+                    <Select value={emailDateRange} onValueChange={setEmailDateRange}>
+                      <SelectTrigger id="email-date-range" className="w-[140px] mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="7">Last 7 days</SelectItem>
+                        <SelectItem value="14">Last 14 days</SelectItem>
+                        <SelectItem value="30">Last 30 days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="email-min-discount" className="text-sm">Min Discount</Label>
+                    <Select value={emailMinDiscount} onValueChange={setEmailMinDiscount}>
+                      <SelectTrigger id="email-min-discount" className="w-[140px] mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">Any discount</SelectItem>
+                        <SelectItem value="5">5% or more</SelectItem>
+                        <SelectItem value="10">10% or more</SelectItem>
+                        <SelectItem value="15">15% or more</SelectItem>
+                        <SelectItem value="20">20% or more</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-end">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="email-all-time-lows"
+                        checked={emailAllTimeLows}
+                        onCheckedChange={setEmailAllTimeLows}
+                      />
+                      <Label htmlFor="email-all-time-lows" className="text-sm">
+                        All-time lows only
+                      </Label>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-end">
+                    <Button
+                      onClick={() => fetchEmailTabDeals()}
+                      variant="outline"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Load Deals
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Deal List */}
+                <div className="border rounded-lg">
+                  {loadingEmailTabDeals ? (
+                    <div className="p-8 text-center">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Loading deals...</p>
+                    </div>
+                  ) : emailTabDeals.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground">
+                      No deals found matching your filters
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="max-h-[400px] overflow-y-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background border-b z-10 after:absolute after:bottom-0 after:inset-x-0 after:h-px after:bg-border">
+                            <TableRow>
+                            <TableHead className="w-12">
+                              <Checkbox
+                                checked={selectedEmailDeals.size === emailTabDeals.length && emailTabDeals.length > 0}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedEmailDeals(new Set(emailTabDeals.map(d => d.id)));
+                                  } else {
+                                    setSelectedEmailDeals(new Set());
+                                  }
+                                }}
+                              />
+                            </TableHead>
+                            <TableHead>Machine</TableHead>
+                            <TableHead className="text-right">Was</TableHead>
+                            <TableHead className="text-right">Now</TableHead>
+                            <TableHead className="text-right">Savings</TableHead>
+                            <TableHead className="text-right">Discount</TableHead>
+                            <TableHead className="w-20"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {emailTabDeals.map((deal) => (
+                            <TableRow key={deal.id}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedEmailDeals.has(deal.id)}
+                                  onCheckedChange={(checked) => {
+                                    const newSet = new Set(selectedEmailDeals);
+                                    if (checked) {
+                                      newSet.add(deal.id);
+                                    } else {
+                                      newSet.delete(deal.id);
+                                    }
+                                    setSelectedEmailDeals(newSet);
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <div className="font-medium">{deal.machineName}</div>
+                                  <div className="text-xs text-muted-foreground">{deal.company}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground line-through">
+                                ${deal.previousPrice.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold">
+                                ${deal.currentPrice.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right text-green-600 font-semibold">
+                                -${Math.abs(deal.priceChange).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant="secondary">
+                                  {Math.abs(deal.percentageChange).toFixed(1)}%
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {deal.isAllTimeLow && (
+                                  <Badge className="bg-red-100 text-red-800">
+                                    ATL
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                  )}
+                </div>
+                
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-4">
+                  <div className="text-sm text-muted-foreground">
+                    {selectedEmailDeals.size} of {emailTabDeals.length} deals selected
+                    {selectedEmailDeals.size > 0 && (
+                      <span className="ml-2">
+                        • Total savings: ${emailTabDeals
+                          .filter(d => selectedEmailDeals.has(d.id))
+                          .reduce((sum, d) => sum + Math.abs(d.priceChange), 0)
+                          .toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedEmailDeals(new Set(emailTabDeals.map(d => d.id)))}
+                      disabled={emailTabDeals.length === 0}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedEmailDeals(new Set())}
+                      disabled={selectedEmailDeals.size === 0}
+                    >
+                      Clear All
+                    </Button>
+                    <Button
+                      onClick={generateEmailPreview}
+                      disabled={selectedEmailDeals.size === 0}
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Generate Email Preview
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Email Preview Section */}
+            {emailHtml && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Email Preview</CardTitle>
+                  <CardDescription>
+                    Review and copy your generated email
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
                   {/* Email Info */}
                   <div className="space-y-4">
                     <div>
@@ -3150,23 +3491,10 @@ export default function PriceTrackerAdmin() {
                       </div>
                     </div>
                   </div>
-
-                </>
-              ) : (
-                <div className="text-center py-16 text-gray-500">
-                  <Mail className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                  <p className="mb-4">No email generated yet</p>
-                  <p className="text-sm mb-4">Select deals from the Recent Updates tab and click "Generate Email"</p>
-                  <Button variant="outline" onClick={() => {
-                    const recentTab = document.querySelector('[data-value="recent"]') as HTMLElement;
-                    if (recentTab) recentTab.click();
-                  }}>
-                    Go to Recent Updates
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 

@@ -591,3 +591,10 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - Conversion tracking fix: Removed lead_magnet_id dependency, implemented multiple matching strategies
 - UI alignment: tabular-nums for all metrics, consistent Card components, limited color palette (blue/green/purple/gray)
 - Documentation viewer: Split-view with independent scrolling, rich article styling, auto-scroll to highlighted snippets
+
+### 2025-08-22: Systematic Price Extraction Bug Discovery & Force Dynamic Logic Fix
+- **Issue**: Batch 0cd2c985 showing multiple incorrect prices due to variant/bundle contamination - recurring pattern since July
+- **Solution**: Fixed force_dynamic logic bug preventing dynamic extraction for Scrapfly sites, corrected EMP ST100J table column mapping
+- **Impact**: Identified months of systematic variant selection errors affecting 20-30% of price changes, restored proper extraction logic
+- **Technical**: force_dynamic flag now overrides Scrapfly skip logic, EMP table column 5→6 fix, domain variable undefined error resolved
+- **Key Discovery**: Scrapfly JS rendering ≠ correct variant selection - dynamic interaction still required for accurate pricing

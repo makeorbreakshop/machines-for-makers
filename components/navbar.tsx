@@ -6,24 +6,30 @@ import Image from "next/image"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 
-export default function Navbar() {
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+interface NavbarProps {
+  logoUrl?: string | null
+}
+
+export default function Navbar({ logoUrl: initialLogoUrl }: NavbarProps = {}) {
+  const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl || null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   
   useEffect(() => {
-    // Fetch logo URL when component mounts
-    const fetchLogoUrl = async () => {
-      try {
-        const response = await fetch('/api/logo')
-        const data = await response.json()
-        setLogoUrl(data.url)
-      } catch (error) {
-        console.error('Error fetching logo URL:', error)
+    // Only fetch if no logo URL was provided via props
+    if (!initialLogoUrl) {
+      const fetchLogoUrl = async () => {
+        try {
+          const response = await fetch('/api/logo')
+          const data = await response.json()
+          setLogoUrl(data.url)
+        } catch (error) {
+          console.error('Error fetching logo URL:', error)
+        }
       }
+      
+      fetchLogoUrl()
     }
-    
-    fetchLogoUrl()
-  }, [])
+  }, [initialLogoUrl])
   
   // Close menu when window is resized to desktop size
   useEffect(() => {
