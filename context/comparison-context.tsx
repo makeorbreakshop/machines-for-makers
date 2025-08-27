@@ -58,8 +58,8 @@ export function ComparisonProvider({ children }: ComparisonProviderProps) {
 
   const addToComparison = (machine: Machine) => {
     setComparedMachines((prev) => {
-      if (prev.length >= 4) {
-        // Max 4 machines
+      if (prev.length >= 8) {
+        // Max 8 machines
         return prev;
       }
       if (prev.some((m) => m.id === machine.id)) {

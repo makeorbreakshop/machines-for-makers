@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 export const runtime = 'nodejs';
 
 // Debug utility for API monitoring
-const DEBUG_MODE = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
+const DEBUG_MODE = false; // Disabled debug mode to clean up console
 const debug = {
   log: (...args: any[]) => {
     if (DEBUG_MODE) console.log('[API DEBUG]', ...args);
