@@ -135,7 +135,7 @@ const validateAndFormat = {
   }
 }
 
-const LASER_TYPES = ['Diode', 'CO2', 'Fiber', 'Galvo', 'UV', 'Other']
+const LASER_TYPES = ['Diode', 'CO2', 'Fiber', 'MOPA', 'Galvo', 'UV', 'Other']
 const MACHINE_CATEGORIES = ['laser', '3d-printer', 'cnc']
 const LASER_CATEGORIES = [
   'desktop-diode-laser',

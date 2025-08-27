@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import dynamic from 'next/dynamic'
 import ProductsGrid from "@/components/products-grid"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -448,6 +448,8 @@ export default function CompareClientPage({
   const [products, setProducts] = useState<Machine[]>(initialProducts)
   const [filteredProducts, setFilteredProducts] = useState<Machine[]>(initialProducts)
   const [loading, setLoading] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(30) // Start showing 30 items
+  const loadMoreRef = useRef<HTMLDivElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [quickFilter, setQuickFilter] = useState('')
   const [filters, setFilters] = useState<Filters>({
@@ -472,6 +474,38 @@ export default function CompareClientPage({
     details: [],
     lastChecked: new Date()
   })
+
+  // Set up Intersection Observer for lazy loading
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleCount < filteredProducts.length) {
+          // Show 30 more items when scrolling near bottom
+          setVisibleCount(prev => Math.min(prev + 30, filteredProducts.length))
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '200px'
+      }
+    )
+
+    const currentRef = loadMoreRef.current
+    if (currentRef) {
+      observer.observe(currentRef)
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef)
+      }
+    }
+  }, [visibleCount, filteredProducts.length])
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(30)
+  }, [filters, searchQuery])
 
   // React Query implementation
   const { data: machinesData, isLoading, error } = useQuery({
@@ -638,10 +672,11 @@ export default function CompareClientPage({
     return sortProducts(filteredProducts);
   }, [filteredProducts, isLoading, sortProducts]);
 
-  // Create a final sorted array that's guaranteed to be sorted just before rendering
+  // Create a final sorted array with lazy loading applied
   const finalSortedProducts = React.useMemo(() => {
-    return displayProducts;
-  }, [displayProducts]);
+    // Only show up to visibleCount items
+    return displayProducts.slice(0, visibleCount);
+  }, [displayProducts, visibleCount]);
   
   // Initial load of products
   useEffect(() => {
@@ -842,11 +877,10 @@ export default function CompareClientPage({
                 />
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">{filteredProducts.length}</span> 
+                    <span className="font-medium text-foreground">{filteredProducts.length}</span>
                     <span className="ml-1">
                       {filteredProducts.length === 1 ? 'machine' : 'machines'}
                     </span>
-                    {isLoading && <span className="ml-2 text-primary animate-pulse">Updating...</span>}
                   </span>
                 </div>
               </div>
@@ -881,6 +915,30 @@ export default function CompareClientPage({
                         <EnhancedComparisonTable 
                           machines={finalSortedProducts} 
                         />
+                      </div>
+                    )}
+                    
+                    {/* Lazy Loading Trigger */}
+                    {visibleCount < filteredProducts.length && (
+                      <div 
+                        ref={loadMoreRef}
+                        className="mt-8 py-8 flex justify-center items-center"
+                      >
+                        <div className="flex flex-col items-center space-y-2">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
+                          <p className="text-sm text-muted-foreground">
+                            Showing {visibleCount} of {filteredProducts.length} machines
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* All items shown indicator */}
+                    {visibleCount >= filteredProducts.length && filteredProducts.length > 30 && (
+                      <div className="mt-8 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          All {filteredProducts.length} machines shown
+                        </p>
                       </div>
                     )}
                   </>

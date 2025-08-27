@@ -443,6 +443,7 @@ export function MachineUrlScraper({
           { value: 'Diode', label: 'Diode' },
           { value: 'CO2', label: 'CO2' },
           { value: 'Fiber', label: 'Fiber' },
+          { value: 'MOPA', label: 'MOPA' },
           { value: 'Galvo', label: 'Galvo' },
           { value: 'UV', label: 'UV' },
           { value: 'Other', label: 'Other' }

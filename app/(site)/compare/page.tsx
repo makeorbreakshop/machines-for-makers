@@ -37,7 +37,8 @@ export default async function ComparePage() {
     `)
     .eq("Hidden", false)
     .not('Published On', 'is', null)  // Only show published machines
-    .limit(150)
+    .order('"Rating"', { ascending: false, nullsFirst: false })
+    .order('"Machine Name"', { ascending: true })
   ])
 
   return (

@@ -43,8 +43,8 @@ export default function ProductsGrid({
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
         {products.map((product) => {
-          // Format price with commas
-          const formattedPrice = product["Price"] ? `$${product["Price"].toLocaleString()}` : "N/A"
+          // Round up to nearest dollar and format price with commas
+          const formattedPrice = product["Price"] ? `$${Math.ceil(product["Price"]).toLocaleString()}` : "N/A"
           const selected = isSelected(product.id)
 
           return (

@@ -1427,6 +1427,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                                     <SelectItem value="Diode">Diode</SelectItem>
                                     <SelectItem value="CO2">CO2</SelectItem>
                                     <SelectItem value="Fiber">Fiber</SelectItem>
+                                    <SelectItem value="MOPA">MOPA</SelectItem>
                                     <SelectItem value="Galvo">Galvo</SelectItem>
                                     <SelectItem value="UV">UV</SelectItem>
                                     <SelectItem value="Other">Other</SelectItem>
@@ -1471,6 +1472,7 @@ export function MachineForm({ machine, categories, brands }: MachineFormProps) {
                                     <SelectItem value="Diode">Diode</SelectItem>
                                     <SelectItem value="CO2">CO2</SelectItem>
                                     <SelectItem value="Fiber">Fiber</SelectItem>
+                                    <SelectItem value="MOPA">MOPA</SelectItem>
                                     <SelectItem value="Galvo">Galvo</SelectItem>
                                     <SelectItem value="UV">UV</SelectItem>
                                     <SelectItem value="Other">Other</SelectItem>
