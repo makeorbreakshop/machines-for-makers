@@ -598,3 +598,11 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Identified months of systematic variant selection errors affecting 20-30% of price changes, restored proper extraction logic
 - **Technical**: force_dynamic flag now overrides Scrapfly skip logic, EMP table column 5→6 fix, domain variable undefined error resolved
 - **Key Discovery**: Scrapfly JS rendering ≠ correct variant selection - dynamic interaction still required for accurate pricing
+
+### 2025-08-27: Dashboard Analytics Implementation & Funnel Attribution Bug Discovery
+- **Issue**: Dashboard showing zeros instead of real data (437 subscribers), Web/Lead clicks charts using fake/placeholder data
+- **Solution**: Complete dashboard rewrite using existing analytics APIs, implemented real chart data processing for all three tabs
+- **Impact**: Dashboard now displays real metrics matching analytics tab quality - Email signups (15 today/437 total), Lead clicks, Web traffic from GA
+- **Technical**: Client-side API integration, processEmailChartData/processClicksChartData functions, Google Analytics daily data with date format conversion
+- **Key Features**: Three-tab chart system (Email Signups, Lead Clicks, Web Traffic), real-time data from Supabase + Google Analytics, proper loading states
+- **Critical Bug**: Discovered campaign attribution showing identical signup numbers across different lead magnets (impossible data duplication)

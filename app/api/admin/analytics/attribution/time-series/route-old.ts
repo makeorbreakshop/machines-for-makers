@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     });
 
     let data: any[] = [];
-    let sourceKeys: Set<string> = new Set();
+    const sourceKeys: Set<string> = new Set();
 
     if (metricType === 'clicks') {
       // Fetch clicks data

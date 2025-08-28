@@ -98,6 +98,7 @@ interface AnalyticsData {
       name: string;
       slug: string;
       icon: string;
+      shareOfTotal?: string;
       color: string;
       landingPageUrl: string;
       clicks: number;
@@ -126,6 +127,17 @@ interface AnalyticsData {
         conversions: number;
         clicks: number;
       }>;
+      campaigns?: Array<{
+        utm_campaign: string;
+        utm_source: string;
+        utm_medium: string;
+        metadata: Record<string, any>;
+        clicks: number;
+        signups: number;
+        confirmed: number;
+        signupShare: string;
+        clickShare: string;
+      }>;
     }>;
     trendData?: {
       materialLibrary: Array<{
@@ -153,6 +165,17 @@ interface AnalyticsData {
         conversionRate: number;
       };
     };
+    campaigns?: Array<{
+      utm_campaign: string;
+      utm_source: string;
+      utm_medium: string;
+      metadata: Record<string, any>;
+      clicks: number;
+      signups: number;
+      confirmed: number;
+      signupShare: string;
+      clickShare: string;
+    }>;
     totals?: {
       clicks: number;
       pageViews: number;
@@ -1244,85 +1267,86 @@ export default function AnalyticsContent() {
                               </CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
-                            {!funnel.convertingLinks || funnel.convertingLinks.length === 0 ? (
-                              <div className="text-center py-8 text-sm text-muted-foreground">
-                                No conversions tracked yet for this funnel
-                              </div>
-                            ) : (
-                              <div className="overflow-x-auto">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow className="hover:bg-transparent border-b">
-                                      <TableHead className="font-medium w-[35%]">Campaign Source</TableHead>
-                                      <TableHead className="font-medium w-[15%]">Channel</TableHead>
-                                      <TableHead className="font-medium text-center w-[12%]">Clicks</TableHead>
-                                      <TableHead className="font-medium text-center w-[12%]">Conversions</TableHead>
-                                      <TableHead className="font-medium text-center w-[10%]">Rate</TableHead>
-                                      <TableHead className="font-medium text-right w-[16%]">Link</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                  {funnel.convertingLinks.map((link) => {
-                                    const conversionRate = link.clicks > 0 
-                                      ? ((link.conversions / link.clicks) * 100).toFixed(1)
-                                      : '0.0';
+                            {(() => {
+                              // Use campaigns specific to this funnel
+                              const relevantCampaigns = funnel.campaigns || [];
+
+                              if (relevantCampaigns.length === 0) {
+                                return (
+                                  <div className="text-center py-8 text-sm text-muted-foreground">
+                                    No campaigns tracked for this lead magnet yet
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="overflow-x-auto">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="hover:bg-transparent border-b">
+                                        <TableHead className="font-medium w-[30%]">Campaign Source</TableHead>
+                                        <TableHead className="font-medium text-center w-[12%]">Clicks</TableHead>
+                                        <TableHead className="font-medium text-center w-[12%]">Click Share</TableHead>
+                                        <TableHead className="font-medium text-center w-[12%]">Signups</TableHead>
+                                        <TableHead className="font-medium text-center w-[12%]">Signup Share</TableHead>
+                                        <TableHead className="font-medium w-[10%]">Channel</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                    {relevantCampaigns.map((campaign) => {
                                     
                                     return (
-                                      <TableRow key={link.slug} className="hover:bg-muted/30 border-b last:border-0">
+                                      <TableRow key={campaign.utm_campaign} className="hover:bg-muted/30 border-b last:border-0">
                                         <TableCell className="py-3">
                                           <div className="flex items-center gap-2">
-                                            {sourceIconMap[link.utm_source || 'direct'] || <Link2 className="h-4 w-4 text-muted-foreground" />}
+                                            {sourceIconMap[campaign.utm_source || 'direct'] || <Link2 className="h-4 w-4 text-muted-foreground" />}
                                             <div className="min-w-0">
                                               <p className="font-medium text-sm">
-                                                {getHumanReadableSource(link)}
+                                                {campaign.metadata?.video_title || campaign.utm_campaign}
                                               </p>
-                                              {link.utm_content && (
-                                                <p className="text-xs text-muted-foreground">
-                                                  {link.utm_content}
-                                                </p>
-                                              )}
+                                              <p className="text-xs text-muted-foreground">
+                                                {campaign.utm_campaign}
+                                              </p>
                                             </div>
                                           </div>
                                         </TableCell>
-                                        <TableCell className="py-3">
-                                          <Badge variant="secondary" className="text-xs">
-                                            {link.utm_medium || 'direct'}
+                                        <TableCell className="text-center tabular-nums py-3">
+                                          {campaign.clicks}
+                                        </TableCell>
+                                        <TableCell className="text-center py-3">
+                                          <Badge 
+                                            variant="outline"
+                                            className="text-xs tabular-nums min-w-[50px] inline-flex justify-center"
+                                          >
+                                            {campaign.clickShare}%
                                           </Badge>
                                         </TableCell>
                                         <TableCell className="text-center tabular-nums py-3">
-                                          {link.clicks}
-                                        </TableCell>
-                                        <TableCell className="text-center tabular-nums py-3">
                                           <span className="font-semibold text-green-600">
-                                            {link.conversions}
+                                            {campaign.signups}
                                           </span>
                                         </TableCell>
                                         <TableCell className="text-center py-3">
                                           <Badge 
-                                            variant={parseFloat(conversionRate) > 5 ? 'default' : 'secondary'}
-                                            className="text-xs tabular-nums min-w-[60px] inline-flex justify-center"
+                                            variant="secondary"
+                                            className="text-xs tabular-nums min-w-[50px] inline-flex justify-center"
                                           >
-                                            {conversionRate}%
+                                            {campaign.signupShare}%
                                           </Badge>
                                         </TableCell>
-                                        <TableCell className="text-right py-3">
-                                          <a
-                                            href={`/go/${link.slug}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-                                          >
-                                            /go/{link.slug.slice(-12)}
-                                            <ExternalLink className="h-3 w-3" />
-                                          </a>
+                                        <TableCell className="py-3">
+                                          <Badge variant="outline" className="text-xs capitalize">
+                                            {campaign.utm_medium || 'direct'}
+                                          </Badge>
                                         </TableCell>
                                       </TableRow>
                                     );
-                                  })}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            )}
+                                    })}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              );
+                            })()}
                             </CardContent>
                           </Card>
                         </div>

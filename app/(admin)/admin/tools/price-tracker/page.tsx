@@ -1856,7 +1856,7 @@ export default function PriceTrackerAdmin() {
   }
   
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex flex-col h-full">
       <Script 
         src="/admin/tools/price-tracker/price-tracker-api.js"
         onLoad={handleScriptLoad}
@@ -2310,17 +2310,24 @@ export default function PriceTrackerAdmin() {
         </DialogContent>
       </Dialog>
       
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">Price Tracker Admin</h1>
-        <Button onClick={updateAllPrices}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Update All Prices
-        </Button>
+      {/* Header */}
+      <div className="bg-white border-b px-6 py-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Price Tracker Admin</h1>
+            <p className="text-gray-500 mt-1">
+              Manage and test the price tracking feature. You can update prices manually or view price history.
+            </p>
+          </div>
+          <Button onClick={updateAllPrices}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Update All Prices
+          </Button>
+        </div>
       </div>
-      
-      <p className="text-gray-500">
-        Manage and test the price tracking feature. You can update prices manually or view price history.
-      </p>
+
+      {/* Main Content */}
+      <div className="flex-1 px-6 py-6 overflow-auto">
       
       <Tabs defaultValue="machines" value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -2332,7 +2339,7 @@ export default function PriceTrackerAdmin() {
         </TabsList>
         
         <TabsContent value="machines" className="space-y-4">
-          <Card className="col-span-3">
+          <Card className="w-full">
             <CardHeader className="space-y-4">
               <CardTitle>Machines</CardTitle>
               <CardDescription>
@@ -2377,7 +2384,7 @@ export default function PriceTrackerAdmin() {
         </TabsContent>
         
         <TabsContent value="recent">
-          <Card className={emailGenerationMode ? "border-blue-500 shadow-lg" : ""}>
+          <Card className={`w-full ${emailGenerationMode ? "border-blue-500 shadow-lg" : ""}`}>
             <CardHeader className={emailGenerationMode ? "border-b-2 border-blue-500" : ""}>
               <div className="flex items-center justify-between">
                 <div>
@@ -2999,7 +3006,7 @@ export default function PriceTrackerAdmin() {
         </TabsContent>
         
         <TabsContent value="batch-jobs">
-          <Card>
+          <Card className="w-full">
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
@@ -3106,7 +3113,7 @@ export default function PriceTrackerAdmin() {
         </TabsContent>
         
         <TabsContent value="preview">
-          <Card>
+          <Card className="w-full">
             <CardHeader>
               <CardTitle>Chart Preview</CardTitle>
               <CardDescription>
@@ -3140,7 +3147,7 @@ export default function PriceTrackerAdmin() {
         <TabsContent value="email-template">
           <div className="space-y-6">
             {/* Deal Selection Section */}
-            <Card>
+            <Card className="w-full">
               <CardHeader>
                 <CardTitle>Email Deal Selection</CardTitle>
                 <CardDescription>
@@ -3336,7 +3343,7 @@ export default function PriceTrackerAdmin() {
             
             {/* Email Preview Section */}
             {emailHtml && (
-              <Card>
+              <Card className="w-full">
                 <CardHeader>
                   <CardTitle>Email Preview</CardTitle>
                   <CardDescription>
@@ -3497,6 +3504,7 @@ export default function PriceTrackerAdmin() {
           </div>
         </TabsContent>
       </Tabs>
+      </div>
 
       {/* COMPLETELY REBUILT PRICE CORRECTION DIALOG */}
       {correctionDialogOpen && (

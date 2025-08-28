@@ -49,10 +49,8 @@ export default function AdminLayout({
                   <LogoutButton />
                 </div>
               </header>
-              <main className="flex-1 p-6 md:p-8">
-                <div className="mx-auto max-w-7xl">
-                  {children}
-                </div>
+              <main className="flex-1">
+                {children}
               </main>
             </div>
           </div>

@@ -1,0 +1,217 @@
+'use client';
+
+import { CalculatorState, CalculatedMetrics } from '../lib/calculator-types';
+import { CalculatorDashboard } from './calculator-dashboard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Target } from 'lucide-react';
+import { useState } from 'react';
+import { Level1Setup } from './level-1-setup';
+
+interface CalculatorWrapperProps {
+  state: CalculatorState;
+  metrics: CalculatedMetrics;
+  actions: {
+    updateMonthlyGoal: (goal: number) => void;
+    addProduct: (product: any) => string;
+    updateProduct: (id: string, updates: any) => void;
+    removeProduct: (id: string) => void;
+    updateHourlyRate: (rate: number) => void;
+    updateOptimizedPrice: (productId: string, price: number) => void;
+    updateBusinessMode: (mode: 'hobby' | 'side' | 'business') => void;
+    toggleBusinessCost: (cost: any) => void;
+    updateBusinessCost: (costId: string, updates: any) => void;
+    setUserInfo: (email: string, name: string) => void;
+    resetCalculator: () => void;
+  };
+}
+
+export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapperProps) {
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [activeTab, setActiveTab] = useState('products');
+  
+  const formatCurrency = (amount: number) => 
+    new Intl.NumberFormat('en-US', { 
+      style: 'currency', 
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+
+  const safeGrossProfit = isNaN(metrics.totalGrossProfit) || !isFinite(metrics.totalGrossProfit) 
+    ? 0 
+    : metrics.totalGrossProfit;
+    
+  const safeGoalPercentage = isNaN(metrics.goalAchievementPercentage) || !isFinite(metrics.goalAchievementPercentage) 
+    ? 0 
+    : metrics.goalAchievementPercentage;
+
+  const renderTabContent = (tab: string) => {
+    switch (tab) {
+      case 'products':
+        return (
+          <Level1Setup
+            state={state}
+            metrics={metrics}
+            onUpdateGoal={actions.updateMonthlyGoal}
+            onAddProduct={actions.addProduct}
+            onUpdateProduct={actions.updateProduct}
+            onRemoveProduct={actions.removeProduct}
+            onUpdateHourlyRate={actions.updateHourlyRate}
+            onComplete={() => setActiveTab('business')}
+          />
+        );
+      case 'business':
+        return (
+          <div className="space-y-8">
+            <div className="text-center py-12">
+              <h2 className="text-2xl font-semibold mb-4">Business Costs</h2>
+              <p className="text-muted-foreground">Coming soon - configure your business overhead expenses</p>
+            </div>
+          </div>
+        );
+      case 'optimize':
+        return (
+          <div className="space-y-8">
+            <div className="text-center py-12">
+              <h2 className="text-2xl font-semibold mb-4">Price Optimization</h2>
+              <p className="text-muted-foreground">Coming soon - optimize pricing strategies</p>
+            </div>
+          </div>
+        );
+      case 'projections':
+        return (
+          <div className="space-y-8">
+            <div className="text-center py-12">
+              <h2 className="text-2xl font-semibold mb-4">Business Projections</h2>
+              <p className="text-muted-foreground">Coming soon - scenario planning and projections</p>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      {/* Monthly Goal Progress Bar */}
+      <div className="bg-muted/30 border-b border-border">
+        <div className="max-w-6xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Goal:</span>
+              {isEditingGoal ? (
+                <Input
+                  type="number"
+                  value={state.monthlyGoal}
+                  onChange={(e) => actions.updateMonthlyGoal(parseInt(e.target.value) || 0)}
+                  onBlur={() => setIsEditingGoal(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === 'Escape') {
+                      setIsEditingGoal(false);
+                    }
+                  }}
+                  className="w-24 h-7 text-sm"
+                  autoFocus
+                />
+              ) : (
+                <Button
+                  variant="ghost"
+                  onClick={() => setIsEditingGoal(true)}
+                  className="h-7 px-2 text-sm font-medium hover:bg-transparent"
+                >
+                  {formatCurrency(state.monthlyGoal)}
+                </Button>
+              )}
+            </div>
+            
+            <div className="flex-1 flex items-center gap-4">
+              <div className="flex-1">
+                <Progress 
+                  value={safeGoalPercentage} 
+                  className="h-3"
+                  style={{
+                    '--progress-background': safeGoalPercentage >= 100 
+                      ? 'hsl(142 71% 45%)' 
+                      : safeGoalPercentage >= 75 
+                        ? 'hsl(142 69% 58%)' 
+                        : safeGoalPercentage >= 50 
+                          ? 'hsl(var(--primary))' 
+                          : 'hsl(25 95% 53%)'
+                  } as React.CSSProperties}
+                />
+                {/* Overflow pulse effect when past 100% */}
+                {safeGoalPercentage > 100 && (
+                  <div className="absolute inset-0 bg-green-500/20 rounded-full animate-pulse" />
+                )}
+              </div>
+              
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-muted-foreground font-mono">
+                  {formatCurrency(safeGrossProfit)} current
+                </span>
+                <span className={`font-medium ${
+                  safeGoalPercentage >= 100 
+                    ? 'text-green-600' 
+                    : safeGoalPercentage >= 75 
+                      ? 'text-green-500' 
+                      : 'text-foreground'
+                }`}>
+                  {Math.round(safeGoalPercentage)}%
+                  {safeGoalPercentage >= 100 && (
+                    <span className="ml-1 text-green-600">🎯</span>
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+          {/* Tab Navigation */}
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="products">Products</TabsTrigger>
+            <TabsTrigger value="business">Business</TabsTrigger>
+            <TabsTrigger value="optimize">Optimize</TabsTrigger>
+            <TabsTrigger value="projections">Projections</TabsTrigger>
+          </TabsList>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Main Content Area */}
+            <div className="lg:col-span-2">
+              <TabsContent value="products" className="mt-0">
+                {renderTabContent('products')}
+              </TabsContent>
+              <TabsContent value="business" className="mt-0">
+                {renderTabContent('business')}
+              </TabsContent>
+              <TabsContent value="optimize" className="mt-0">
+                {renderTabContent('optimize')}
+              </TabsContent>
+              <TabsContent value="projections" className="mt-0">
+                {renderTabContent('projections')}
+              </TabsContent>
+            </div>
+            
+            {/* Sidebar Dashboard - Consistent Across All Tabs */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-8">
+                <CalculatorDashboard
+                  metrics={metrics}
+                  monthlyGoal={state.monthlyGoal}
+                  products={state.products}
+                />
+              </div>
+            </div>
+          </div>
+        </Tabs>
+      </div>
+    </>
+  );
+}
