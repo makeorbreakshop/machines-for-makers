@@ -19,6 +19,7 @@ interface PriceDrop {
   percentageChange: number;
   dropDate: string;
   isAllTimeLow: boolean;
+  isNewAllTimeLow: boolean;
   productLink: string;
   affiliateLink?: string;
   imageUrl?: string;
@@ -59,7 +60,7 @@ export function PriceDropsContent() {
     
     try {
       const params = new URLSearchParams({
-        days: '30',
+        days: '14',
         limit: '50'
       });
 
@@ -102,6 +103,20 @@ export function PriceDropsContent() {
           break;
         case 'discount':
           sorted.sort((a, b) => direction * (Math.abs(a.percentageChange) - Math.abs(b.percentageChange)));
+          break;
+        case 'allTimeLow':
+          sorted.sort((a, b) => {
+            // Define sort priority for descending: New Record = 0, Previous Low = 1, No Badge = 2
+            const getPriority = (drop: PriceDrop) => {
+              if (!drop.isAllTimeLow) return 2;
+              return drop.isNewAllTimeLow ? 0 : 1;
+            };
+            
+            const priorityA = getPriority(a);
+            const priorityB = getPriority(b);
+            
+            return direction * (priorityA - priorityB);
+          });
           break;
         case 'when':
           sorted.sort((a, b) => direction * (new Date(a.dropDate).getTime() - new Date(b.dropDate).getTime()));
@@ -283,6 +298,12 @@ export function PriceDropsContent() {
                     Discount {sortColumn === 'discount' && (sortDirection === 'asc' ? '↑' : '↓')}
                   </th>
                   <th 
+                    className="text-center p-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
+                    onClick={() => handleColumnSort('allTimeLow')}
+                  >
+                    Type {sortColumn === 'allTimeLow' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
                     className="text-left p-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
                     onClick={() => handleColumnSort('when')}
                   >
@@ -308,7 +329,7 @@ export function PriceDropsContent() {
       {!loading && !error && drops.length >= 50 && (
         <div className="text-center">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Showing top {filteredDrops.length} deals from the last 30 days.
+            Showing top {filteredDrops.length} deals from the last 14 days.
           </p>
         </div>
       )}

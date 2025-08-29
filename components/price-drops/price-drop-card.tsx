@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, TrendingDown, Award } from 'lucide-react';
+import { Calendar, TrendingDown, Trophy } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ interface PriceDropCardProps {
     percentageChange: number;
     dropDate: string;
     isAllTimeLow: boolean;
+    isNewAllTimeLow: boolean;
     productLink: string;
     affiliateLink?: string;
     imageUrl?: string;
@@ -61,13 +62,16 @@ export function PriceDropCard({ drop }: PriceDropCardProps) {
 
   return (
     <div className="group relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-200 dark:border-gray-700">
-      {/* All Time Low Badge Only */}
+      {/* All-Time Low Badge */}
       {drop.isAllTimeLow && (
         <div className="absolute top-2 right-2 z-10">
-          <Badge className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-sm font-semibold text-xs px-2.5 py-1">
-            <Award className="w-3 h-3 mr-1" />
-            All Time Low
-          </Badge>
+          <div className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+            drop.isNewAllTimeLow 
+              ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' 
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+          }`}>
+            {drop.isNewAllTimeLow ? 'New Record' : 'Previous Low'}
+          </div>
         </div>
       )}
 

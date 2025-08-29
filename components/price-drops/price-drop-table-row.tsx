@@ -20,6 +20,7 @@ interface PriceDropTableRowProps {
     percentageChange: number;
     dropDate: string;
     isAllTimeLow: boolean;
+    isNewAllTimeLow: boolean;
     productLink: string;
     affiliateLink?: string;
     imageUrl?: string;
@@ -97,14 +98,22 @@ export function PriceDropTableRow({ drop }: PriceDropTableRowProps) {
 
       {/* Discount */}
       <td className="p-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{savingsPercentage.toFixed(0)}%</span>
-          {drop.isAllTimeLow && (
-            <Badge className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs px-1.5 py-0.5">
-              <Award className="w-3 h-3" />
-            </Badge>
-          )}
-        </div>
+        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{savingsPercentage.toFixed(0)}%</span>
+      </td>
+
+      {/* All Time Low */}
+      <td className="p-2 text-center">
+        {drop.isAllTimeLow ? (
+          <div className={`text-xs font-medium px-2 py-1 rounded-full inline-block ${
+            drop.isNewAllTimeLow 
+              ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' 
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+          }`}>
+            {drop.isNewAllTimeLow ? 'New Record' : 'Previous Low'}
+          </div>
+        ) : (
+          <span className="text-gray-400">-</span>
+        )}
       </td>
 
       {/* When */}

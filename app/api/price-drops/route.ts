@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
         percentageChange,
         dropDate: drop.date,
         isAllTimeLow: drop.is_all_time_low,
+        isNewAllTimeLow: false, // Will be computed in batch below
         productLink: drop.product_link,
         affiliateLink: drop.affiliate_link,
         imageUrl: drop.image_url,
@@ -64,6 +65,9 @@ export async function GET(request: NextRequest) {
       Math.abs(drop.percentageChange) >= 1.0 &&
       drop.currentPrice <= drop.historicalCurrentPrice * 1.01 // Allow 1% tolerance for minor price fluctuations
     );
+
+    // Batch compute new ATL status for ATL deals
+    priceDrops = await computeNewATLStatus(priceDrops, supabase);
 
 
     // Apply additional minimum discount filter if provided
@@ -103,4 +107,65 @@ function getDropType(percentageChange: number, isAllTimeLow: boolean): string {
   if (percentageChange <= -20) return 'major_drop';
   if (percentageChange <= -10) return 'significant_drop';
   return 'price_drop';
+}
+
+// Batch compute new ATL status for all ATL deals
+async function computeNewATLStatus(priceDrops: any[], supabase: any): Promise<any[]> {
+  if (!supabase) return priceDrops;
+  
+  try {
+    // Only check ATL deals
+    const atlDeals = priceDrops.filter(drop => drop.isAllTimeLow);
+    
+    if (atlDeals.length === 0) return priceDrops;
+    
+    // Get unique machine IDs
+    const machineIds = [...new Set(atlDeals.map(drop => drop.machineId))];
+    
+    // Get complete price history for all relevant machines
+    const { data: allPriceHistory, error } = await supabase
+      .from('price_history')
+      .select('machine_id, price, date')
+      .in('machine_id', machineIds)
+      .order('machine_id, date', { ascending: true });
+    
+    if (error || !allPriceHistory) {
+      console.error('Error fetching price history:', error);
+      return priceDrops;
+    }
+    
+    // Group by machine
+    const priceHistoryByMachine = allPriceHistory.reduce((acc, record) => {
+      if (!acc[record.machine_id]) acc[record.machine_id] = [];
+      acc[record.machine_id].push(record);
+      return acc;
+    }, {} as Record<string, any[]>);
+    
+    // Update ATL deals with new ATL status
+    return priceDrops.map(drop => {
+      if (!drop.isAllTimeLow) return drop;
+      
+      const machineHistory = priceHistoryByMachine[drop.machineId] || [];
+      const currentPriceNum = parseFloat(drop.historicalCurrentPrice);
+      const currentDate = new Date(drop.dropDate);
+      
+      // Get all prices before this date
+      const previousPrices = machineHistory
+        .filter(record => new Date(record.date) < currentDate)
+        .map(record => parseFloat(record.price));
+      
+      // If no previous prices, this is the first record = new ATL
+      if (previousPrices.length === 0) {
+        return { ...drop, isNewAllTimeLow: true };
+      }
+      
+      // Check if current price is lower than ALL previous prices (with $1 tolerance)
+      const isNewATL = previousPrices.every(prevPrice => currentPriceNum < (prevPrice - 1));
+      
+      return { ...drop, isNewAllTimeLow: isNewATL };
+    });
+  } catch (error) {
+    console.error('Error computing new ATL status:', error);
+    return priceDrops;
+  }
 }
