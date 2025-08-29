@@ -53,22 +53,6 @@ export default async function PriceDropsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      {/* Hero without email signup - this is for subscribers only */}
-      <div className="w-full">
-        <div className="max-w-4xl mx-auto px-6 py-6">
-          <div className="text-center mb-4">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
-              All Current Deals
-            </h1>
-            <p className="text-base text-gray-600 dark:text-gray-300">
-              {stats && (
-                <>{stats.totalDrops} deals from the last 14 days with ${stats.averageSavings.toLocaleString()} average savings</>
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-      
       <div className="container mx-auto px-4 py-6 max-w-7xl">
         <Suspense fallback={<PriceDropsSkeleton />}>
           <PriceDropsContent />

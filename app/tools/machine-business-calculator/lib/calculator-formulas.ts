@@ -1,10 +1,63 @@
-import { Product, BusinessCost, CalculatedMetrics, CalculatorState } from './calculator-types';
+import { Product, BusinessCost, CalculatedMetrics, CalculatorState, PlatformFee, MarketingState } from './calculator-types';
+
+export function calculatePlatformFees(product: Product): {
+  blendedFeeRate: number;
+  totalFeesPerUnit: number;
+  platformBreakdown: Array<{
+    platformName: string;
+    feeRate: number;
+    salesPercentage: number;
+    unitsOnPlatform: number;
+    feesPerUnit: number;
+  }>;
+} {
+  const platformFees = product.platformFees || [];
+  
+  if (platformFees.length === 0) {
+    return {
+      blendedFeeRate: 0,
+      totalFeesPerUnit: 0,
+      platformBreakdown: []
+    };
+  }
+
+  // Normalize percentages to add up to 100%
+  const totalPercentage = platformFees.reduce((sum, fee) => sum + fee.salesPercentage, 0);
+  const normalizedFees = platformFees.map(fee => ({
+    ...fee,
+    salesPercentage: totalPercentage > 0 ? (fee.salesPercentage / totalPercentage) * 100 : 0
+  }));
+
+  // Calculate blended fee rate
+  const blendedFeeRate = normalizedFees.reduce((sum, fee) => 
+    sum + (fee.feePercentage * fee.salesPercentage / 100), 0
+  );
+
+  // Calculate fees per unit
+  const totalFeesPerUnit = (product.sellingPrice || 0) * (blendedFeeRate / 100);
+
+  // Calculate platform breakdown
+  const platformBreakdown = normalizedFees.map(fee => ({
+    platformName: fee.name,
+    feeRate: fee.feePercentage,
+    salesPercentage: fee.salesPercentage,
+    unitsOnPlatform: Math.round((product.monthlyUnits || 0) * (fee.salesPercentage / 100)),
+    feesPerUnit: (product.sellingPrice || 0) * (fee.feePercentage / 100)
+  }));
+
+  return {
+    blendedFeeRate,
+    totalFeesPerUnit,
+    platformBreakdown
+  };
+}
 
 export function calculateProductMetrics(product: Product, globalHourlyRate: number = 0): {
   totalTimeMinutes: number;
   totalTimeHours: number;
   totalCosts: number;
   laborCosts: number;
+  platformFees: number;
   grossProfit: number;
   profitMargin: number;
   hourlyRate: number;
@@ -21,7 +74,12 @@ export function calculateProductMetrics(product: Product, globalHourlyRate: numb
   const totalTimeHours = totalTimeMinutes / 60;
   const laborCosts = totalTimeHours * globalHourlyRate;
   const materialCosts = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
-  const totalCosts = materialCosts + laborCosts;
+  
+  // Calculate platform fees
+  const platformFeeCalc = calculatePlatformFees(product);
+  const platformFees = platformFeeCalc.totalFeesPerUnit;
+  
+  const totalCosts = materialCosts + laborCosts + platformFees;
   const grossProfit = (product.sellingPrice || 0) - totalCosts;
   const profitMargin = product.sellingPrice > 0 ? grossProfit / product.sellingPrice : 0;
   const hourlyRate = totalTimeHours > 0 ? grossProfit / totalTimeHours : 0;
@@ -31,13 +89,66 @@ export function calculateProductMetrics(product: Product, globalHourlyRate: numb
     totalTimeHours,
     totalCosts,
     laborCosts,
+    platformFees,
     grossProfit,
     profitMargin,
     hourlyRate
   };
 }
 
-export function calculateProductRevenue(product: Product, globalHourlyRate: number = 0): {
+export function calculateMarketingMetrics(marketing: MarketingState): {
+  totalMonthlySpend: number;
+  averageCAC: number;
+  totalPaidUnits: number;
+  organicUnits: number;
+  blendedCAC: number;
+  marketingROI: number;
+  costPerChannel: { [channelId: string]: number };
+} {
+  if (!marketing || !marketing.channels) {
+    return {
+      totalMonthlySpend: 0,
+      averageCAC: 0,
+      totalPaidUnits: 0,
+      organicUnits: marketing?.organicUnitsPerMonth || 0,
+      blendedCAC: 0,
+      marketingROI: 0,
+      costPerChannel: {}
+    };
+  }
+
+  const activeChannels = marketing.channels.filter(c => c.isActive);
+  const totalMonthlySpend = activeChannels.reduce((sum, c) => sum + c.monthlySpend, 0);
+  const totalPaidUnits = activeChannels.reduce((sum, c) => sum + c.unitsPerMonth, 0);
+  const organicUnits = marketing.organicUnitsPerMonth || 0;
+  
+  // Weighted average CAC across all paid channels
+  const averageCAC = totalPaidUnits > 0 ? totalMonthlySpend / totalPaidUnits : 0;
+  
+  // Blended CAC including organic units (marketing spend / all units)
+  const totalUnits = totalPaidUnits + organicUnits;
+  const blendedCAC = totalUnits > 0 ? totalMonthlySpend / totalUnits : 0;
+  
+  // Simple ROI calculation (would need revenue data for real ROI)
+  const marketingROI = totalMonthlySpend > 0 ? (totalPaidUnits * 50) / totalMonthlySpend : 0; // Assuming $50 avg profit per unit
+  
+  const costPerChannel = activeChannels.reduce((acc, channel) => {
+    acc[channel.id] = channel.costPerUnit;
+    return acc;
+  }, {} as { [channelId: string]: number });
+
+  return {
+    totalMonthlySpend,
+    averageCAC,
+    totalPaidUnits,
+    organicUnits,
+    blendedCAC,
+    marketingROI,
+    costPerChannel
+  };
+}
+
+export function calculateProductRevenue(product: Product, globalHourlyRate: number = 0, blendedCAC: number = 0): {
   monthlyRevenue: number;
   monthlyCosts: number;
   monthlyGrossProfit: number;
@@ -49,6 +160,8 @@ export function calculateProductRevenue(product: Product, globalHourlyRate: numb
     shipping: number;
     other: number;
     labor: number;
+    platformFees: number;
+    marketing: number;
   };
 } {
   // Handle both old and new product structures safely
@@ -67,7 +180,15 @@ export function calculateProductRevenue(product: Product, globalHourlyRate: numb
   const totalTimeHours = totalTimeMinutes / 60;
   const laborCostPerUnit = totalTimeHours * globalHourlyRate;
   const materialCostPerUnit = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
-  const totalUnitCosts = materialCostPerUnit + laborCostPerUnit;
+  
+  // Calculate platform fees per unit
+  const platformFeeCalc = calculatePlatformFees(product);
+  const platformFeesPerUnit = platformFeeCalc.totalFeesPerUnit;
+  
+  // Add marketing cost per unit (CAC)
+  const marketingCostPerUnit = blendedCAC || 0;
+  
+  const totalUnitCosts = materialCostPerUnit + laborCostPerUnit + platformFeesPerUnit + marketingCostPerUnit;
   const monthlyCosts = monthlyUnits * totalUnitCosts;
   const monthlyGrossProfit = monthlyRevenue - monthlyCosts;
   
@@ -80,6 +201,8 @@ export function calculateProductRevenue(product: Product, globalHourlyRate: numb
     shipping: monthlyUnits * (costs.shipping || 0),
     other: monthlyUnits * (costs.other || 0),
     labor: monthlyUnits * laborCostPerUnit,
+    platformFees: monthlyUnits * platformFeesPerUnit,
+    marketing: monthlyUnits * marketingCostPerUnit,
   };
   
   return {
@@ -116,10 +239,14 @@ export function calculateComprehensiveMetrics(state: CalculatorState): Calculate
   let totalMonthlyRevenue = 0;
   let totalMonthlyCosts = 0;
 
+  // Calculate marketing metrics first to get blended CAC
+  const marketingMetrics = calculateMarketingMetrics(state.marketing);
+  const blendedCAC = marketingMetrics.blendedCAC;
+
   // Calculate metrics for each product based on their monthly units
   state.products.forEach(product => {
     const productMetric = calculateProductMetrics(product, state.hourlyRate);
-    const revenueMetric = calculateProductRevenue(product, state.hourlyRate);
+    const revenueMetric = calculateProductRevenue(product, state.hourlyRate, blendedCAC);
     
     productMetrics[product.id] = {
       ...productMetric,
@@ -147,9 +274,11 @@ export function calculateComprehensiveMetrics(state: CalculatorState): Calculate
 
   return {
     productMetrics,
+    marketingMetrics,
     totalMonthlyUnits,
     totalMonthlyHours,
     totalMonthlyCosts,
+    totalMarketingCosts: marketingMetrics.totalMonthlySpend,
     totalGrossProfit,
     totalNetProfit,
     averageHourlyRate,

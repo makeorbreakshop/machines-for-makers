@@ -1,3 +1,10 @@
+export interface PlatformFee {
+  id: string;
+  name: string;          // Platform name (Etsy, Amazon, Direct, etc.)
+  feePercentage: number; // Fee percentage (e.g., 6.5 for Etsy)
+  salesPercentage: number; // Percentage of sales on this platform (e.g., 80)
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -17,7 +24,30 @@ export interface Product {
     finishing: number;    // minutes
     packaging: number;    // minutes
   };
+  platformFees: PlatformFee[]; // Platform fees for this product
   showCostBreakdown?: boolean; // For progressive disclosure
+  showTimeBreakdown?: boolean; // For progressive disclosure
+  showPlatformFees?: boolean;  // For progressive disclosure
+  isEditingName?: boolean;     // For inline name editing
+}
+
+export interface MarketingChannel {
+  id: string;
+  name: string;
+  monthlySpend: number;
+  conversionRate: number; // percentage: leads to sales
+  unitsPerMonth: number;  // calculated or estimated sales from this channel
+  costPerUnit: number;    // CAC for this channel
+  isActive: boolean;
+}
+
+export interface MarketingState {
+  totalMonthlySpend: number;
+  channels: MarketingChannel[];
+  overallCAC: number;      // weighted average CAC across all channels
+  totalUnitsFromMarketing: number;
+  organicUnitsPerMonth: number; // sales without paid marketing
+  organicPercentage: number;    // what % of sales come organically
 }
 
 export interface BusinessCost {
@@ -26,7 +56,7 @@ export interface BusinessCost {
   type: 'percentage' | 'fixed';
   value: number;
   description: string;
-  category: 'fees' | 'taxes' | 'insurance' | 'equipment' | 'workspace' | 'marketing' | 'professional';
+  category: 'fees' | 'taxes' | 'insurance' | 'equipment' | 'workspace' | 'professional';
 }
 
 export interface Strategy {
@@ -49,14 +79,15 @@ export interface CalculatorState {
   // Level 2 - Time Reality
   hourlyRate: number;
   
-  // Level 3 - Price Optimization
-  optimizedPrices: { [productId: string]: number };
+  // Level 3 - Marketing & CAC
+  marketing: MarketingState;
   
   // Level 4 - Business Costs
   businessMode: 'hobby' | 'side' | 'business';
   selectedCosts: BusinessCost[];
   
-  // Level 5 - Solutions
+  // Level 5 - Projections & Optimization
+  optimizedPrices: { [productId: string]: number };
   recommendedStrategy: Strategy | null;
   
   // Meta
@@ -88,20 +119,85 @@ export interface CalculatedMetrics {
         shipping: number;
         other: number;
         labor: number;
+        platformFees: number;
+        marketing: number; // CAC allocation per unit
       };
     };
+  };
+  
+  // Marketing metrics
+  marketingMetrics: {
+    totalMonthlySpend: number;
+    averageCAC: number;
+    totalPaidUnits: number;
+    organicUnits: number;
+    blendedCAC: number; // Total marketing spend / Total units
+    marketingROI: number;
+    costPerChannel: { [channelId: string]: number };
   };
   
   // Combined totals
   totalMonthlyUnits: number;
   totalMonthlyHours: number;
   totalMonthlyCosts: number;
+  totalMarketingCosts: number;
   totalGrossProfit: number;
   totalNetProfit: number;
   averageHourlyRate: number;
   totalBusinessCosts: number;
   goalAchievementPercentage: number;
 }
+
+export const DEFAULT_PLATFORM_PRESETS = [
+  { name: 'Direct Sales', feePercentage: 0 },
+  { name: 'Etsy', feePercentage: 6.5 },
+  { name: 'Amazon Handmade', feePercentage: 15 },
+  { name: 'Shopify', feePercentage: 2.9 },
+  { name: 'Square', feePercentage: 2.6 },
+  { name: 'PayPal', feePercentage: 3.49 },
+  { name: 'Craft Shows', feePercentage: 0 },
+  { name: 'Facebook/Instagram', feePercentage: 5 },
+  { name: 'Other', feePercentage: 0 }
+];
+
+export const DEFAULT_MARKETING_CHANNELS: MarketingChannel[] = [
+  {
+    id: 'facebook-ads',
+    name: 'Facebook/Instagram Ads',
+    monthlySpend: 300,
+    conversionRate: 2.5, // 2.5% of people who see ads buy
+    unitsPerMonth: 0, // calculated
+    costPerUnit: 0, // calculated CAC
+    isActive: true
+  },
+  {
+    id: 'google-ads', 
+    name: 'Google Ads',
+    monthlySpend: 200,
+    conversionRate: 3.5,
+    unitsPerMonth: 0,
+    costPerUnit: 0,
+    isActive: false
+  },
+  {
+    id: 'craft-shows',
+    name: 'Craft Shows',
+    monthlySpend: 400, // booth fees, travel
+    conversionRate: 15, // higher in-person conversion
+    unitsPerMonth: 0,
+    costPerUnit: 0,
+    isActive: false
+  },
+  {
+    id: 'direct-outreach',
+    name: 'Direct Outreach',
+    monthlySpend: 50, // mostly time/email costs
+    conversionRate: 8,
+    unitsPerMonth: 0,
+    costPerUnit: 0,
+    isActive: false
+  }
+];
 
 export const DEFAULT_BUSINESS_COSTS: BusinessCost[] = [
   {
@@ -153,14 +249,6 @@ export const DEFAULT_BUSINESS_COSTS: BusinessCost[] = [
     category: 'insurance'
   },
   {
-    id: 'marketing-budget',
-    name: 'Marketing Budget',
-    type: 'percentage',
-    value: 10,
-    description: 'Advertising, photography, promotional materials',
-    category: 'marketing'
-  },
-  {
     id: 'professional-services',
     name: 'Professional Services',
     type: 'fixed',
@@ -189,7 +277,15 @@ export const DEFAULT_PRODUCT_TEMPLATES = [
       machine: 10,
       finishing: 5,
       packaging: 5
-    }
+    },
+    platformFees: [
+      {
+        id: 'direct-default',
+        name: 'Direct Sales',
+        feePercentage: 0,
+        salesPercentage: 100
+      }
+    ]
   },
   {
     name: '3D Printed Parts',
@@ -209,7 +305,15 @@ export const DEFAULT_PRODUCT_TEMPLATES = [
       machine: 120,
       finishing: 15,
       packaging: 5
-    }
+    },
+    platformFees: [
+      {
+        id: 'direct-default',
+        name: 'Direct Sales',
+        feePercentage: 0,
+        salesPercentage: 100
+      }
+    ]
   },
   {
     name: 'CNC Machined Parts',
@@ -229,7 +333,15 @@ export const DEFAULT_PRODUCT_TEMPLATES = [
       machine: 60,
       finishing: 20,
       packaging: 10
-    }
+    },
+    platformFees: [
+      {
+        id: 'direct-default',
+        name: 'Direct Sales',
+        feePercentage: 0,
+        salesPercentage: 100
+      }
+    ]
   },
   {
     name: 'Custom Signage',
@@ -249,6 +361,14 @@ export const DEFAULT_PRODUCT_TEMPLATES = [
       machine: 15,
       finishing: 10,
       packaging: 10
-    }
+    },
+    platformFees: [
+      {
+        id: 'direct-default',
+        name: 'Direct Sales',
+        feePercentage: 0,
+        salesPercentage: 100
+      }
+    ]
   }
 ];

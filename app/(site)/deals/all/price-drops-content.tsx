@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { PriceDropCard } from '@/components/price-drops/price-drop-card';
 import { PriceDropTableRow } from '@/components/price-drops/price-drop-table-row';
 import { Button } from '@/components/ui/button';
@@ -31,14 +32,25 @@ interface PriceDrop {
 }
 
 const defaultFilters = {
-  sortBy: 'recent'
+  sortBy: 'recent',
+  days: 14
 };
 
 export function PriceDropsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Initialize filters from URL params
+  const initialFilters = {
+    ...defaultFilters,
+    days: parseInt(searchParams.get('days') || '14'),
+    sortBy: searchParams.get('sort') || 'recent'
+  };
+  
   const [drops, setDrops] = useState<PriceDrop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState(defaultFilters);
+  const [filters, setFilters] = useState(initialFilters);
   const [filteredDrops, setFilteredDrops] = useState<PriceDrop[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortColumn, setSortColumn] = useState<string>('savings');
@@ -60,7 +72,7 @@ export function PriceDropsContent() {
     
     try {
       const params = new URLSearchParams({
-        days: '14',
+        days: filters.days.toString(),
         limit: '50'
       });
 
@@ -77,7 +89,7 @@ export function PriceDropsContent() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters.days]);
 
   // Sort drops
   useEffect(() => {
@@ -106,7 +118,7 @@ export function PriceDropsContent() {
           break;
         case 'allTimeLow':
           sorted.sort((a, b) => {
-            // Define sort priority for descending: New Record = 0, Previous Low = 1, No Badge = 2
+            // Define sort priority for descending: New Low = 0, Previous Low = 1, No Badge = 2
             const getPriority = (drop: PriceDrop) => {
               if (!drop.isAllTimeLow) return 2;
               return drop.isNewAllTimeLow ? 0 : 1;
@@ -158,8 +170,26 @@ export function PriceDropsContent() {
     fetchDrops();
   }, [fetchDrops]);
 
+  // Update URL when filters change
+  const updateURL = useCallback((newFilters: typeof filters) => {
+    const params = new URLSearchParams();
+    if (newFilters.days !== 14) params.set('days', newFilters.days.toString());
+    if (newFilters.sortBy !== 'recent') params.set('sort', newFilters.sortBy);
+    
+    const newURL = params.toString() ? `?${params.toString()}` : '';
+    router.replace(newURL, { scroll: false });
+  }, [router]);
+
   const handleSortChange = (value: string) => {
-    setFilters(prev => ({ ...prev, sortBy: value }));
+    const newFilters = { ...filters, sortBy: value };
+    setFilters(newFilters);
+    updateURL(newFilters);
+  };
+
+  const handleDaysChange = (value: string) => {
+    const newFilters = { ...filters, days: parseInt(value) };
+    setFilters(newFilters);
+    updateURL(newFilters);
   };
 
   const handleColumnSort = (column: string) => {
@@ -178,10 +208,36 @@ export function PriceDropsContent() {
     <div className="space-y-6 px-4 sm:px-6 lg:px-8">
       {/* Header with results count and sort */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h2 className="text-xl font-semibold">
-          {loading ? 'Loading deals...' : `${filteredDrops.length} Deals Found`}
-        </h2>
-        <div className="flex items-center gap-2">
+        <div>
+          <h2 className="text-xl font-semibold">
+            {loading ? 'Loading deals...' : `${filteredDrops.length} Deals Found`}
+          </h2>
+          {!loading && filteredDrops.length > 0 && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              From the last {filters.days} day{filters.days > 1 ? 's' : ''} • ${Math.round(filteredDrops.reduce((sum, drop) => sum + Math.abs(drop.priceChange), 0) / filteredDrops.length).toLocaleString()} avg savings
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Date Filter - First */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Show:</span>
+            <Select value={filters.days.toString()} onValueChange={handleDaysChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 Day</SelectItem>
+                <SelectItem value="7">7 Days</SelectItem>
+                <SelectItem value="14">14 Days</SelectItem>
+                <SelectItem value="30">30 Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+          
           {/* View Toggle */}
           <div className="flex border rounded-md overflow-hidden">
             <Button
@@ -210,20 +266,22 @@ export function PriceDropsContent() {
             </Button>
           </div>
           
-          <span className="text-sm text-gray-600 dark:text-gray-400">Sort by:</span>
-          <Select value={filters.sortBy} onValueChange={handleSortChange}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recent">Most Recent</SelectItem>
-              <SelectItem value="discount-percent">Biggest Discount %</SelectItem>
-              <SelectItem value="discount-amount">Biggest Savings $</SelectItem>
-              <SelectItem value="all-time-lows">All-Time Lows</SelectItem>
-              <SelectItem value="price-low">Lowest Price</SelectItem>
-              <SelectItem value="price-high">Highest Price</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Sort by:</span>
+            <Select value={filters.sortBy} onValueChange={handleSortChange}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">Most Recent</SelectItem>
+                <SelectItem value="discount-percent">Biggest Discount %</SelectItem>
+                <SelectItem value="discount-amount">Biggest Savings $</SelectItem>
+                <SelectItem value="all-time-lows">All-Time Lows</SelectItem>
+                <SelectItem value="price-low">Lowest Price</SelectItem>
+                <SelectItem value="price-high">Highest Price</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -329,7 +387,7 @@ export function PriceDropsContent() {
       {!loading && !error && drops.length >= 50 && (
         <div className="text-center">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Showing top {filteredDrops.length} deals from the last 14 days.
+            Showing top {filteredDrops.length} deals from the last {filters.days} day{filters.days > 1 ? 's' : ''}.
           </p>
         </div>
       )}

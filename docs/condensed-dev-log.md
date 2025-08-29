@@ -606,3 +606,10 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Technical**: Client-side API integration, processEmailChartData/processClicksChartData functions, Google Analytics daily data with date format conversion
 - **Key Features**: Three-tab chart system (Email Signups, Lead Clicks, Web Traffic), real-time data from Supabase + Google Analytics, proper loading states
 - **Critical Bug**: Discovered campaign attribution showing identical signup numbers across different lead magnets (impossible data duplication)
+
+### 2025-08-28: Machine Business Calculator UI Enhancements
+- **Issue**: Calculator interface cluttered with too many fields, user wanted business costs tab improvements (remove summary card, fix number mismatch)
+- **Solution**: Progressive disclosure UI redesign + business costs data synchronization fixes + navigation button removal
+- **Impact**: Clean professional interface with simplified core fields, accurate sidebar synchronization, removed unwanted UI elements
+- **Technical**: Horizontal layout with collapsible cost breakdown, useEffect data flow (Level4BusinessCosts → CalculatorWrapper → CalculatorDashboard), removed navigation buttons
+- **Key Features**: Simplified 4-field core interface (Product/Price/Units/Cost), hidden advanced breakdown, real-time business expenses synchronization between components

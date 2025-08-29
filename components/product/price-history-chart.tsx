@@ -87,12 +87,12 @@ export function PriceHistoryChart({
             fromDate = subMonths(new Date(), 6)
         }
         
-        // Fetch price history from Supabase - only approved/applied prices
+        // Fetch price history from Supabase - include manual corrections
         let query = supabase
           .from('price_history')
           .select('*')
           .eq('machine_id', machineId)
-          .in('status', ['AUTO_APPLIED', 'APPROVED', 'SUCCESS']) // Only show approved prices
+          .in('status', ['AUTO_APPLIED', 'APPROVED', 'SUCCESS', 'MANUAL_CORRECTION']) // Include manual corrections
           .order('date', { ascending: true })
         
         if (fromDate) {
@@ -111,18 +111,8 @@ export function PriceHistoryChart({
         console.log('Data length:', data?.length)
         
         if (!data || data.length === 0) {
-          // If no historical data, create data points for the last 30 days to show a trend
-          const dataPoints = []
-          const today = new Date()
-          for (let i = 29; i >= 0; i--) {
-            const date = new Date(today)
-            date.setDate(date.getDate() - i)
-            dataPoints.push({
-              date: date.toISOString(),
-              price: Number(currentPrice),
-            })
-          }
-          setPriceHistory(dataPoints)
+          // If no historical data, show message instead of fake data
+          setPriceHistory([])
           setStatsData({
             avgPrice: currentPrice,
             minPrice: currentPrice,
@@ -131,11 +121,12 @@ export function PriceHistoryChart({
           })
           setHasLimitedData(true)
         } else {
-          // Group data by date to handle multiple prices per day
+          // Keep all price records to show real price movement
+          // Group by date but preserve important price changes
           const groupedByDate = data.reduce((acc, item) => {
-            const dateStr = new Date(item.date).toDateString()
-            if (!acc[dateStr] || new Date(item.date) > new Date(acc[dateStr].date)) {
-              // Keep the latest entry for each date
+            const dateStr = new Date(item.date).toISOString().split('T')[0] // Use YYYY-MM-DD format
+            if (!acc[dateStr] || Math.abs(parseFloat(item.price) - parseFloat(acc[dateStr].price)) > 0.01) {
+              // Keep the latest entry OR if price changed significantly
               acc[dateStr] = item
             }
             return acc
@@ -167,26 +158,7 @@ export function PriceHistoryChart({
           const originalDataCount = data.length
           setHasLimitedData(originalDataCount <= 2)
           
-          // If we have very few data points (less than 3), pad with current price to show a trend
-          if (formattedData.length < 3) {
-            const lastDate = formattedData.length > 0 ? new Date(formattedData[formattedData.length - 1].date) : new Date()
-            const today = new Date()
-            
-            // Add points up to today if we don't have recent data
-            const daysDiff = Math.floor((today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
-            if (daysDiff > 1) {
-              for (let i = 1; i <= Math.min(daysDiff, 7); i++) {
-                const date = new Date(lastDate)
-                date.setDate(date.getDate() + i)
-                if (date <= today) {
-                  formattedData.push({
-                    date: date.toISOString(),
-                    price: Number(currentPrice),
-                  })
-                }
-              }
-            }
-          }
+          // Don't pad with artificial data - show real data only
           
           // Debug final formatted data
           console.log('Final formatted price history data:', formattedData)
@@ -312,11 +284,16 @@ export function PriceHistoryChart({
       </div>
       
       <div className="h-32 sm:h-36 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={priceHistory}
-            margin={{ top: 5, right: 15, left: 15, bottom: 5 }}
-          >
+        {priceHistory.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+            No price history available for selected timeframe
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={priceHistory}
+              margin={{ top: 5, right: 15, left: 15, bottom: 5 }}
+            >
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
             <XAxis 
               dataKey="date" 
@@ -354,8 +331,9 @@ export function PriceHistoryChart({
                 }} 
               />
             )}
-          </LineChart>
-        </ResponsiveContainer>
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   ) : (
@@ -428,11 +406,19 @@ export function PriceHistoryChart({
       
       <CardContent>
         <div className="h-48 sm:h-56 lg:h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={priceHistory}
-              margin={{ top: 10, right: 20, left: 20, bottom: 5 }}
-            >
+          {priceHistory.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <div className="text-center">
+                <p className="text-lg mb-2">No Price History Available</p>
+                <p className="text-sm">Try selecting a different time range or check back later.</p>
+              </div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={priceHistory}
+                margin={{ top: 10, right: 20, left: 20, bottom: 5 }}
+              >
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
               <XAxis 
                 dataKey="date" 
@@ -470,8 +456,9 @@ export function PriceHistoryChart({
                   }} 
                 />
               )}
-            </LineChart>
-          </ResponsiveContainer>
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </CardContent>
     </Card>

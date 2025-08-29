@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { AdminPageWrapper } from '@/components/admin/admin-page-wrapper';
 
 interface LeadMagnet {
   id: string;
@@ -131,20 +132,16 @@ export function LeadMagnetsContent({ initialLeadMagnets }: LeadMagnetsContentPro
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Lead Magnets</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your lead magnets and conversion funnels
-          </p>
-        </div>
+    <AdminPageWrapper
+      title="Lead Magnets"
+      description="Manage your lead magnets and conversion funnels"
+      action={
         <Button onClick={() => router.push('/admin/lead-magnets/new')}>
           <Plus className="h-4 w-4 mr-2" />
           Add Lead Magnet
         </Button>
-      </div>
+      }
+    >
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -311,6 +308,6 @@ export function LeadMagnetsContent({ initialLeadMagnets }: LeadMagnetsContentPro
           </Table>
         </CardContent>
       </Card>
-    </div>
+    </AdminPageWrapper>
   );
 }

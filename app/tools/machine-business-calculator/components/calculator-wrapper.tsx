@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Target } from 'lucide-react';
 import { useState } from 'react';
 import { Level1Setup } from './level-1-setup';
+import { Level3Marketing } from './level-3-marketing';
+import { Level4BusinessCosts } from './level-4-business-costs';
 
 interface CalculatorWrapperProps {
   state: CalculatorState;
@@ -19,6 +21,7 @@ interface CalculatorWrapperProps {
     updateProduct: (id: string, updates: any) => void;
     removeProduct: (id: string) => void;
     updateHourlyRate: (rate: number) => void;
+    updateMarketing: (updates: any) => void;
     updateOptimizedPrice: (productId: string, price: number) => void;
     updateBusinessMode: (mode: 'hobby' | 'side' | 'business') => void;
     toggleBusinessCost: (cost: any) => void;
@@ -31,6 +34,7 @@ interface CalculatorWrapperProps {
 export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapperProps) {
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
+  const [currentBusinessExpenses, setCurrentBusinessExpenses] = useState(null);
   
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('en-US', { 
@@ -60,17 +64,31 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             onUpdateProduct={actions.updateProduct}
             onRemoveProduct={actions.removeProduct}
             onUpdateHourlyRate={actions.updateHourlyRate}
+            onComplete={() => setActiveTab('marketing')}
+          />
+        );
+      case 'marketing':
+        return (
+          <Level3Marketing
+            state={state}
+            metrics={metrics}
+            onUpdateMarketing={actions.updateMarketing}
             onComplete={() => setActiveTab('business')}
+            onBack={() => setActiveTab('products')}
           />
         );
       case 'business':
         return (
-          <div className="space-y-8">
-            <div className="text-center py-12">
-              <h2 className="text-2xl font-semibold mb-4">Business Costs</h2>
-              <p className="text-muted-foreground">Coming soon - configure your business overhead expenses</p>
-            </div>
-          </div>
+          <Level4BusinessCosts
+            state={state}
+            metrics={metrics}
+            onUpdateBusinessMode={actions.updateBusinessMode}
+            onToggleBusinessCost={actions.toggleBusinessCost}
+            onUpdateBusinessCost={actions.updateBusinessCost}
+            onComplete={() => setActiveTab('projections')}
+            onBack={() => setActiveTab('marketing')}
+            onBusinessExpensesChange={setCurrentBusinessExpenses}
+          />
         );
       case 'optimize':
         return (
@@ -177,8 +195,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
           {/* Tab Navigation */}
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="products">Products</TabsTrigger>
+            <TabsTrigger value="marketing">Marketing</TabsTrigger>
             <TabsTrigger value="business">Business</TabsTrigger>
-            <TabsTrigger value="optimize">Optimize</TabsTrigger>
             <TabsTrigger value="projections">Projections</TabsTrigger>
           </TabsList>
 
@@ -187,6 +205,9 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             <div className="lg:col-span-2">
               <TabsContent value="products" className="mt-0">
                 {renderTabContent('products')}
+              </TabsContent>
+              <TabsContent value="marketing" className="mt-0">
+                {renderTabContent('marketing')}
               </TabsContent>
               <TabsContent value="business" className="mt-0">
                 {renderTabContent('business')}
@@ -206,6 +227,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                   metrics={metrics}
                   monthlyGoal={state.monthlyGoal}
                   products={state.products}
+                  activeTab={activeTab}
+                  businessExpenses={currentBusinessExpenses}
                 />
               </div>
             </div>

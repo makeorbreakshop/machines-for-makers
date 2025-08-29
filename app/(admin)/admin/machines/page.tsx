@@ -8,6 +8,7 @@ import type { Database as DbType } from "@/lib/database-types"
 import { requireAdminAuth } from "@/lib/auth-utils"
 import { Suspense } from "react"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { AdminPageWrapper } from "@/components/admin/admin-page-wrapper"
 
 // Force dynamic to prevent static generation and ensure fresh data
 export const dynamic = 'force-dynamic'
@@ -86,21 +87,18 @@ export default async function MachinesPage() {
   }))
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Machines</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage all machine listings in the database
-          </p>
-        </div>
+    <AdminPageWrapper
+      title="Machines"
+      description="Manage all machine listings in the database"
+      action={
         <Link href="/admin/machines/new">
-          <Button className="w-full md:w-auto">
+          <Button>
             <Plus className="h-4 w-4 mr-2" />
             Add Machine
           </Button>
         </Link>
-      </div>
+      }
+    >
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -117,6 +115,6 @@ export default async function MachinesPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AdminPageWrapper>
   )
 }

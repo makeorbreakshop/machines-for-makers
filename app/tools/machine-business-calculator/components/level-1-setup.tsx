@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Plus, X, DollarSign, ArrowRight } from 'lucide-react';
-import { CalculatorState, CalculatedMetrics, DEFAULT_PRODUCT_TEMPLATES } from '../lib/calculator-types';
-import { calculateProductMetrics } from '../lib/calculator-formulas';
+import { Plus, X, DollarSign, ArrowRight, Store, Package, Clock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CalculatorState, CalculatedMetrics, DEFAULT_PRODUCT_TEMPLATES, DEFAULT_PLATFORM_PRESETS, PlatformFee } from '../lib/calculator-types';
+import { calculateProductMetrics, calculatePlatformFees } from '../lib/calculator-formulas';
 
 interface Level1SetupProps {
   state: CalculatorState;
@@ -42,6 +43,14 @@ export function Level1Setup({
       maximumFractionDigits: 0
     }).format(amount);
 
+  const formatCurrencyPrecise = (amount: number) => 
+    new Intl.NumberFormat('en-US', { 
+      style: 'currency', 
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+
   const addProductFromTemplate = (template: typeof DEFAULT_PRODUCT_TEMPLATES[0]) => {
     onAddProduct({
       name: template.name,
@@ -71,7 +80,15 @@ export function Level1Setup({
         machine: 0,
         finishing: 0,
         packaging: 0
-      }
+      },
+      platformFees: [
+        {
+          id: 'direct-default',
+          name: 'Direct Sales',
+          feePercentage: 0,
+          salesPercentage: 100
+        }
+      ]
     });
   };
 
@@ -142,7 +159,18 @@ export function Level1Setup({
         ) : (
           <div className="space-y-4">
             {state.products.map((product, index) => {
-              const productMetrics = calculateProductMetrics(product, state.hourlyRate || 0);
+              // Ensure product has proper platform fees setup
+              const ensuredPlatformFees = product.platformFees && product.platformFees.length > 0 
+                ? product.platformFees 
+                : [{ id: 'direct-default', name: 'Direct Sales', feePercentage: 0, salesPercentage: 100 }];
+              
+              // If platform fees were missing, update the product
+              if (!product.platformFees || product.platformFees.length === 0) {
+                onUpdateProduct(product.id, { platformFees: ensuredPlatformFees });
+              }
+              
+              const productWithFees = { ...product, platformFees: ensuredPlatformFees };
+              const productMetrics = calculateProductMetrics(productWithFees, state.hourlyRate || 0);
               const costs = product.costs || { materials: 0, finishing: 0, packaging: 0, shipping: 0, other: 0 };
               const timeBreakdown = product.timeBreakdown || { design: 0, setup: 0, machine: 0, finishing: 0, packaging: 0 };
               const totalCosts = productMetrics.totalCosts; // Use calculated total that includes labor
@@ -194,7 +222,7 @@ export function Level1Setup({
                                     ? 'text-destructive' 
                                     : 'text-muted-foreground'
                               }`}>
-                                {formatCurrency(unitProfit)}
+                                {formatCurrencyPrecise(unitProfit)}
                               </div>
                             </div>
                             
@@ -238,11 +266,11 @@ export function Level1Setup({
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-sm font-medium">Cost</Label>
+                            <Label className="text-sm font-medium">Total Cost</Label>
                             <Input
                               type="number"
                               step="0.01"
-                              value={editingCosts[product.id] ?? Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0)}
+                              value={editingCosts[product.id] ?? totalCosts.toFixed(2)}
                               onChange={(e) => {
                                 setEditingCosts(prev => ({
                                   ...prev,
@@ -250,19 +278,25 @@ export function Level1Setup({
                                 }));
                               }}
                               onBlur={(e) => {
-                                const newTotal = parseFloat(e.target.value) || 0;
+                                const newTotalCost = parseFloat(e.target.value) || 0;
                                 const currentCosts = { ...costs };
                                 
-                                // Calculate minimum required (all costs except 'other')
+                                // Calculate current non-material costs (labor + platform fees)
+                                const nonMaterialCosts = totalCosts - Object.values(currentCosts).reduce((sum, cost) => sum + (cost || 0), 0);
+                                
+                                // The new material cost total should be the new total minus non-material costs
+                                const newMaterialTotal = Math.max(0, newTotalCost - nonMaterialCosts);
+                                
+                                // Calculate minimum required material costs (all costs except 'other')
                                 const requiredMinimum = Object.entries(currentCosts)
                                   .filter(([key]) => key !== 'other')
                                   .reduce((sum, [, value]) => sum + (value || 0), 0);
                                 
                                 // If trying to go below required minimum, set to minimum
-                                const actualTotal = Math.max(newTotal, requiredMinimum);
+                                const actualMaterialTotal = Math.max(newMaterialTotal, requiredMinimum);
                                 
                                 // Set 'other' to make up the difference
-                                const otherAmount = actualTotal - requiredMinimum;
+                                const otherAmount = actualMaterialTotal - requiredMinimum;
                                 
                                 onUpdateProduct(product.id, { 
                                   costs: { 
@@ -287,12 +321,14 @@ export function Level1Setup({
                             />
                             {/* Show minimum cost info */}
                             {(() => {
-                              const requiredMinimum = Object.entries(costs)
+                              const materialMinimum = Object.entries(costs)
                                 .filter(([key]) => key !== 'other')
                                 .reduce((sum, [, value]) => sum + (value || 0), 0);
-                              return requiredMinimum > 0 ? (
+                              const nonMaterialCosts = totalCosts - Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
+                              const totalMinimum = materialMinimum + nonMaterialCosts;
+                              return totalMinimum > 0 ? (
                                 <p className="text-xs text-muted-foreground">
-                                  Minimum: {formatCurrency(requiredMinimum)} (based on itemized costs)
+                                  Minimum: {formatCurrencyPrecise(totalMinimum)} (materials + labor + fees)
                                 </p>
                               ) : null;
                             })()}
@@ -305,7 +341,7 @@ export function Level1Setup({
                               monthlyProfit < 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : 
                               'bg-muted text-muted-foreground border-border'
                             }`}>
-                              {formatCurrency(monthlyProfit)}
+                              {formatCurrencyPrecise(monthlyProfit)}
                             </div>
                           </div>
                         </div>
@@ -322,9 +358,10 @@ export function Level1Setup({
                             className="w-full justify-between p-3 h-auto"
                           >
                             <div className="flex items-center gap-3">
+                              <Package className="h-4 w-4 text-muted-foreground" />
                               <h4 className="text-sm font-medium">Material Costs</h4>
                               <span className="text-sm font-medium text-muted-foreground">
-                                {formatCurrency(Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0))} total
+                                {formatCurrencyPrecise(Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0))} total
                               </span>
                             </div>
                             <span className="text-sm text-muted-foreground">
@@ -406,12 +443,13 @@ export function Level1Setup({
                               const currentlyExpanded = product.showTimeBreakdown || false;
                               onUpdateProduct(product.id, { showTimeBreakdown: !currentlyExpanded });
                             }}
-                            className="w-full justify-between p-3 h-auto bg-primary/5 hover:bg-primary/10"
+                            className="w-full justify-between p-3 h-auto"
                           >
                             <div className="flex items-center gap-3">
-                              <h4 className="text-sm font-medium">Time Tracking</h4>
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                              <h4 className="text-sm font-medium">Labor Costs</h4>
                               <span className="text-sm font-medium text-muted-foreground">
-                                {formatCurrency(productMetrics.laborCosts)} total ({productMetrics.totalTimeHours.toFixed(1)}h)
+                                {formatCurrencyPrecise(productMetrics.laborCosts)} total ({productMetrics.totalTimeHours.toFixed(1)}h)
                               </span>
                             </div>
                             <span className="text-sm text-muted-foreground">
@@ -422,7 +460,7 @@ export function Level1Setup({
                           {product.showTimeBreakdown && (
                             <div className="mt-3 space-y-3">
                               {/* Hourly Rate Setting */}
-                              <div className="bg-primary/5 rounded-lg p-3">
+                              <div className="bg-muted/30 rounded-lg p-3">
                                 <div className="flex items-center justify-between">
                                   <Label className="text-sm font-medium">Hourly Rate (applies to all products)</Label>
                                   <div className="flex items-center gap-2">
@@ -445,7 +483,7 @@ export function Level1Setup({
                               <div className="space-y-1">
                                 {Object.entries(timeBreakdown).map(([timeType, minutes]) => (
                                   minutes > 0 || product.showTimeBreakdown ? (
-                                    <div key={timeType} className="group flex items-center gap-3 py-2 px-3 hover:bg-primary/10 rounded-md">
+                                    <div key={timeType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                                       <Input
                                         value={timeType.charAt(0).toUpperCase() + timeType.slice(1)}
                                         onChange={(e) => {
@@ -501,6 +539,205 @@ export function Level1Setup({
                                   + Add Time Entry
                                 </Button>
                               </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Platform Fees Section */}
+                        <div>
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              const currentlyExpanded = product.showPlatformFees || false;
+                              onUpdateProduct(product.id, { showPlatformFees: !currentlyExpanded });
+                            }}
+                            className="w-full justify-between p-3 h-auto"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Store className="h-4 w-4 text-muted-foreground" />
+                              <h4 className="text-sm font-medium">Platform Fees</h4>
+                              <span className="text-sm font-medium text-muted-foreground">
+                                {(() => {
+                                  const platformFeeCalc = calculatePlatformFees(productWithFees);
+                                  return `${formatCurrencyPrecise(platformFeeCalc.totalFeesPerUnit)} fees per unit`;
+                                })()}
+                              </span>
+                            </div>
+                            <span className="text-sm text-muted-foreground">
+                              {product.showPlatformFees ? '−' : '+'}
+                            </span>
+                          </Button>
+
+                          {product.showPlatformFees && (
+                            <div className="mt-3 space-y-1">
+                              {/* Platform Fee Entries */}
+                              <div className="space-y-1">
+                                {ensuredPlatformFees.map((platformFee) => (
+                                  <div key={platformFee.id} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
+                                    <Input
+                                      value={platformFee.name}
+                                      onChange={(e) => {
+                                        const updatedPlatformFees = ensuredPlatformFees.map(pf =>
+                                          pf.id === platformFee.id 
+                                            ? { ...pf, name: e.target.value }
+                                            : pf
+                                        );
+                                        onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
+                                      }}
+                                      className="h-8 text-sm flex-1"
+                                      placeholder="Platform name"
+                                    />
+                                    <div className="relative w-24">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.1"
+                                        value={platformFee.feePercentage === 0 ? '' : platformFee.feePercentage}
+                                        onChange={(e) => {
+                                          const updatedPlatformFees = ensuredPlatformFees.map(pf =>
+                                            pf.id === platformFee.id 
+                                              ? { ...pf, feePercentage: parseFloat(e.target.value) || 0 }
+                                              : pf
+                                          );
+                                          onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
+                                        }}
+                                        className="pr-6 h-8 text-sm w-full"
+                                        placeholder="0"
+                                      />
+                                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
+                                        %
+                                      </span>
+                                    </div>
+                                    <div className="relative w-24">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        value={platformFee.salesPercentage === 0 ? '' : Math.round(platformFee.salesPercentage)}
+                                        onChange={(e) => {
+                                          const newPercentage = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                                          const platformFees = ensuredPlatformFees;
+                                          
+                                          if (platformFees.length === 1) {
+                                            // Single platform: allow any value, user controls it
+                                            const updatedPlatformFees = platformFees.map(pf =>
+                                              pf.id === platformFee.id 
+                                                ? { ...pf, salesPercentage: newPercentage }
+                                                : pf
+                                            );
+                                            onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
+                                          } else {
+                                            // Multiple platforms: adjust others proportionally
+                                            const otherFees = platformFees.filter(pf => pf.id !== platformFee.id);
+                                            const currentOtherTotal = otherFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                            
+                                            if (newPercentage >= 100) {
+                                              // If setting to 100%, set others to 0
+                                              const updatedPlatformFees = platformFees.map(pf => ({
+                                                ...pf,
+                                                salesPercentage: pf.id === platformFee.id ? 100 : 0
+                                              }));
+                                              onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
+                                            } else {
+                                              // Proportionally reduce others to fit
+                                              const remainingPercentage = 100 - newPercentage;
+                                              
+                                              const updatedPlatformFees = platformFees.map(pf => {
+                                                if (pf.id === platformFee.id) {
+                                                  return { ...pf, salesPercentage: newPercentage };
+                                                } else if (currentOtherTotal > 0) {
+                                                  // Scale down others proportionally to fit in remaining space
+                                                  const proportion = pf.salesPercentage / currentOtherTotal;
+                                                  return { ...pf, salesPercentage: remainingPercentage * proportion };
+                                                } else {
+                                                  // If others were all 0%, leave them at 0
+                                                  return pf;
+                                                }
+                                              });
+                                              onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
+                                            }
+                                          }
+                                        }}
+                                        className="pr-6 h-8 text-sm w-full"
+                                        placeholder="0"
+                                      />
+                                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
+                                        %
+                                      </span>
+                                    </div>
+                                    <div className="text-right w-16">
+                                      <span className="text-sm text-muted-foreground">
+                                        {Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100))} units
+                                      </span>
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        const currentPlatformFees = ensuredPlatformFees;
+                                        const remainingFees = currentPlatformFees.filter(pf => pf.id !== platformFee.id);
+                                        
+                                        if (remainingFees.length === 1) {
+                                          // Only one platform left: set to 100%
+                                          const updatedPlatformFees = remainingFees.map(pf => ({ ...pf, salesPercentage: 100 }));
+                                          onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
+                                        } else if (remainingFees.length > 1) {
+                                          // Multiple platforms left: redistribute the deleted platform's percentage proportionally
+                                          const deletedPercentage = platformFee.salesPercentage;
+                                          const remainingTotal = remainingFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                          
+                                          const updatedPlatformFees = remainingFees.map(pf => {
+                                            if (remainingTotal > 0) {
+                                              // Distribute deleted percentage proportionally
+                                              const proportion = pf.salesPercentage / remainingTotal;
+                                              return { ...pf, salesPercentage: pf.salesPercentage + (deletedPercentage * proportion) };
+                                            } else {
+                                              // If remaining had 0%, distribute equally
+                                              return { ...pf, salesPercentage: 100 / remainingFees.length };
+                                            }
+                                          });
+                                          onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
+                                        }
+                                      }}
+                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ))}
+                                
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => {
+                                    const currentPlatformFees = ensuredPlatformFees;
+                                    
+                                    // Always add new platform with 0% - user controls the distribution
+                                    const newPlatformFee: PlatformFee = {
+                                      id: `platform_${Date.now()}`,
+                                      name: '',
+                                      feePercentage: 0,
+                                      salesPercentage: 0
+                                    };
+                                    const updatedPlatformFees = [...currentPlatformFees, newPlatformFee];
+                                    onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
+                                  }}
+                                  className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
+                                >
+                                  + Add Platform
+                                </Button>
+                              </div>
+                              
+                              {(() => {
+                                const total = ensuredPlatformFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                return total !== 100 && total > 0 ? (
+                                  <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50/80 px-3 py-2 rounded-md border border-amber-200/50">
+                                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full"></div>
+                                    <span>Distribution totals {total}% (should be 100%)</span>
+                                  </div>
+                                ) : null;
+                              })()}
                             </div>
                           )}
                         </div>

@@ -158,10 +158,10 @@ export default function MachineBusinessCalculatorPage() {
                 <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
                   <span className="text-sm font-semibold text-gray-700">3</span>
                 </div>
-                <CardTitle className="text-lg text-gray-900">Price Optimization</CardTitle>
+                <CardTitle className="text-lg text-gray-900">Marketing & CAC</CardTitle>
               </div>
               <CardDescription className="text-gray-600">
-                Test different price points and find the sweet spot for profitability
+                Calculate customer acquisition costs and reveal the demand ceiling reality
               </CardDescription>
             </CardHeader>
           </Card>
@@ -173,10 +173,10 @@ export default function MachineBusinessCalculatorPage() {
                 <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
                   <span className="text-sm font-semibold text-gray-700">4</span>
                 </div>
-                <CardTitle className="text-lg text-gray-900">Business Costs</CardTitle>
+                <CardTitle className="text-lg text-gray-900">Business Overhead</CardTitle>
               </div>
               <CardDescription className="text-gray-600">
-                Account for taxes, fees, and hidden costs that eat into profits
+                Factor in taxes, insurance, and fixed costs - the scale monster reality
               </CardDescription>
             </CardHeader>
           </Card>
@@ -188,10 +188,10 @@ export default function MachineBusinessCalculatorPage() {
                 <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
                   <span className="text-sm font-semibold text-gray-700">5</span>
                 </div>
-                <CardTitle className="text-lg text-gray-900">Strategy Solutions</CardTitle>
+                <CardTitle className="text-lg text-gray-900">Pricing & Projections</CardTitle>
               </div>
               <CardDescription className="text-gray-600">
-                Get personalized strategies and a complete business plan export
+                Optimize pricing strategies with comprehensive business projections
               </CardDescription>
             </CardHeader>
           </Card>

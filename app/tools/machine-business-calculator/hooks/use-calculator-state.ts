@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CalculatorState, Product, BusinessCost, DEFAULT_BUSINESS_COSTS } from '../lib/calculator-types';
+import { CalculatorState, Product, BusinessCost, MarketingState, DEFAULT_BUSINESS_COSTS, DEFAULT_MARKETING_CHANNELS } from '../lib/calculator-types';
 
 const STORAGE_KEY = 'machine-business-calculator-state';
 
@@ -9,11 +9,19 @@ const createInitialState = (): CalculatorState => ({
   monthlyGoal: 5000,
   products: [],
   hourlyRate: 25,
-  optimizedPrices: {},
+  marketing: {
+    totalMonthlySpend: 300,
+    channels: [...DEFAULT_MARKETING_CHANNELS],
+    overallCAC: 0,
+    totalUnitsFromMarketing: 0,
+    organicUnitsPerMonth: 10,
+    organicPercentage: 50
+  },
   businessMode: 'side',
   selectedCosts: DEFAULT_BUSINESS_COSTS.filter(cost => 
     ['platform-fees', 'tax-reserve'].includes(cost.id)
   ),
+  optimizedPrices: {},
   recommendedStrategy: null,
   currentLevel: 1,
   completedLevels: [],
@@ -64,7 +72,15 @@ export function useCalculatorState() {
     const newProduct: Product = {
       ...product,
       id: `product-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      monthlyUnits: product.monthlyUnits || 10 // Default to 10 units if not specified
+      monthlyUnits: product.monthlyUnits || 10, // Default to 10 units if not specified
+      platformFees: product.platformFees || [
+        {
+          id: 'direct-default',
+          name: 'Direct Sales',
+          feePercentage: 0,
+          salesPercentage: 100
+        }
+      ]
     };
     setState(prev => ({
       ...prev,
@@ -152,6 +168,13 @@ export function useCalculatorState() {
     setState(prev => ({ ...prev, userEmail: email, userName: name }));
   }, []);
 
+  const updateMarketing = useCallback((updates: Partial<MarketingState>) => {
+    setState(prev => ({
+      ...prev,
+      marketing: { ...prev.marketing, ...updates }
+    }));
+  }, []);
+
   const resetCalculator = useCallback(() => {
     setState(createInitialState());
     try {
@@ -169,6 +192,7 @@ export function useCalculatorState() {
     updateProduct,
     removeProduct,
     updateHourlyRate,
+    updateMarketing,
     updateOptimizedPrice,
     updateBusinessMode,
     toggleBusinessCost,

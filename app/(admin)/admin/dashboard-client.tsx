@@ -25,6 +25,7 @@ import {
   Tooltip, 
   ResponsiveContainer
 } from 'recharts';
+import { AdminPageWrapper } from '@/components/admin/admin-page-wrapper';
 
 interface KPIMetric {
   label: string;
@@ -290,17 +291,14 @@ export default function DashboardClient() {
   // Loading state
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">Loading...</p>
-          </div>
-        </div>
+      <AdminPageWrapper
+        title="Dashboard"
+        description="Loading..."
+      >
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
-      </div>
+      </AdminPageWrapper>
     );
   }
 
@@ -372,16 +370,10 @@ export default function DashboardClient() {
   const chartData = combinedChartData.slice(-7); // Last 7 days
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            {now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
-        </div>
-      </div>
+    <AdminPageWrapper
+      title="Dashboard"
+      description={now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+    >
 
       {/* KPI Grid */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
@@ -547,6 +539,6 @@ export default function DashboardClient() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AdminPageWrapper>
   );
 }

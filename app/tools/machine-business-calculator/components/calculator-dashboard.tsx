@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Target, ChevronDown, ChevronRight, Clock, TrendingUp } from 'lucide-react';
+import { DollarSign, Target, ChevronDown, ChevronRight, Clock, TrendingUp, Calculator } from 'lucide-react';
 import { CalculatedMetrics } from '../lib/calculator-types';
 import { useState } from 'react';
 
@@ -9,9 +9,16 @@ interface CalculatorDashboardProps {
   metrics: CalculatedMetrics;
   monthlyGoal: number;
   products?: Array<{id: string; name: string}>; // Optional product names for display
+  activeTab?: string; // Current active tab
+  businessExpenses?: {
+    taxReserve: { rate: number };
+    physicalCosts: { items: Record<string, number> };
+    softwareCosts: { items: Record<string, number> };
+    equipmentFund: { rate: number };
+  };
 }
 
-export function CalculatorDashboard({ metrics, monthlyGoal, products }: CalculatorDashboardProps) {
+export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses }: CalculatorDashboardProps) {
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   
   // Safety check for metrics object
@@ -62,6 +69,27 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products }: Calculat
     : metrics.goalAchievementPercentage;
     
   const isPositiveProfit = safeGrossProfit > 0;
+
+  // Calculate business expenses using actual data if available, otherwise defaults
+  const monthlyRevenue = Object.values(metrics.productMetrics || {}).reduce(
+    (sum, product: any) => sum + (product.monthlyRevenue || 0), 0
+  );
+  
+  // Use actual business expenses if provided, otherwise defaults
+  const actualBusinessExpenses = businessExpenses || {
+    taxReserve: { rate: 30 },
+    physicalCosts: { items: { rent: 200, insurance: 75, utilities: 50 } },
+    softwareCosts: { items: { design_software: 50, accounting_software: 25 } },
+    equipmentFund: { rate: 8 }
+  };
+  
+  const taxCost = (safeGrossProfit * actualBusinessExpenses.taxReserve.rate) / 100;
+  const physicalCostsTotal = Object.values(actualBusinessExpenses.physicalCosts.items).reduce((sum, cost) => sum + cost, 0);
+  const softwareCostsTotal = Object.values(actualBusinessExpenses.softwareCosts.items).reduce((sum, cost) => sum + cost, 0);
+  const equipmentFundCost = (monthlyRevenue * actualBusinessExpenses.equipmentFund.rate) / 100;
+  const totalBusinessCosts = taxCost + physicalCostsTotal + softwareCostsTotal + equipmentFundCost;
+  const netProfit = safeGrossProfit - totalBusinessCosts;
+
 
   return (
     <div className="space-y-5">
@@ -164,6 +192,18 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products }: Calculat
                               <span className="font-mono">{formatCurrency(productMetric.costBreakdown.labor)}</span>
                             </div>
                           )}
+                          {(productMetric.costBreakdown?.platformFees || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Platform Fees</span>
+                              <span className="font-mono">{formatCurrency(productMetric.costBreakdown.platformFees)}</span>
+                            </div>
+                          )}
+                          {(productMetric.costBreakdown?.marketing || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Marketing (CAC)</span>
+                              <span className="font-mono">{formatCurrency(productMetric.costBreakdown.marketing)}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       
@@ -193,16 +233,25 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products }: Calculat
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Revenue</span>
                   <span className="font-mono font-medium">
-                    {formatCurrency(safeGrossProfit + (metrics.totalMonthlyCosts || 0))}
+                    {formatCurrency(safeGrossProfit + (metrics.totalMonthlyCosts || 0) + (metrics.totalMarketingCosts || 0))}
                   </span>
                 </div>
                 
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Costs</span>
+                  <span className="text-muted-foreground">Product Costs</span>
                   <span className="font-mono font-medium text-muted-foreground">
                     -{formatCurrency(metrics.totalMonthlyCosts || 0)}
                   </span>
                 </div>
+                
+                {(metrics.totalMarketingCosts || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Marketing Costs</span>
+                    <span className="font-mono font-medium text-muted-foreground">
+                      -{formatCurrency(metrics.totalMarketingCosts || 0)}
+                    </span>
+                  </div>
+                )}
                 
                 <div className="border-t border-border pt-3">
                   <div className="flex justify-between items-center">
@@ -220,13 +269,92 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products }: Calculat
                   <span>Rate: {formatCurrency(safeHourlyRate)}/hr</span>
                 </div>
                 
+                {activeTab === 'products' && (
+                  <div className="text-xs text-muted-foreground text-center mt-3">
+                    *Marketing & business costs added in next levels
+                  </div>
+                )}
+                {activeTab === 'marketing' && (
+                  <div className="text-xs text-muted-foreground text-center mt-3">
+                    *Business overhead costs added in next level
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+      {/* Business Expenses Section - Only show on Business tab */}
+      {activeTab === 'business' && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Calculator className="h-4 w-4 text-primary" />
+                <h3 className="text-lg font-medium">Business Expenses</h3>
+              </div>
+              
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tax Reserve ({actualBusinessExpenses.taxReserve.rate}%)</span>
+                  <span className="font-mono font-medium text-destructive">
+                    -{formatCurrency(taxCost)}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Physical Costs</span>
+                  <span className="font-mono font-medium text-destructive">
+                    -{formatCurrency(physicalCostsTotal)}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Software & Tools</span>
+                  <span className="font-mono font-medium text-destructive">
+                    -{formatCurrency(softwareCostsTotal)}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Equipment Fund ({actualBusinessExpenses.equipmentFund.rate}%)</span>
+                  <span className="font-mono font-medium text-destructive">
+                    -{formatCurrency(equipmentFundCost)}
+                  </span>
+                </div>
+                
+                <div className="border-t border-border pt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Total Business Costs</span>
+                    <span className="font-mono font-medium text-destructive text-base">
+                      -{formatCurrency(totalBusinessCosts)}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="border-t border-border pt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Net Profit</span>
+                    <span className={`font-mono font-medium text-base ${
+                      netProfit > 0 ? 'text-green-600' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(netProfit)}
+                    </span>
+                  </div>
+                </div>
+                
                 <div className="text-xs text-muted-foreground text-center mt-3">
-                  *Business costs will be added in Level 2
+                  {netProfit > 0 ? (
+                    `${((netProfit / safeGrossProfit) * 100).toFixed(1)}% of gross profit retained`
+                  ) : (
+                    'Business costs exceed gross profit'
+                  )}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
+      )}
 
       {/* Reality Check Warnings */}
       {metrics.totalMonthlyHours > 160 && (
