@@ -1,6 +1,7 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 
 // Simple in-memory cache for active links (Edge runtime compatible)
 const linkCache = new Map<string, { link: any; timestamp: number }>();
@@ -162,11 +163,14 @@ async function handleRedirect(
     // In production, you might want to queue this for retry
   }
 
-  // 🆕 OPTIONAL: Still do background enrichment if possible
-  const context = (request as any).context;
-  if (context && typeof context.waitUntil === 'function') {
-    context.waitUntil(enrichClickData(link.id, request, searchParams));
-  }
+  // 🆕 BACKGROUND ENRICHMENT: Use Next.js after() for Node.js runtime
+  after(async () => {
+    try {
+      await enrichClickData(link.id, request, searchParams);
+    } catch (error) {
+      console.error('Background enrichment failed:', error);
+    }
+  });
 
   const redirectTime = Date.now() - startTime;
   if (isDev) {
@@ -268,12 +272,15 @@ async function logClickImmediate(
   }
 }
 
-// 🆕 OPTIONAL: Background enrichment (geo data, device parsing, etc.)
+// 🆕 BACKGROUND ENRICHMENT: Geo data, device parsing, etc.
 async function enrichClickData(
   linkId: string,
   request: NextRequest,
   searchParams: URLSearchParams
 ) {
+  const isDev = process.env.NODE_ENV === 'development';
+  if (isDev) console.log('Starting background enrichment for link:', linkId);
+  
   try {
     // Get additional data that takes longer to process
     const country = request.headers.get('x-vercel-ip-country') || 'unknown';
@@ -308,6 +315,12 @@ async function enrichClickData(
           }),
         }
       );
+      
+      if (isDev) {
+        console.log('Background enrichment completed successfully:', {
+          deviceType, browser, os, country: country.substring(0, 2)
+        });
+      }
     }
   } catch (error) {
     // Don't throw - enrichment failing is not critical
