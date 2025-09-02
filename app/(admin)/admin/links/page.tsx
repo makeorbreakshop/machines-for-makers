@@ -58,31 +58,40 @@ export default function LinksPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold mb-2">Short Links</h1>
-        <p className="text-gray-600">Create branded short URLs to track your content performance</p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="space-y-8">
+        {/* Header Section */}
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Short Links</h1>
+          <p className="text-lg text-gray-600">Create branded short URLs to track your content performance</p>
+        </div>
+
+        {/* Quick Link Creator */}
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-6">
+            <QuickLinkCreator onLinkCreated={handleRefresh} />
+          </div>
+        </div>
+
+        {/* Links Library */}
+        {loading ? (
+          <div className="space-y-6">
+            <Skeleton className="h-32 w-full rounded-lg" />
+            <Skeleton className="h-96 w-full rounded-lg" />
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-lg shadow-sm border">
+            <div className="text-center py-12">
+              <div className="text-red-600 text-lg">{error}</div>
+            </div>
+          </div>
+        ) : (
+          <LinksLibrary 
+            links={links} 
+            onRefresh={handleRefresh}
+          />
+        )}
       </div>
-
-      {/* Quick Link Creator */}
-      <QuickLinkCreator onLinkCreated={handleRefresh} />
-
-      {/* Links Library */}
-      {loading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
-      ) : error ? (
-        <div className="text-center py-8">
-          <div className="text-red-600">{error}</div>
-        </div>
-      ) : (
-        <LinksLibrary 
-          links={links} 
-          onRefresh={handleRefresh}
-        />
-      )}
     </div>
   );
 }

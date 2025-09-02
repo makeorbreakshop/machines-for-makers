@@ -491,11 +491,14 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
   };
 
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-medium text-blue-900">
-          🚀 Quick Create: {getCampaignTypeLabel()}
-        </h3>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-1">
+            🚀 Quick Create
+          </h2>
+          <p className="text-sm text-gray-600">{getCampaignTypeLabel()}</p>
+        </div>
         
         {/* Campaign Type Selector */}
         <Select value={campaignType} onValueChange={handleCampaignTypeChange}>
@@ -576,9 +579,11 @@ export function QuickLinkCreator({ onLinkCreated }: QuickLinkCreatorProps) {
 
       {/* Preview */}
       {shouldShowPreview() && (
-        <div className="mt-3 text-sm text-gray-600">
-          <strong>Preview:</strong> /go/{getPreviewSlug()}
-          {leadMagnet === 'all' && ` (+ ${leadMagnets.length - 1} more versions)`}
+        <div className="mt-4 p-3 bg-gray-50 rounded-md">
+          <p className="text-sm text-gray-600">
+            <span className="font-medium">Preview:</span> <code className="bg-white px-2 py-1 rounded text-blue-600">/go/{getPreviewSlug()}</code>
+            {leadMagnet === 'all' && <span className="text-gray-500"> (+ {leadMagnets.length - 1} more versions)</span>}
+          </p>
         </div>
       )}
     </div>
