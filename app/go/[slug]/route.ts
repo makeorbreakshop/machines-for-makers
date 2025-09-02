@@ -153,13 +153,19 @@ async function handleRedirect(
     destinationUrl.searchParams.set(key, value);
   });
 
-  // Log click asynchronously (don't block redirect)
+  // 🚨 NEW: Log click SYNCHRONOUSLY (this is the fix!)
+  try {
+    await logClickImmediate(request, link, searchParams);
+  } catch (error) {
+    // Log the error but don't block the redirect
+    console.error('Click logging failed:', error);
+    // In production, you might want to queue this for retry
+  }
+
+  // 🆕 OPTIONAL: Still do background enrichment if possible
   const context = (request as any).context;
   if (context && typeof context.waitUntil === 'function') {
-    context.waitUntil(logClick(request, link, searchParams));
-  } else {
-    // Fallback for development - just fire and forget
-    logClick(request, link, searchParams).catch(console.error);
+    context.waitUntil(enrichClickData(link.id, request, searchParams));
   }
 
   const redirectTime = Date.now() - startTime;
@@ -170,116 +176,142 @@ async function handleRedirect(
   return NextResponse.redirect(destinationUrl.toString(), 302);
 }
 
-async function logClick(
+// 🚨 NEW FUNCTION: Immediate click logging (blocks redirect but ensures data)
+async function logClickImmediate(
   request: NextRequest,
   link: any,
   searchParams: URLSearchParams
 ) {
   const isDev = process.env.NODE_ENV === 'development';
   
-  try {
-    // Extract request data
-    const userAgent = request.headers.get('user-agent') || '';
-    const referrer = request.headers.get('referer') || '';
-    const ip = request.headers.get('x-real-ip') || 
-               request.headers.get('x-forwarded-for')?.split(',')[0] || 
-               'unknown';
-    
-    // Hash IP for privacy using Web Crypto API
-    const encoder = new TextEncoder();
-    const data = encoder.encode(ip);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const ipHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+  // Extract essential data only (for speed)
+  const userAgent = request.headers.get('user-agent') || '';
+  const referrer = request.headers.get('referer') || '';
+  const ip = request.headers.get('x-real-ip') || 
+             request.headers.get('x-forwarded-for')?.split(',')[0] || 
+             'unknown';
+  
+  // Hash IP for privacy using Web Crypto API
+  const encoder = new TextEncoder();
+  const data = encoder.encode(ip);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const ipHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
 
-    // Get geo data from Vercel headers
+  // Detect if it's a bot (basic check)
+  let isBot = false;
+  let botReason = null;
+  
+  if (!userAgent) {
+    isBot = true;
+    botReason = 'Empty user agent';
+  } else {
+    for (const pattern of BOT_PATTERNS) {
+      if (pattern.test(userAgent.toLowerCase())) {
+        isBot = true;
+        botReason = `Matched pattern: ${pattern.source}`;
+        break;
+      }
+    }
+  }
+
+  // Core click data (minimal for speed)
+  const clickData = {
+    link_id: link.id,
+    clicked_at: new Date().toISOString(),
+    ip_hash: ipHash,
+    user_agent: userAgent.substring(0, 1000), // Limit length
+    referrer_url: referrer.substring(0, 500), // Limit length
+    is_bot: isBot,
+    bot_reason: botReason?.substring(0, 200) || null,
+    // UTM parameters
+    utm_source: searchParams.get('utm_source')?.substring(0, 255) || null,
+    utm_medium: searchParams.get('utm_medium')?.substring(0, 255) || null,
+    utm_campaign: searchParams.get('utm_campaign')?.substring(0, 255) || null,
+    utm_content: searchParams.get('utm_content')?.substring(0, 255) || null,
+    utm_term: searchParams.get('utm_term')?.substring(0, 255) || null,
+  };
+
+  if (isDev) {
+    console.log('Logging click immediately:', clickData);
+  }
+
+  // Insert into database SYNCHRONOUSLY
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Missing Supabase configuration for logging');
+  }
+
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/link_clicks`,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseServiceKey,
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(clickData),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to log click: ${response.status} - ${error}`);
+  }
+
+  if (isDev) {
+    console.log('Click logged successfully (immediate)');
+  }
+}
+
+// 🆕 OPTIONAL: Background enrichment (geo data, device parsing, etc.)
+async function enrichClickData(
+  linkId: string,
+  request: NextRequest,
+  searchParams: URLSearchParams
+) {
+  try {
+    // Get additional data that takes longer to process
     const country = request.headers.get('x-vercel-ip-country') || 'unknown';
     const region = request.headers.get('x-vercel-ip-region') || 'unknown';
     const city = request.headers.get('x-vercel-ip-city') || null;
-
-    // Detect device type and bot
-    const { deviceType, browser, os, isBot, botReason } = parseUserAgent(userAgent);
-
-    // Extract specific tracking parameters
-    const queryParams = Object.fromEntries(searchParams.entries());
-    const source = searchParams.get('source') || searchParams.get('utm_source') || null;
-    const slot = searchParams.get('slot') || null;
-    const vid = searchParams.get('vid') || null;
-    const campaign = searchParams.get('campaign') || searchParams.get('utm_campaign') || null;
-
-    // Extract all UTM parameters
-    const utm_source = searchParams.get('utm_source') || null;
-    const utm_medium = searchParams.get('utm_medium') || null;
-    const utm_campaign = searchParams.get('utm_campaign') || null;
-    const utm_content = searchParams.get('utm_content') || null;
-    const utm_term = searchParams.get('utm_term') || null;
-
-    // Prepare click data
-    const clickData = {
-      link_id: link.id,
-      clicked_at: new Date().toISOString(),
-      ip_hash: ipHash,
-      user_agent: userAgent.substring(0, 1000), // Limit length
-      device_type: deviceType,
-      browser: browser,
-      os: os,
-      referrer_url: referrer.substring(0, 500), // Limit length
-      country_code: country.substring(0, 2),
-      region: region.substring(0, 100),
-      city: city?.substring(0, 100) || null,
-      query_params: queryParams,
-      source: source?.substring(0, 100) || null,
-      slot: slot?.substring(0, 100) || null,
-      vid: vid?.substring(0, 100) || null,
-      campaign: campaign?.substring(0, 200) || null,
-      is_bot: isBot,
-      bot_reason: botReason?.substring(0, 200) || null,
-      // Add UTM parameters to dedicated columns
-      utm_source: utm_source?.substring(0, 255) || null,
-      utm_medium: utm_medium?.substring(0, 255) || null,
-      utm_campaign: utm_campaign?.substring(0, 255) || null,
-      utm_content: utm_content?.substring(0, 255) || null,
-      utm_term: utm_term?.substring(0, 255) || null,
-    };
-
-    if (isDev) {
-      console.log('Click data:', clickData);
-    }
-
-    // Insert into database
+    
+    const userAgent = request.headers.get('user-agent') || '';
+    const { deviceType, browser, os } = parseUserAgent(userAgent);
+    
+    // Update the click record with enriched data
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase configuration for logging');
+    
+    if (supabaseUrl && supabaseServiceKey) {
+      await fetch(
+        `${supabaseUrl}/rest/v1/link_clicks?link_id=eq.${linkId}&clicked_at=gte.${new Date(Date.now() - 60000).toISOString()}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': supabaseServiceKey,
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            device_type: deviceType,
+            browser: browser,
+            os: os,
+            country_code: country.substring(0, 2),
+            region: region.substring(0, 100),
+            city: city?.substring(0, 100) || null,
+            query_params: Object.fromEntries(searchParams.entries()),
+          }),
+        }
+      );
     }
-
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/link_clicks`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseServiceKey,
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify(clickData),
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to log click: ${response.status} - ${error}`);
-    }
-
-    if (isDev) {
-      console.log('Click logged successfully');
-    }
-
   } catch (error) {
-    console.error('Error logging click:', error);
-    // Don't throw - we don't want logging errors to affect redirects
+    // Don't throw - enrichment failing is not critical
+    console.error('Click enrichment failed:', error);
   }
 }
 

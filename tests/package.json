@@ -1,0 +1,37 @@
+{
+  "name": "click-tracking-tests",
+  "version": "1.0.0",
+  "description": "Test suite for click tracking system",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "load-test": "node load-testing.js",
+    "load-test:production": "node load-testing.js https://www.machinesformakers.com 20 500",
+    "monitor": "node monitoring-validator.js",
+    "monitor:production": "node monitoring-validator.js https://www.machinesformakers.com 30 99",
+    "validate": "node monitoring-validator.js http://localhost:3000 60 95 test",
+    "health-check": "node monitoring-validator.js http://localhost:3000 60 95 health"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "node-mocks-http": "^1.13.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "../app/go/**/*.ts",
+      "../lib/**/*.ts"
+    ],
+    "coverageReporters": [
+      "text",
+      "html"
+    ],
+    "testMatch": [
+      "**/*.test.js"
+    ]
+  }
+}
