@@ -141,6 +141,94 @@ class SiteSpecificExtractor:
                 'prioritize_sale_prices': True,  # New flag to prioritize <ins> tags
             },
             
+            'store.commarker.com': {
+                'type': 'shopify',
+                'requires_variant_detection': True,
+                'machine_specific_rules': {
+                    'ComMarker B4 100W MOPA': {
+                        'url_patterns': ['/b4-jpt-mopa-fiber-laser-engraver'],
+                        'variant_keywords': ['100W', 'MOPA', '100 W'],
+                        'base_price_range': [6000, 7000],
+                        'expected_price': 6666.00
+                    },
+                    'ComMarker B6 MOPA 20W': {
+                        'url_patterns': ['/b6-jpt-mopa-fiber-laser-engraver'],
+                        'variant_keywords': ['20W', 'MOPA', '20 W', 'Basic'],
+                        'base_price_range': [3000, 4000],
+                        'expected_price': 3059.00
+                    },
+                    'ComMarker B6 MOPA 30W': {
+                        'url_patterns': ['/b6-jpt-mopa-fiber-laser-engraver'],
+                        'variant_keywords': ['30W', 'MOPA', '30 W'],
+                        'base_price_range': [3500, 4500],
+                        'expected_price': 3699.00
+                    },
+                    'ComMarker B6 MOPA 60W': {
+                        'url_patterns': ['/b6-jpt-mopa-fiber-laser-engraver'],
+                        'variant_keywords': ['60W', 'MOPA', '60 W'],
+                        'base_price_range': [4500, 5500],
+                        'expected_price': 4999.00
+                    },
+                    'ComMarker B4 20W': {
+                        'url_patterns': ['/b4-fiber-laser-engraver'],
+                        'variant_keywords': ['20W', '20 W', 'Without rotary'],
+                        'base_price_range': [1400, 1600],
+                        'expected_price': 1499.00
+                    },
+                    'ComMarker B4 30W': {
+                        'url_patterns': ['/b4-fiber-laser-engraver'],
+                        'variant_keywords': ['30W', '30 W', 'Without rotary'],
+                        'base_price_range': [1700, 1900],
+                        'expected_price': 1799.00
+                    },
+                    'ComMarker B6 20W': {
+                        'url_patterns': ['/b6-metal-fiber-laser-engraver'],
+                        'variant_keywords': ['20W', '20 W', 'Without rotary'],
+                        'base_price_range': [2100, 2300],
+                        'expected_price': 2199.00
+                    },
+                    'ComMarker B6 30W': {
+                        'url_patterns': ['/b6-metal-fiber-laser-engraver'],
+                        'variant_keywords': ['30W', '30 W', 'Without rotary'],
+                        'base_price_range': [2300, 2500],
+                        'expected_price': 2399.00
+                    }
+                },
+                'price_selectors': [
+                    # Shopify variant prices
+                    '.price__current .money',
+                    '.price-item--regular .money',
+                    '.price .money',
+                    '.product-price .money',
+                    'span.money',
+                    '.price__current',
+                    '.price-item--regular',
+                    # Fallback selectors
+                    '[data-price]',
+                    '.product-price-current'
+                ],
+                'avoid_selectors': [
+                    '.price--compare .money',  # Compare at prices
+                    '.price-item--compare .money',  # Compare prices
+                    '.bundle-price *',  # Bundle pricing
+                    '.cart-item .money'  # Cart items
+                ],
+                'variant_selectors': [
+                    'input[name="id"][value*="20W"]',
+                    'input[name="id"][value*="30W"]', 
+                    'input[name="id"][value*="60W"]',
+                    'input[name="id"][value*="100W"]',
+                    'select[data-variant] option',
+                    '.product-variant-option input'
+                ],
+                'prefer_json_ld': True,
+                'json_ld_paths': [
+                    'hasVariant.offers.price',
+                    'offers.price',
+                    'price'
+                ]
+            },
+            
             'cloudraylaser.com': {
                 'type': 'shopify',
                 'avoid_selectors': [
@@ -789,7 +877,7 @@ class SiteSpecificExtractor:
                 # SPECIAL BLACKLIST: Skip generic selectors for sites with variant detection
                 if domain == 'aeonlaser.us':
                     bad_selector_patterns.extend(['.price', '.amount', '.total'])  # Too generic for Aeon variants
-                elif domain == 'commarker.com':
+                elif domain in ['commarker.com', 'store.commarker.com']:
                     bad_selector_patterns.extend(['.woocommerce-Price-amount'])  # Too generic, catches wrong prices
                 
                 is_bad_selector = any(bad_pattern in selector.lower() for bad_pattern in bad_selector_patterns)
@@ -961,8 +1049,8 @@ class SiteSpecificExtractor:
             if price and self._validate_price(price, rules, machine_data):
                 return price, f"Monport base machine ({method})"
         
-        # ComMarker-specific price extraction logic
-        if domain == 'commarker.com':
+        # ComMarker-specific price extraction logic (both old and new store)
+        if domain in ['commarker.com', 'store.commarker.com']:
             price, method = self._extract_commarker_main_price(soup, rules, machine_data)
             if price and self._validate_price(price, rules, machine_data):
                 return price, f"ComMarker main price ({method})"
@@ -1028,8 +1116,151 @@ class SiteSpecificExtractor:
             
         return None, None
     
+    def _extract_commarker_shopify_price(self, soup, rules, machine_data=None):
+        """Extract price from new ComMarker Shopify store with variant detection."""
+        logger.info("🛍️ ComMarker Shopify extraction: analyzing variant structure")
+        
+        machine_name = machine_data.get('Machine Name', '') if machine_data else ''
+        
+        # Try JSON-LD first for variant prices
+        json_scripts = soup.find_all('script', {'type': 'application/ld+json'})
+        for script in json_scripts:
+            try:
+                import json
+                data = json.loads(script.string)
+                if isinstance(data, dict) and 'hasVariant' in data:
+                    variants = data['hasVariant']
+                    logger.info(f"📊 Found {len(variants)} variants in JSON-LD")
+                    
+                    # Find matching variant based on machine name
+                    for i, variant in enumerate(variants):
+                        variant_name = variant.get('name', '')
+                        offers = variant.get('offers', {})
+                        price = float(offers.get('price', 0))
+                        
+                        logger.info(f"  Variant {i+1}: {variant_name} -> ${price}")
+                        
+                        # Match ComMarker B4 100W MOPA specifically
+                        if machine_name and 'ComMarker B4 100W MOPA' in machine_name:
+                            if ('100w' in variant_name.lower() and 
+                                'mopa' in variant_name.lower() and 
+                                'without rotary' in variant_name.lower()):
+                                logger.info(f"✅ JSON-LD variant match: {variant_name} -> ${price}")
+                                return price, f"json_ld_variant:100W_base"
+                        
+                        # Generic variant matching for other machines
+                        elif self._variant_matches_machine(variant_name, machine_name):
+                            logger.info(f"✅ JSON-LD generic variant match: {variant_name} -> ${price}")
+                            return price, f"json_ld_variant:{variant_name[:20]}"
+                
+                # Fallback to old 'offers' structure
+                elif isinstance(data, dict) and 'offers' in data:
+                    offers = data['offers']
+                    if isinstance(offers, list):
+                        # Find matching variant based on machine name
+                        for offer in offers:
+                            if 'name' in offer or 'description' in offer:
+                                variant_text = str(offer.get('name', '')) + ' ' + str(offer.get('description', ''))
+                                if self._variant_matches_machine(variant_text, machine_name):
+                                    price = float(offer.get('price', 0))
+                                    logger.info(f"✅ JSON-LD variant match: {variant_text} -> ${price}")
+                                    return price, f"json_ld_variant:{variant_text[:20]}"
+                    elif isinstance(offers, dict) and 'price' in offers:
+                        price = float(offers['price'])
+                        logger.info(f"✅ JSON-LD single offer: ${price}")
+                        return price, "json_ld_single"
+            except (json.JSONDecodeError, ValueError, KeyError) as e:
+                logger.debug(f"JSON-LD parsing failed: {e}")
+        
+        # Try Shopify-specific selectors with variant context
+        shopify_selectors = [
+            '.price__current .money',
+            '.price-item--regular .money', 
+            '.price .money',
+            'span.money',
+            '.price__current',
+            '.price-item--regular'
+        ]
+        
+        # Get machine-specific rules for expected price range
+        expected_price = None
+        price_range = None
+        if rules and 'machine_specific_rules' in rules:
+            for machine_pattern, config in rules['machine_specific_rules'].items():
+                if machine_pattern in machine_name:
+                    expected_price = config.get('expected_price')
+                    price_range = config.get('base_price_range', [0, 50000])
+                    logger.info(f"🎯 Machine-specific rules: {machine_pattern} -> ${expected_price} (range: ${price_range[0]}-${price_range[1]})")
+                    break
+        
+        for selector in shopify_selectors:
+            elements = soup.select(selector)
+            logger.info(f"🔍 Shopify selector '{selector}': found {len(elements)} elements")
+            
+            for i, elem in enumerate(elements):
+                price_text = elem.get_text().strip()
+                logger.info(f"  Element {i+1}: '{price_text}'")
+                
+                # Clean up Shopify money formatting
+                price_text = price_text.replace('$', '').replace(',', '').strip()
+                try:
+                    price = float(price_text)
+                    
+                    # Validate against expected range if available
+                    if price_range and (price < price_range[0] or price > price_range[1]):
+                        logger.info(f"  ❌ Price ${price} outside expected range ${price_range[0]}-${price_range[1]}")
+                        continue
+                    
+                    # Prefer price close to expected if available
+                    if expected_price and abs(price - expected_price) < 100:
+                        logger.info(f"  ✅ Price ${price} matches expected ${expected_price}")
+                        return price, f"shopify_expected:{selector}"
+                    
+                    # Accept reasonable prices
+                    if 500 <= price <= 15000:
+                        logger.info(f"  ✅ Valid Shopify price: ${price}")
+                        return price, f"shopify:{selector}"
+                        
+                except ValueError:
+                    continue
+        
+        logger.info("❌ ComMarker Shopify extraction failed")
+        return None, None
+    
+    def _variant_matches_machine(self, variant_text, machine_name):
+        """Check if variant description matches the machine name."""
+        if not variant_text or not machine_name:
+            return False
+        
+        variant_lower = variant_text.lower()
+        machine_lower = machine_name.lower()
+        
+        # Extract key attributes from machine name
+        if 'b4' in machine_lower:
+            if 'b4' not in variant_lower:
+                return False
+        elif 'b6' in machine_lower:
+            if 'b6' not in variant_lower:
+                return False
+        
+        # Check wattage
+        import re
+        machine_wattage = re.search(r'(\d+)w', machine_lower)
+        variant_wattage = re.search(r'(\d+)w', variant_lower)
+        
+        if machine_wattage and variant_wattage:
+            return machine_wattage.group(1) == variant_wattage.group(1)
+        
+        # Check for MOPA
+        if 'mopa' in machine_lower:
+            return 'mopa' in variant_lower
+        
+        # Basic text similarity check
+        common_words = set(machine_lower.split()) & set(variant_lower.split())
+        return len(common_words) >= 2
+    
     def _extract_commarker_main_price(self, soup, rules, machine_data=None):
-        """Extract main product price for ComMarker, targeting main product summary."""
+        """Extract main product price for ComMarker, supporting both old and new store structures."""
         logger.info("🔍 Attempting ComMarker-specific price extraction")
         
         # Log page structure for debugging
@@ -1037,19 +1268,31 @@ class SiteSpecificExtractor:
         if title_elem:
             logger.info(f"Page title: {title_elem.get_text()}")
         
+        # Detect store type based on HTML structure
+        is_new_store = bool(soup.find('script', {'type': 'application/ld+json'})) or 'store.commarker.com' in str(soup)
+        is_shopify = bool(soup.find(attrs={'data-shopify-variant-id': True})) or '.money' in str(soup)
+        
+        logger.info(f"🏪 Store detection: new_store={is_new_store}, shopify={is_shopify}")
+        
         # Check if this is actually a ComMarker product page
         page_content = soup.get_text().lower()
-        # More lenient check - sometimes the content is corrupted
         if len(page_content) < 100:
             logger.warning("❌ Page content too short, likely corrupted")
             # Don't return None here, continue trying
         
-        # Strategy 1: Use machine-specific selectors if available, otherwise use defaults
+        # Strategy 1: For new Shopify store, try variant-aware extraction first
+        if is_new_store or is_shopify:
+            logger.info("🆕 Using new ComMarker store extraction (Shopify)")
+            price, method = self._extract_commarker_shopify_price(soup, rules, machine_data)
+            if price:
+                return price, f"shopify:{method}"
+        
+        # Strategy 2: Use machine-specific selectors if available, otherwise use defaults for old store
         if rules and 'price_selectors' in rules:
             priority_selectors = rules['price_selectors']
             logger.info(f"🎯 Using machine-specific selectors: {priority_selectors}")
         else:
-            # Fallback to default ComMarker selectors (prioritize sale prices)
+            # Fallback to default ComMarker selectors (prioritize sale prices) for old store
             priority_selectors = [
                 # Sale prices first (prioritize <ins> tags for sale prices)
                 '.entry-summary .price ins .amount',
@@ -1066,7 +1309,7 @@ class SiteSpecificExtractor:
                 '.summary-inner .price .amount',
                 '.entry-summary .price .amount'
             ]
-            logger.info(f"🔧 Using default ComMarker selectors (prioritizing sale prices)")
+            logger.info(f"🔧 Using default ComMarker selectors (old store, prioritizing sale prices)")
         
         all_prices_found = []
         for selector in priority_selectors:
@@ -1839,9 +2082,14 @@ class SiteSpecificExtractor:
             
             # Check if element matches avoided selectors
             for avoid_selector in avoid_selectors:
-                if element.select(avoid_selector) or element.parent.select(avoid_selector):
-                    should_avoid = True
-                    break
+                # Check if this element or any ancestor matches the avoid pattern
+                if soup.select(avoid_selector):
+                    # Find all elements matching the avoid pattern
+                    avoided_elements = soup.select(avoid_selector)
+                    # Check if our current element is one of the avoided elements
+                    if element in avoided_elements:
+                        should_avoid = True
+                        break
             
             # Check if element is in avoided context
             if not should_avoid:

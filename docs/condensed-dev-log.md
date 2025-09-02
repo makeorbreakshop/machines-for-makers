@@ -613,3 +613,14 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Impact**: Clean professional interface with simplified core fields, accurate sidebar synchronization, removed unwanted UI elements
 - **Technical**: Horizontal layout with collapsible cost breakdown, useEffect data flow (Level4BusinessCosts → CalculatorWrapper → CalculatorDashboard), removed navigation buttons
 - **Key Features**: Simplified 4-field core interface (Product/Price/Units/Cost), hidden advanced breakdown, real-time business expenses synchronization between components
+
+### 2025-08-29: Machine Business Calculator - Marketing Tab Integration & Price History Chart Failure
+- **Issue**: Calculator needed dedicated marketing/CAC functionality implementing "3 killers" framework, price history chart tabs non-functional
+- **Solution**: Built complete Level 3 marketing tab with CAC calculations, channel management, clean UI matching Products tab design
+- **Impact**: Users can now model realistic marketing scenarios with multiple channels and accurate CAC calculations, P&L integration showing marketing costs
+- **Technical**: MarketingChannel/MarketingState interfaces, calculateMarketingMetrics formulas, Level3Marketing component (187 lines), marketing state management
+- **Tab Structure Change**: Products → Marketing → Business → Projections (implementing "3 killers" educational framework)
+- **Marketing Features**: Multiple channels (Facebook/Instagram, Google Ads, Craft Shows), custom channel creation, toggle switches, real-time CAC calculations, blended CAC
+- **CRITICAL FAILURE**: Price history chart redesign attempts completely failed - all time range tabs (1M, 3M, 6M) show identical data despite multiple fix attempts
+- **Root Cause**: Date filtering logic fundamentally broken, focused on UI improvements instead of debugging core data filtering functionality
+- **User Impact**: Multiple failed attempts to fix reported issue damaged user trust, wasted development time on cosmetic changes instead of core functionality
