@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CalculatorState, Product, BusinessCost, MarketingState, DEFAULT_BUSINESS_COSTS, DEFAULT_MARKETING_CHANNELS } from '../lib/calculator-types';
+import { CalculatorState, Product, BusinessCost, MarketingState, LaborState, DEFAULT_BUSINESS_COSTS, DEFAULT_MARKETING_STATE, DEFAULT_LABOR_STATE } from '../lib/calculator-types';
 
 const STORAGE_KEY = 'machine-business-calculator-state';
 
@@ -9,14 +9,8 @@ const createInitialState = (): CalculatorState => ({
   monthlyGoal: 5000,
   products: [],
   hourlyRate: 25,
-  marketing: {
-    totalMonthlySpend: 300,
-    channels: [...DEFAULT_MARKETING_CHANNELS],
-    overallCAC: 0,
-    totalUnitsFromMarketing: 0,
-    organicUnitsPerMonth: 10,
-    organicPercentage: 50
-  },
+  marketing: DEFAULT_MARKETING_STATE,
+  labor: DEFAULT_LABOR_STATE,
   businessMode: 'side',
   selectedCosts: DEFAULT_BUSINESS_COSTS.filter(cost => 
     ['platform-fees', 'tax-reserve'].includes(cost.id)
@@ -39,6 +33,10 @@ export function useCalculatorState() {
       const savedState = localStorage.getItem(STORAGE_KEY);
       if (savedState) {
         const parsed = JSON.parse(savedState);
+        // Ensure labor state exists (migration for existing users)
+        if (!parsed.labor) {
+          parsed.labor = DEFAULT_LABOR_STATE;
+        }
         setState(prev => ({ ...prev, ...parsed }));
       }
     } catch (error) {
@@ -109,7 +107,16 @@ export function useCalculatorState() {
   }, []);
 
   const updateHourlyRate = useCallback((rate: number) => {
-    setState(prev => ({ ...prev, hourlyRate: rate }));
+    setState(prev => ({
+      ...prev,
+      hourlyRate: rate,
+      labor: {
+        ...prev.labor,
+        workers: prev.labor?.workers?.map(worker =>
+          worker.id === 'owner' ? { ...worker, hourlyRate: rate } : worker
+        ) || []
+      }
+    }));
   }, []);
 
   const updateOptimizedPrice = useCallback((productId: string, price: number) => {
@@ -175,6 +182,13 @@ export function useCalculatorState() {
     }));
   }, []);
 
+  const updateLabor = useCallback((updates: Partial<LaborState>) => {
+    setState(prev => ({
+      ...prev,
+      labor: { ...prev.labor, ...updates }
+    }));
+  }, []);
+
   const resetCalculator = useCallback(() => {
     setState(createInitialState());
     try {
@@ -193,6 +207,7 @@ export function useCalculatorState() {
     removeProduct,
     updateHourlyRate,
     updateMarketing,
+    updateLabor,
     updateOptimizedPrice,
     updateBusinessMode,
     toggleBusinessCost,

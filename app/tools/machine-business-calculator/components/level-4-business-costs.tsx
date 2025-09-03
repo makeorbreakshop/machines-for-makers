@@ -91,14 +91,6 @@ export function Level4BusinessCosts({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-4">
-          Level 4: Business Costs Reality
-        </h2>
-        <p className="text-lg text-gray-600 max-w-3xl">
-          Account for taxes, overhead, and hidden costs that eat into your profits.
-        </p>
-      </div>
 
       {/* Current Performance Summary */}
       <Card className="bg-muted/30 border-muted">

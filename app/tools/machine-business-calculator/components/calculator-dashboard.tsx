@@ -16,9 +16,10 @@ interface CalculatorDashboardProps {
     softwareCosts: { items: Record<string, number> };
     equipmentFund: { rate: number };
   };
+  laborCosts?: number; // Monthly labor costs
 }
 
-export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses }: CalculatorDashboardProps) {
+export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses, laborCosts }: CalculatorDashboardProps) {
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   
   // Safety check for metrics object
@@ -70,24 +71,32 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
     
   const isPositiveProfit = safeGrossProfit > 0;
 
-  // Calculate business expenses using actual data if available, otherwise defaults
+  // Calculate business expenses using actual data if available
   const monthlyRevenue = Object.values(metrics.productMetrics || {}).reduce(
     (sum, product: any) => sum + (product.monthlyRevenue || 0), 0
   );
   
-  // Use actual business expenses if provided, otherwise defaults
+  // Use actual business expenses if provided, otherwise zeros
   const actualBusinessExpenses = businessExpenses || {
-    taxReserve: { rate: 30 },
-    physicalCosts: { items: { rent: 200, insurance: 75, utilities: 50 } },
-    softwareCosts: { items: { design_software: 50, accounting_software: 25 } },
-    equipmentFund: { rate: 8 }
+    taxReserve: { rate: 0 },
+    physicalCosts: { items: {} },
+    softwareCosts: { items: {} },
+    equipmentFund: { rate: 0 }
   };
   
-  const taxCost = (safeGrossProfit * actualBusinessExpenses.taxReserve.rate) / 100;
-  const physicalCostsTotal = Object.values(actualBusinessExpenses.physicalCosts.items).reduce((sum, cost) => sum + cost, 0);
-  const softwareCostsTotal = Object.values(actualBusinessExpenses.softwareCosts.items).reduce((sum, cost) => sum + cost, 0);
-  const equipmentFundCost = (monthlyRevenue * actualBusinessExpenses.equipmentFund.rate) / 100;
-  const totalBusinessCosts = taxCost + physicalCostsTotal + softwareCostsTotal + equipmentFundCost;
+  const taxCost = businessExpenses ? (safeGrossProfit * actualBusinessExpenses.taxReserve.rate) / 100 : 0;
+  const physicalCostsTotal = businessExpenses ? Object.values(actualBusinessExpenses.physicalCosts.items).reduce((sum, cost) => sum + cost, 0) : 0;
+  const softwareCostsTotal = businessExpenses ? Object.values(actualBusinessExpenses.softwareCosts.items).reduce((sum, cost) => sum + cost, 0) : 0;
+  const equipmentFundCost = businessExpenses ? (monthlyRevenue * actualBusinessExpenses.equipmentFund.rate) / 100 : 0;
+  
+  // Calculate direct labor (product time) vs indirect labor (business tasks)
+  const directLaborCost = Object.values(metrics.productMetrics || {}).reduce(
+    (sum, product: any) => sum + (product.laborCosts || 0), 0
+  );
+  
+  const indirectLaborCost = (laborCosts || 0) - directLaborCost;
+  
+  const totalBusinessCosts = (metrics.totalMarketingCosts || 0) + indirectLaborCost + physicalCostsTotal + softwareCostsTotal + taxCost + equipmentFundCost;
   const netProfit = safeGrossProfit - totalBusinessCosts;
 
 
@@ -98,7 +107,7 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <DollarSign className="h-4 w-4 text-primary" />
-          <h3 className="text-lg font-medium">Product Performance</h3>
+          <h3 className="text-lg font-medium text-foreground">Product Performance</h3>
         </div>
         
         {metrics.productMetrics && Object.keys(metrics.productMetrics).length > 0 ? (
@@ -118,7 +127,7 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
                     ) : (
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     )}
-                    <span className="font-medium text-base">{productName}</span>
+                    <span className="font-medium text-base text-foreground">{productName}</span>
                     <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
                       {productMetric.unitsProduced || 0} units
                     </span>
@@ -200,7 +209,7 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
                           )}
                           {(productMetric.costBreakdown?.marketing || 0) > 0 && (
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">Marketing (CAC)</span>
+                              <span className="text-muted-foreground">Marketing</span>
                               <span className="font-mono">{formatCurrency(productMetric.costBreakdown.marketing)}</span>
                             </div>
                           )}
@@ -220,197 +229,162 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
         )}
       </div>
         
-        {/* Monthly Totals */}
+        {/* Profit & Loss Statement */}
         <Card>
           <CardContent className="p-6">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
-                <h3 className="text-lg font-medium">Monthly Totals</h3>
+                <h3 className="text-lg font-medium text-foreground">Net Profit</h3>
+                <span className={`ml-auto text-2xl font-bold font-mono ${
+                  netProfit > 0 ? 'text-green-600' : 'text-red-500'
+                }`}>
+                  {formatCurrency(netProfit)}
+                </span>
               </div>
               
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Revenue</span>
-                  <span className="font-mono font-medium">
-                    {formatCurrency(safeGrossProfit + (metrics.totalMonthlyCosts || 0) + (metrics.totalMarketingCosts || 0))}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Product Costs</span>
-                  <span className="font-mono font-medium text-muted-foreground">
-                    -{formatCurrency(metrics.totalMonthlyCosts || 0)}
-                  </span>
-                </div>
-                
-                {(metrics.totalMarketingCosts || 0) > 0 && (
+                {/* REVENUE */}
+                {monthlyRevenue > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Marketing Costs</span>
-                    <span className="font-mono font-medium text-muted-foreground">
-                      -{formatCurrency(metrics.totalMarketingCosts || 0)}
+                    <span className="font-medium text-foreground">Revenue</span>
+                    <span className="font-mono font-medium">
+                      {formatCurrency(monthlyRevenue)}
                     </span>
                   </div>
                 )}
                 
-                <div className="border-t border-border pt-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">Gross Profit</span>
-                    <span className={`font-mono font-medium text-base ${
-                      safeGrossProfit > 0 ? 'text-green-600' : 'text-destructive'
-                    }`}>
-                      {formatCurrency(safeGrossProfit)}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="flex justify-between text-xs text-muted-foreground pt-2 border-t border-border">
-                  <span>Time: {formatHours(safeHours)}h/month</span>
-                  <span>Rate: {formatCurrency(safeHourlyRate)}/hr</span>
-                </div>
-                
-                {activeTab === 'products' && (
-                  <div className="text-xs text-muted-foreground text-center mt-3">
-                    *Marketing & business costs added in next levels
-                  </div>
-                )}
-                {activeTab === 'marketing' && (
-                  <div className="text-xs text-muted-foreground text-center mt-3">
-                    *Business overhead costs added in next level
+                {/* COST OF GOODS SOLD */}
+                {((metrics.totalMonthlyCosts || 0) > 0 || directLaborCost > 0) && (
+                  <div className="border-t border-border pt-3">
+                    <div className="text-xs text-muted-foreground mb-2 font-medium">COST OF GOODS SOLD</div>
+                    
+                    {(metrics.totalMonthlyCosts || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Materials & Supplies</span>
+                        <span className="font-mono font-medium text-foreground">
+                          -{formatCurrency(metrics.totalMonthlyCosts || 0)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {directLaborCost > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Direct Labor (Production)</span>
+                        <span className="font-mono font-medium text-foreground">
+                          -{formatCurrency(directLaborCost)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-      {/* Business Expenses Section - Only show on Business tab */}
-      {activeTab === 'business' && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Calculator className="h-4 w-4 text-primary" />
-                <h3 className="text-lg font-medium">Business Expenses</h3>
-              </div>
-              
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tax Reserve ({actualBusinessExpenses.taxReserve.rate}%)</span>
-                  <span className="font-mono font-medium text-destructive">
-                    -{formatCurrency(taxCost)}
-                  </span>
-                </div>
                 
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Physical Costs</span>
-                  <span className="font-mono font-medium text-destructive">
-                    -{formatCurrency(physicalCostsTotal)}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Software & Tools</span>
-                  <span className="font-mono font-medium text-destructive">
-                    -{formatCurrency(softwareCostsTotal)}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Equipment Fund ({actualBusinessExpenses.equipmentFund.rate}%)</span>
-                  <span className="font-mono font-medium text-destructive">
-                    -{formatCurrency(equipmentFundCost)}
-                  </span>
-                </div>
-                
-                <div className="border-t border-border pt-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">Total Business Costs</span>
-                    <span className="font-mono font-medium text-destructive text-base">
-                      -{formatCurrency(totalBusinessCosts)}
-                    </span>
+                {/* GROSS PROFIT */}
+                {monthlyRevenue > 0 && (
+                  <div className="border-t border-border pt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">Gross Profit</span>
+                      <span className={`font-mono font-medium text-base ${
+                        safeGrossProfit > 0 ? 'text-green-600' : 'text-red-500'
+                      }`}>
+                        {formatCurrency(safeGrossProfit)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {monthlyRevenue > 0 ? `${((safeGrossProfit / monthlyRevenue) * 100).toFixed(1)}% margin` : ''}
+                    </div>
                   </div>
-                </div>
+                )}
                 
-                <div className="border-t border-border pt-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">Net Profit</span>
-                    <span className={`font-mono font-medium text-base ${
-                      netProfit > 0 ? 'text-green-600' : 'text-destructive'
-                    }`}>
-                      {formatCurrency(netProfit)}
-                    </span>
+                {/* OPERATING EXPENSES */}
+                {(indirectLaborCost > 0 || (metrics.totalMarketingCosts || 0) > 0 || physicalCostsTotal > 0 || softwareCostsTotal > 0) && (
+                  <div className="border-t border-border pt-3">
+                    <div className="text-xs text-muted-foreground mb-2 font-medium">OPERATING EXPENSES</div>
+                    
+                    {indirectLaborCost > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Indirect Labor (Admin/Mgmt)</span>
+                        <span className="font-mono font-medium text-foreground">
+                          -{formatCurrency(indirectLaborCost)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {(metrics.totalMarketingCosts || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Marketing & Advertising</span>
+                        <span className="font-mono font-medium text-foreground">
+                          -{formatCurrency(metrics.totalMarketingCosts || 0)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {physicalCostsTotal > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Rent & Facilities</span>
+                        <span className="font-mono font-medium text-foreground">
+                          -{formatCurrency(physicalCostsTotal)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {softwareCostsTotal > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Software & Tools</span>
+                        <span className="font-mono font-medium text-foreground">
+                          -{formatCurrency(softwareCostsTotal)}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
                 
-                <div className="text-xs text-muted-foreground text-center mt-3">
-                  {netProfit > 0 ? (
-                    `${((netProfit / safeGrossProfit) * 100).toFixed(1)}% of gross profit retained`
-                  ) : (
-                    'Business costs exceed gross profit'
-                  )}
-                </div>
+                {/* OTHER EXPENSES & RESERVES */}
+                {(taxCost > 0 || equipmentFundCost > 0) && (
+                  <div className="border-t border-border pt-3">
+                    <div className="text-xs text-muted-foreground mb-2 font-medium">OTHER EXPENSES & RESERVES</div>
+                    
+                    {taxCost > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Tax Reserve</span>
+                        <span className="font-mono font-medium text-foreground">
+                          -{formatCurrency(taxCost)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {equipmentFundCost > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Equipment Fund</span>
+                        <span className="font-mono font-medium text-foreground">
+                          -{formatCurrency(equipmentFundCost)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* NET PROFIT DETAILS */}
+                {monthlyRevenue > 0 && (
+                  <div className="border-t border-border pt-3">
+                    <div className="text-xs text-muted-foreground">
+                      {netProfit > 0 ? `${((netProfit / monthlyRevenue) * 100).toFixed(1)}% net margin` : 'Loss'}
+                      {safeHours > 0 && ` • ${formatHours(safeHours)}h/month • ${formatCurrency(netProfit / safeHours)}/hr effective`}
+                    </div>
+                  </div>
+                )}
+                
+                {activeTab === 'products' && monthlyRevenue === 0 && (
+                  <div className="text-xs text-muted-foreground text-center mt-3 bg-muted/30 rounded p-2">
+                    Add products to see P&L breakdown
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Reality Check Warnings */}
-      {metrics.totalMonthlyHours > 160 && (
-        <Card className="border-red-200 bg-red-50 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0" />
-              <div>
-                <div className="text-sm font-medium text-red-800 mb-1">
-                  Unsustainable Hours
-                </div>
-                <div className="text-xs text-red-700">
-                  {formatHours(metrics.totalMonthlyHours)} hours/month requires 
-                  working {formatHours(metrics.totalMonthlyHours / 4)} hours/week
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {metrics.averageHourlyRate < 15 && metrics.averageHourlyRate > 0 && (
-        <Card className="border-yellow-200 bg-yellow-50 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-2">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0" />
-              <div>
-                <div className="text-sm font-medium text-yellow-800 mb-1">
-                  Below Minimum Wage
-                </div>
-                <div className="text-xs text-yellow-700">
-                  Current hourly rate is below most minimum wages
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {!isPositiveProfit && (
-        <Card className="border-red-200 bg-red-50 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0" />
-              <div>
-                <div className="text-sm font-medium text-red-800 mb-1">
-                  Negative Profit
-                </div>
-                <div className="text-xs text-red-700">
-                  Material costs exceed selling prices
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

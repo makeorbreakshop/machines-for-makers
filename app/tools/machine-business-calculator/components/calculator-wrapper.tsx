@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Target } from 'lucide-react';
-import { useState } from 'react';
+import { CalculatorThemeToggle } from './calculator-theme-toggle';
+import { useState, useEffect } from 'react';
 import { Level1Setup } from './level-1-setup';
 import { Level3Marketing } from './level-3-marketing';
+import { Level4Labor } from './level-4-labor';
 import { Level4BusinessCosts } from './level-4-business-costs';
 
 interface CalculatorWrapperProps {
@@ -22,6 +24,7 @@ interface CalculatorWrapperProps {
     removeProduct: (id: string) => void;
     updateHourlyRate: (rate: number) => void;
     updateMarketing: (updates: any) => void;
+    updateLabor: (updates: any) => void;
     updateOptimizedPrice: (productId: string, price: number) => void;
     updateBusinessMode: (mode: 'hobby' | 'side' | 'business') => void;
     toggleBusinessCost: (cost: any) => void;
@@ -35,6 +38,21 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
   const [currentBusinessExpenses, setCurrentBusinessExpenses] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Load calculator theme preference from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('calculator-theme');
+    if (savedTheme === 'dark') {
+      setIsDarkMode(true);
+    }
+  }, []);
+
+  // Save calculator theme preference
+  const handleThemeToggle = (isDark: boolean) => {
+    setIsDarkMode(isDark);
+    localStorage.setItem('calculator-theme', isDark ? 'dark' : 'light');
+  };
   
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('en-US', { 
@@ -73,8 +91,18 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             state={state}
             metrics={metrics}
             onUpdateMarketing={actions.updateMarketing}
-            onComplete={() => setActiveTab('business')}
+            onComplete={() => setActiveTab('labor')}
             onBack={() => setActiveTab('products')}
+          />
+        );
+      case 'labor':
+        return (
+          <Level4Labor
+            state={state}
+            metrics={metrics}
+            onUpdateLabor={actions.updateLabor}
+            onComplete={() => setActiveTab('business')}
+            onBack={() => setActiveTab('marketing')}
           />
         );
       case 'business':
@@ -86,7 +114,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             onToggleBusinessCost={actions.toggleBusinessCost}
             onUpdateBusinessCost={actions.updateBusinessCost}
             onComplete={() => setActiveTab('projections')}
-            onBack={() => setActiveTab('marketing')}
+            onBack={() => setActiveTab('labor')}
             onBusinessExpensesChange={setCurrentBusinessExpenses}
           />
         );
@@ -114,14 +142,19 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
   };
 
   return (
-    <>
+    <div className={`min-h-screen bg-background ${isDarkMode ? 'dark' : ''}`}>
       {/* Monthly Goal Progress Bar */}
       <div className="bg-muted/30 border-b border-border">
         <div className="max-w-6xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-6">
+            <div className="ml-auto">
+              <CalculatorThemeToggle isDark={isDarkMode} onToggle={handleThemeToggle} />
+            </div>
+          </div>
+          <div className="flex items-center gap-6 mt-4">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Goal:</span>
+              <span className="text-sm font-medium text-foreground">Goal:</span>
               {isEditingGoal ? (
                 <Input
                   type="number"
@@ -133,14 +166,14 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                       setIsEditingGoal(false);
                     }
                   }}
-                  className="w-24 h-7 text-sm"
+                  className="w-24 h-7 text-sm text-foreground bg-background border-border"
                   autoFocus
                 />
               ) : (
                 <Button
                   variant="ghost"
                   onClick={() => setIsEditingGoal(true)}
-                  className="h-7 px-2 text-sm font-medium hover:bg-transparent"
+                  className="h-7 px-2 text-sm font-medium hover:bg-transparent text-foreground"
                 >
                   {formatCurrency(state.monthlyGoal)}
                 </Button>
@@ -150,7 +183,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             <div className="flex-1 flex items-center gap-4">
               <div className="flex-1">
                 <Progress 
-                  value={safeGoalPercentage} 
+                  value={Math.min(safeGoalPercentage, 100)} 
                   className="h-3"
                   style={{
                     '--progress-background': safeGoalPercentage >= 100 
@@ -162,10 +195,6 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                           : 'hsl(25 95% 53%)'
                   } as React.CSSProperties}
                 />
-                {/* Overflow pulse effect when past 100% */}
-                {safeGoalPercentage > 100 && (
-                  <div className="absolute inset-0 bg-green-500/20 rounded-full animate-pulse" />
-                )}
               </div>
               
               <div className="flex items-center gap-4 text-sm">
@@ -193,9 +222,10 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
       <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           {/* Tab Navigation */}
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="marketing">Marketing</TabsTrigger>
+            <TabsTrigger value="labor">Labor</TabsTrigger>
             <TabsTrigger value="business">Business</TabsTrigger>
             <TabsTrigger value="projections">Projections</TabsTrigger>
           </TabsList>
@@ -208,6 +238,9 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               </TabsContent>
               <TabsContent value="marketing" className="mt-0">
                 {renderTabContent('marketing')}
+              </TabsContent>
+              <TabsContent value="labor" className="mt-0">
+                {renderTabContent('labor')}
               </TabsContent>
               <TabsContent value="business" className="mt-0">
                 {renderTabContent('business')}
@@ -229,12 +262,13 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                   products={state.products}
                   activeTab={activeTab}
                   businessExpenses={currentBusinessExpenses}
+                  laborCosts={state.labor?.totalLaborCost || 0}
                 />
               </div>
             </div>
           </div>
         </Tabs>
       </div>
-    </>
+    </div>
   );
 }

@@ -5,14 +5,38 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { ArrowRight, ArrowLeft, AlertTriangle, Users, TrendingUp, X } from 'lucide-react';
-import { CalculatorState, CalculatedMetrics, MarketingChannel, DEFAULT_MARKETING_CHANNELS } from '../lib/calculator-types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowRight, ArrowLeft, AlertTriangle, Users, TrendingUp, X, Monitor, Calendar, Plus } from 'lucide-react';
+import { CalculatorState, CalculatedMetrics, MarketingChannel, MarketingState, EventChannel } from '../lib/calculator-types';
+
+// Digital advertising typical sales rates: 2-6% for most platforms
+const DIGITAL_CHANNEL_PRESETS = [
+  { name: 'Facebook/Instagram Ads', conversionRate: 2.5 },
+  { name: 'Google Ads', conversionRate: 3.5 },
+  { name: 'Pinterest Ads', conversionRate: 2.0 },
+  { name: 'TikTok Ads', conversionRate: 1.8 },
+  { name: 'YouTube Ads', conversionRate: 2.2 },
+  { name: 'LinkedIn Ads', conversionRate: 4.0 },
+  { name: 'Email Marketing', conversionRate: 5.0 },
+  { name: 'Influencer Marketing', conversionRate: 3.0 },
+  { name: 'Custom Digital Channel', conversionRate: 2.0 }
+];
+
+const EVENT_CHANNEL_PRESETS = [
+  { name: 'Local Craft Shows', salesRate: 3, typicalAttendance: 500 },
+  { name: 'Maker Faires', salesRate: 2, typicalAttendance: 1200 },
+  { name: 'Trade Shows', salesRate: 5, typicalAttendance: 800 },
+  { name: 'Pop-up Markets', salesRate: 4, typicalAttendance: 300 },
+  { name: 'Art Festivals', salesRate: 3, typicalAttendance: 600 },
+  { name: 'Farmers Markets', salesRate: 4, typicalAttendance: 400 },
+  { name: 'Holiday Markets', salesRate: 5, typicalAttendance: 700 },
+  { name: 'Custom Event', salesRate: 3, typicalAttendance: 500 }
+];
 
 interface Level3MarketingProps {
   state: CalculatorState;
   metrics: CalculatedMetrics;
-  onUpdateMarketing: (updates: Partial<CalculatorState['marketing']>) => void;
+  onUpdateMarketing: (updates: Partial<MarketingState>) => void;
   onComplete: () => void;
   onBack: () => void;
 }
@@ -24,57 +48,187 @@ export function Level3Marketing({
   onComplete, 
   onBack 
 }: Level3MarketingProps) {
-  const [channels, setChannels] = useState<MarketingChannel[]>(
-    state.marketing?.channels || DEFAULT_MARKETING_CHANNELS
-  );
-  const [organicUnits, setOrganicUnits] = useState(state.marketing?.organicUnitsPerMonth || 10);
-
   // Calculate total units needed
   const totalUnitsNeeded = Object.values(metrics.productMetrics || {}).reduce(
     (sum, product: any) => sum + (product.unitsProduced || 0), 0
   );
 
-  // Calculate marketing metrics
-  const activeChannels = channels.filter(c => c.isActive);
-  const totalMarketingSpend = activeChannels.reduce((sum, c) => sum + c.monthlySpend, 0);
-  const paidUnitsNeeded = Math.max(0, totalUnitsNeeded - organicUnits);
-  const totalPaidUnits = activeChannels.reduce((sum, c) => sum + c.unitsPerMonth, 0);
-  const blendedCAC = totalPaidUnits > 0 ? totalMarketingSpend / totalPaidUnits : 0;
-  
-  // Update channel calculations
-  useEffect(() => {
-    const updatedChannels = channels.map(channel => {
-      if (!channel.isActive) {
-        return { ...channel, unitsPerMonth: 0, costPerUnit: 0 };
+  // Initialize marketing state - Always start with all units as organic
+  const [marketingState, setMarketingState] = useState<MarketingState>(() => {
+    const defaultState = {
+      organicUnitsPerMonth: totalUnitsNeeded, // Always start with total units needed
+      digitalAdvertising: { 
+        expanded: false, 
+        channels: [
+          {
+            id: 'facebook-ads',
+            name: 'Facebook/Instagram',
+            monthlySpend: 0,
+            conversionRate: 2.5,
+            unitsPerMonth: 0,
+            costPerUnit: 0,
+            isActive: false
+          }
+        ]
+      },
+      eventsAndShows: { 
+        expanded: false, 
+        channels: [
+          {
+            id: 'craft-shows',
+            name: 'Craft Shows',
+            monthlySpend: 0,
+            monthlyAttendance: 500,
+            salesRate: 3,
+            unitsPerMonth: 0,
+            costPerUnit: 0,
+            isActive: false
+          }
+        ]
       }
-      
-      const estimatedReach = channel.monthlySpend * 10; // $1 = ~10 people reached
-      const conversions = (estimatedReach * channel.conversionRate) / 100;
-      const cac = conversions > 0 ? channel.monthlySpend / conversions : 0;
+    };
+
+    // If no marketing state exists, use defaults
+    if (!state.marketing) {
+      return defaultState;
+    }
+
+    // Handle migration from old structure
+    if ('channels' in state.marketing && Array.isArray(state.marketing.channels)) {
+      const oldChannels = state.marketing.channels || [];
+      const digitalChannels = oldChannels.filter(c => 
+        c.name.toLowerCase().includes('facebook') || 
+        c.name.toLowerCase().includes('google') ||
+        c.name.toLowerCase().includes('instagram') ||
+        c.name.toLowerCase().includes('digital')
+      );
+      const eventChannels = oldChannels.filter(c => 
+        c.name.toLowerCase().includes('craft') || 
+        c.name.toLowerCase().includes('show') ||
+        c.name.toLowerCase().includes('event') ||
+        c.name.toLowerCase().includes('faire')
+      );
       
       return {
-        ...channel,
-        unitsPerMonth: Math.floor(conversions),
-        costPerUnit: Math.round(cac * 100) / 100
+        organicUnitsPerMonth: totalUnitsNeeded, // Reset to total units needed
+        digitalAdvertising: { 
+          expanded: false, 
+          channels: digitalChannels.length > 0 ? digitalChannels.map(c => ({...c, monthlySpend: 0, unitsPerMonth: 0})) : defaultState.digitalAdvertising.channels
+        },
+        eventsAndShows: { 
+          expanded: false, 
+          channels: eventChannels.length > 0 ? eventChannels.map(c => ({
+            ...c, 
+            monthlySpend: 0, 
+            unitsPerMonth: 0,
+            monthlyAttendance: c.monthlyAttendance || 500,
+            salesRate: c.salesRate || c.conversionRate || 3
+          })) : defaultState.eventsAndShows.channels
+        }
       };
-    });
-    
-    if (JSON.stringify(updatedChannels) !== JSON.stringify(channels)) {
-      setChannels(updatedChannels);
     }
-  }, [channels]);
 
-  // Update parent state
+    // For existing new structure, reset organic to total units and clear paid channels
+    return {
+      organicUnitsPerMonth: totalUnitsNeeded,
+      digitalAdvertising: {
+        ...state.marketing.digitalAdvertising,
+        channels: (state.marketing.digitalAdvertising?.channels || []).map(c => ({...c, monthlySpend: 0, unitsPerMonth: 0}))
+      },
+      eventsAndShows: {
+        ...state.marketing.eventsAndShows,
+        channels: (state.marketing.eventsAndShows?.channels || []).map(c => ({
+          ...c, 
+          monthlySpend: 0, 
+          unitsPerMonth: 0,
+          monthlyAttendance: c.monthlyAttendance || 500,
+          salesRate: c.salesRate || c.conversionRate || 3
+        }))
+      }
+    };
+  });
+
+  // Ensure organic units match total units needed when there are no paid units
+  useEffect(() => {
+    if (totalPaidUnits === 0 && marketingState.organicUnitsPerMonth !== totalUnitsNeeded) {
+      setMarketingState(prev => ({
+        ...prev,
+        organicUnitsPerMonth: totalUnitsNeeded
+      }));
+    }
+  }, [totalUnitsNeeded]); // Run when total units needed changes
+
+  // Helper function to update digital channel calculations
+  const calculateChannelMetrics = (channel: MarketingChannel) => {
+    // Only calculate if monthlySpend > 0
+    if (channel.monthlySpend <= 0) {
+      return { ...channel, unitsPerMonth: 0, costPerUnit: 0 };
+    }
+    
+    const estimatedReach = channel.monthlySpend * 10; // $1 = ~10 people reached
+    const conversions = (estimatedReach * channel.conversionRate) / 100;
+    const cac = conversions > 0 ? channel.monthlySpend / conversions : 0;
+    
+    return {
+      ...channel,
+      unitsPerMonth: Math.floor(conversions),
+      costPerUnit: Math.round(cac * 100) / 100
+    };
+  };
+
+  // Helper function to update event channel calculations
+  const calculateEventChannelMetrics = (channel: EventChannel) => {
+    // Only calculate if both attendance and spend > 0
+    if (channel.monthlyAttendance <= 0 || channel.monthlySpend <= 0) {
+      return { ...channel, unitsPerMonth: 0, costPerUnit: 0 };
+    }
+    
+    const conversions = (channel.monthlyAttendance * channel.salesRate) / 100;
+    const costPerSale = conversions > 0 ? channel.monthlySpend / conversions : 0;
+    
+    return {
+      ...channel,
+      unitsPerMonth: Math.floor(conversions),
+      costPerUnit: Math.round(costPerSale * 100) / 100
+    };
+  };
+
+  // Calculate totals across all categories
+  const getAllActiveChannels = () => {
+    const digitalChannels = (marketingState.digitalAdvertising?.channels || []).map(calculateChannelMetrics);
+    const eventChannels = (marketingState.eventsAndShows?.channels || []).map(calculateEventChannelMetrics);
+    return [...digitalChannels, ...eventChannels].filter(c => c.monthlySpend > 0);
+  };
+
+  const activeChannels = getAllActiveChannels();
+  const totalMarketingSpend = activeChannels.reduce((sum, c) => sum + c.monthlySpend, 0);
+  const paidUnitsNeeded = Math.max(0, totalUnitsNeeded - marketingState.organicUnitsPerMonth);
+  const totalPaidUnits = activeChannels.reduce((sum, c) => sum + c.unitsPerMonth, 0);
+  const blendedCAC = totalPaidUnits > 0 ? totalMarketingSpend / totalPaidUnits : 0;
+
+  // Auto-balance organic sales when paid units change
+  useEffect(() => {
+    if (totalPaidUnits > 0) {
+      const idealOrganic = Math.max(0, totalUnitsNeeded - totalPaidUnits);
+      if (marketingState.organicUnitsPerMonth !== idealOrganic) {
+        setMarketingState(prev => ({
+          ...prev,
+          organicUnitsPerMonth: idealOrganic
+        }));
+      }
+    }
+  }, [totalPaidUnits, totalUnitsNeeded]);
+
+  // Update parent state when local state changes
   useEffect(() => {
     onUpdateMarketing({
-      channels,
+      ...marketingState,
       totalMonthlySpend: totalMarketingSpend,
-      organicUnitsPerMonth: organicUnits,
       overallCAC: blendedCAC,
       totalUnitsFromMarketing: totalPaidUnits,
-      organicPercentage: (organicUnits / totalUnitsNeeded) * 100
+      organicPercentage: totalUnitsNeeded > 0 ? (marketingState.organicUnitsPerMonth / totalUnitsNeeded) * 100 : 0
     });
-  }, [channels, organicUnits, totalMarketingSpend, blendedCAC, totalPaidUnits, totalUnitsNeeded, onUpdateMarketing]);
+  }, [marketingState, totalMarketingSpend, blendedCAC, totalPaidUnits, totalUnitsNeeded, onUpdateMarketing]);
 
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('en-US', { 
@@ -92,27 +246,108 @@ export function Level3Marketing({
       maximumFractionDigits: 2
     }).format(amount);
 
-  const updateChannel = (channelId: string, updates: Partial<MarketingChannel>) => {
-    setChannels(prev => prev.map(c => 
-      c.id === channelId ? { ...c, ...updates } : c
-    ));
+  // Helper functions to update marketing state
+  const updateDigitalChannel = (channelId: string, updates: Partial<MarketingChannel>) => {
+    setMarketingState(prev => ({
+      ...prev,
+      digitalAdvertising: {
+        ...prev.digitalAdvertising,
+        channels: prev.digitalAdvertising.channels.map(c =>
+          c.id === channelId ? { ...c, ...updates } : c
+        )
+      }
+    }));
   };
 
-  const addCustomChannel = () => {
+  const updateEventChannel = (channelId: string, updates: Partial<EventChannel>) => {
+    setMarketingState(prev => ({
+      ...prev,
+      eventsAndShows: {
+        ...prev.eventsAndShows,
+        channels: prev.eventsAndShows.channels.map(c =>
+          c.id === channelId ? { ...c, ...updates } : c
+        )
+      }
+    }));
+  };
+
+  const addDigitalChannel = (channelPreset: { name: string; conversionRate: number }) => {
     const newChannel: MarketingChannel = {
-      id: `custom-${Date.now()}`,
-      name: 'Custom Channel',
-      monthlySpend: 100,
-      conversionRate: 5,
+      id: `digital-${Date.now()}`,
+      name: channelPreset.name,
+      monthlySpend: 0,
+      conversionRate: channelPreset.conversionRate,
       unitsPerMonth: 0,
       costPerUnit: 0,
-      isActive: false
+      isActive: true
     };
-    setChannels(prev => [...prev, newChannel]);
+    setMarketingState(prev => ({
+      ...prev,
+      digitalAdvertising: {
+        ...prev.digitalAdvertising,
+        channels: [...prev.digitalAdvertising.channels, newChannel]
+      }
+    }));
   };
 
-  const removeChannel = (channelId: string) => {
-    setChannels(prev => prev.filter(c => c.id !== channelId));
+  const addEventChannel = (channelPreset: { name: string; salesRate: number; typicalAttendance: number }) => {
+    const newChannel: EventChannel = {
+      id: `event-${Date.now()}`,
+      name: channelPreset.name,
+      monthlySpend: 0,
+      monthlyAttendance: channelPreset.typicalAttendance,
+      salesRate: channelPreset.salesRate,
+      unitsPerMonth: 0,
+      costPerUnit: 0,
+      isActive: true
+    };
+    setMarketingState(prev => ({
+      ...prev,
+      eventsAndShows: {
+        ...prev.eventsAndShows,
+        channels: [...prev.eventsAndShows.channels, newChannel]
+      }
+    }));
+  };
+
+  const removeDigitalChannel = (channelId: string) => {
+    setMarketingState(prev => ({
+      ...prev,
+      digitalAdvertising: {
+        ...prev.digitalAdvertising,
+        channels: prev.digitalAdvertising.channels.filter(c => c.id !== channelId)
+      }
+    }));
+  };
+
+  const removeEventChannel = (channelId: string) => {
+    setMarketingState(prev => ({
+      ...prev,
+      eventsAndShows: {
+        ...prev.eventsAndShows,
+        channels: prev.eventsAndShows.channels.filter(c => c.id !== channelId)
+      }
+    }));
+  };
+
+  const toggleDigitalExpanded = () => {
+    setMarketingState(prev => ({
+      ...prev,
+      digitalAdvertising: {
+        ...prev.digitalAdvertising,
+        expanded: !prev.digitalAdvertising.expanded
+      }
+    }));
+  };
+
+  const toggleEventsExpanded = () => {
+    setMarketingState(prev => ({
+      ...prev,
+      eventsAndShows: {
+        ...prev.eventsAndShows,
+        expanded: !prev.eventsAndShows.expanded
+      }
+    }));
   };
 
   const shortfall = Math.max(0, paidUnitsNeeded - totalPaidUnits);
@@ -123,27 +358,12 @@ export function Level3Marketing({
         <h3 className="text-xl font-semibold">Marketing Channels</h3>
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">Total Monthly Spend</span>
-          <span className="text-lg font-bold text-red-600">{formatCurrency(totalMarketingSpend)}</span>
+          <span className="text-lg font-bold text-destructive">{formatCurrency(totalMarketingSpend)}</span>
         </div>
       </div>
 
-      {/* The Reality Check */}
-      <Card className="border-amber-200 bg-amber-50">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm text-amber-800">
-                You need <strong>{totalUnitsNeeded} units/month</strong> to hit your goal. 
-                Even with {organicUnits} organic sales, you still need <strong>{paidUnitsNeeded} paid customers</strong> monthly.
-                Marketing spend is a real cost line in your budget.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Organic Sales - Styled like product cards */}
+      {/* Organic Sales */}
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -160,11 +380,20 @@ export function Level3Marketing({
               type="number"
               min="0"
               max="50"
-              value={organicUnits}
-              onChange={(e) => setOrganicUnits(parseInt(e.target.value) || 0)}
+              value={marketingState.organicUnitsPerMonth}
+              onChange={(e) => setMarketingState(prev => ({
+                ...prev,
+                organicUnitsPerMonth: parseInt(e.target.value) || 0
+              }))}
               className="w-24"
             />
-            <div></div>
+            <div className="text-sm text-muted-foreground">
+              {(() => {
+                const totalUnits = totalPaidUnits + marketingState.organicUnitsPerMonth;
+                const shortfall = totalUnitsNeeded - totalUnits;
+                return shortfall <= 0 ? 'Goal met!' : `Need ${shortfall} more units`;
+              })()}
+            </div>
             <div className="text-sm text-muted-foreground">
               Referrals, repeat customers, organic social
             </div>
@@ -172,93 +401,260 @@ export function Level3Marketing({
         </CardContent>
       </Card>
 
-      {/* Marketing Channels - Each styled like product cards */}
-      <div className="space-y-4">
-        {channels.map(channel => (
-          <Card key={channel.id}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={channel.isActive}
-                    onCheckedChange={(checked) => updateChannel(channel.id, { isActive: checked })}
-                  />
-                  <Input
-                    value={channel.name}
-                    onChange={(e) => updateChannel(channel.id, { name: e.target.value })}
-                    className="font-medium border-none p-0 h-auto focus:ring-0 focus:border-none bg-transparent"
-                    style={{ minWidth: '150px' }}
-                  />
-                </div>
-                {channel.id.startsWith('custom-') && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeChannel(channel.id)}
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-              
-              {channel.isActive && (
-                <>
-                  <div className="grid grid-cols-4 gap-4 mb-4">
+      {/* Digital Advertising Section */}
+      <Card>
+        <CardContent className="p-0">
+          <Button
+            variant="ghost"
+            onClick={toggleDigitalExpanded}
+            className="w-full justify-between p-3 h-auto rounded-lg"
+          >
+          <div className="flex items-center gap-3">
+            <Monitor className="h-4 w-4 text-muted-foreground" />
+            <h4 className="text-sm font-medium">Digital Advertising</h4>
+            <span className="text-xs text-muted-foreground">
+              (Typical sales rates: 2-6%)
+            </span>
+            <span className="text-sm font-medium text-muted-foreground ml-auto">
+              {formatCurrency((marketingState.digitalAdvertising?.channels || []).reduce((sum, c) => 
+                sum + (c.monthlySpend || 0), 0
+              ))} total
+            </span>
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {marketingState.digitalAdvertising?.expanded ? '−' : '+'}
+          </span>
+        </Button>
+
+          {marketingState.digitalAdvertising?.expanded && (
+            <div className="px-3 pb-3 space-y-3">
+              {(marketingState.digitalAdvertising?.channels || []).map(channel => {
+              const calculatedChannel = calculateChannelMetrics(channel);
+              return (
+                <div key={channel.id} className="bg-muted/30 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <Input
+                      value={channel.name}
+                      onChange={(e) => updateDigitalChannel(channel.id, { name: e.target.value })}
+                      className="font-medium h-8 text-sm flex-1 max-w-48"
+                      placeholder="Channel name"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeDigitalChannel(channel.id)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-3 text-sm">
                     <div>
-                      <Label className="text-sm font-medium">Monthly Spend</Label>
+                      <Label className="text-xs font-medium">Monthly Spend</Label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
+                        <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground">$</span>
                         <Input
                           type="number"
                           min="0"
                           step="50"
-                          value={channel.monthlySpend}
-                          onChange={(e) => updateChannel(channel.id, { monthlySpend: parseInt(e.target.value) || 0 })}
-                          className="pl-6"
+                          value={channel.monthlySpend || ''}
+                          onChange={(e) => updateDigitalChannel(channel.id, { monthlySpend: parseInt(e.target.value) || 0 })}
+                          className="pl-5 h-8 text-sm"
+                          placeholder="0"
                         />
                       </div>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">Conversion Rate</Label>
+                      <Label className="text-xs font-medium">Sales Rate</Label>
                       <div className="relative">
                         <Input
                           type="number"
                           min="0.1"
                           max="20"
                           step="0.1"
-                          value={channel.conversionRate}
-                          onChange={(e) => updateChannel(channel.id, { conversionRate: parseFloat(e.target.value) || 0 })}
-                          className="pr-6"
+                          value={channel.conversionRate || ''}
+                          onChange={(e) => updateDigitalChannel(channel.id, { conversionRate: parseFloat(e.target.value) || 0 })}
+                          className="pr-5 h-8 text-sm"
+                          placeholder="2.5"
                         />
-                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">%</span>
+                        <span className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground">%</span>
                       </div>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">Estimated Units</Label>
-                      <div className="text-lg font-semibold">{channel.unitsPerMonth}/month</div>
+                      <Label className="text-xs font-medium">Units/Month</Label>
+                      <div className="h-8 px-2 flex items-center text-sm font-medium rounded-md border bg-muted">
+                        {calculatedChannel.unitsPerMonth}
+                      </div>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">CAC</Label>
-                      <div className="text-lg font-semibold">{formatCurrencyPrecise(channel.costPerUnit)}</div>
+                      <Label className="text-xs font-medium" title="Customer Acquisition Cost">CAC</Label>
+                      <div className="h-8 px-2 flex items-center text-sm font-medium rounded-md border bg-muted">
+                        {formatCurrencyPrecise(calculatedChannel.costPerUnit)}
+                      </div>
                     </div>
                   </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-        
-        <Button 
-          variant="outline" 
-          onClick={addCustomChannel}
-          className="w-full"
-        >
-          + Add Custom Channel
-        </Button>
-      </div>
+                </div>
+              );
+            })}
+            
+              <Select onValueChange={(value) => {
+                const preset = DIGITAL_CHANNEL_PRESETS.find(p => p.name === value);
+                if (preset) addDigitalChannel(preset);
+              }}>
+                <SelectTrigger className="w-full h-8 text-sm">
+                  <SelectValue placeholder="+ Add Digital Channel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIGITAL_CHANNEL_PRESETS.map((preset) => (
+                    <SelectItem key={preset.name} value={preset.name}>
+                      <div className="flex justify-between items-center w-full">
+                        <span>{preset.name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{preset.conversionRate}% sales</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Marketing Summary - Styled like Monthly Totals */}
+      {/* Events & Shows Section */}
+      <Card>
+        <CardContent className="p-0">
+          <Button
+            variant="ghost"
+            onClick={toggleEventsExpanded}
+            className="w-full justify-between p-3 h-auto rounded-lg"
+          >
+          <div className="flex items-center gap-3">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <h4 className="text-sm font-medium">Events & Shows</h4>
+            <span className="text-sm font-medium text-muted-foreground">
+              {formatCurrency((marketingState.eventsAndShows?.channels || []).reduce((sum, c) => 
+                sum + (c.monthlySpend || 0), 0
+              ))} total
+            </span>
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {marketingState.eventsAndShows?.expanded ? '−' : '+'}
+          </span>
+        </Button>
+
+          {marketingState.eventsAndShows?.expanded && (
+            <div className="px-3 pb-3 space-y-3">
+              {(marketingState.eventsAndShows?.channels || []).map(channel => {
+              const calculatedChannel = calculateEventChannelMetrics(channel);
+              return (
+                <div key={channel.id} className="bg-muted/30 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <Input
+                      value={channel.name}
+                      onChange={(e) => updateEventChannel(channel.id, { name: e.target.value })}
+                      className="font-medium h-8 text-sm flex-1 max-w-48"
+                      placeholder="Event name"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeEventChannel(channel.id)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-5 gap-3 text-sm">
+                    <div>
+                      <Label className="text-xs font-medium">Monthly Costs</Label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="25"
+                          value={channel.monthlySpend || ''}
+                          onChange={(e) => updateEventChannel(channel.id, { monthlySpend: parseInt(e.target.value) || 0 })}
+                          className="pl-5 h-8 text-sm"
+                          placeholder="100"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium">Attendance</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="50"
+                        value={channel.monthlyAttendance || ''}
+                        onChange={(e) => updateEventChannel(channel.id, { monthlyAttendance: parseInt(e.target.value) || 0 })}
+                        className="h-8 text-sm"
+                        placeholder="500"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium">Sales Rate</Label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min="0.1"
+                          max="20"
+                          step="0.1"
+                          value={channel.salesRate || ''}
+                          onChange={(e) => updateEventChannel(channel.id, { salesRate: parseFloat(e.target.value) || 0 })}
+                          className="pr-5 h-8 text-sm"
+                          placeholder="3"
+                        />
+                        <span className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium">Sales</Label>
+                      <div className="h-8 px-2 flex items-center text-sm font-medium rounded-md border bg-muted">
+                        {calculatedChannel.unitsPerMonth}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium">Cost/Sale</Label>
+                      <div className="h-8 px-2 flex items-center text-sm font-medium rounded-md border bg-muted">
+                        {formatCurrencyPrecise(calculatedChannel.costPerUnit)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            
+              <Select onValueChange={(value) => {
+                const preset = EVENT_CHANNEL_PRESETS.find(p => p.name === value);
+                if (preset) addEventChannel(preset);
+              }}>
+                <SelectTrigger className="w-full h-8 text-sm">
+                  <SelectValue placeholder="+ Add Event/Show" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EVENT_CHANNEL_PRESETS.map((preset) => (
+                    <SelectItem key={preset.name} value={preset.name}>
+                      <div className="flex justify-between items-center w-full">
+                        <span>{preset.name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{preset.salesRate}% of {preset.typicalAttendance} people</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Marketing Summary */}
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -269,15 +665,15 @@ export function Level3Marketing({
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total Monthly Spend</span>
-              <span className="font-mono font-medium text-red-600">{formatCurrency(totalMarketingSpend)}</span>
+              <span className="font-mono font-medium text-destructive">{formatCurrency(totalMarketingSpend)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Blended CAC</span>
+              <span className="text-muted-foreground" title="Customer Acquisition Cost">Blended CAC</span>
               <span className="font-mono font-medium">{formatCurrencyPrecise(blendedCAC)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Organic Units</span>
-              <span className="font-mono font-medium text-green-600">{organicUnits}/month</span>
+              <span className="font-mono font-medium text-green-600">{marketingState.organicUnitsPerMonth}/month</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Paid Units</span>
@@ -287,7 +683,7 @@ export function Level3Marketing({
             <div className="border-t pt-3">
               <div className="flex justify-between items-center">
                 <span className="font-medium">Total Units</span>
-                <span className="font-mono font-medium">{organicUnits + totalPaidUnits}/month</span>
+                <span className="font-mono font-medium">{marketingState.organicUnitsPerMonth + totalPaidUnits}/month</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Target Needed</span>
@@ -295,7 +691,7 @@ export function Level3Marketing({
               </div>
               
               {shortfall > 0 && (
-                <div className="flex justify-between items-center text-amber-600 mt-2">
+                <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 mt-2">
                   <span className="font-medium">Shortfall</span>
                   <span className="font-mono font-medium">-{shortfall} units</span>
                 </div>
@@ -305,18 +701,6 @@ export function Level3Marketing({
         </CardContent>
       </Card>
 
-      {/* Navigation */}
-      <div className="flex justify-between pt-8">
-        <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Products
-        </Button>
-        
-        <Button onClick={onComplete} className="flex items-center gap-2">
-          Continue to Business Costs
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </div>
     </div>
   );
 }

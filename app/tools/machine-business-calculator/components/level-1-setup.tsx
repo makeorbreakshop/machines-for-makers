@@ -110,6 +110,7 @@ export function Level1Setup({
               variant="outline"
               size="sm"
               onClick={() => setShowTemplates(!showTemplates)}
+              className="text-foreground border-border bg-background hover:bg-muted"
             >
               Use Template
             </Button>
@@ -117,6 +118,7 @@ export function Level1Setup({
               variant="outline"
               size="sm"
               onClick={addBlankProduct}
+              className="text-foreground border-border bg-background hover:bg-muted"
             >
               <Plus className="h-4 w-4 mr-1" />
               Add Product
@@ -127,7 +129,7 @@ export function Level1Setup({
         {/* Template Selection */}
         {showTemplates && (
           <div className="bg-muted rounded-lg p-4 space-y-3">
-            <div className="text-sm font-medium mb-3">
+            <div className="text-sm font-medium text-foreground mb-3">
               Choose a starting template:
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -135,7 +137,7 @@ export function Level1Setup({
                 <Button
                   key={index}
                   variant="outline"
-                  className="justify-start h-auto p-3"
+                  className="justify-start h-auto p-3 text-foreground border-border bg-background hover:bg-muted"
                   onClick={() => addProductFromTemplate(template)}
                 >
                   <div className="text-left">
@@ -179,10 +181,11 @@ export function Level1Setup({
               const isValid = product.name.trim() && totalCosts > 0 && product.sellingPrice > 0;
               
               return (
-                <Card key={product.id}>
-                  <CardContent className="p-6 space-y-4">
-                        {/* Header: Clickable Name + Unit Profit + Remove */}
-                        <div className="flex items-center justify-between mb-4">
+                <Card key={product.id} className="border-border bg-card shadow-sm">
+                  <CardContent className="p-0">
+                    <div className="bg-muted/50 px-6 py-4 border-b border-border">
+                      {/* Header: Clickable Name + Unit Profit + Remove */}
+                      <div className="flex items-center justify-between">
                           <div className="flex-1 min-w-0">
                             {product.isEditingName ? (
                               <Input
@@ -202,7 +205,7 @@ export function Level1Setup({
                               <Button
                                 variant="ghost"
                                 onClick={() => onUpdateProduct(product.id, { isEditingName: true })}
-                                className="text-base font-medium h-auto p-0 justify-start hover:bg-transparent"
+                                className="text-base font-medium h-auto p-0 justify-start hover:bg-transparent text-foreground"
                               >
                                 {product.name || `Product ${index + 1}`}
                               </Button>
@@ -236,11 +239,13 @@ export function Level1Setup({
                             </Button>
                           </div>
                         </div>
-
-                        {/* Simple Clean Form */}
-                        <div className="grid grid-cols-4 gap-4">
+                    </div>
+                    
+                    <div className="p-6 space-y-6">
+                      {/* Simple Clean Form */}
+                      <div className="grid grid-cols-4 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-sm font-medium">Price</Label>
+                            <Label className="text-sm font-medium text-foreground">Price</Label>
                             <Input
                               type="number"
                               step="0.01"
@@ -253,7 +258,7 @@ export function Level1Setup({
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-sm font-medium">Units/Month</Label>
+                            <Label className="text-sm font-medium text-foreground">Units/Month</Label>
                             <Input
                               type="number"
                               step="1"
@@ -266,7 +271,7 @@ export function Level1Setup({
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-sm font-medium">Total Cost</Label>
+                            <Label className="text-sm font-medium text-foreground">Total Cost</Label>
                             <Input
                               type="number"
                               step="0.01"
@@ -335,9 +340,9 @@ export function Level1Setup({
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-sm font-medium">Profit</Label>
+                            <Label className="text-sm font-medium text-foreground">Profit</Label>
                             <div className={`h-10 px-3 flex items-center text-sm font-medium rounded-md border ${
-                              monthlyProfit > 0 ? 'bg-green-50 text-green-700 border-green-200' : 
+                              monthlyProfit > 0 ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20' : 
                               monthlyProfit < 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : 
                               'bg-muted text-muted-foreground border-border'
                             }`}>
@@ -348,18 +353,18 @@ export function Level1Setup({
 
 
                         {/* Material Costs Section */}
-                        <div className="border-t border-border pt-4">
+                        <div className="bg-muted/30 rounded-lg border border-border">
                           <Button
                             variant="ghost"
                             onClick={() => {
                               const currentlyExpanded = product.showCostBreakdown || false;
                               onUpdateProduct(product.id, { showCostBreakdown: !currentlyExpanded });
                             }}
-                            className="w-full justify-between p-3 h-auto"
+                            className="w-full justify-between p-3 h-auto rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <Package className="h-4 w-4 text-muted-foreground" />
-                              <h4 className="text-sm font-medium">Material Costs</h4>
+                              <h4 className="text-sm font-medium text-foreground">Material Costs</h4>
                               <span className="text-sm font-medium text-muted-foreground">
                                 {formatCurrencyPrecise(Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0))} total
                               </span>
@@ -370,7 +375,7 @@ export function Level1Setup({
                           </Button>
 
                           {product.showCostBreakdown && (
-                            <div className="mt-3 space-y-1">
+                            <div className="px-3 pb-3 space-y-1">
                               {/* Material Costs */}
                               {Object.entries(costs).map(([costType, value]) => (
                                 value > 0 || product.showCostBreakdown ? (
@@ -436,18 +441,18 @@ export function Level1Setup({
                         </div>
 
                         {/* Time Tracking Section */}
-                        <div>
+                        <div className="bg-muted/30 rounded-lg border border-border">
                           <Button
                             variant="ghost"
                             onClick={() => {
                               const currentlyExpanded = product.showTimeBreakdown || false;
                               onUpdateProduct(product.id, { showTimeBreakdown: !currentlyExpanded });
                             }}
-                            className="w-full justify-between p-3 h-auto"
+                            className="w-full justify-between p-3 h-auto rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <Clock className="h-4 w-4 text-muted-foreground" />
-                              <h4 className="text-sm font-medium">Labor Costs</h4>
+                              <h4 className="text-sm font-medium text-foreground">Labor Costs</h4>
                               <span className="text-sm font-medium text-muted-foreground">
                                 {formatCurrencyPrecise(productMetrics.laborCosts)} total ({productMetrics.totalTimeHours.toFixed(1)}h)
                               </span>
@@ -458,11 +463,11 @@ export function Level1Setup({
                           </Button>
 
                           {product.showTimeBreakdown && (
-                            <div className="mt-3 space-y-3">
+                            <div className="px-3 pb-3 space-y-3">
                               {/* Hourly Rate Setting */}
                               <div className="bg-muted/30 rounded-lg p-3">
                                 <div className="flex items-center justify-between">
-                                  <Label className="text-sm font-medium">Hourly Rate (applies to all products)</Label>
+                                  <Label className="text-sm font-medium text-foreground">Hourly Rate (applies to all products)</Label>
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm text-muted-foreground">$</span>
                                     <Input
@@ -544,18 +549,18 @@ export function Level1Setup({
                         </div>
 
                         {/* Platform Fees Section */}
-                        <div>
+                        <div className="bg-muted/30 rounded-lg border border-border">
                           <Button
                             variant="ghost"
                             onClick={() => {
                               const currentlyExpanded = product.showPlatformFees || false;
                               onUpdateProduct(product.id, { showPlatformFees: !currentlyExpanded });
                             }}
-                            className="w-full justify-between p-3 h-auto"
+                            className="w-full justify-between p-3 h-auto rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <Store className="h-4 w-4 text-muted-foreground" />
-                              <h4 className="text-sm font-medium">Platform Fees</h4>
+                              <h4 className="text-sm font-medium text-foreground">Platform Fees</h4>
                               <span className="text-sm font-medium text-muted-foreground">
                                 {(() => {
                                   const platformFeeCalc = calculatePlatformFees(productWithFees);
@@ -569,7 +574,16 @@ export function Level1Setup({
                           </Button>
 
                           {product.showPlatformFees && (
-                            <div className="mt-3 space-y-1">
+                            <div className="px-3 pb-3 space-y-3">
+                              {/* Column Headers */}
+                              <div className="flex items-center gap-3 px-3 text-xs font-medium text-muted-foreground">
+                                <span className="flex-1">Platform</span>
+                                <span className="w-24 text-center">Platform Fee</span>
+                                <span className="w-24 text-center">Sales %</span>
+                                <span className="w-16 text-center">Units</span>
+                                <span className="w-8"></span>
+                              </div>
+                              
                               {/* Platform Fee Entries */}
                               <div className="space-y-1">
                                 {ensuredPlatformFees.map((platformFee) => (
@@ -708,25 +722,32 @@ export function Level1Setup({
                                   </div>
                                 ))}
                                 
-                                <Button
-                                  variant="ghost"
-                                  onClick={() => {
+                                <Select value="" onValueChange={(value) => {
+                                  const preset = DEFAULT_PLATFORM_PRESETS.find(p => p.name === value);
+                                  if (preset) {
                                     const currentPlatformFees = ensuredPlatformFees;
                                     
-                                    // Always add new platform with 0% - user controls the distribution
                                     const newPlatformFee: PlatformFee = {
                                       id: `platform_${Date.now()}`,
-                                      name: '',
-                                      feePercentage: 0,
+                                      name: preset.name,
+                                      feePercentage: preset.feePercentage,
                                       salesPercentage: 0
                                     };
                                     const updatedPlatformFees = [...currentPlatformFees, newPlatformFee];
                                     onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
-                                  }}
-                                  className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
-                                >
-                                  + Add Platform
-                                </Button>
+                                  }
+                                }}>
+                                  <SelectTrigger className="w-full h-8 text-sm">
+                                    <SelectValue placeholder="+ Add Platform" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {DEFAULT_PLATFORM_PRESETS.map((preset) => (
+                                      <SelectItem key={preset.name} value={preset.name}>
+                                        {preset.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
                               
                               {(() => {
@@ -741,6 +762,7 @@ export function Level1Setup({
                             </div>
                           )}
                         </div>
+                    </div>
                   </CardContent>
                 </Card>
               );

@@ -41,13 +41,72 @@ export interface MarketingChannel {
   isActive: boolean;
 }
 
-export interface MarketingState {
-  totalMonthlySpend: number;
+export interface EventChannel {
+  id: string;
+  name: string;
+  monthlySpend: number;     // Booth fees and event costs
+  monthlyAttendance: number; // Expected number of people who will see your booth
+  salesRate: number;        // percentage: attendees who buy
+  unitsPerMonth: number;    // calculated sales from this channel
+  costPerUnit: number;      // Cost per sale for this channel
+  isActive: boolean;
+}
+
+export interface MarketingCategory {
+  expanded: boolean;
   channels: MarketingChannel[];
-  overallCAC: number;      // weighted average CAC across all channels
-  totalUnitsFromMarketing: number;
-  organicUnitsPerMonth: number; // sales without paid marketing
-  organicPercentage: number;    // what % of sales come organically
+}
+
+export interface EventCategory {
+  expanded: boolean;
+  channels: EventChannel[];
+}
+
+export interface MarketingState {
+  organicUnitsPerMonth: number;
+  digitalAdvertising: MarketingCategory;
+  eventsAndShows: EventCategory;
+  // Calculated totals
+  totalMonthlySpend?: number;
+  overallCAC?: number;
+  totalUnitsFromMarketing?: number;
+  organicPercentage?: number;
+}
+
+export interface Worker {
+  id: string;
+  name: string;
+  hourlyRate: number;
+  maxHoursPerWeek: number;
+  skills: string[]; // Which tasks they can do
+  assignedHours: number;
+  costPerWeek: number;
+}
+
+export interface BusinessTask {
+  id: string;
+  name: string;
+  category: 'admin' | 'marketing' | 'maintenance' | 'inventory' | 'shipping' | 'development';
+  hoursPerWeek: number;
+  assignedWorkerId?: string;
+  description: string;
+}
+
+export interface LaborState {
+  // Auto-calculated from products
+  productionHoursPerWeek: number;
+  
+  // Business overhead tasks
+  businessTasks: BusinessTask[];
+  
+  // Workers
+  workers: Worker[];
+  
+  // Calculated totals
+  totalHoursNeeded?: number;
+  totalLaborCost?: number;
+  unassignedHours?: number;
+  ownerHours?: number;
 }
 
 export interface BusinessCost {
@@ -82,11 +141,14 @@ export interface CalculatorState {
   // Level 3 - Marketing & CAC
   marketing: MarketingState;
   
-  // Level 4 - Business Costs
+  // Level 4 - Labor Management
+  labor: LaborState;
+  
+  // Level 5 - Business Costs
   businessMode: 'hobby' | 'side' | 'business';
   selectedCosts: BusinessCost[];
   
-  // Level 5 - Projections & Optimization
+  // Level 6 - Projections & Optimization
   optimizedPrices: { [productId: string]: number };
   recommendedStrategy: Strategy | null;
   
@@ -155,49 +217,59 @@ export const DEFAULT_PLATFORM_PRESETS = [
   { name: 'Shopify', feePercentage: 2.9 },
   { name: 'Square', feePercentage: 2.6 },
   { name: 'PayPal', feePercentage: 3.49 },
-  { name: 'Craft Shows', feePercentage: 0 },
   { name: 'Facebook/Instagram', feePercentage: 5 },
   { name: 'Other', feePercentage: 0 }
 ];
 
-export const DEFAULT_MARKETING_CHANNELS: MarketingChannel[] = [
-  {
-    id: 'facebook-ads',
-    name: 'Facebook/Instagram Ads',
-    monthlySpend: 300,
-    conversionRate: 2.5, // 2.5% of people who see ads buy
-    unitsPerMonth: 0, // calculated
-    costPerUnit: 0, // calculated CAC
-    isActive: true
+export const DEFAULT_MARKETING_STATE: MarketingState = {
+  organicUnitsPerMonth: 10,
+  digitalAdvertising: {
+    expanded: false,
+    channels: [
+      {
+        id: 'facebook-ads',
+        name: 'Facebook/Instagram',
+        monthlySpend: 0,
+        conversionRate: 2.5,
+        unitsPerMonth: 0,
+        costPerUnit: 0,
+        isActive: false
+      },
+      {
+        id: 'google-ads',
+        name: 'Google Ads',
+        monthlySpend: 0,
+        conversionRate: 3.5,
+        unitsPerMonth: 0,
+        costPerUnit: 0,
+        isActive: false
+      }
+    ]
   },
-  {
-    id: 'google-ads', 
-    name: 'Google Ads',
-    monthlySpend: 200,
-    conversionRate: 3.5,
-    unitsPerMonth: 0,
-    costPerUnit: 0,
-    isActive: false
-  },
-  {
-    id: 'craft-shows',
-    name: 'Craft Shows',
-    monthlySpend: 400, // booth fees, travel
-    conversionRate: 15, // higher in-person conversion
-    unitsPerMonth: 0,
-    costPerUnit: 0,
-    isActive: false
-  },
-  {
-    id: 'direct-outreach',
-    name: 'Direct Outreach',
-    monthlySpend: 50, // mostly time/email costs
-    conversionRate: 8,
-    unitsPerMonth: 0,
-    costPerUnit: 0,
-    isActive: false
+  eventsAndShows: {
+    expanded: false,
+    channels: [
+      {
+        id: 'craft-shows',
+        name: 'Craft Shows',
+        monthlySpend: 0,
+        conversionRate: 15,
+        unitsPerMonth: 0,
+        costPerUnit: 0,
+        isActive: false
+      },
+      {
+        id: 'maker-faires',
+        name: 'Maker Faires',
+        monthlySpend: 0,
+        conversionRate: 12,
+        unitsPerMonth: 0,
+        costPerUnit: 0,
+        isActive: false
+      }
+    ]
   }
-];
+};
 
 export const DEFAULT_BUSINESS_COSTS: BusinessCost[] = [
   {
@@ -257,6 +329,78 @@ export const DEFAULT_BUSINESS_COSTS: BusinessCost[] = [
     category: 'professional'
   }
 ];
+
+export const DEFAULT_BUSINESS_TASKS: BusinessTask[] = [
+  {
+    id: 'admin-bookkeeping',
+    name: 'Bookkeeping & Admin',
+    category: 'admin',
+    hoursPerWeek: 3,
+    description: 'Record transactions, manage expenses, handle paperwork'
+  },
+  {
+    id: 'admin-emails',
+    name: 'Customer Service & Emails',
+    category: 'admin',
+    hoursPerWeek: 2,
+    description: 'Respond to customer inquiries, handle support tickets'
+  },
+  {
+    id: 'marketing-social',
+    name: 'Social Media & Marketing',
+    category: 'marketing',
+    hoursPerWeek: 4,
+    description: 'Create posts, engage with customers, run ad campaigns'
+  },
+  {
+    id: 'inventory-management',
+    name: 'Inventory & Procurement',
+    category: 'inventory',
+    hoursPerWeek: 2,
+    description: 'Order materials, manage stock levels, organize supplies'
+  },
+  {
+    id: 'shipping-fulfillment',
+    name: 'Order Fulfillment & Shipping',
+    category: 'shipping',
+    hoursPerWeek: 3,
+    description: 'Pack orders, print labels, coordinate pickups'
+  },
+  {
+    id: 'maintenance-shop',
+    name: 'Shop Maintenance & Setup',
+    category: 'maintenance',
+    hoursPerWeek: 2,
+    description: 'Clean workspace, maintain equipment, organize tools'
+  },
+  {
+    id: 'development-planning',
+    name: 'Product Development & Planning',
+    category: 'development',
+    hoursPerWeek: 3,
+    description: 'Design new products, improve processes, strategic planning'
+  }
+];
+
+export const DEFAULT_LABOR_STATE: LaborState = {
+  productionHoursPerWeek: 0, // Calculated from products
+  businessTasks: DEFAULT_BUSINESS_TASKS,
+  workers: [
+    {
+      id: 'owner',
+      name: 'You (Owner)',
+      hourlyRate: 25, // Will sync with main hourly rate
+      maxHoursPerWeek: 40,
+      skills: ['admin', 'marketing', 'maintenance', 'inventory', 'shipping', 'development', 'production'],
+      assignedHours: 0,
+      costPerWeek: 0
+    }
+  ],
+  totalHoursNeeded: 0,
+  totalLaborCost: 0,
+  unassignedHours: 0,
+  ownerHours: 0
+};
 
 export const DEFAULT_PRODUCT_TEMPLATES = [
   {

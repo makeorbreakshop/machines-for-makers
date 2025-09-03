@@ -105,19 +105,31 @@ export function calculateMarketingMetrics(marketing: MarketingState): {
   marketingROI: number;
   costPerChannel: { [channelId: string]: number };
 } {
-  if (!marketing || !marketing.channels) {
+  if (!marketing) {
     return {
       totalMonthlySpend: 0,
       averageCAC: 0,
       totalPaidUnits: 0,
-      organicUnits: marketing?.organicUnitsPerMonth || 0,
+      organicUnits: 0,
       blendedCAC: 0,
       marketingROI: 0,
       costPerChannel: {}
     };
   }
 
-  const activeChannels = marketing.channels.filter(c => c.isActive);
+  // Handle both old and new marketing state structures
+  let allChannels: any[] = [];
+  if ('channels' in marketing && Array.isArray(marketing.channels)) {
+    // Old structure
+    allChannels = marketing.channels;
+  } else {
+    // New structure
+    const digitalChannels = marketing.digitalAdvertising?.channels || [];
+    const eventChannels = marketing.eventsAndShows?.channels || [];
+    allChannels = [...digitalChannels, ...eventChannels];
+  }
+
+  const activeChannels = allChannels.filter(c => c.isActive);
   const totalMonthlySpend = activeChannels.reduce((sum, c) => sum + c.monthlySpend, 0);
   const totalPaidUnits = activeChannels.reduce((sum, c) => sum + c.unitsPerMonth, 0);
   const organicUnits = marketing.organicUnitsPerMonth || 0;
