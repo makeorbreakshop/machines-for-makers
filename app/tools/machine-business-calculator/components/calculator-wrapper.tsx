@@ -13,6 +13,8 @@ import { Level1Setup } from './level-1-setup';
 import { Level3Marketing } from './level-3-marketing';
 import { Level4Labor } from './level-4-labor';
 import { Level4BusinessCosts } from './level-4-business-costs';
+import { Level5Projections } from './level-5-projections';
+import { calculatePL } from '../lib/pl-calculations';
 
 interface CalculatorWrapperProps {
   state: CalculatorState;
@@ -38,7 +40,12 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
   const [currentBusinessExpenses, setCurrentBusinessExpenses] = useState({
-    taxReserve: { rate: 30, expanded: false },
+    taxReserve: { 
+      selfEmploymentRate: 15.3,
+      federalRate: 12,
+      stateRate: 5,
+      expanded: false 
+    },
     physicalCosts: {
       expanded: false,
       items: {
@@ -54,7 +61,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
         accounting_software: 25
       }
     },
-    equipmentFund: { rate: 8, expanded: false }
+    savings: { rate: 8, expanded: false }
   });
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -80,13 +87,11 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
       maximumFractionDigits: 0
     }).format(amount);
 
-  const safeGrossProfit = isNaN(metrics.totalGrossProfit) || !isFinite(metrics.totalGrossProfit) 
-    ? 0 
-    : metrics.totalGrossProfit;
-    
-  const safeGoalPercentage = isNaN(metrics.goalAchievementPercentage) || !isFinite(metrics.goalAchievementPercentage) 
-    ? 0 
-    : metrics.goalAchievementPercentage;
+  // Calculate P&L using shared function
+  const plCalculation = calculatePL(metrics, state, currentBusinessExpenses);
+  
+  const safeNetProfit = isNaN(plCalculation.netProfit) || !isFinite(plCalculation.netProfit) ? 0 : plCalculation.netProfit;
+  const safeGoalPercentage = state.monthlyGoal > 0 ? (safeNetProfit / state.monthlyGoal) * 100 : 0;
 
   const renderTabContent = (tab: string) => {
     switch (tab) {
@@ -145,14 +150,14 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             </div>
           </div>
         );
-      case 'projections':
+      case 'pnl':
         return (
-          <div className="space-y-8">
-            <div className="text-center py-12">
-              <h2 className="text-2xl font-semibold mb-4">Business Projections</h2>
-              <p className="text-muted-foreground">Coming soon - scenario planning and projections</p>
-            </div>
-          </div>
+          <Level5Projections
+            state={state}
+            metrics={metrics}
+            businessExpenses={currentBusinessExpenses}
+            plCalculation={plCalculation}
+          />
         );
       default:
         return null;
@@ -217,7 +222,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-muted-foreground font-mono">
-                  {formatCurrency(safeGrossProfit)} current
+                  {formatCurrency(safeNetProfit)} net profit
                 </span>
                 <span className={`font-medium ${
                   safeGoalPercentage >= 100 
@@ -240,12 +245,12 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
       <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           {/* Tab Navigation */}
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="marketing">Marketing</TabsTrigger>
-            <TabsTrigger value="labor">Labor</TabsTrigger>
-            <TabsTrigger value="business">Business</TabsTrigger>
-            <TabsTrigger value="projections">Projections</TabsTrigger>
+          <TabsList className="flex w-full">
+            <TabsTrigger value="products" className="flex-1">Products</TabsTrigger>
+            <TabsTrigger value="marketing" className="flex-1">Marketing</TabsTrigger>
+            <TabsTrigger value="labor" className="flex-1">Labor</TabsTrigger>
+            <TabsTrigger value="business" className="flex-1">Business</TabsTrigger>
+            <TabsTrigger value="pnl" className="flex-1">P&L</TabsTrigger>
           </TabsList>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -263,11 +268,11 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               <TabsContent value="business" className="mt-0">
                 {renderTabContent('business')}
               </TabsContent>
+              <TabsContent value="pnl" className="mt-0">
+                {renderTabContent('pnl')}
+              </TabsContent>
               <TabsContent value="optimize" className="mt-0">
                 {renderTabContent('optimize')}
-              </TabsContent>
-              <TabsContent value="projections" className="mt-0">
-                {renderTabContent('projections')}
               </TabsContent>
             </div>
             
@@ -281,6 +286,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                   activeTab={activeTab}
                   businessExpenses={currentBusinessExpenses}
                   laborCosts={state.labor?.totalLaborCost || 0}
+                  plCalculation={plCalculation}
                 />
               </div>
             </div>

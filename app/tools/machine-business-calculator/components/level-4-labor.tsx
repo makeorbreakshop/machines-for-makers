@@ -295,31 +295,6 @@ export function Level4Labor({
 
   return (
     <div className="space-y-6">
-      {/* Labor Summary Card */}
-      <Card className="bg-card border-border">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-4 gap-6 text-center">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Weekly Hours</div>
-              <div className="text-xl font-bold text-foreground">{formatHours(totalHoursNeeded)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Workers</div>
-              <div className="text-xl font-bold text-foreground">{laborState.workers.length}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Hourly Rate</div>
-              <div className="text-xl font-bold text-foreground">${laborState.workers[0]?.hourlyRate || 25}/hr</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Monthly Cost</div>
-              <div className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalLaborCost)}</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-
       {/* Workers Management Section */}
       <Card className="border-border bg-card shadow-sm">
         <CardContent className="p-0">
@@ -662,6 +637,85 @@ export function Level4Labor({
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Labor Summary */}
+      <Card className="border-border bg-card shadow-sm">
+        <CardContent className="p-0">
+          <div className="bg-muted/50 px-6 py-4 border-b border-border">
+            <div className="flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-primary" />
+              <span className="text-base font-medium text-foreground">Labor Summary</span>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-4">
+            {/* Worker breakdown */}
+            <div className="space-y-3">
+              {laborState.workers.map((worker) => {
+                // Calculate actual assigned hours for this worker
+                let assignedHours = 0;
+                
+                // Add hours from business tasks
+                laborState.businessTasks.forEach(task => {
+                  if (task.assignedWorkerId === worker.id) {
+                    assignedHours += task.hoursPerWeek;
+                  }
+                });
+                
+                // Add hours from product assignments
+                const productAssignments = (laborState as any).productAssignments || {};
+                if (state.products) {
+                  state.products.forEach(product => {
+                    const productMetrics = metrics.productMetrics?.[product.id];
+                    if (productMetrics) {
+                      const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
+                      const assignedWorkerId = productAssignments[product.id] || 'owner';
+                      if (assignedWorkerId === worker.id) {
+                        assignedHours += weeklyHours;
+                      }
+                    }
+                  });
+                }
+                
+                const monthlyCost = assignedHours * worker.hourlyRate * 4.33;
+                
+                return (
+                  <div key={worker.id} className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">{worker.name}</span>
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs text-muted-foreground">{formatHours(assignedHours)}/week</span>
+                      <span className="font-mono font-medium text-sm">{formatCurrency(monthlyCost)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-border"></div>
+
+            {/* Total Labor Cost */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Total Labor Cost</span>
+                <span className="font-mono font-bold text-lg">{formatCurrency(totalLaborCost)}</span>
+              </div>
+              
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Total Weekly Hours</span>
+                <span className="font-mono text-muted-foreground">{formatHours(totalHoursNeeded)}</span>
+              </div>
+              
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Average Hourly Rate</span>
+                <span className="font-mono text-muted-foreground">
+                  ${laborState.workers.reduce((sum, w) => sum + w.hourlyRate, 0) / laborState.workers.length}/hr
+                </span>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

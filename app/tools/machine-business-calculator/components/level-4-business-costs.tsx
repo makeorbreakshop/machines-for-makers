@@ -1,53 +1,73 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, ArrowLeft, Receipt, Percent, DollarSign, Settings, Building, Calculator, X, ChevronDown } from 'lucide-react';
-import { CalculatorState, CalculatedMetrics, BusinessCost } from '../lib/calculator-types';
-import { calculateBusinessCosts } from '../lib/calculator-formulas';
+import { Plus, X, DollarSign, Building, Server, Calculator, ChevronDown, TrendingUp, Percent } from 'lucide-react';
+import { CalculatorState, CalculatedMetrics } from '../lib/calculator-types';
+
+export interface BusinessExpenses {
+  physicalCosts: {
+    items: Record<string, number>;
+    expanded: boolean;
+  };
+  softwareCosts: {
+    items: Record<string, number>;
+    expanded: boolean;
+  };
+  taxReserve: {
+    selfEmploymentRate: number;
+    federalRate: number;
+    stateRate: number;
+    expanded: boolean;
+  };
+  savings: {
+    rate: number;
+    expanded: boolean;
+  };
+}
 
 interface Level4BusinessCostsProps {
   state: CalculatorState;
   metrics: CalculatedMetrics;
-  onUpdateBusinessMode: (mode: 'hobby' | 'side' | 'business') => void;
-  onToggleBusinessCost: (cost: BusinessCost) => void;
-  onUpdateBusinessCost: (costId: string, updates: any) => void;
   onComplete: () => void;
-  onBack: () => void;
-  onBusinessExpensesChange?: (expenses: any) => void;
+  onBusinessExpensesChange?: (expenses: BusinessExpenses) => void;
 }
 
 export function Level4BusinessCosts({ 
   state, 
   metrics, 
-  onUpdateBusinessMode,
-  onToggleBusinessCost,
-  onUpdateBusinessCost,
-  onComplete, 
-  onBack,
+  onComplete,
   onBusinessExpensesChange
 }: Level4BusinessCostsProps) {
-  const [businessExpenses, setBusinessExpenses] = useState({
-    taxReserve: { rate: 30, expanded: false },
+  const [businessExpenses, setBusinessExpenses] = useState<BusinessExpenses>({
     physicalCosts: {
-      expanded: false,
       items: {
-        rent: 200,
-        insurance: 75,
-        utilities: 50
-      }
+        rent: 1500,
+        utilities: 200,
+        insurance: 150
+      },
+      expanded: false
     },
     softwareCosts: {
-      expanded: false, 
       items: {
-        design_software: 50,
-        accounting_software: 25
-      }
+        accounting: 50,
+        design_tools: 100,
+        website: 20,
+        marketing_tools: 50
+      },
+      expanded: false
     },
-    equipmentFund: { rate: 8, expanded: false }
+    // Tax breakdown with typical rates
+    taxReserve: { 
+      selfEmploymentRate: 15.3,  // Social Security + Medicare
+      federalRate: 12,           // Federal income tax
+      stateRate: 5,              // State/local taxes
+      expanded: false 
+    },
+    savings: { rate: 8, expanded: false }
   });
 
   // Notify parent of changes
@@ -79,12 +99,24 @@ export function Level4BusinessCosts({
   );
   const grossProfit = metrics.totalGrossProfit || 0;
 
-  // Calculate business costs
-  const taxCost = (grossProfit * businessExpenses.taxReserve.rate) / 100;
-  const equipmentFundCost = (monthlyRevenue * businessExpenses.equipmentFund.rate) / 100;
+  // Calculate business costs (excluding tax first)
   const physicalCostsTotal = Object.values(businessExpenses.physicalCosts.items).reduce((sum, cost) => sum + cost, 0);
   const softwareCostsTotal = Object.values(businessExpenses.softwareCosts.items).reduce((sum, cost) => sum + cost, 0);
-  const totalBusinessCosts = taxCost + physicalCostsTotal + softwareCostsTotal + equipmentFundCost;
+  const savingsCost = (monthlyRevenue * businessExpenses.savings.rate) / 100;
+  
+  // Pre-tax profit = Gross Profit - Business Expenses (excluding tax)
+  const preTaxProfit = grossProfit - (physicalCostsTotal + softwareCostsTotal + savingsCost);
+  
+  // Calculate total tax rate and cost
+  const totalTaxRate = businessExpenses.taxReserve.selfEmploymentRate + 
+                       businessExpenses.taxReserve.federalRate + 
+                       businessExpenses.taxReserve.stateRate;
+  const taxCost = Math.max(0, (preTaxProfit * totalTaxRate) / 100);
+  
+  // Total costs including tax
+  const totalBusinessCosts = physicalCostsTotal + softwareCostsTotal + savingsCost + taxCost;
+  
+  // After-tax profit
   const netProfit = grossProfit - totalBusinessCosts;
 
   const canProceed = true; // Always allow proceeding from this level
@@ -92,65 +124,6 @@ export function Level4BusinessCosts({
   return (
     <div className="space-y-8">
       <div className="space-y-6">
-        {/* Tax Reserve */}
-        <Card className="border-border bg-card shadow-sm">
-          <CardContent className="p-0">
-            <Button
-              variant="ghost"
-              onClick={() => setBusinessExpenses(prev => ({
-                ...prev,
-                taxReserve: { ...prev.taxReserve, expanded: !prev.taxReserve.expanded }
-              }))}
-              className="w-full justify-between p-0 h-auto hover:bg-transparent"
-            >
-              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Receipt className="h-4 w-4 text-primary" />
-                    <span className="text-base font-medium text-foreground">Tax Reserve</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-foreground">
-                      {formatCurrencyPrecise(taxCost)} total
-                    </span>
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.taxReserve.expanded ? 'transform rotate-180' : ''}`} />
-                  </div>
-                </div>
-              </div>
-            </Button>
-
-            {businessExpenses.taxReserve.expanded && (
-              <div className="p-6">
-                <div className="flex items-center gap-4 mb-3">
-                  <Label className="text-sm font-medium text-foreground">Tax Rate</Label>
-                  <div className="relative w-24">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={businessExpenses.taxReserve.rate || ''}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setBusinessExpenses(prev => ({
-                          ...prev,
-                          taxReserve: { ...prev.taxReserve, rate: isNaN(value) ? 0 : Math.max(0, Math.min(100, value)) }
-                        }));
-                      }}
-                      className="pr-6 h-8 text-sm text-foreground"
-                    />
-                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">%</span>
-                  </div>
-                  <span className="text-sm text-foreground">of profit</span>
-                </div>
-                <p className="text-xs text-foreground">
-                  Self-employment tax (15.3%) + income tax. Range: 25-40% typical
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Physical Costs */}
         <Card className="border-border bg-card shadow-sm">
           <CardContent className="p-0">
@@ -205,7 +178,7 @@ export function Level4BusinessCosts({
                       type="number"
                       min="0"
                       step="25"
-                      value={value || ''}
+                      value={value || value === 0 ? value : ''}
                       onChange={(e) => setBusinessExpenses(prev => ({
                         ...prev,
                         physicalCosts: {
@@ -253,12 +226,12 @@ export function Level4BusinessCosts({
               >
                 + Add Physical Cost
               </Button>
-              </div>
+            </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Software Costs */}
+        {/* Software & Tools */}
         <Card className="border-border bg-card shadow-sm">
           <CardContent className="p-0">
             <Button
@@ -272,7 +245,7 @@ export function Level4BusinessCosts({
               <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Settings className="h-4 w-4 text-primary" />
+                    <Server className="h-4 w-4 text-primary" />
                     <span className="text-base font-medium text-foreground">Software & Tools</span>
                   </div>
                   <div className="flex items-center gap-4">
@@ -287,138 +260,285 @@ export function Level4BusinessCosts({
 
             {businessExpenses.softwareCosts.expanded && (
               <div className="p-6 space-y-1">
-              {Object.entries(businessExpenses.softwareCosts.items).map(([costType, value]) => (
-                <div key={costType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
-                  <Input
-                    value={costType.replace('_', ' ').charAt(0).toUpperCase() + costType.slice(1).replace('_', ' ')}
-                    onChange={(e) => {
-                      const newCostType = e.target.value.toLowerCase().replace(' ', '_');
-                      setBusinessExpenses(prev => {
-                        const newItems = { ...prev.softwareCosts.items };
-                        delete newItems[costType];
-                        newItems[newCostType] = value;
-                        return {
-                          ...prev,
-                          softwareCosts: { ...prev.softwareCosts, items: newItems }
-                        };
-                      });
-                    }}
-                    className="h-8 text-sm flex-1 text-foreground"
-                    placeholder="Software name"
-                  />
-                  <div className="relative w-24">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">$</span>
+                {Object.entries(businessExpenses.softwareCosts.items).map(([costType, value]) => (
+                  <div key={costType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                     <Input
-                      type="number"
-                      min="0"
-                      step="10"
-                      value={value || ''}
-                      onChange={(e) => setBusinessExpenses(prev => ({
-                        ...prev,
-                        softwareCosts: {
-                          ...prev.softwareCosts,
-                          items: { ...prev.softwareCosts.items, [costType]: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 }
-                        }
-                      }))}
-                      className="pl-6 h-8 text-sm w-full text-foreground"
-                      placeholder="0.00"
+                      value={costType.replace('_', ' ').charAt(0).toUpperCase() + costType.slice(1).replace('_', ' ')}
+                      onChange={(e) => {
+                        const newCostType = e.target.value.toLowerCase().replace(' ', '_');
+                        setBusinessExpenses(prev => {
+                          const newItems = { ...prev.softwareCosts.items };
+                          delete newItems[costType];
+                          newItems[newCostType] = value;
+                          return {
+                            ...prev,
+                            softwareCosts: { ...prev.softwareCosts, items: newItems }
+                          };
+                        });
+                      }}
+                      className="h-8 text-sm flex-1 text-foreground"
+                      placeholder="Tool name"
                     />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setBusinessExpenses(prev => {
-                        const newItems = { ...prev.softwareCosts.items };
-                        delete newItems[costType];
-                        return {
+                    <div className="relative w-24">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">$</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="5"
+                        value={value || value === 0 ? value : ''}
+                        onChange={(e) => setBusinessExpenses(prev => ({
                           ...prev,
-                          softwareCosts: { ...prev.softwareCosts, items: newItems }
-                        };
-                      });
-                    }}
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-              
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  const newCostKey = `software_${Date.now()}`;
-                  setBusinessExpenses(prev => ({
-                    ...prev,
-                    softwareCosts: {
-                      ...prev.softwareCosts,
-                      items: { ...prev.softwareCosts.items, [newCostKey]: 0 }
-                    }
-                  }));
-                }}
-                className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
-              >
-                + Add Software Cost
-              </Button>
+                          softwareCosts: {
+                            ...prev.softwareCosts,
+                            items: { ...prev.softwareCosts.items, [costType]: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 }
+                          }
+                        }))}
+                        className="pl-6 h-8 text-sm w-full text-foreground"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setBusinessExpenses(prev => {
+                          const newItems = { ...prev.softwareCosts.items };
+                          delete newItems[costType];
+                          return {
+                            ...prev,
+                            softwareCosts: { ...prev.softwareCosts, items: newItems }
+                          };
+                        });
+                      }}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    const newCostKey = `tool_${Date.now()}`;
+                    setBusinessExpenses(prev => ({
+                      ...prev,
+                      softwareCosts: {
+                        ...prev.softwareCosts,
+                        items: { ...prev.softwareCosts.items, [newCostKey]: 0 }
+                      }
+                    }));
+                  }}
+                  className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  + Add Software Cost
+                </Button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Equipment Fund */}
+        {/* Savings */}
         <Card className="border-border bg-card shadow-sm">
           <CardContent className="p-0">
             <Button
               variant="ghost"
               onClick={() => setBusinessExpenses(prev => ({
                 ...prev,
-                equipmentFund: { ...prev.equipmentFund, expanded: !prev.equipmentFund.expanded }
+                savings: { ...prev.savings, expanded: !prev.savings.expanded }
               }))}
               className="w-full justify-between p-0 h-auto hover:bg-transparent"
             >
               <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-primary" />
-                    <span className="text-base font-medium text-foreground">Equipment Fund</span>
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    <span className="text-base font-medium text-foreground">Savings</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-medium text-foreground">
-                      {formatCurrencyPrecise(equipmentFundCost)} total
+                      {formatCurrencyPrecise(savingsCost)} ({businessExpenses.savings.rate}%)
                     </span>
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.equipmentFund.expanded ? 'transform rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.savings.expanded ? 'transform rotate-180' : ''}`} />
                   </div>
                 </div>
               </div>
             </Button>
 
-            {businessExpenses.equipmentFund.expanded && (
+            {businessExpenses.savings.expanded && (
               <div className="p-6">
-              <div className="flex items-center gap-4 mb-3">
-                <Label className="text-sm font-medium text-foreground">Equipment Fund</Label>
-                <div className="relative w-24">
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={businessExpenses.equipmentFund.rate || ''}
-                    onChange={(e) => {
-                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                      setBusinessExpenses(prev => ({
-                        ...prev,
-                        equipmentFund: { ...prev.equipmentFund, rate: isNaN(value) ? 0 : Math.max(0, Math.min(100, value)) }
-                      }));
-                    }}
-                    className="pr-6 h-8 text-sm text-foreground"
-                  />
-                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">%</span>
+                <div className="flex items-center gap-4 mb-3">
+                  <Label className="text-sm font-medium text-foreground">Savings Percentage</Label>
+                  <div className="relative w-24">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={businessExpenses.savings.rate || ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setBusinessExpenses(prev => ({
+                          ...prev,
+                          savings: { ...prev.savings, rate: Math.min(100, Math.max(0, value)) }
+                        }));
+                      }}
+                      className="pr-6 h-8 text-sm w-full text-foreground"
+                      placeholder="0"
+                    />
+                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">%</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">of revenue</span>
                 </div>
-                <span className="text-sm text-foreground">of revenue</span>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>Set aside funds for business growth and emergencies.</p>
+                  <p>• 5-10% for basic business savings</p>
+                  <p>• 10-20% for aggressive growth or equipment upgrades</p>
+                  <p className="font-medium">Monthly allocation: {formatCurrency(savingsCost)}</p>
+                </div>
               </div>
-              <p className="text-xs text-foreground">
-                Maintenance, repairs, upgrades, replacement. Range: 5-12% typical
-              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tax Reserve - Moved to bottom */}
+        <Card className="border-border bg-card shadow-sm">
+          <CardContent className="p-0">
+            <Button
+              variant="ghost"
+              onClick={() => setBusinessExpenses(prev => ({
+                ...prev,
+                taxReserve: { ...prev.taxReserve, expanded: !prev.taxReserve.expanded }
+              }))}
+              className="w-full justify-between p-0 h-auto hover:bg-transparent"
+            >
+              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Percent className="h-4 w-4 text-primary" />
+                    <span className="text-base font-medium text-foreground">Tax Reserve</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-foreground">
+                      {formatCurrencyPrecise(taxCost)} ({totalTaxRate.toFixed(1)}% of pre-tax profit)
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.taxReserve.expanded ? 'transform rotate-180' : ''}`} />
+                  </div>
+                </div>
+              </div>
+            </Button>
+
+            {businessExpenses.taxReserve.expanded && (
+              <div className="p-6 space-y-4">
+                {/* Self-Employment Tax */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-4">
+                    <Label className="text-sm font-medium text-foreground w-36">Self-Employment</Label>
+                    <div className="relative w-24">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={businessExpenses.taxReserve.selfEmploymentRate || ''}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setBusinessExpenses(prev => ({
+                            ...prev,
+                            taxReserve: { ...prev.taxReserve, selfEmploymentRate: Math.min(100, Math.max(0, value)) }
+                          }));
+                        }}
+                        className="pr-6 h-8 text-sm w-full text-foreground"
+                        placeholder="15.3"
+                      />
+                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">%</span>
+                    </div>
+                    <span className="text-sm font-medium w-24 text-right">
+                      {formatCurrencyPrecise(Math.max(0, (preTaxProfit * businessExpenses.taxReserve.selfEmploymentRate) / 100))}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground ml-36">Social Security (12.4%) + Medicare (2.9%)</p>
+                </div>
+
+                {/* Federal Income Tax */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-4">
+                    <Label className="text-sm font-medium text-foreground w-36">Federal Income</Label>
+                    <div className="relative w-24">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={businessExpenses.taxReserve.federalRate || ''}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setBusinessExpenses(prev => ({
+                            ...prev,
+                            taxReserve: { ...prev.taxReserve, federalRate: Math.min(100, Math.max(0, value)) }
+                          }));
+                        }}
+                        className="pr-6 h-8 text-sm w-full text-foreground"
+                        placeholder="12"
+                      />
+                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">%</span>
+                    </div>
+                    <span className="text-sm font-medium w-24 text-right">
+                      {formatCurrencyPrecise(Math.max(0, (preTaxProfit * businessExpenses.taxReserve.federalRate) / 100))}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground ml-36">
+                    10-12% typical for small business (varies by income)
+                  </p>
+                </div>
+
+                {/* State/Local Tax */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-4">
+                    <Label className="text-sm font-medium text-foreground w-36">State/Local</Label>
+                    <div className="relative w-24">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={businessExpenses.taxReserve.stateRate || ''}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setBusinessExpenses(prev => ({
+                            ...prev,
+                            taxReserve: { ...prev.taxReserve, stateRate: Math.min(100, Math.max(0, value)) }
+                          }));
+                        }}
+                        className="pr-6 h-8 text-sm w-full text-foreground"
+                        placeholder="5"
+                      />
+                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">%</span>
+                    </div>
+                    <span className="text-sm font-medium w-24 text-right">
+                      {formatCurrencyPrecise(Math.max(0, (preTaxProfit * businessExpenses.taxReserve.stateRate) / 100))}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground ml-36">
+                    0-13% depending on your state (CA: 9.3%, TX: 0%, NY: 6.5%)
+                  </p>
+                </div>
+
+                <div className="border-t pt-3 mt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Total Tax Rate</span>
+                    <span className="text-sm font-medium">{totalTaxRate.toFixed(1)}%</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-sm text-muted-foreground">Pre-tax profit</span>
+                    <span className="text-sm text-muted-foreground">{formatCurrency(preTaxProfit)}</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-sm font-medium">Total Tax Reserve</span>
+                    <span className="text-sm font-medium text-amber-600">{formatCurrency(taxCost)}</span>
+                  </div>
+                </div>
+
               </div>
             )}
           </CardContent>
@@ -435,35 +555,68 @@ export function Level4BusinessCosts({
             </div>
             
             <div className="p-6 space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Tax Reserve ({businessExpenses.taxReserve.rate}%)</span>
-                <span className="font-mono font-medium text-foreground">{formatCurrency(taxCost)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Rent & Facilities</span>
-                <span className="font-mono font-medium text-foreground">{formatCurrency(physicalCostsTotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Software & Tools</span>
-                <span className="font-mono font-medium text-foreground">{formatCurrency(softwareCostsTotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Equipment Fund ({businessExpenses.equipmentFund.rate}%)</span>
-                <span className="font-mono font-medium text-foreground">{formatCurrency(equipmentFundCost)}</span>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Physical Costs</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {totalBusinessCosts > 0 ? `${((physicalCostsTotal / totalBusinessCosts) * 100).toFixed(1)}%` : '0%'}
+                    </span>
+                    <span className="font-mono font-medium text-foreground w-24 text-right">
+                      {formatCurrencyPrecise(physicalCostsTotal)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Software & Tools</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {totalBusinessCosts > 0 ? `${((softwareCostsTotal / totalBusinessCosts) * 100).toFixed(1)}%` : '0%'}
+                    </span>
+                    <span className="font-mono font-medium text-foreground w-24 text-right">
+                      {formatCurrencyPrecise(softwareCostsTotal)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Savings</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {totalBusinessCosts > 0 ? `${((savingsCost / totalBusinessCosts) * 100).toFixed(1)}%` : '0%'}
+                    </span>
+                    <span className="font-mono font-medium text-foreground w-24 text-right">
+                      {formatCurrencyPrecise(savingsCost)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Tax Reserve</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {totalBusinessCosts > 0 ? `${((taxCost / totalBusinessCosts) * 100).toFixed(1)}%` : '0%'}
+                    </span>
+                    <span className="font-mono font-medium text-foreground w-24 text-right">
+                      {formatCurrencyPrecise(taxCost)}
+                    </span>
+                  </div>
+                </div>
               </div>
               
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-medium">Total Business Expenses</span>
-                  <span className="font-mono font-medium text-lg text-destructive">{formatCurrency(totalBusinessCosts)}</span>
+                  <span className="font-medium text-base">Total Monthly Expenses</span>
+                  <span className="font-mono font-bold text-lg">
+                    {formatCurrency(totalBusinessCosts)}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center mt-2">
-                  <span className="text-muted-foreground">Impact on Profit</span>
+                  <span className="text-muted-foreground text-xs">% of Revenue</span>
                   <span className="font-mono text-xs text-muted-foreground">
-                    {monthlyRevenue > 0 ? `${((totalBusinessCosts / monthlyRevenue) * 100).toFixed(1)}% of revenue` : 'N/A'}
+                    {monthlyRevenue > 0 ? `${((totalBusinessCosts / monthlyRevenue) * 100).toFixed(1)}%` : 'N/A'}
                   </span>
                 </div>
               </div>
+
             </div>
           </CardContent>
         </Card>
