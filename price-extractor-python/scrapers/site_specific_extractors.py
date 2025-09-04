@@ -235,7 +235,14 @@ class SiteSpecificExtractor:
                     '[name*="items"] [data-price]',  # Addon form elements
                     '.product-form [data-price]',    # Form controls
                     'select [data-price]',           # Dropdown options
-                    '.hdt-select [data-price]'       # Custom select widgets
+                    'option[data-price]',            # Variant option elements
+                    '.hdt-select [data-price]',      # Custom select widgets
+                    '[data-price*="W"]',             # Wattage options (100W, 50W, etc)
+                    '[data-price*="nm"]',            # Wavelength options (1064nm, etc)
+                    'input[data-price]',             # Input elements with prices
+                    '.product-form__input [data-price]',  # Form inputs
+                    '.variant-selector [data-price]', # Variant selectors
+                    '.product-form__buttons [data-price]'  # Button price data
                 ],
                 'prefer_json_ld': True,
                 'json_ld_paths': [
@@ -244,10 +251,25 @@ class SiteSpecificExtractor:
                     'price'
                 ],
                 'price_selectors': [
+                    # Primary price display areas
+                    '.price__container .price__regular .price-item--regular',
+                    '.price__container .price-item--sale',
+                    '.product__price .price-item--regular',
+                    
+                    # Bundle total price (what we want)
+                    '[data-price]:not(option):not(input):not(select):last-of-type',
+                    '.product-bundle-total [data-price]',
+                    '.total-price [data-price]',
+                    
+                    # Fallback selectors
                     '.product-price .price',
                     '.price-current', 
                     '.product__price'
-                ]
+                ],
+                'price_validation': {
+                    'min': 1000,  # CloudRay machines are expensive (minimum $1000)
+                    'max': 50000  # Maximum reasonable price
+                }
             },
             
             'acmerlaser.com': {
@@ -783,6 +805,34 @@ class SiteSpecificExtractor:
                 'notes': 'Thunder Laser frequently runs sales - prioritize sale prices over regular prices'
             },
             
+            'rolyautomation.com': {
+                'type': 'shopify',
+                'requires_variant_detection': True,
+                'machine_specific_rules': {
+                    'LaserMATIC Mk2': {
+                        'url_patterns': ['/lasermatic-mk2', '/lasermatic'],
+                        'variant_keywords': ['30W', '30 W', 'LaserMATIC30'],
+                        'expected_price': 1199.00,
+                        'base_price_range': [1000, 1300],
+                        'prefer_rotary': True,  # Prefer "with Chuck Rotary" variants as base price
+                        'variant_detection_rules': {
+                            '30W': {
+                                'keywords': ['LaserMATIC30', '30W', '30 W'],
+                                'expected_price_range': [1000, 1300]
+                            },
+                            '20W': {
+                                'keywords': ['LaserMATIC20', '20W', '20 W'], 
+                                'expected_price_range': [700, 900]
+                            }
+                        }
+                    }
+                },
+                'price_selectors': ['.price__current .money', 'span.money', '[data-price]'],
+                'variant_selectors': ['select[name="id"]', 'input[name="id"]'],
+                'prefer_json_ld': True,
+                'notes': 'LaserMATIC Mk2 has 20W and 30W variants - must select correct wattage variant'
+            },
+            
         }
     
     def get_machine_specific_rules(self, domain, machine_name, url):
@@ -1121,6 +1171,14 @@ class SiteSpecificExtractor:
         logger.info("🛍️ ComMarker Shopify extraction: analyzing variant structure")
         
         machine_name = machine_data.get('Machine Name', '') if machine_data else ''
+        logger.info(f"🏷️ Machine name for variant matching: '{machine_name}'")
+        
+        # If no machine name from machine_data, try to infer from URL or context
+        if not machine_name:
+            # Check URL patterns to determine machine type
+            url_lower = str(soup.find('link', {'rel': 'canonical'}) or '').lower()
+            if 'b6-jpt-mopa' in url_lower:
+                logger.warning("⚠️ No machine name provided, cannot perform variant matching for B6 MOPA variants")
         
         # Try JSON-LD first for variant prices
         json_scripts = soup.find_all('script', {'type': 'application/ld+json'})

@@ -364,70 +364,91 @@ export function Level3Marketing({
 
 
       {/* Organic Sales */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-green-600" />
-              <span className="font-medium">Organic Sales</span>
+      <Card className="border-border bg-card shadow-sm">
+        <CardContent className="p-0">
+          <div className="bg-muted/50 px-6 py-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                <span className="text-base font-medium text-foreground">Organic Sales</span>
+                <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded font-medium">Free</span>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">Referrals, repeat customers, organic social</div>
+              </div>
             </div>
-            <span className="text-sm text-green-600 font-medium">Free</span>
           </div>
           
-          <div className="grid grid-cols-4 gap-4 items-center">
-            <Label className="text-sm font-medium">Units/Month</Label>
-            <Input
-              type="number"
-              min="0"
-              max="50"
-              value={marketingState.organicUnitsPerMonth}
-              onChange={(e) => setMarketingState(prev => ({
-                ...prev,
-                organicUnitsPerMonth: parseInt(e.target.value) || 0
-              }))}
-              className="w-24"
-            />
-            <div className="text-sm text-muted-foreground">
-              {(() => {
-                const totalUnits = totalPaidUnits + marketingState.organicUnitsPerMonth;
-                const shortfall = totalUnitsNeeded - totalUnits;
-                return shortfall <= 0 ? 'Goal met!' : `Need ${shortfall} more units`;
-              })()}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              Referrals, repeat customers, organic social
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-4 gap-4 items-center">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">Units/Month</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={marketingState.organicUnitsPerMonth || ''}
+                  onChange={(e) => setMarketingState(prev => ({
+                    ...prev,
+                    organicUnitsPerMonth: e.target.value === '' ? 0 : parseInt(e.target.value) || 0
+                  }))}
+                />
+              </div>
+              
+              <div className="text-center">
+                <div className={`text-base font-medium ${
+                  (() => {
+                    const totalUnits = totalPaidUnits + marketingState.organicUnitsPerMonth;
+                    const shortfall = totalUnitsNeeded - totalUnits;
+                    return shortfall <= 0 ? 'text-green-600' : 'text-foreground';
+                  })()
+                }`}>
+                  {(() => {
+                    const totalUnits = totalPaidUnits + marketingState.organicUnitsPerMonth;
+                    const shortfall = totalUnitsNeeded - totalUnits;
+                    return shortfall <= 0 ? 'Goal met!' : `Need ${shortfall} more units`;
+                  })()}
+                </div>
+              </div>
+              
+              <div></div>
+              
+              <div className="text-right">
+                <div className="text-lg font-medium text-green-600">{marketingState.organicUnitsPerMonth} units</div>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Digital Advertising Section */}
-      <Card>
+      <Card className="border-border bg-card shadow-sm">
         <CardContent className="p-0">
           <Button
             variant="ghost"
             onClick={toggleDigitalExpanded}
-            className="w-full justify-between p-3 h-auto rounded-lg"
+            className="w-full justify-between p-0 h-auto hover:bg-transparent"
           >
-          <div className="flex items-center gap-3">
-            <Monitor className="h-4 w-4 text-muted-foreground" />
-            <h4 className="text-sm font-medium">Digital Advertising</h4>
-            <span className="text-xs text-muted-foreground">
-              (Typical sales rates: 2-6%)
-            </span>
-            <span className="text-sm font-medium text-muted-foreground ml-auto">
-              {formatCurrency((marketingState.digitalAdvertising?.channels || []).reduce((sum, c) => 
-                sum + (c.monthlySpend || 0), 0
-              ))} total
-            </span>
-          </div>
-          <span className="text-sm text-muted-foreground">
-            {marketingState.digitalAdvertising?.expanded ? '−' : '+'}
-          </span>
-        </Button>
+            <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Monitor className="h-4 w-4 text-primary" />
+                  <span className="text-base font-medium text-foreground">Digital Advertising</span>
+                  <span className="text-xs text-muted-foreground">(Typical sales rates: 2-6%)</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium text-foreground">
+                    {formatCurrency((marketingState.digitalAdvertising?.channels || []).reduce((sum, c) => 
+                      sum + (c.monthlySpend || 0), 0
+                    ))} total
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Button>
 
           {marketingState.digitalAdvertising?.expanded && (
-            <div className="px-3 pb-3 space-y-3">
+            <div className="p-6 space-y-3">
               {(marketingState.digitalAdvertising?.channels || []).map(channel => {
               const calculatedChannel = calculateChannelMetrics(channel);
               return (
@@ -461,7 +482,7 @@ export function Level3Marketing({
                           min="0"
                           step="50"
                           value={channel.monthlySpend || ''}
-                          onChange={(e) => updateDigitalChannel(channel.id, { monthlySpend: parseInt(e.target.value) || 0 })}
+                          onChange={(e) => updateDigitalChannel(channel.id, { monthlySpend: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 })}
                           className="pl-5 h-8 text-sm"
                           placeholder="0"
                         />
@@ -476,7 +497,7 @@ export function Level3Marketing({
                           max="20"
                           step="0.1"
                           value={channel.conversionRate || ''}
-                          onChange={(e) => updateDigitalChannel(channel.id, { conversionRate: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => updateDigitalChannel(channel.id, { conversionRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
                           className="pr-5 h-8 text-sm"
                           placeholder="2.5"
                         />
@@ -524,29 +545,32 @@ export function Level3Marketing({
       </Card>
 
       {/* Events & Shows Section */}
-      <Card>
+      <Card className="border-border bg-card shadow-sm">
         <CardContent className="p-0">
           <Button
             variant="ghost"
             onClick={toggleEventsExpanded}
-            className="w-full justify-between p-3 h-auto rounded-lg"
+            className="w-full justify-between p-0 h-auto hover:bg-transparent"
           >
-          <div className="flex items-center gap-3">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <h4 className="text-sm font-medium">Events & Shows</h4>
-            <span className="text-sm font-medium text-muted-foreground">
-              {formatCurrency((marketingState.eventsAndShows?.channels || []).reduce((sum, c) => 
-                sum + (c.monthlySpend || 0), 0
-              ))} total
-            </span>
-          </div>
-          <span className="text-sm text-muted-foreground">
-            {marketingState.eventsAndShows?.expanded ? '−' : '+'}
-          </span>
-        </Button>
+            <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  <span className="text-base font-medium text-foreground">Events & Shows</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium text-foreground">
+                    {formatCurrency((marketingState.eventsAndShows?.channels || []).reduce((sum, c) => 
+                      sum + (c.monthlySpend || 0), 0
+                    ))} total
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Button>
 
           {marketingState.eventsAndShows?.expanded && (
-            <div className="px-3 pb-3 space-y-3">
+            <div className="p-6 space-y-3">
               {(marketingState.eventsAndShows?.channels || []).map(channel => {
               const calculatedChannel = calculateEventChannelMetrics(channel);
               return (
@@ -580,7 +604,7 @@ export function Level3Marketing({
                           min="0"
                           step="25"
                           value={channel.monthlySpend || ''}
-                          onChange={(e) => updateEventChannel(channel.id, { monthlySpend: parseInt(e.target.value) || 0 })}
+                          onChange={(e) => updateEventChannel(channel.id, { monthlySpend: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 })}
                           className="pl-5 h-8 text-sm"
                           placeholder="100"
                         />
@@ -593,7 +617,7 @@ export function Level3Marketing({
                         min="0"
                         step="50"
                         value={channel.monthlyAttendance || ''}
-                        onChange={(e) => updateEventChannel(channel.id, { monthlyAttendance: parseInt(e.target.value) || 0 })}
+                        onChange={(e) => updateEventChannel(channel.id, { monthlyAttendance: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 })}
                         className="h-8 text-sm"
                         placeholder="500"
                       />
@@ -607,7 +631,7 @@ export function Level3Marketing({
                           max="20"
                           step="0.1"
                           value={channel.salesRate || ''}
-                          onChange={(e) => updateEventChannel(channel.id, { salesRate: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => updateEventChannel(channel.id, { salesRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
                           className="pr-5 h-8 text-sm"
                           placeholder="3"
                         />
@@ -655,14 +679,16 @@ export function Level3Marketing({
       </Card>
 
       {/* Marketing Summary */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            <h3 className="text-lg font-medium">Marketing Summary</h3>
+      <Card className="border-border bg-card shadow-sm">
+        <CardContent className="p-0">
+          <div className="bg-muted/50 px-6 py-4 border-b border-border">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <span className="text-base font-medium text-foreground">Marketing Summary</span>
+            </div>
           </div>
           
-          <div className="space-y-3 text-sm">
+          <div className="p-6 space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total Monthly Spend</span>
               <span className="font-mono font-medium text-destructive">{formatCurrency(totalMarketingSpend)}</span>

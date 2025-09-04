@@ -37,7 +37,25 @@ interface CalculatorWrapperProps {
 export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapperProps) {
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
-  const [currentBusinessExpenses, setCurrentBusinessExpenses] = useState(null);
+  const [currentBusinessExpenses, setCurrentBusinessExpenses] = useState({
+    taxReserve: { rate: 30, expanded: false },
+    physicalCosts: {
+      expanded: false,
+      items: {
+        rent: 200,
+        insurance: 75,
+        utilities: 50
+      }
+    },
+    softwareCosts: {
+      expanded: false,
+      items: {
+        design_software: 50,
+        accounting_software: 25
+      }
+    },
+    equipmentFund: { rate: 8, expanded: false }
+  });
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Load calculator theme preference from localStorage

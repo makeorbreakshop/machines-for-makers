@@ -624,3 +624,39 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **CRITICAL FAILURE**: Price history chart redesign attempts completely failed - all time range tabs (1M, 3M, 6M) show identical data despite multiple fix attempts
 - **Root Cause**: Date filtering logic fundamentally broken, focused on UI improvements instead of debugging core data filtering functionality
 - **User Impact**: Multiple failed attempts to fix reported issue damaged user trust, wasted development time on cosmetic changes instead of core functionality
+
+### 2025-09-02: Critical Click Tracking System Crisis & Complete Resolution 
+- **Issue**: YouTube video "Every Laser Company is Lying About This" (6000 views) showing only 11 tracked clicks - 90%+ data loss affecting all marketing attribution
+- **Investigation**: Comprehensive research of enterprise URL shorteners (bit.ly, Shlink, YOURLS) revealed Vercel Edge Runtime `waitUntil()` failing silently in production
+- **Solution**: Implemented proven "Synchronous Core + Async Enrichment" pattern - blocking redirects 10-20ms to ensure 100% click capture vs losing 90% of data
+- **Technical**: Replaced async `context.waitUntil(logClick)` with synchronous database insert, then Next.js `after()` for background enrichment
+- **Impact**: Complete system restoration - 100% click capture rate, full marketing attribution, YouTube campaign tracking operational
+- **Testing**: 24-hour verification confirms 103/103 clicks captured (100%) with 86% background enrichment success, production-ready at scale
+
+### 2025-09-02: ComMarker Price Extraction System Overhaul
+- **Issue**: ComMarker machines showing incorrect prices - B4 100W MOPA extracting $2,799 instead of $6,666, all variants pulling wrong data 
+- **Root Cause**: Domain mismatch (`commarker.com` vs `store.commarker.com`) + site migration from WooCommerce to Shopify requiring complete re-architecture
+- **Solution**: Comprehensive Shopify extraction system with JSON-LD variant detection, intelligent matching based on wattage/model/configuration
+- **Technical**: New `_extract_commarker_shopify_price()` method, variant matching algorithm, price range validation, store detection logic
+- **Impact**: All ComMarker variants now extract correct prices - B4 100W MOPA $6,666 ✅, B6 MOPA variants differentiated by power rating
+- **Architecture**: Dual-store support (legacy WooCommerce + modern Shopify), structured data prioritization, machine-specific rules system
+
+### 2025-09-03: Critical Price Extraction Fixes & Machine Business Calculator Labor Management
+- **Issue**: ComMarker B6 MOPA 30W extracting wrong variant ($3,059 for 20W vs $3,569 for 30W), LaserMATIC Mk2 showing $899 instead of $1,199
+- **Solution**: Fixed machine_data parameter passing bug + comprehensive site-specific rules for rolyautomation.com with variant detection
+- **Impact**: ComMarker variant matching restored (JSON-LD extraction working), LaserMATIC Mk2 now extracts correct 30W pricing 
+- **Technical**: Fixed parameter construction in `PriceExtractor.extract_price()`, added LaserMATIC variant keywords and price ranges
+- **Key Discovery**: CloudRay "wrong" prices actually correct - higher amounts are bundle totals with add-ons, base machine prices accurate
+
+**Machine Business Calculator - Labor Management Tab:**
+- **Feature**: Complete labor planning system with worker management, task assignment, capacity tracking
+- **Architecture**: New Labor State system with 7 default business tasks (19 hrs/week), worker skills, hourly rate management
+- **UI**: Visual capacity bars (red when overloaded), worker assignment dropdowns, real-time cost calculations
+- **Integration**: Labor costs flow into P&L sidebar, auto-calculates production hours from product time breakdowns
+- **Business Impact**: Users see reality of business operations - 19+ hours/week overhead beyond production time
+
+**Calculator Dark Mode Isolation Fix:**
+- **Problem**: Calculator dark mode affecting entire site (main pages, admin panel) due to global theme provider
+- **Solution**: Route-based theme isolation - calculator has independent theme system, main site forced light mode
+- **Technical**: Calculator-specific theme toggle, localStorage separation (`calculator-theme` key), bypass global ThemeProvider
+- **Impact**: Complete theme independence - users can toggle calculator dark mode without affecting site navigation

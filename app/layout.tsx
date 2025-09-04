@@ -5,6 +5,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import Script from 'next/script'
 import { GA_MEASUREMENT_ID } from '@/lib/analytics'
 import { GoogleAnalytics } from '@/components/analytics/google-analytics'
+import { ThemeProvider } from '@/components/theme-provider'
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -73,7 +74,14 @@ export default function RootLayout({
             />
           </>
         )}
-        {children}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
         <GoogleAnalytics />
         <Analytics />
         <SpeedInsights />

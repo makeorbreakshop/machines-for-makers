@@ -1,15 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Plus, X, DollarSign, ArrowRight, Store, Package, Clock } from 'lucide-react';
+import { Plus, X, Package, Clock, Store } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalculatorState, CalculatedMetrics, DEFAULT_PRODUCT_TEMPLATES, DEFAULT_PLATFORM_PRESETS, PlatformFee } from '../lib/calculator-types';
-import { calculateProductMetrics, calculatePlatformFees } from '../lib/calculator-formulas';
+import { 
+  CalculatorState, 
+  CalculatedMetrics, 
+  DEFAULT_PRODUCT_TEMPLATES, 
+  DEFAULT_PLATFORM_PRESETS, 
+  PlatformFee 
+} from '../lib/calculator-types';
+import { calculateProductMetrics } from '../lib/calculator-formulas';
 
 interface Level1SetupProps {
   state: CalculatorState;
@@ -24,32 +29,20 @@ interface Level1SetupProps {
 
 export function Level1Setup({ 
   state, 
-  metrics, 
-  onUpdateGoal, 
   onAddProduct, 
   onUpdateProduct, 
-  onRemoveProduct, 
-  onUpdateHourlyRate,
-  onComplete 
+  onRemoveProduct
 }: Level1SetupProps) {
   const [showTemplates, setShowTemplates] = useState(false);
-  const [editingCosts, setEditingCosts] = useState<{[productId: string]: string}>({});
 
-  const formatCurrency = (amount: number) => 
-    new Intl.NumberFormat('en-US', { 
-      style: 'currency', 
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-
-  const formatCurrencyPrecise = (amount: number) => 
-    new Intl.NumberFormat('en-US', { 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { 
       style: 'currency', 
       currency: 'USD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(amount);
+  };
 
   const addProductFromTemplate = (template: typeof DEFAULT_PRODUCT_TEMPLATES[0]) => {
     onAddProduct({
@@ -57,7 +50,15 @@ export function Level1Setup({
       sellingPrice: template.estimatedSellingPrice,
       monthlyUnits: template.estimatedMonthlyUnits,
       costs: template.estimatedCosts,
-      timeBreakdown: template.timeBreakdown
+      timeBreakdown: template.timeBreakdown,
+      platformFees: [
+        {
+          id: 'direct-default',
+          name: 'Direct Sales',
+          feePercentage: 0,
+          salesPercentage: 100
+        }
+      ]
     });
     setShowTemplates(false);
   };
@@ -92,16 +93,8 @@ export function Level1Setup({
     });
   };
 
-  const canProceed = state.products.length > 0 && state.products.every(p => {
-    const costs = p.costs || { materials: 0, finishing: 0, packaging: 0, shipping: 0, other: 0 };
-    const totalCost = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
-    return p.name.trim() && totalCost > 0 && p.sellingPrice > 0 && p.monthlyUnits >= 0;
-  });
-
   return (
     <div className="space-y-8">
-
-      {/* Products */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium">Your Products</h2>
@@ -126,7 +119,6 @@ export function Level1Setup({
           </div>
         </div>
 
-        {/* Template Selection */}
         {showTemplates && (
           <div className="bg-muted rounded-lg p-4 space-y-3">
             <div className="text-sm font-medium text-foreground mb-3">
@@ -143,7 +135,7 @@ export function Level1Setup({
                   <div className="text-left">
                     <div className="font-medium">{template.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      ${template.estimatedTotalCost.toFixed(2)} costs → {formatCurrency(template.estimatedSellingPrice)}
+                      {formatCurrency(template.estimatedTotalCost)} costs → {formatCurrency(template.estimatedSellingPrice)}
                     </div>
                   </div>
                 </Button>
@@ -161,607 +153,244 @@ export function Level1Setup({
         ) : (
           <div className="space-y-4">
             {state.products.map((product, index) => {
-              // Ensure product has proper platform fees setup
-              const ensuredPlatformFees = product.platformFees && product.platformFees.length > 0 
+              const costs = product.costs || { materials: 0, finishing: 0, packaging: 0, shipping: 0, other: 0 };
+              const timeBreakdown = product.timeBreakdown || { design: 0, setup: 0, machine: 0, finishing: 0, packaging: 0 };
+              const platformFees = product.platformFees && product.platformFees.length > 0 
                 ? product.platformFees 
                 : [{ id: 'direct-default', name: 'Direct Sales', feePercentage: 0, salesPercentage: 100 }];
               
-              // If platform fees were missing, update the product
-              if (!product.platformFees || product.platformFees.length === 0) {
-                onUpdateProduct(product.id, { platformFees: ensuredPlatformFees });
-              }
-              
-              const productWithFees = { ...product, platformFees: ensuredPlatformFees };
-              const productMetrics = calculateProductMetrics(productWithFees, state.hourlyRate || 0);
-              const costs = product.costs || { materials: 0, finishing: 0, packaging: 0, shipping: 0, other: 0 };
-              const timeBreakdown = product.timeBreakdown || { design: 0, setup: 0, machine: 0, finishing: 0, packaging: 0 };
-              const totalCosts = productMetrics.totalCosts; // Use calculated total that includes labor
+              const productMetrics = calculateProductMetrics({ ...product, platformFees }, state.hourlyRate || 0);
+              const totalCosts = productMetrics.totalCosts;
               const unitProfit = (product.sellingPrice || 0) - totalCosts;
               const monthlyProfit = (product.monthlyUnits || 0) * unitProfit;
-              const isValid = product.name.trim() && totalCosts > 0 && product.sellingPrice > 0;
               
               return (
                 <Card key={product.id} className="border-border bg-card shadow-sm">
                   <CardContent className="p-0">
-                    <div className="bg-muted/50 px-6 py-4 border-b border-border">
-                      {/* Header: Clickable Name + Unit Profit + Remove */}
+                    <div className="bg-muted/50 border-b border-border px-6 py-4">
                       <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            {product.isEditingName ? (
-                              <Input
-                                value={product.name}
-                                onChange={(e) => onUpdateProduct(product.id, { name: e.target.value })}
-                                onBlur={() => onUpdateProduct(product.id, { isEditingName: false })}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === 'Escape') {
-                                    onUpdateProduct(product.id, { isEditingName: false });
-                                  }
-                                }}
-                                className="text-base font-medium"
-                                placeholder="Product Name"
-                                autoFocus
-                              />
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                onClick={() => onUpdateProduct(product.id, { isEditingName: true })}
-                                className="text-base font-medium h-auto p-0 justify-start hover:bg-transparent text-foreground"
-                              >
-                                {product.name || `Product ${index + 1}`}
-                              </Button>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-4 ml-4 flex-shrink-0">
-                            {/* Unit Profit - Hero Metric */}
-                            <div className="text-right">
-                              <div className="text-xs text-muted-foreground">
-                                Unit Profit
-                              </div>
-                              <div className={`text-lg font-medium font-mono ${
-                                unitProfit > 0 
-                                  ? 'text-green-600' 
-                                  : unitProfit < 0 
-                                    ? 'text-destructive' 
-                                    : 'text-muted-foreground'
-                              }`}>
-                                {formatCurrencyPrecise(unitProfit)}
-                              </div>
-                            </div>
-                            
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => onRemoveProduct(product.id)}
-                              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
+                        <div className="flex items-center gap-2 flex-1">
+                          <Package className="h-4 w-4 text-primary" />
+                          <Input
+                            value={product.name}
+                            onChange={(e) => onUpdateProduct(product.id, { name: e.target.value })}
+                            className="text-base font-medium"
+                            placeholder={`Product ${index + 1}`}
+                          />
                         </div>
+                        <div className="flex items-center gap-4">
+                          <span className={`text-sm font-medium ${
+                            unitProfit > 0 ? 'text-green-600' : unitProfit < 0 ? 'text-destructive' : 'text-muted-foreground'
+                          }`}>
+                            {formatCurrency(unitProfit)} profit
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onRemoveProduct(product.id)}
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                     
                     <div className="p-6 space-y-6">
-                      {/* Simple Clean Form */}
                       <div className="grid grid-cols-4 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium text-foreground">Price</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={product.sellingPrice || ''}
-                              onChange={(e) => onUpdateProduct(product.id, { 
-                                sellingPrice: parseFloat(e.target.value) || 0 
-                              })}
-                              placeholder="25.00"
-                            />
-                          </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Price</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={product.sellingPrice || ''}
+                            onChange={(e) => onUpdateProduct(product.id, { 
+                              sellingPrice: parseFloat(e.target.value) || 0 
+                            })}
+                            placeholder="25.00"
+                          />
+                        </div>
 
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium text-foreground">Units/Month</Label>
-                            <Input
-                              type="number"
-                              step="1"
-                              value={product.monthlyUnits || ''}
-                              onChange={(e) => onUpdateProduct(product.id, { 
-                                monthlyUnits: parseInt(e.target.value) || 0 
-                              })}
-                              placeholder="10"
-                            />
-                          </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Units/Month</Label>
+                          <Input
+                            type="number"
+                            step="1"
+                            value={product.monthlyUnits || ''}
+                            onChange={(e) => onUpdateProduct(product.id, { 
+                              monthlyUnits: parseInt(e.target.value) || 0 
+                            })}
+                            placeholder="10"
+                          />
+                        </div>
 
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium text-foreground">Total Cost</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={editingCosts[product.id] ?? totalCosts.toFixed(2)}
-                              onChange={(e) => {
-                                setEditingCosts(prev => ({
-                                  ...prev,
-                                  [product.id]: e.target.value
-                                }));
-                              }}
-                              onBlur={(e) => {
-                                const newTotalCost = parseFloat(e.target.value) || 0;
-                                const currentCosts = { ...costs };
-                                
-                                // Calculate current non-material costs (labor + platform fees)
-                                const nonMaterialCosts = totalCosts - Object.values(currentCosts).reduce((sum, cost) => sum + (cost || 0), 0);
-                                
-                                // The new material cost total should be the new total minus non-material costs
-                                const newMaterialTotal = Math.max(0, newTotalCost - nonMaterialCosts);
-                                
-                                // Calculate minimum required material costs (all costs except 'other')
-                                const requiredMinimum = Object.entries(currentCosts)
-                                  .filter(([key]) => key !== 'other')
-                                  .reduce((sum, [, value]) => sum + (value || 0), 0);
-                                
-                                // If trying to go below required minimum, set to minimum
-                                const actualMaterialTotal = Math.max(newMaterialTotal, requiredMinimum);
-                                
-                                // Set 'other' to make up the difference
-                                const otherAmount = actualMaterialTotal - requiredMinimum;
-                                
-                                onUpdateProduct(product.id, { 
-                                  costs: { 
-                                    ...currentCosts, 
-                                    other: otherAmount 
-                                  }
-                                });
-
-                                // Clear editing state
-                                setEditingCosts(prev => {
-                                  const newState = { ...prev };
-                                  delete newState[product.id];
-                                  return newState;
-                                });
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                              placeholder="5.00"
-                            />
-                            {/* Show minimum cost info */}
-                            {(() => {
-                              const materialMinimum = Object.entries(costs)
-                                .filter(([key]) => key !== 'other')
-                                .reduce((sum, [, value]) => sum + (value || 0), 0);
-                              const nonMaterialCosts = totalCosts - Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
-                              const totalMinimum = materialMinimum + nonMaterialCosts;
-                              return totalMinimum > 0 ? (
-                                <p className="text-xs text-muted-foreground">
-                                  Minimum: {formatCurrencyPrecise(totalMinimum)} (materials + labor + fees)
-                                </p>
-                              ) : null;
-                            })()}
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium text-foreground">Profit</Label>
-                            <div className={`h-10 px-3 flex items-center text-sm font-medium rounded-md border ${
-                              monthlyProfit > 0 ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20' : 
-                              monthlyProfit < 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : 
-                              'bg-muted text-muted-foreground border-border'
-                            }`}>
-                              {formatCurrencyPrecise(monthlyProfit)}
-                            </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Total Cost</Label>
+                          <div className="h-10 px-3 flex items-center text-sm rounded-md border border-border bg-muted">
+                            {formatCurrency(totalCosts)}
                           </div>
                         </div>
 
-
-                        {/* Material Costs Section */}
-                        <div className="bg-muted/30 rounded-lg border border-border">
-                          <Button
-                            variant="ghost"
-                            onClick={() => {
-                              const currentlyExpanded = product.showCostBreakdown || false;
-                              onUpdateProduct(product.id, { showCostBreakdown: !currentlyExpanded });
-                            }}
-                            className="w-full justify-between p-3 h-auto rounded-lg"
-                          >
-                            <div className="flex items-center gap-3">
-                              <Package className="h-4 w-4 text-muted-foreground" />
-                              <h4 className="text-sm font-medium text-foreground">Material Costs</h4>
-                              <span className="text-sm font-medium text-muted-foreground">
-                                {formatCurrencyPrecise(Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0))} total
-                              </span>
-                            </div>
-                            <span className="text-sm text-muted-foreground">
-                              {product.showCostBreakdown ? '−' : '+'}
-                            </span>
-                          </Button>
-
-                          {product.showCostBreakdown && (
-                            <div className="px-3 pb-3 space-y-1">
-                              {/* Material Costs */}
-                              {Object.entries(costs).map(([costType, value]) => (
-                                value > 0 || product.showCostBreakdown ? (
-                                  <div key={costType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
-                                    <Input
-                                      value={costType.charAt(0).toUpperCase() + costType.slice(1)}
-                                      onChange={(e) => {
-                                        const newCostType = e.target.value.toLowerCase();
-                                        const newCosts = { ...costs };
-                                        delete newCosts[costType];
-                                        newCosts[newCostType] = value;
-                                        onUpdateProduct(product.id, { costs: newCosts });
-                                      }}
-                                      className="h-8 text-sm flex-1"
-                                      placeholder="Cost name"
-                                    />
-                                    <div className="relative w-24">
-                                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
-                                        $
-                                      </span>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        value={value || ''}
-                                        onChange={(e) => onUpdateProduct(product.id, { 
-                                          costs: { ...costs, [costType]: parseFloat(e.target.value) || 0 }
-                                        })}
-                                        className="pl-6 h-8 text-sm w-full"
-                                        placeholder="0.00"
-                                      />
-                                    </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        const newCosts = { ...costs };
-                                        delete newCosts[costType];
-                                        onUpdateProduct(product.id, { costs: newCosts });
-                                      }}
-                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ) : null
-                              ))}
-                              
-                              <Button
-                                variant="ghost"
-                                onClick={() => {
-                                  const newCostKey = `cost_${Date.now()}`;
-                                  onUpdateProduct(product.id, { 
-                                    costs: { ...costs, [newCostKey]: 0 }
-                                  });
-                                }}
-                                className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
-                              >
-                                + Add Material Cost
-                              </Button>
-                            </div>
-                          )}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Profit</Label>
+                          <div className={`h-10 px-3 flex items-center text-sm font-medium rounded-md border ${
+                            monthlyProfit > 0 ? 'bg-green-500/10 text-green-600 border-green-500/20' : 
+                            monthlyProfit < 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : 
+                            'bg-muted text-muted-foreground border-border'
+                          }`}>
+                            {formatCurrency(monthlyProfit)}
+                          </div>
                         </div>
+                      </div>
 
-                        {/* Time Tracking Section */}
-                        <div className="bg-muted/30 rounded-lg border border-border">
-                          <Button
-                            variant="ghost"
-                            onClick={() => {
-                              const currentlyExpanded = product.showTimeBreakdown || false;
-                              onUpdateProduct(product.id, { showTimeBreakdown: !currentlyExpanded });
-                            }}
-                            className="w-full justify-between p-3 h-auto rounded-lg"
-                          >
-                            <div className="flex items-center gap-3">
-                              <Clock className="h-4 w-4 text-muted-foreground" />
-                              <h4 className="text-sm font-medium text-foreground">Labor Costs</h4>
-                              <span className="text-sm font-medium text-muted-foreground">
-                                {formatCurrencyPrecise(productMetrics.laborCosts)} total ({productMetrics.totalTimeHours.toFixed(1)}h)
-                              </span>
-                            </div>
-                            <span className="text-sm text-muted-foreground">
-                              {product.showTimeBreakdown ? '−' : '+'}
-                            </span>
-                          </Button>
-
-                          {product.showTimeBreakdown && (
-                            <div className="px-3 pb-3 space-y-3">
-                              {/* Hourly Rate Setting */}
-                              <div className="bg-muted/30 rounded-lg p-3">
-                                <div className="flex items-center justify-between">
-                                  <Label className="text-sm font-medium text-foreground">Hourly Rate (applies to all products)</Label>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm text-muted-foreground">$</span>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="1"
-                                      value={state.hourlyRate || ''}
-                                      onChange={(e) => onUpdateHourlyRate(parseFloat(e.target.value) || 0)}
-                                      className="w-20 h-8 text-sm"
-                                      placeholder="25"
-                                    />
-                                    <span className="text-sm text-muted-foreground">/hr</span>
-                                  </div>
-                                </div>
+                      <div className="bg-muted/30 rounded-lg border border-border p-3">
+                        <h4 className="text-sm font-medium text-foreground mb-3">Material Costs</h4>
+                        <div className="space-y-1">
+                          {Object.entries(costs).map(([costType, value]) => (
+                            <div key={costType} className="flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
+                              <Label className="text-sm capitalize flex-1">{costType}</Label>
+                              <div className="relative w-24">
+                                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={value || ''}
+                                  onChange={(e) => onUpdateProduct(product.id, { 
+                                    costs: { ...costs, [costType]: parseFloat(e.target.value) || 0 }
+                                  })}
+                                  className="pl-6 h-8 text-sm w-full"
+                                  placeholder="0.00"
+                                />
                               </div>
-                              
-                              {/* Time Entries */}
-                              <div className="space-y-1">
-                                {Object.entries(timeBreakdown).map(([timeType, minutes]) => (
-                                  minutes > 0 || product.showTimeBreakdown ? (
-                                    <div key={timeType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
-                                      <Input
-                                        value={timeType.charAt(0).toUpperCase() + timeType.slice(1)}
-                                        onChange={(e) => {
-                                          const newTimeType = e.target.value.toLowerCase();
-                                          const newTimeBreakdown = { ...timeBreakdown };
-                                          delete newTimeBreakdown[timeType];
-                                          newTimeBreakdown[newTimeType] = minutes;
-                                          onUpdateProduct(product.id, { timeBreakdown: newTimeBreakdown });
-                                        }}
-                                        className="h-8 text-sm flex-1"
-                                        placeholder="Task name"
-                                      />
-                                      <div className="flex items-center gap-2 w-20">
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          step="1"
-                                          value={minutes || ''}
-                                          onChange={(e) => onUpdateProduct(product.id, { 
-                                            timeBreakdown: { ...timeBreakdown, [timeType]: parseFloat(e.target.value) || 0 }
-                                          })}
-                                          className="h-8 text-sm w-16"
-                                          placeholder="0"
-                                        />
-                                        <span className="text-xs text-muted-foreground">min</span>
-                                      </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                          const newTimeBreakdown = { ...timeBreakdown };
-                                          delete newTimeBreakdown[timeType];
-                                          onUpdateProduct(product.id, { timeBreakdown: newTimeBreakdown });
-                                        }}
-                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  ) : null
-                                ))}
-                                
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-muted/30 rounded-lg border border-border p-3">
+                        <h4 className="text-sm font-medium text-foreground mb-3">
+                          Labor Costs: {formatCurrency(productMetrics.laborCosts)} ({productMetrics.totalTimeHours.toFixed(1)}h)
+                        </h4>
+                        <div className="space-y-1">
+                          {Object.entries(timeBreakdown).map(([timeType, value]) => (
+                            <div key={timeType} className="flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
+                              <Label className="text-sm capitalize flex-1">{timeType}</Label>
+                              <div className="flex items-center gap-2 w-20">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.25"
+                                  value={value || ''}
+                                  onChange={(e) => onUpdateProduct(product.id, { 
+                                    timeBreakdown: { ...timeBreakdown, [timeType]: parseFloat(e.target.value) || 0 }
+                                  })}
+                                  className="h-8 text-sm w-full"
+                                  placeholder="0"
+                                />
+                                <span className="text-sm text-muted-foreground">h</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-muted/30 rounded-lg border border-border p-3">
+                        <h4 className="text-sm font-medium text-foreground mb-3">Platform Fees</h4>
+                        <div className="space-y-3">
+                          {platformFees.map(platformFee => (
+                            <div key={platformFee.id} className="flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
+                              <Input
+                                value={platformFee.name}
+                                onChange={(e) => {
+                                  const updated = platformFees.map(pf =>
+                                    pf.id === platformFee.id ? { ...pf, name: e.target.value } : pf
+                                  );
+                                  onUpdateProduct(product.id, { platformFees: updated });
+                                }}
+                                className="h-8 text-sm flex-1"
+                                placeholder="Platform name"
+                              />
+                              <div className="relative w-24">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.1"
+                                  value={platformFee.feePercentage || ''}
+                                  onChange={(e) => {
+                                    const updated = platformFees.map(pf =>
+                                      pf.id === platformFee.id 
+                                        ? { ...pf, feePercentage: parseFloat(e.target.value) || 0 }
+                                        : pf
+                                    );
+                                    onUpdateProduct(product.id, { platformFees: updated });
+                                  }}
+                                  className="pr-6 h-8 text-sm w-full"
+                                  placeholder="0"
+                                />
+                                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                              </div>
+                              <div className="relative w-24">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="1"
+                                  value={platformFee.salesPercentage || ''}
+                                  onChange={(e) => {
+                                    const updated = platformFees.map(pf =>
+                                      pf.id === platformFee.id 
+                                        ? { ...pf, salesPercentage: parseFloat(e.target.value) || 0 }
+                                        : pf
+                                    );
+                                    onUpdateProduct(product.id, { platformFees: updated });
+                                  }}
+                                  className="pr-6 h-8 text-sm w-full"
+                                  placeholder="0"
+                                />
+                                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                              </div>
+                              {platformFees.length > 1 && (
                                 <Button
                                   variant="ghost"
+                                  size="sm"
                                   onClick={() => {
-                                    const newTimeKey = `task_${Date.now()}`;
-                                    onUpdateProduct(product.id, { 
-                                      timeBreakdown: { ...timeBreakdown, [newTimeKey]: 0 }
-                                    });
+                                    const updated = platformFees.filter(pf => pf.id !== platformFee.id);
+                                    onUpdateProduct(product.id, { platformFees: updated });
                                   }}
-                                  className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                 >
-                                  + Add Time Entry
+                                  <X className="h-3 w-3" />
                                 </Button>
-                              </div>
+                              )}
                             </div>
-                          )}
+                          ))}
+                          <Select onValueChange={(value) => {
+                            const preset = DEFAULT_PLATFORM_PRESETS.find(p => p.name === value);
+                            if (preset) {
+                              const newPlatform: PlatformFee = {
+                                id: `platform_${Date.now()}`,
+                                name: preset.name,
+                                feePercentage: preset.feePercentage,
+                                salesPercentage: 0
+                              };
+                              onUpdateProduct(product.id, { platformFees: [...platformFees, newPlatform] });
+                            }
+                          }}>
+                            <SelectTrigger className="w-full h-8 text-sm">
+                              <SelectValue placeholder="+ Add Platform" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DEFAULT_PLATFORM_PRESETS.map((preset) => (
+                                <SelectItem key={preset.name} value={preset.name}>
+                                  {preset.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-
-                        {/* Platform Fees Section */}
-                        <div className="bg-muted/30 rounded-lg border border-border">
-                          <Button
-                            variant="ghost"
-                            onClick={() => {
-                              const currentlyExpanded = product.showPlatformFees || false;
-                              onUpdateProduct(product.id, { showPlatformFees: !currentlyExpanded });
-                            }}
-                            className="w-full justify-between p-3 h-auto rounded-lg"
-                          >
-                            <div className="flex items-center gap-3">
-                              <Store className="h-4 w-4 text-muted-foreground" />
-                              <h4 className="text-sm font-medium text-foreground">Platform Fees</h4>
-                              <span className="text-sm font-medium text-muted-foreground">
-                                {(() => {
-                                  const platformFeeCalc = calculatePlatformFees(productWithFees);
-                                  return `${formatCurrencyPrecise(platformFeeCalc.totalFeesPerUnit)} fees per unit`;
-                                })()}
-                              </span>
-                            </div>
-                            <span className="text-sm text-muted-foreground">
-                              {product.showPlatformFees ? '−' : '+'}
-                            </span>
-                          </Button>
-
-                          {product.showPlatformFees && (
-                            <div className="px-3 pb-3 space-y-3">
-                              {/* Column Headers */}
-                              <div className="flex items-center gap-3 px-3 text-xs font-medium text-muted-foreground">
-                                <span className="flex-1">Platform</span>
-                                <span className="w-24 text-center">Platform Fee</span>
-                                <span className="w-24 text-center">Sales %</span>
-                                <span className="w-16 text-center">Units</span>
-                                <span className="w-8"></span>
-                              </div>
-                              
-                              {/* Platform Fee Entries */}
-                              <div className="space-y-1">
-                                {ensuredPlatformFees.map((platformFee) => (
-                                  <div key={platformFee.id} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
-                                    <Input
-                                      value={platformFee.name}
-                                      onChange={(e) => {
-                                        const updatedPlatformFees = ensuredPlatformFees.map(pf =>
-                                          pf.id === platformFee.id 
-                                            ? { ...pf, name: e.target.value }
-                                            : pf
-                                        );
-                                        onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
-                                      }}
-                                      className="h-8 text-sm flex-1"
-                                      placeholder="Platform name"
-                                    />
-                                    <div className="relative w-24">
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        step="0.1"
-                                        value={platformFee.feePercentage === 0 ? '' : platformFee.feePercentage}
-                                        onChange={(e) => {
-                                          const updatedPlatformFees = ensuredPlatformFees.map(pf =>
-                                            pf.id === platformFee.id 
-                                              ? { ...pf, feePercentage: parseFloat(e.target.value) || 0 }
-                                              : pf
-                                          );
-                                          onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
-                                        }}
-                                        className="pr-6 h-8 text-sm w-full"
-                                        placeholder="0"
-                                      />
-                                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
-                                        %
-                                      </span>
-                                    </div>
-                                    <div className="relative w-24">
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        step="1"
-                                        value={platformFee.salesPercentage === 0 ? '' : Math.round(platformFee.salesPercentage)}
-                                        onChange={(e) => {
-                                          const newPercentage = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
-                                          const platformFees = ensuredPlatformFees;
-                                          
-                                          if (platformFees.length === 1) {
-                                            // Single platform: allow any value, user controls it
-                                            const updatedPlatformFees = platformFees.map(pf =>
-                                              pf.id === platformFee.id 
-                                                ? { ...pf, salesPercentage: newPercentage }
-                                                : pf
-                                            );
-                                            onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
-                                          } else {
-                                            // Multiple platforms: adjust others proportionally
-                                            const otherFees = platformFees.filter(pf => pf.id !== platformFee.id);
-                                            const currentOtherTotal = otherFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
-                                            
-                                            if (newPercentage >= 100) {
-                                              // If setting to 100%, set others to 0
-                                              const updatedPlatformFees = platformFees.map(pf => ({
-                                                ...pf,
-                                                salesPercentage: pf.id === platformFee.id ? 100 : 0
-                                              }));
-                                              onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
-                                            } else {
-                                              // Proportionally reduce others to fit
-                                              const remainingPercentage = 100 - newPercentage;
-                                              
-                                              const updatedPlatformFees = platformFees.map(pf => {
-                                                if (pf.id === platformFee.id) {
-                                                  return { ...pf, salesPercentage: newPercentage };
-                                                } else if (currentOtherTotal > 0) {
-                                                  // Scale down others proportionally to fit in remaining space
-                                                  const proportion = pf.salesPercentage / currentOtherTotal;
-                                                  return { ...pf, salesPercentage: remainingPercentage * proportion };
-                                                } else {
-                                                  // If others were all 0%, leave them at 0
-                                                  return pf;
-                                                }
-                                              });
-                                              onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
-                                            }
-                                          }
-                                        }}
-                                        className="pr-6 h-8 text-sm w-full"
-                                        placeholder="0"
-                                      />
-                                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
-                                        %
-                                      </span>
-                                    </div>
-                                    <div className="text-right w-16">
-                                      <span className="text-sm text-muted-foreground">
-                                        {Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100))} units
-                                      </span>
-                                    </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        const currentPlatformFees = ensuredPlatformFees;
-                                        const remainingFees = currentPlatformFees.filter(pf => pf.id !== platformFee.id);
-                                        
-                                        if (remainingFees.length === 1) {
-                                          // Only one platform left: set to 100%
-                                          const updatedPlatformFees = remainingFees.map(pf => ({ ...pf, salesPercentage: 100 }));
-                                          onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
-                                        } else if (remainingFees.length > 1) {
-                                          // Multiple platforms left: redistribute the deleted platform's percentage proportionally
-                                          const deletedPercentage = platformFee.salesPercentage;
-                                          const remainingTotal = remainingFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
-                                          
-                                          const updatedPlatformFees = remainingFees.map(pf => {
-                                            if (remainingTotal > 0) {
-                                              // Distribute deleted percentage proportionally
-                                              const proportion = pf.salesPercentage / remainingTotal;
-                                              return { ...pf, salesPercentage: pf.salesPercentage + (deletedPercentage * proportion) };
-                                            } else {
-                                              // If remaining had 0%, distribute equally
-                                              return { ...pf, salesPercentage: 100 / remainingFees.length };
-                                            }
-                                          });
-                                          onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
-                                        }
-                                      }}
-                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ))}
-                                
-                                <Select value="" onValueChange={(value) => {
-                                  const preset = DEFAULT_PLATFORM_PRESETS.find(p => p.name === value);
-                                  if (preset) {
-                                    const currentPlatformFees = ensuredPlatformFees;
-                                    
-                                    const newPlatformFee: PlatformFee = {
-                                      id: `platform_${Date.now()}`,
-                                      name: preset.name,
-                                      feePercentage: preset.feePercentage,
-                                      salesPercentage: 0
-                                    };
-                                    const updatedPlatformFees = [...currentPlatformFees, newPlatformFee];
-                                    onUpdateProduct(product.id, { platformFees: updatedPlatformFees });
-                                  }
-                                }}>
-                                  <SelectTrigger className="w-full h-8 text-sm">
-                                    <SelectValue placeholder="+ Add Platform" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {DEFAULT_PLATFORM_PRESETS.map((preset) => (
-                                      <SelectItem key={preset.name} value={preset.name}>
-                                        {preset.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              
-                              {(() => {
-                                const total = ensuredPlatformFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
-                                return total !== 100 && total > 0 ? (
-                                  <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50/80 px-3 py-2 rounded-md border border-amber-200/50">
-                                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full"></div>
-                                    <span>Distribution totals {total}% (should be 100%)</span>
-                                  </div>
-                                ) : null;
-                              })()}
-                            </div>
-                          )}
-                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -770,7 +399,6 @@ export function Level1Setup({
           </div>
         )}
       </div>
-
     </div>
   );
 }

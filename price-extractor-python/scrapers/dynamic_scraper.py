@@ -1411,6 +1411,25 @@ class DynamicScraper:
                         '.product-summary [data-price]',
                         '.entry-summary [data-price]'
                     ]
+            elif 'cloudraylaser.com' in domain:
+                # CloudRay specific price selectors - need to find the bundle total
+                logger.info("🎯 CloudRay detected - using special selectors for bundle totals")
+                price_selectors = [
+                    # Look for the final bundle/total price (usually last data-price)
+                    '[data-price]:last-of-type',
+                    
+                    # Price display areas
+                    '.price__container .price-item--regular',
+                    '.price__container .price-item--sale',
+                    '.product__price .price-item--regular',
+                    '.product__price .price-item--sale',
+                    
+                    # Fallback to generic price selectors
+                    '.product-price .price',
+                    '.price-current',
+                    '.product__price',
+                    '.price'
+                ]
             elif 'xtool.com' in domain:
                 # xTool Shopify-specific selectors
                 logger.info("🎯 xTool.com detected - using Shopify price selectors")
@@ -1491,19 +1510,51 @@ class DynamicScraper:
                         price_text = element.get_text(strip=True)
                         if price_text:
                             price = self._parse_price_string(price_text)
-                            if price and price > 10:  # Basic sanity check - price should be more than $10
-                                logger.info(f"Found price ${price} from text '{price_text}' via selector: {selector}")
-                                valid_prices.append({
-                                    'price': price,
-                                    'selector': selector,
-                                    'text': price_text
-                                })
+                            
+                            # CloudRay-specific price validation
+                            if 'cloudraylaser.com' in domain:
+                                # Skip prices that are clearly variant selectors (wattage values)
+                                if price and (price == 30 or price == 50 or price == 60 or price == 100 or price == 200):
+                                    logger.debug(f"Skipping CloudRay variant price: ${price} (likely wattage)")
+                                    continue
+                                # Skip prices under $1000 for CloudRay machines
+                                if price and price < 1000:
+                                    logger.debug(f"Skipping CloudRay price under $1000: ${price}")
+                                    continue
+                                # Valid CloudRay price should be over $1000
+                                if price and price > 1000:
+                                    logger.info(f"Found valid CloudRay price ${price} from text '{price_text}' via selector: {selector}")
+                                    valid_prices.append({
+                                        'price': price,
+                                        'selector': selector,
+                                        'text': price_text
+                                    })
+                            else:
+                                # For other sites, basic sanity check
+                                if price and price > 10:  # Basic sanity check - price should be more than $10
+                                    logger.info(f"Found price ${price} from text '{price_text}' via selector: {selector}")
+                                    valid_prices.append({
+                                        'price': price,
+                                        'selector': selector,
+                                        'text': price_text
+                                    })
                 except Exception as e:
                     logger.debug(f"Price selector {selector} failed: {str(e)}")
                     continue
             
             # If we have valid prices, select the best one
             if valid_prices:
+                # Special handling for CloudRay - take the highest valid price (bundle total)
+                if 'cloudraylaser.com' in domain:
+                    logger.info(f"Found {len(valid_prices)} valid CloudRay price candidates.")
+                    for candidate in valid_prices:
+                        logger.info(f"  Candidate: ${candidate['price']:,.2f} via {candidate['selector']}")
+                    
+                    # Take the highest price (which should be the bundle total)
+                    best_price = max(valid_prices, key=lambda x: x['price'])
+                    logger.info(f"Selected highest CloudRay price (bundle total): ${best_price['price']:,.2f}")
+                    return best_price['price'], f"CloudRay bundle total: {best_price['selector']}"
+                
                 # Special handling for ComMarker B6 MOPA 60W - use old price as anchor
                 if machine_name and "B6 MOPA 60W" in machine_name and 'commarker.com' in domain:
                     logger.info(f"Found {len(valid_prices)} valid price candidates for B6 MOPA 60W.")

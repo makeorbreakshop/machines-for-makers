@@ -422,14 +422,17 @@ export async function GET(request: NextRequest) {
       });
 
       // Add signup data ONLY for signups that actually came through this specific lead magnet
-      const funnelCampaignSubmissions = campaignSubmissions.filter(sub => {
+      const funnelCampaignSubmissions = allSubmissions?.filter(sub => {
+        // Only count signups that have UTM campaign data
+        if (!sub.utm_campaign) return false;
+        
         // Only count signups that came through this specific funnel
         return sub.referrer?.includes(funnel.landingPageUrl) || 
                sub.source === funnel.slug ||
                (funnel.landingPageUrl === '/deals' && sub.source?.includes('deal')) ||
                (funnel.landingPageUrl === '/laser-comparison' && sub.source?.includes('comparison')) ||
                (funnel.landingPageUrl === '/laser-material-library' && sub.source?.includes('material'));
-      });
+      }) || [];
 
       if (funnelCampaignSubmissions) {
         funnelCampaignSubmissions.forEach(signup => {

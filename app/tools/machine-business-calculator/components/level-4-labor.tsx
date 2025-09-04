@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowRight, ArrowLeft, Users, Clock, Plus, X, Briefcase, UserCheck, Package } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Users, Clock, Plus, X, Briefcase, UserCheck, Package, ChevronDown } from 'lucide-react';
 import { CalculatorState, CalculatedMetrics, LaborState, Worker, BusinessTask, DEFAULT_BUSINESS_TASKS } from '../lib/calculator-types';
 
 interface Level4LaborProps {
@@ -24,6 +24,10 @@ export function Level4Labor({
   onComplete, 
   onBack 
 }: Level4LaborProps) {
+  const [businessTasksExpanded, setBusinessTasksExpanded] = useState(false);
+  const [productionExpanded, setProductionExpanded] = useState(false);
+  const [workersExpanded, setWorkersExpanded] = useState(false);
+  
   // Initialize labor state if it doesn't exist
   const [laborState, setLaborState] = useState<LaborState>(() => {
     if (!state.labor) {
@@ -45,6 +49,13 @@ export function Level4Labor({
     }
     return state.labor;
   });
+
+  // Sync local state with parent state when it changes
+  useEffect(() => {
+    if (state.labor) {
+      setLaborState(state.labor);
+    }
+  }, [state.labor]);
 
   // Calculate production hours from products
   useEffect(() => {
@@ -148,7 +159,7 @@ export function Level4Labor({
   }, [
     laborState.productionHoursPerWeek,
     JSON.stringify(laborState.businessTasks.map(t => ({ id: t.id, hoursPerWeek: t.hoursPerWeek, assignedWorkerId: t.assignedWorkerId }))),
-    JSON.stringify(laborState.workers.map(w => ({ id: w.id, hourlyRate: w.hourlyRate }))),
+    JSON.stringify(laborState.workers.map(w => ({ id: w.id, hourlyRate: w.hourlyRate, maxHoursPerWeek: w.maxHoursPerWeek }))),
     JSON.stringify((laborState as any).productAssignments || {}),
     JSON.stringify(state.products?.map(p => p.id) || [])
   ]);
@@ -192,15 +203,29 @@ export function Level4Labor({
   const removeWorker = (workerId: string) => {
     if (workerId === 'owner') return; // Can't remove owner
     
-    setLaborState(prev => ({
-      ...prev,
-      workers: prev.workers.filter(w => w.id !== workerId),
-      businessTasks: prev.businessTasks.map(task =>
-        task.assignedWorkerId === workerId 
-          ? { ...task, assignedWorkerId: undefined }
-          : task
-      )
-    }));
+    setLaborState(prev => {
+      // Find all product assignments that need to be reassigned
+      const productAssignments = (prev as any).productAssignments || {};
+      const updatedProductAssignments = { ...productAssignments };
+      
+      // Reassign products from removed worker to owner
+      Object.keys(updatedProductAssignments).forEach(productId => {
+        if (updatedProductAssignments[productId] === workerId) {
+          updatedProductAssignments[productId] = 'owner';
+        }
+      });
+      
+      return {
+        ...prev,
+        workers: prev.workers.filter(w => w.id !== workerId),
+        businessTasks: prev.businessTasks.map(task =>
+          task.assignedWorkerId === workerId 
+            ? { ...task, assignedWorkerId: 'owner' } // Reassign to owner instead of undefined
+            : task
+        ),
+        productAssignments: updatedProductAssignments
+      };
+    });
   };
 
   const updateBusinessTask = (taskId: string, updates: Partial<BusinessTask>) => {
@@ -239,121 +264,168 @@ export function Level4Labor({
   const totalAssignedHours = laborState.workers.reduce((sum, worker) => sum + worker.assignedHours, 0);
   const unassignedHours = Math.max(0, totalHoursNeeded - totalAssignedHours);
 
+  // Calculate total labor cost
+  const totalLaborCost = laborState.workers.reduce((sum, worker) => {
+    let workerHours = 0;
+    
+    // Add hours from business tasks
+    laborState.businessTasks.forEach(task => {
+      if (task.assignedWorkerId === worker.id) {
+        workerHours += task.hoursPerWeek;
+      }
+    });
+    
+    // Add hours from products
+    const productAssignments = (laborState as any).productAssignments || {};
+    if (state.products) {
+      state.products.forEach(product => {
+        const productMetrics = metrics.productMetrics?.[product.id];
+        if (productMetrics) {
+          const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
+          const assignedWorkerId = productAssignments[product.id] || 'owner';
+          if (assignedWorkerId === worker.id) {
+            workerHours += weeklyHours;
+          }
+        }
+      });
+    }
+    
+    return sum + (workerHours * worker.hourlyRate * 4.33);
+  }, 0);
+
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xl font-semibold">Labor Planning</h3>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">Total Hours Needed</span>
-          <span className="text-lg font-bold">{formatHours(totalHoursNeeded)}/week</span>
-        </div>
-      </div>
-
-
-      {/* Workers & Capacity Section */}
-      <Card>
+    <div className="space-y-6">
+      {/* Labor Summary Card */}
+      <Card className="bg-card border-border">
         <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              <h4 className="text-lg font-medium">Workers & Capacity</h4>
+          <div className="grid grid-cols-4 gap-6 text-center">
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Weekly Hours</div>
+              <div className="text-xl font-bold text-foreground">{formatHours(totalHoursNeeded)}</div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={addWorker}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Hire Worker
-            </Button>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Workers</div>
+              <div className="text-xl font-bold text-foreground">{laborState.workers.length}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Hourly Rate</div>
+              <div className="text-xl font-bold text-foreground">${laborState.workers[0]?.hourlyRate || 25}/hr</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Monthly Cost</div>
+              <div className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalLaborCost)}</div>
+            </div>
           </div>
+        </CardContent>
+      </Card>
+
+
+      {/* Workers Management Section */}
+      <Card className="border-border bg-card shadow-sm">
+        <CardContent className="p-0">
+          <Button
+            variant="ghost"
+            onClick={() => setWorkersExpanded(!workersExpanded)}
+            className="w-full justify-between p-0 h-auto hover:bg-transparent"
+          >
+            <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  <span className="text-base font-medium text-foreground">Workers</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-foreground">
+                    {laborState.workers.length} {laborState.workers.length === 1 ? 'worker' : 'workers'}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${workersExpanded ? 'transform rotate-180' : ''}`} />
+                </div>
+              </div>
+            </div>
+          </Button>
           
-          <div className="space-y-4">
-            {laborState.workers.map((worker) => {
-              const isOwner = worker.id === 'owner';
-              
-              // Calculate actual assigned hours for this worker
-              let assignedHours = 0;
-              
-              // Add hours from business tasks
-              laborState.businessTasks.forEach(task => {
-                if (task.assignedWorkerId === worker.id) {
-                  assignedHours += task.hoursPerWeek;
-                }
-              });
-              
-              // Add hours from product assignments
-              const productAssignments = (laborState as any).productAssignments || {};
-              if (state.products) {
-                state.products.forEach(product => {
-                  const productMetrics = metrics.productMetrics?.[product.id];
-                  if (productMetrics) {
-                    const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
-                    const assignedWorkerId = productAssignments[product.id] || 'owner';
-                    if (assignedWorkerId === worker.id) {
-                      assignedHours += weeklyHours;
-                    }
+          {workersExpanded && (
+            <div className="p-6 space-y-4">
+              {laborState.workers.map((worker) => {
+                const isOwner = worker.id === 'owner';
+                
+                // Calculate actual assigned hours for this worker
+                let assignedHours = 0;
+                
+                // Add hours from business tasks
+                laborState.businessTasks.forEach(task => {
+                  if (task.assignedWorkerId === worker.id) {
+                    assignedHours += task.hoursPerWeek;
                   }
                 });
-              }
-              
-              const capacity = worker.maxHoursPerWeek;
-              const overCapacity = assignedHours > capacity;
-              const utilizationPercentage = Math.min((assignedHours / capacity) * 100, 100);
-              
-              return (
-                <Card key={worker.id} className="border-border">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${isOwner ? 'bg-primary/10' : 'bg-muted'}`}>
-                          <UserCheck className={`h-4 w-4 ${isOwner ? 'text-primary' : 'text-muted-foreground'}`} />
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Input
-                            value={worker.name}
-                            onChange={(e) => updateWorker(worker.id, { name: e.target.value })}
-                            className="h-8 text-sm font-medium w-32"
-                          />
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">$</span>
-                            <Input
-                              type="number"
-                              min="10"
-                              step="1"
-                              value={worker.hourlyRate}
-                              onChange={(e) => updateWorker(worker.id, { hourlyRate: parseFloat(e.target.value) || 0 })}
-                              className="h-8 text-xs w-16"
-                            />
-                            <span className="text-xs text-muted-foreground">/hr</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              min="1"
-                              max="80"
-                              step="1"
-                              value={worker.maxHoursPerWeek}
-                              onChange={(e) => updateWorker(worker.id, { maxHoursPerWeek: parseFloat(e.target.value) || 0 })}
-                              className="h-8 text-xs w-16"
-                            />
-                            <span className="text-xs text-muted-foreground">hrs/week max</span>
-                          </div>
-                        </div>
+                
+                // Add hours from product assignments
+                const productAssignments = (laborState as any).productAssignments || {};
+                if (state.products) {
+                  state.products.forEach(product => {
+                    const productMetrics = metrics.productMetrics?.[product.id];
+                    if (productMetrics) {
+                      const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
+                      const assignedWorkerId = productAssignments[product.id] || 'owner';
+                      if (assignedWorkerId === worker.id) {
+                        assignedHours += weeklyHours;
+                      }
+                    }
+                  });
+                }
+                
+                const capacity = worker.maxHoursPerWeek;
+                const overCapacity = assignedHours > capacity;
+                const utilizationPercentage = Math.min((assignedHours / capacity) * 100, 100);
+                
+                return (
+                  <div key={worker.id} className="border border-border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center gap-4">
+                      <Input
+                        value={worker.name}
+                        onChange={(e) => updateWorker(worker.id, { name: e.target.value })}
+                        className="flex-1"
+                        placeholder="Worker name"
+                      />
+                      
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-muted-foreground">$</span>
+                        <Input
+                          type="number"
+                          min="10"
+                          step="1"
+                          value={worker.hourlyRate || ''}
+                          onChange={(e) => updateWorker(worker.id, { hourlyRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                          className="w-20"
+                          placeholder="Rate"
+                        />
+                        <span className="text-sm text-muted-foreground">/hr</span>
                       </div>
                       
-                      <div className="text-right">
-                        {!isOwner && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeWorker(worker.id)}
-                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        )}
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="80"
+                          step="1"
+                          value={worker.maxHoursPerWeek || ''}
+                          onChange={(e) => updateWorker(worker.id, { maxHoursPerWeek: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                          className="w-20"
+                          placeholder="Hours"
+                        />
+                        <span className="text-sm text-muted-foreground">hrs/week</span>
                       </div>
+                      
+                      {!isOwner && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeWorker(worker.id)}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                     
                     {/* Capacity Bar */}
@@ -387,53 +459,78 @@ export function Level4Labor({
                             : `${formatHours(capacity - assignedHours)} available`
                           }
                         </span>
+                        <span>
+                          {formatCurrency(assignedHours * worker.hourlyRate * 4.33)}/mo
+                        </span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                  </div>
+                );
+              })}
+              
+              <Button
+                variant="ghost"
+                onClick={addWorker}
+                className="w-full mt-4 text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Worker
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Product Hours Section */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Package className="h-4 w-4 text-primary" />
-            <h4 className="text-lg font-medium">Product Hours</h4>
-            <span className="text-sm text-muted-foreground">
-              {formatHours(laborState.productionHoursPerWeek)}/week total
-            </span>
-          </div>
+      {/* Production Hours Section */}
+      <Card className="border-border bg-card shadow-sm">
+        <CardContent className="p-0">
+          <Button
+            variant="ghost"
+            onClick={() => setProductionExpanded(!productionExpanded)}
+            className="w-full justify-between p-0 h-auto hover:bg-transparent"
+          >
+            <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-primary" />
+                  <span className="text-base font-medium text-foreground">Production Hours</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-foreground">
+                    {formatHours(laborState.productionHoursPerWeek)}/week • {formatCurrency((laborState.productionHoursPerWeek * (laborState.workers[0]?.hourlyRate || 25) * 4.33))} total
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${productionExpanded ? 'transform rotate-180' : ''}`} />
+                </div>
+              </div>
+            </div>
+          </Button>
           
-          <div className="space-y-3">
-            {state.products && state.products.length > 0 ? (
-              state.products.map((product, index) => {
-                const productMetrics = metrics.productMetrics?.[product.id];
-                if (!productMetrics) return null;
-                
-                const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
-                const productName = product.name || `Product ${index + 1}`;
-                const assignedWorker = laborState.workers.find(w => w.id === (laborState as any).productAssignments?.[product.id]) || laborState.workers.find(w => w.id === 'owner');
-                
-                return (
-                  <div key={product.id} className="bg-muted/30 rounded-lg p-4">
-                    <div className="grid grid-cols-4 gap-4 items-center">
-                      <div>
-                        <div className="text-sm font-medium text-foreground">{productName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {product.monthlyUnits || 0} units/month
-                        </div>
+          {productionExpanded && (
+            <div className="p-4 space-y-1">
+              {state.products && state.products.length > 0 ? (
+                state.products.map((product, index) => {
+                  const productMetrics = metrics.productMetrics?.[product.id];
+                  if (!productMetrics) return null;
+                  
+                  const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
+                  const productName = product.name || `Product ${index + 1}`;
+                  const assignedWorker = laborState.workers.find(w => w.id === (laborState as any).productAssignments?.[product.id]) || laborState.workers.find(w => w.id === 'owner');
+                  const monthlyAmount = weeklyHours * (assignedWorker?.hourlyRate || 25) * 4.33;
+                  
+                  return (
+                    <div key={product.id} className="flex items-center gap-2 py-1.5 px-2 hover:bg-muted/30 rounded-md transition-colors">
+                      <div className="flex-1 flex items-center gap-3 min-w-0">
+                        <span className="font-medium text-sm text-foreground truncate">{productName}</span>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {product.monthlyUnits || 0} units/mo
+                        </span>
                       </div>
                       
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm font-medium">{formatHours(weeklyHours)}</div>
-                        <span className="text-xs text-muted-foreground">hrs/week</span>
-                      </div>
-                      
-                      <div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-sm text-muted-foreground whitespace-nowrap">
+                          {weeklyHours.toFixed(1)}h/wk
+                        </span>
+                        
                         <Select
                           value={((laborState as any).productAssignments?.[product.id]) || "owner"}
                           onValueChange={(workerId) => {
@@ -446,192 +543,127 @@ export function Level4Labor({
                             }));
                           }}
                         >
-                          <SelectTrigger className="h-8 text-sm">
-                            <SelectValue placeholder="Assign to..." />
+                          <SelectTrigger className="h-7 w-[120px] text-sm">
+                            <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             {laborState.workers.map((worker) => (
                               <SelectItem key={worker.id} value={worker.id}>
-                                {worker.name} (${worker.hourlyRate}/hr)
+                                {worker.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      </div>
-                      
-                      <div className="text-right text-xs text-muted-foreground">
-                        {assignedWorker && (
-                          <div>
-                            {formatCurrency(weeklyHours * assignedWorker.hourlyRate * 4.33)}/mo
-                          </div>
-                        )}
+                        
+                        <span className="font-mono text-sm font-medium text-foreground w-16 text-right">
+                          ${monthlyAmount.toFixed(0)}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-sm text-muted-foreground text-center py-4">
-                No products with time breakdown yet
-              </div>
-            )}
-          </div>
+                  );
+                })
+              ) : (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  No products with time breakdown yet
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Business Tasks Section */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-primary" />
-              <h4 className="text-lg font-medium">Business Tasks</h4>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={addBusinessTask}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add Task
-            </Button>
-          </div>
-          
-          <div className="space-y-3">
-            {laborState.businessTasks.map((task) => {
-              const assignedWorker = laborState.workers.find(w => w.id === task.assignedWorkerId);
-              return (
-                <div key={task.id} className="bg-muted/30 rounded-lg p-4">
-                  <div className="grid grid-cols-4 gap-4 items-center">
-                    <div>
-                      <Input
-                        value={task.name}
-                        onChange={(e) => updateBusinessTask(task.id, { name: e.target.value })}
-                        className="h-8 text-sm font-medium"
-                        placeholder="Task name"
-                      />
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min="0.5"
-                        step="0.5"
-                        value={task.hoursPerWeek}
-                        onChange={(e) => updateBusinessTask(task.id, { hoursPerWeek: parseFloat(e.target.value) || 0 })}
-                        className="h-8 text-sm w-16"
-                      />
-                      <span className="text-xs text-muted-foreground">hrs/week</span>
-                    </div>
-                    
-                    <div>
-                      <Select
-                        value={task.assignedWorkerId || "unassigned"}
-                        onValueChange={(workerId) => updateBusinessTask(task.id, { assignedWorkerId: workerId === "unassigned" ? undefined : workerId })}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue placeholder="Assign to..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {laborState.workers.map((worker) => (
-                            <SelectItem key={worker.id} value={worker.id}>
-                              {worker.name} (${worker.hourlyRate}/hr)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="flex items-center justify-end gap-2">
-                      {assignedWorker && (
-                        <div className="text-xs text-muted-foreground">
-                          {formatCurrency(task.hoursPerWeek * assignedWorker.hourlyRate * 4.33)}/mo
-                        </div>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeBusinessTask(task.id)}
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
+      <Card className="border-border bg-card shadow-sm">
+        <CardContent className="p-0">
+          <Button
+            variant="ghost"
+            onClick={() => setBusinessTasksExpanded(!businessTasksExpanded)}
+            className="w-full justify-between p-0 h-auto hover:bg-transparent"
+          >
+            <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4 text-primary" />
+                  <span className="text-base font-medium text-foreground">Business Tasks</span>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Labor Summary */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock className="h-4 w-4 text-primary" />
-            <h3 className="text-lg font-medium">Labor Summary</h3>
-          </div>
-          
-          <div className="space-y-4">
-            {laborState.workers.map((worker) => {
-              // Calculate actual assigned hours for this worker
-              let assignedHours = 0;
-              
-              // Add hours from business tasks
-              laborState.businessTasks.forEach(task => {
-                if (task.assignedWorkerId === worker.id) {
-                  assignedHours += task.hoursPerWeek;
-                }
-              });
-              
-              // Add hours from product assignments
-              const productAssignments = (laborState as any).productAssignments || {};
-              if (state.products) {
-                state.products.forEach(product => {
-                  const productMetrics = metrics.productMetrics?.[product.id];
-                  if (productMetrics) {
-                    const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
-                    const assignedWorkerId = productAssignments[product.id] || 'owner';
-                    if (assignedWorkerId === worker.id) {
-                      assignedHours += weeklyHours;
-                    }
-                  }
-                });
-              }
-              
-              const monthlyCost = assignedHours * worker.hourlyRate * 4.33;
-              
-              if (assignedHours === 0) return null; // Don't show workers with no hours
-              
-              return (
-                <div key={worker.id} className="flex justify-between items-center">
-                  <div>
-                    <span className="font-medium text-foreground">{worker.name}</span>
-                    <span className="text-sm text-muted-foreground ml-2">
-                      {formatHours(assignedHours)}/week
-                    </span>
-                  </div>
-                  <span className="font-mono font-medium">
-                    {formatCurrency(monthlyCost)}
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-foreground">
+                    {formatCurrency(totalBusinessHours * (laborState.workers[0]?.hourlyRate || 25) * 4.33)} total
                   </span>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessTasksExpanded ? 'transform rotate-180' : ''}`} />
                 </div>
-              );
-            })}
-            
-            <div className="border-t pt-3">
-              <div className="flex justify-between items-center">
-                <span className="font-medium text-lg">Total Labor Cost</span>
-                <span className="font-mono font-medium text-lg text-foreground">
-                  {formatCurrency((laborState.totalLaborCost || 0))}
-                </span>
               </div>
             </div>
-          </div>
+          </Button>
+          
+          {businessTasksExpanded && (
+            <div className="p-6 space-y-2">
+              {laborState.businessTasks.map((task) => {
+                const assignedWorker = laborState.workers.find(w => w.id === task.assignedWorkerId) || laborState.workers[0];
+                const monthlyAmount = task.hoursPerWeek * (assignedWorker?.hourlyRate || 25) * 4.33;
+                return (
+                  <div key={task.id} className="flex items-center gap-4">
+                    <Input
+                      value={task.name}
+                      onChange={(e) => updateBusinessTask(task.id, { name: e.target.value })}
+                      className="flex-1"
+                      placeholder="Task name"
+                    />
+                    
+                    <Input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={task.hoursPerWeek || ''}
+                      onChange={(e) => updateBusinessTask(task.id, { hoursPerWeek: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                      className="w-20"
+                      placeholder="Hours"
+                    />
+                    
+                    <Select
+                      value={task.assignedWorkerId || laborState.workers[0]?.id || "owner"}
+                      onValueChange={(workerId) => updateBusinessTask(task.id, { assignedWorkerId: workerId })}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {laborState.workers.map((worker) => (
+                          <SelectItem key={worker.id} value={worker.id}>
+                            {worker.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <div className="w-24 text-right font-mono text-sm">
+                      ${monthlyAmount.toFixed(0)}
+                    </div>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeBusinessTask(task.id)}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+              
+              <Button
+                variant="ghost"
+                onClick={addBusinessTask}
+                className="w-full mt-4 text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Business Task
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
-
     </div>
   );
 }

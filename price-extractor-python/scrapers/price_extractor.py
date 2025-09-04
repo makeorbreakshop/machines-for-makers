@@ -120,6 +120,11 @@ class PriceExtractor:
         
         # Method 2: Try site-specific extraction (static) - now includes learned selectors!
         logger.info(f"🎯 METHOD 2: Attempting site-specific extraction with rules and learned selectors")
+        
+        # Construct machine_data if not provided but we have machine_name
+        if machine_data is None and machine_name:
+            machine_data = {'Machine Name': machine_name}
+        
         price, method = self.site_extractor.extract_price_with_rules(soup, html_content, url, machine_data)
         if price is not None:
             # Validate the price against expected ranges and old price

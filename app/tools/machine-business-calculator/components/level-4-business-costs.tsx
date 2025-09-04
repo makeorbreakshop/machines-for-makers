@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, ArrowLeft, Receipt, Percent, DollarSign, Settings, Building, Calculator, X } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Receipt, Percent, DollarSign, Settings, Building, Calculator, X, ChevronDown } from 'lucide-react';
 import { CalculatorState, CalculatedMetrics, BusinessCost } from '../lib/calculator-types';
 import { calculateBusinessCosts } from '../lib/calculator-formulas';
 
@@ -91,104 +91,95 @@ export function Level4BusinessCosts({
 
   return (
     <div className="space-y-8">
-
-      {/* Current Performance Summary */}
-      <Card className="bg-muted/30 border-muted">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-3 gap-6 text-center">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Monthly Revenue</div>
-              <div className="text-xl font-bold">{formatCurrency(monthlyRevenue)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Gross Profit</div>
-              <div className="text-xl font-bold text-green-600">{formatCurrency(grossProfit)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Net Profit</div>
-              <div className={`text-xl font-bold ${netProfit > 0 ? 'text-green-600' : 'text-destructive'}`}>
-                {formatCurrency(netProfit)}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="space-y-6">
         {/* Tax Reserve */}
-        <div>
-          <Button
-            variant="ghost"
-            onClick={() => setBusinessExpenses(prev => ({
-              ...prev,
-              taxReserve: { ...prev.taxReserve, expanded: !prev.taxReserve.expanded }
-            }))}
-            className="w-full justify-between p-3 h-auto"
-          >
-            <div className="flex items-center gap-3">
-              <Receipt className="h-4 w-4 text-muted-foreground" />
-              <h4 className="text-sm font-medium">Tax Reserve</h4>
-              <span className="text-sm font-medium text-muted-foreground">
-                {formatCurrencyPrecise(taxCost)} total ({businessExpenses.taxReserve.rate}% of profit)
-              </span>
-            </div>
-            <span className="text-sm text-muted-foreground">
-              {businessExpenses.taxReserve.expanded ? '−' : '+'}
-            </span>
-          </Button>
-
-          {businessExpenses.taxReserve.expanded && (
-            <div className="mt-3 bg-muted/30 rounded-lg p-3">
-              <div className="flex items-center gap-4 mb-3">
-                <Label className="text-sm font-medium">Tax Rate</Label>
-                <div className="relative w-24">
-                  <Input
-                    type="number"
-                    min="15"
-                    max="45"
-                    step="1"
-                    value={businessExpenses.taxReserve.rate}
-                    onChange={(e) => setBusinessExpenses(prev => ({
-                      ...prev,
-                      taxReserve: { ...prev.taxReserve, rate: Math.max(15, Math.min(45, parseFloat(e.target.value) || 30)) }
-                    }))}
-                    className="pr-6 h-8 text-sm"
-                  />
-                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">%</span>
+        <Card className="border-border bg-card shadow-sm">
+          <CardContent className="p-0">
+            <Button
+              variant="ghost"
+              onClick={() => setBusinessExpenses(prev => ({
+                ...prev,
+                taxReserve: { ...prev.taxReserve, expanded: !prev.taxReserve.expanded }
+              }))}
+              className="w-full justify-between p-0 h-auto hover:bg-transparent"
+            >
+              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-primary" />
+                    <span className="text-base font-medium text-foreground">Tax Reserve</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-foreground">
+                      {formatCurrencyPrecise(taxCost)} total
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.taxReserve.expanded ? 'transform rotate-180' : ''}`} />
+                  </div>
                 </div>
-                <span className="text-sm text-muted-foreground">of profit</span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Self-employment tax (15.3%) + income tax. Range: 25-40% typical
-              </p>
-            </div>
-          )}
-        </div>
+            </Button>
+
+            {businessExpenses.taxReserve.expanded && (
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-3">
+                  <Label className="text-sm font-medium text-foreground">Tax Rate</Label>
+                  <div className="relative w-24">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={businessExpenses.taxReserve.rate || ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setBusinessExpenses(prev => ({
+                          ...prev,
+                          taxReserve: { ...prev.taxReserve, rate: isNaN(value) ? 0 : Math.max(0, Math.min(100, value)) }
+                        }));
+                      }}
+                      className="pr-6 h-8 text-sm text-foreground"
+                    />
+                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">%</span>
+                  </div>
+                  <span className="text-sm text-foreground">of profit</span>
+                </div>
+                <p className="text-xs text-foreground">
+                  Self-employment tax (15.3%) + income tax. Range: 25-40% typical
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Physical Costs */}
-        <div>
-          <Button
-            variant="ghost"
-            onClick={() => setBusinessExpenses(prev => ({
-              ...prev,
-              physicalCosts: { ...prev.physicalCosts, expanded: !prev.physicalCosts.expanded }
-            }))}
-            className="w-full justify-between p-3 h-auto"
-          >
-            <div className="flex items-center gap-3">
-              <Building className="h-4 w-4 text-muted-foreground" />
-              <h4 className="text-sm font-medium">Physical Costs</h4>
-              <span className="text-sm font-medium text-muted-foreground">
-                {formatCurrencyPrecise(physicalCostsTotal)} total
-              </span>
-            </div>
-            <span className="text-sm text-muted-foreground">
-              {businessExpenses.physicalCosts.expanded ? '−' : '+'}
-            </span>
-          </Button>
+        <Card className="border-border bg-card shadow-sm">
+          <CardContent className="p-0">
+            <Button
+              variant="ghost"
+              onClick={() => setBusinessExpenses(prev => ({
+                ...prev,
+                physicalCosts: { ...prev.physicalCosts, expanded: !prev.physicalCosts.expanded }
+              }))}
+              className="w-full justify-between p-0 h-auto hover:bg-transparent"
+            >
+              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building className="h-4 w-4 text-primary" />
+                    <span className="text-base font-medium text-foreground">Physical Costs</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-foreground">
+                      {formatCurrencyPrecise(physicalCostsTotal)} total
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.physicalCosts.expanded ? 'transform rotate-180' : ''}`} />
+                  </div>
+                </div>
+              </div>
+            </Button>
 
-          {businessExpenses.physicalCosts.expanded && (
-            <div className="mt-3 space-y-1">
+            {businessExpenses.physicalCosts.expanded && (
+              <div className="p-6 space-y-1">
               {Object.entries(businessExpenses.physicalCosts.items).map(([costType, value]) => (
                 <div key={costType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                   <Input
@@ -205,11 +196,11 @@ export function Level4BusinessCosts({
                         };
                       });
                     }}
-                    className="h-8 text-sm flex-1"
+                    className="h-8 text-sm flex-1 text-foreground"
                     placeholder="Cost name"
                   />
                   <div className="relative w-24">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">$</span>
                     <Input
                       type="number"
                       min="0"
@@ -219,10 +210,10 @@ export function Level4BusinessCosts({
                         ...prev,
                         physicalCosts: {
                           ...prev.physicalCosts,
-                          items: { ...prev.physicalCosts.items, [costType]: parseFloat(e.target.value) || 0 }
+                          items: { ...prev.physicalCosts.items, [costType]: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 }
                         }
                       }))}
-                      className="pl-6 h-8 text-sm w-full"
+                      className="pl-6 h-8 text-sm w-full text-foreground"
                       placeholder="0.00"
                     />
                   </div>
@@ -262,44 +253,40 @@ export function Level4BusinessCosts({
               >
                 + Add Physical Cost
               </Button>
-              
-              <div className="bg-muted/50 rounded-lg p-3 mt-3">
-                <h5 className="text-xs font-medium mb-2">Common Ranges:</h5>
-                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                  <div>Insurance: $50-100/mo</div>
-                  <div>Workspace: $100-300/mo</div>
-                  <div>Utilities: $30-100/mo</div>
-                  <div>Professional: $50-200/mo</div>
-                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Software Costs */}
-        <div>
-          <Button
-            variant="ghost"
-            onClick={() => setBusinessExpenses(prev => ({
-              ...prev,
-              softwareCosts: { ...prev.softwareCosts, expanded: !prev.softwareCosts.expanded }
-            }))}
-            className="w-full justify-between p-3 h-auto"
-          >
-            <div className="flex items-center gap-3">
-              <Settings className="h-4 w-4 text-muted-foreground" />
-              <h4 className="text-sm font-medium">Software & Tools</h4>
-              <span className="text-sm font-medium text-muted-foreground">
-                {formatCurrencyPrecise(softwareCostsTotal)} total
-              </span>
-            </div>
-            <span className="text-sm text-muted-foreground">
-              {businessExpenses.softwareCosts.expanded ? '−' : '+'}
-            </span>
-          </Button>
+        <Card className="border-border bg-card shadow-sm">
+          <CardContent className="p-0">
+            <Button
+              variant="ghost"
+              onClick={() => setBusinessExpenses(prev => ({
+                ...prev,
+                softwareCosts: { ...prev.softwareCosts, expanded: !prev.softwareCosts.expanded }
+              }))}
+              className="w-full justify-between p-0 h-auto hover:bg-transparent"
+            >
+              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-primary" />
+                    <span className="text-base font-medium text-foreground">Software & Tools</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-foreground">
+                      {formatCurrencyPrecise(softwareCostsTotal)} total
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.softwareCosts.expanded ? 'transform rotate-180' : ''}`} />
+                  </div>
+                </div>
+              </div>
+            </Button>
 
-          {businessExpenses.softwareCosts.expanded && (
-            <div className="mt-3 space-y-1">
+            {businessExpenses.softwareCosts.expanded && (
+              <div className="p-6 space-y-1">
               {Object.entries(businessExpenses.softwareCosts.items).map(([costType, value]) => (
                 <div key={costType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                   <Input
@@ -316,11 +303,11 @@ export function Level4BusinessCosts({
                         };
                       });
                     }}
-                    className="h-8 text-sm flex-1"
+                    className="h-8 text-sm flex-1 text-foreground"
                     placeholder="Software name"
                   />
                   <div className="relative w-24">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">$</span>
                     <Input
                       type="number"
                       min="0"
@@ -330,10 +317,10 @@ export function Level4BusinessCosts({
                         ...prev,
                         softwareCosts: {
                           ...prev.softwareCosts,
-                          items: { ...prev.softwareCosts.items, [costType]: parseFloat(e.target.value) || 0 }
+                          items: { ...prev.softwareCosts.items, [costType]: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 }
                         }
                       }))}
-                      className="pl-6 h-8 text-sm w-full"
+                      className="pl-6 h-8 text-sm w-full text-foreground"
                       placeholder="0.00"
                     />
                   </div>
@@ -373,72 +360,114 @@ export function Level4BusinessCosts({
               >
                 + Add Software Cost
               </Button>
-              
-              <div className="bg-muted/50 rounded-lg p-3 mt-3">
-                <h5 className="text-xs font-medium mb-2">Common Ranges:</h5>
-                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                  <div>Design Software: $20-100/mo</div>
-                  <div>Accounting: $15-50/mo</div>
-                  <div>Cloud Storage: $5-30/mo</div>
-                  <div>Marketing Tools: $25-200/mo</div>
-                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Equipment Fund */}
-        <div>
-          <Button
-            variant="ghost"
-            onClick={() => setBusinessExpenses(prev => ({
-              ...prev,
-              equipmentFund: { ...prev.equipmentFund, expanded: !prev.equipmentFund.expanded }
-            }))}
-            className="w-full justify-between p-3 h-auto"
-          >
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <h4 className="text-sm font-medium">Equipment Fund</h4>
-              <span className="text-sm font-medium text-muted-foreground">
-                {formatCurrencyPrecise(equipmentFundCost)} total ({businessExpenses.equipmentFund.rate}% of revenue)
-              </span>
-            </div>
-            <span className="text-sm text-muted-foreground">
-              {businessExpenses.equipmentFund.expanded ? '−' : '+'}
-            </span>
-          </Button>
+        <Card className="border-border bg-card shadow-sm">
+          <CardContent className="p-0">
+            <Button
+              variant="ghost"
+              onClick={() => setBusinessExpenses(prev => ({
+                ...prev,
+                equipmentFund: { ...prev.equipmentFund, expanded: !prev.equipmentFund.expanded }
+              }))}
+              className="w-full justify-between p-0 h-auto hover:bg-transparent"
+            >
+              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-primary" />
+                    <span className="text-base font-medium text-foreground">Equipment Fund</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-foreground">
+                      {formatCurrencyPrecise(equipmentFundCost)} total
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.equipmentFund.expanded ? 'transform rotate-180' : ''}`} />
+                  </div>
+                </div>
+              </div>
+            </Button>
 
-          {businessExpenses.equipmentFund.expanded && (
-            <div className="mt-3 bg-muted/30 rounded-lg p-3">
+            {businessExpenses.equipmentFund.expanded && (
+              <div className="p-6">
               <div className="flex items-center gap-4 mb-3">
-                <Label className="text-sm font-medium">Equipment Fund</Label>
+                <Label className="text-sm font-medium text-foreground">Equipment Fund</Label>
                 <div className="relative w-24">
                   <Input
                     type="number"
-                    min="3"
-                    max="15"
+                    min="0"
+                    max="100"
                     step="1"
-                    value={businessExpenses.equipmentFund.rate}
-                    onChange={(e) => setBusinessExpenses(prev => ({
-                      ...prev,
-                      equipmentFund: { ...prev.equipmentFund, rate: Math.max(3, Math.min(15, parseFloat(e.target.value) || 8)) }
-                    }))}
-                    className="pr-6 h-8 text-sm"
+                    value={businessExpenses.equipmentFund.rate || ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      setBusinessExpenses(prev => ({
+                        ...prev,
+                        equipmentFund: { ...prev.equipmentFund, rate: isNaN(value) ? 0 : Math.max(0, Math.min(100, value)) }
+                      }));
+                    }}
+                    className="pr-6 h-8 text-sm text-foreground"
                   />
-                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">%</span>
                 </div>
-                <span className="text-sm text-muted-foreground">of revenue</span>
+                <span className="text-sm text-foreground">of revenue</span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-foreground">
                 Maintenance, repairs, upgrades, replacement. Range: 5-12% typical
               </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Business Expenses Summary */}
+        <Card className="border-border bg-card shadow-sm">
+          <CardContent className="p-0">
+            <div className="bg-muted/50 px-6 py-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Calculator className="h-4 w-4 text-primary" />
+                <span className="text-base font-medium text-foreground">Business Expenses Summary</span>
+              </div>
             </div>
-          )}
-        </div>
+            
+            <div className="p-6 space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tax Reserve ({businessExpenses.taxReserve.rate}%)</span>
+                <span className="font-mono font-medium text-foreground">{formatCurrency(taxCost)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Rent & Facilities</span>
+                <span className="font-mono font-medium text-foreground">{formatCurrency(physicalCostsTotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Software & Tools</span>
+                <span className="font-mono font-medium text-foreground">{formatCurrency(softwareCostsTotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Equipment Fund ({businessExpenses.equipmentFund.rate}%)</span>
+                <span className="font-mono font-medium text-foreground">{formatCurrency(equipmentFundCost)}</span>
+              </div>
+              
+              <div className="border-t pt-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Total Business Expenses</span>
+                  <span className="font-mono font-medium text-lg text-destructive">{formatCurrency(totalBusinessCosts)}</span>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-muted-foreground">Impact on Profit</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {monthlyRevenue > 0 ? `${((totalBusinessCosts / monthlyRevenue) * 100).toFixed(1)}% of revenue` : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-
-
     </div>
   );
 }

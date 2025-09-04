@@ -21,6 +21,7 @@ interface CalculatorDashboardProps {
 
 export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses, laborCosts }: CalculatorDashboardProps) {
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+  const [expandedPL, setExpandedPL] = useState(true); // Start expanded
   
   // Safety check for metrics object
   if (!metrics) {
@@ -76,18 +77,18 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
     (sum, product: any) => sum + (product.monthlyRevenue || 0), 0
   );
   
-  // Use actual business expenses if provided, otherwise zeros
+  // Use actual business expenses if provided, otherwise defaults
   const actualBusinessExpenses = businessExpenses || {
-    taxReserve: { rate: 0 },
-    physicalCosts: { items: {} },
-    softwareCosts: { items: {} },
-    equipmentFund: { rate: 0 }
+    taxReserve: { rate: 30 },
+    physicalCosts: { items: { rent: 200, insurance: 75, utilities: 50 } },
+    softwareCosts: { items: { design_software: 50, accounting_software: 25 } },
+    equipmentFund: { rate: 8 }
   };
   
-  const taxCost = businessExpenses ? (safeGrossProfit * actualBusinessExpenses.taxReserve.rate) / 100 : 0;
-  const physicalCostsTotal = businessExpenses ? Object.values(actualBusinessExpenses.physicalCosts.items).reduce((sum, cost) => sum + cost, 0) : 0;
-  const softwareCostsTotal = businessExpenses ? Object.values(actualBusinessExpenses.softwareCosts.items).reduce((sum, cost) => sum + cost, 0) : 0;
-  const equipmentFundCost = businessExpenses ? (monthlyRevenue * actualBusinessExpenses.equipmentFund.rate) / 100 : 0;
+  const taxCost = (safeGrossProfit * actualBusinessExpenses.taxReserve.rate) / 100;
+  const physicalCostsTotal = Object.values(actualBusinessExpenses.physicalCosts.items).reduce((sum, cost) => sum + cost, 0);
+  const softwareCostsTotal = Object.values(actualBusinessExpenses.softwareCosts.items).reduce((sum, cost) => sum + cost, 0);
+  const equipmentFundCost = (monthlyRevenue * actualBusinessExpenses.equipmentFund.rate) / 100;
   
   // Calculate direct labor (product time) vs indirect labor (business tasks)
   const directLaborCost = Object.values(metrics.productMetrics || {}).reduce(
@@ -231,18 +232,28 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
         
         {/* Profit & Loss Statement */}
         <Card>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                <h3 className="text-lg font-medium text-foreground">Net Profit</h3>
-                <span className={`ml-auto text-2xl font-bold font-mono ${
-                  netProfit > 0 ? 'text-green-600' : 'text-red-500'
-                }`}>
-                  {formatCurrency(netProfit)}
-                </span>
-              </div>
-              
+          <div 
+            className="p-6 cursor-pointer hover:bg-muted/30 transition-colors border-b border-border"
+            onClick={() => setExpandedPL(!expandedPL)}
+          >
+            <div className="flex items-center gap-2">
+              {expandedPL ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <h3 className="text-lg font-medium text-foreground">Net Profit</h3>
+              <span className={`ml-auto text-2xl font-bold font-mono ${
+                netProfit > 0 ? 'text-green-600' : 'text-red-500'
+              }`}>
+                {formatCurrency(netProfit)}
+              </span>
+            </div>
+          </div>
+          
+          {expandedPL && (
+            <CardContent className="p-6 pt-0">
               <div className="space-y-3 text-sm">
                 {/* REVENUE */}
                 {monthlyRevenue > 0 && (
@@ -296,8 +307,8 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
                   </div>
                 )}
                 
-                {/* OPERATING EXPENSES */}
-                {(indirectLaborCost > 0 || (metrics.totalMarketingCosts || 0) > 0 || physicalCostsTotal > 0 || softwareCostsTotal > 0) && (
+                {/* OPERATING EXPENSES - Always show the section if any line items exist */}
+                {monthlyRevenue > 0 && (
                   <div className="border-t border-border pt-3">
                     <div className="text-xs text-muted-foreground mb-2 font-medium">OPERATING EXPENSES</div>
                     
@@ -336,17 +347,24 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
                         </span>
                       </div>
                     )}
+                    
+                    {/* Show placeholder if no operating expenses yet */}
+                    {indirectLaborCost === 0 && (metrics.totalMarketingCosts || 0) === 0 && physicalCostsTotal === 0 && softwareCostsTotal === 0 && (
+                      <div className="text-xs text-muted-foreground italic">
+                        No operating expenses yet
+                      </div>
+                    )}
                   </div>
                 )}
                 
-                {/* OTHER EXPENSES & RESERVES */}
-                {(taxCost > 0 || equipmentFundCost > 0) && (
+                {/* OTHER EXPENSES & RESERVES - Always show section structure */}
+                {monthlyRevenue > 0 && (
                   <div className="border-t border-border pt-3">
-                    <div className="text-xs text-muted-foreground mb-2 font-medium">OTHER EXPENSES & RESERVES</div>
+                    <div className="text-xs text-muted-foreground mb-2 font-medium">RESERVES & PROVISIONS</div>
                     
                     {taxCost > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Tax Reserve</span>
+                        <span className="text-muted-foreground">Tax Reserve ({actualBusinessExpenses.taxReserve.rate}%)</span>
                         <span className="font-mono font-medium text-foreground">
                           -{formatCurrency(taxCost)}
                         </span>
@@ -355,10 +373,17 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
                     
                     {equipmentFundCost > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Equipment Fund</span>
+                        <span className="text-muted-foreground">Equipment Fund ({actualBusinessExpenses.equipmentFund.rate}%)</span>
                         <span className="font-mono font-medium text-foreground">
                           -{formatCurrency(equipmentFundCost)}
                         </span>
+                      </div>
+                    )}
+                    
+                    {/* Show placeholder if no reserves yet */}
+                    {taxCost === 0 && equipmentFundCost === 0 && (
+                      <div className="text-xs text-muted-foreground italic">
+                        No reserves allocated yet
                       </div>
                     )}
                   </div>
@@ -380,8 +405,8 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
                   </div>
                 )}
               </div>
-            </div>
-          </CardContent>
+            </CardContent>
+          )}
         </Card>
 
 

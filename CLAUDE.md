@@ -82,6 +82,53 @@ python main.py  # Run the FastAPI server on port 8000
 - Never suggest running the same test multiple times in parallel
 - Ask permission before rerunning any test command
 
+### 6. JSX Syntax Rules - CRITICAL TO PREVENT ERRORS
+**Common JSX mistakes that must be avoided:**
+- **NO BLANK LINES** between opening JSX tag and its first child
+- **Always verify** complete JSX structure after edits, not just the edited area
+- **Count tags** - every opening tag needs a closing tag
+- **One root element** - return statements must have single root element
+- **Conditional rendering** - use `condition && (jsx)` or ternary operators correctly
+
+**Before ANY JSX edit:**
+1. Identify if you're in: return statement, inside JSX, or regular JavaScript
+2. Check parent-child relationships of elements
+3. Verify fragment usage `<>...</>` when needed
+
+**Common error patterns to avoid:**
+```jsx
+// BAD - blank line after opening tag
+return (
+  <div>
+
+    {/* comment */}
+  </div>
+)
+
+// GOOD - no blank line
+return (
+  <div>
+    {/* comment */}
+  </div>
+)
+
+// BAD - multiple root elements
+return (
+  <div>...</div>
+  <div>...</div>
+)
+
+// GOOD - wrapped in fragment or div
+return (
+  <>
+    <div>...</div>
+    <div>...</div>
+  </>
+)
+```
+
+**After JSX edits:** Always verify the entire component structure compiles
+
 ## Architecture Overview
 
 ### Route Structure
