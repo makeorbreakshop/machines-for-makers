@@ -57,7 +57,6 @@ export function Level1Setup({
 }: Level1SetupProps) {
   const [showTemplates, setShowTemplates] = useState(false);
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({});
-  const [editingCosts, setEditingCosts] = useState<Record<string, string>>({});
   const [materialModalState, setMaterialModalState] = useState<{
     open: boolean;
     productId: string | null;
@@ -348,52 +347,9 @@ export function Level1Setup({
 
                         <div className="space-y-2">
                           <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Cost</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editingCosts[product.id] ?? totalCosts.toFixed(2)}
-                            onChange={(e) => {
-                              setEditingCosts(prev => ({
-                                ...prev,
-                                [product.id]: e.target.value
-                              }));
-                            }}
-                            onBlur={(e) => {
-                              const newTotalCost = parseFloat(e.target.value) || 0;
-                              
-                              // Calculate current material costs from material usages
-                              const materialUsageCosts = (product.materialUsages || []).reduce((sum, usage) => 
-                                sum + (usage.cost || 0), 0
-                              );
-                              
-                              // Calculate other non-material costs (finishing, packaging, shipping)
-                              const nonMaterialCosts = (costs.finishing || 0) + 
-                                                      (costs.packaging || 0) + 
-                                                      (costs.shipping || 0);
-                              
-                              // Calculate what should go into "other" - this is the remainder
-                              // after accounting for material usages and non-material costs
-                              const otherCost = Math.max(0, newTotalCost - materialUsageCosts - nonMaterialCosts);
-                              
-                              // Update the costs with the new "other" value
-                              onUpdateProduct(product.id, { 
-                                costs: { 
-                                  ...costs,
-                                  materials: materialUsageCosts, // Keep materials synced with usages
-                                  other: otherCost // This is the smart deduction
-                                }
-                              });
-                              
-                              // Clear editing state
-                              setEditingCosts(prev => {
-                                const newState = { ...prev };
-                                delete newState[product.id];
-                                return newState;
-                              });
-                            }}
-                            placeholder="0.00"
-                            className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
-                          />
+                          <div className="h-10 px-3 flex items-center text-base font-semibold tabular-nums rounded-md border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700">
+                            {formatCurrencyCompact(totalCosts)}
+                          </div>
                         </div>
 
                         <div className="space-y-2">
@@ -480,20 +436,7 @@ export function Level1Setup({
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => {
-                                        const removedCost = usage.cost || 0;
                                         onRemoveMaterialUsage(product.id, idx);
-                                        
-                                        // After removing material, add its cost back to "other"
-                                        const remainingUsages = product.materialUsages?.filter((_, i) => i !== idx) || [];
-                                        const newMaterialsCost = remainingUsages.reduce((sum, u) => sum + (u.cost || 0), 0);
-                                        
-                                        onUpdateProduct(product.id, {
-                                          costs: {
-                                            ...product.costs,
-                                            materials: newMaterialsCost,
-                                            other: (product.costs?.other || 0) + removedCost
-                                          }
-                                        });
                                       }}
                                       className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                     >
@@ -853,39 +796,13 @@ export function Level1Setup({
         onAddMaterial={onAddMaterial}
         onAddMaterialUsage={(usage) => {
           if (materialModalState.productId) {
-            const product = state.products.find(p => p.id === materialModalState.productId);
-            if (product) {
-              if (materialModalState.editingIndex !== null) {
-                onUpdateMaterialUsage(materialModalState.productId, materialModalState.editingIndex, usage);
-              } else {
-                onAddMaterialUsage(materialModalState.productId, usage);
-              }
-              
-              // After adding/updating material, recalculate the "other" cost
-              // to maintain the total cost by deducting the material costs
-              const updatedUsages = materialModalState.editingIndex !== null 
-                ? product.materialUsages?.map((u, i) => i === materialModalState.editingIndex ? usage : u) || []
-                : [...(product.materialUsages || []), usage];
-              
-              const materialUsageCosts = updatedUsages.reduce((sum, u) => sum + (u.cost || 0), 0);
-              const totalCost = (product.costs?.materials || 0) + (product.costs?.finishing || 0) + 
-                               (product.costs?.packaging || 0) + (product.costs?.shipping || 0) + 
-                               (product.costs?.other || 0);
-              
-              // Smart deduction: reduce "other" by the amount of materials added
-              const newOtherCost = Math.max(0, (product.costs?.other || totalCost) - 
-                                  (materialUsageCosts - (product.costs?.materials || 0)));
-              
-              onUpdateProduct(materialModalState.productId, {
-                costs: {
-                  ...product.costs,
-                  materials: materialUsageCosts,
-                  other: newOtherCost
-                }
-              });
+            if (materialModalState.editingIndex !== null) {
+              onUpdateMaterialUsage(materialModalState.productId, materialModalState.editingIndex, usage);
+            } else {
+              onAddMaterialUsage(materialModalState.productId, usage);
             }
+            setMaterialModalState({ open: false, productId: null, editingIndex: null, editingUsage: undefined });
           }
-          setMaterialModalState({ open: false, productId: null, editingIndex: null, editingUsage: undefined });
         }}
         existingUsage={materialModalState.editingUsage}
       />

@@ -73,7 +73,14 @@ export function calculateProductMetrics(product: Product, globalHourlyRate: numb
   const totalTimeMinutes = Object.values(timeBreakdown).reduce((sum, time) => sum + (time || 0), 0);
   const totalTimeHours = totalTimeMinutes / 60;
   const laborCosts = totalTimeHours * globalHourlyRate;
-  const materialCosts = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
+  
+  // Calculate material costs from materialUsages if available, otherwise use legacy costs
+  let materialCosts = 0;
+  if (product.materialUsages && product.materialUsages.length > 0) {
+    materialCosts = product.materialUsages.reduce((sum, usage) => sum + (usage.cost || 0), 0);
+  } else {
+    materialCosts = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
+  }
   
   // Calculate platform fees
   const platformFeeCalc = calculatePlatformFees(product);

@@ -6,8 +6,8 @@ interface CalculatorLayoutProps {
 
 export default function CalculatorLayout({ children }: CalculatorLayoutProps) {
   return (
-    // No ThemeProvider here - calculator manages its own theme
-    <div className="calculator-app">
+    // Dark mode only - no theme switching
+    <div className="calculator-app dark">
       {children}
     </div>
   );

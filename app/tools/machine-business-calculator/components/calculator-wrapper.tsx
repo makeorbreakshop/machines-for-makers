@@ -7,8 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Target } from 'lucide-react';
-import { CalculatorThemeToggle } from './calculator-theme-toggle';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Level1Setup } from './level-1-setup';
 import { Level3Marketing } from './level-3-marketing';
 import { Level4Labor } from './level-4-labor';
@@ -78,21 +77,6 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
       savings: { rate: 0, expanded: false }
     };
   });
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  // Load calculator theme preference from localStorage
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('calculator-theme');
-    if (savedTheme === 'dark') {
-      setIsDarkMode(true);
-    }
-  }, []);
-
-  // Save calculator theme preference
-  const handleThemeToggle = (isDark: boolean) => {
-    setIsDarkMode(isDark);
-    localStorage.setItem('calculator-theme', isDark ? 'dark' : 'light');
-  };
   
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('en-US', { 
@@ -153,11 +137,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
           <Level4BusinessCosts
             state={state}
             metrics={metrics}
-            onUpdateBusinessMode={actions.updateBusinessMode}
-            onToggleBusinessCost={actions.toggleBusinessCost}
-            onUpdateBusinessCost={actions.updateBusinessCost}
             onComplete={() => setActiveTab('projections')}
-            onBack={() => setActiveTab('labor')}
             onBusinessExpensesChange={(expenses) => {
               setCurrentBusinessExpenses(expenses);
               actions.updateBusinessExpenses(expenses);
@@ -188,7 +168,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
   };
 
   return (
-    <div className={`min-h-screen bg-background ${isDarkMode ? 'dark' : ''}`}>
+    <div className="min-h-screen bg-background dark">
       {/* Monthly Goal Progress Bar */}
       <div className="bg-muted/30 border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
@@ -256,9 +236,6 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                 </span>
               </div>
             </div>
-            <div className="ml-auto">
-              <CalculatorThemeToggle isDark={isDarkMode} onToggle={handleThemeToggle} />
-            </div>
           </div>
         </div>
       </div>
@@ -266,17 +243,13 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
       <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           {/* Tab Navigation - Clean, Subtle Design */}
-          <TabsList className={`flex w-full p-1 rounded-lg ${isDarkMode ? 'bg-slate-900/80 border-slate-700/50' : 'bg-gray-50 border-gray-200'} border`}>
+          <TabsList className="flex w-full p-1 rounded-lg bg-slate-900/80 border-slate-700/50 border">
             <TabsTrigger 
               value="products" 
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'products' 
-                  ? (isDarkMode 
-                      ? 'bg-gray-700 text-white shadow-md' 
-                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
-                  : (isDarkMode 
-                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+                  ? 'bg-gray-700 text-white shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
               }`}>
               Products
             </TabsTrigger>
@@ -284,12 +257,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               value="marketing" 
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'marketing' 
-                  ? (isDarkMode 
-                      ? 'bg-gray-700 text-white shadow-md' 
-                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
-                  : (isDarkMode 
-                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+                  ? 'bg-gray-700 text-white shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
               }`}>
               Marketing
             </TabsTrigger>
@@ -297,12 +266,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               value="labor" 
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'labor' 
-                  ? (isDarkMode 
-                      ? 'bg-gray-700 text-white shadow-md' 
-                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
-                  : (isDarkMode 
-                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+                  ? 'bg-gray-700 text-white shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
               }`}>
               Labor
             </TabsTrigger>
@@ -310,12 +275,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               value="business" 
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'business' 
-                  ? (isDarkMode 
-                      ? 'bg-gray-700 text-white shadow-md' 
-                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
-                  : (isDarkMode 
-                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+                  ? 'bg-gray-700 text-white shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
               }`}>
               Business
             </TabsTrigger>
@@ -323,12 +284,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               value="pnl" 
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'pnl' 
-                  ? (isDarkMode 
-                      ? 'bg-gray-700 text-white shadow-md' 
-                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
-                  : (isDarkMode 
-                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+                  ? 'bg-gray-700 text-white shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
               }`}>
               P&L
             </TabsTrigger>
@@ -336,7 +293,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Main Content Area with Active Background Effect */}
-            <div className={`lg:col-span-2 rounded-lg transition-all duration-300 ${isDarkMode ? 'bg-slate-900/50 ring-1 ring-slate-700/50' : 'bg-gray-50/50 ring-1 ring-gray-200/50'} p-4`}>
+            <div className="lg:col-span-2 rounded-lg transition-all duration-300 bg-slate-900/50 ring-1 ring-slate-700/50 p-4">
               <TabsContent value="products" className="mt-0">
                 {renderTabContent('products')}
               </TabsContent>

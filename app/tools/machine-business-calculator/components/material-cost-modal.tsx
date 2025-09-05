@@ -70,6 +70,19 @@ export function MaterialCostModal({
     }
   }, [existingUsage, materials]);
 
+  // Reset form when opening for a new material
+  useEffect(() => {
+    if (open && !existingUsage) {
+      setSelectedMaterialId('new');
+      setMaterialName('');
+      setBatchCost('');
+      setBatchQuantity('1');
+      setUnit('sheet');
+      setUsageQuantity('');
+      setSaveToLibrary(true);
+    }
+  }, [open, existingUsage]);
+
   // Update form when material is selected from library
   useEffect(() => {
     if (selectedMaterialId !== 'new') {
