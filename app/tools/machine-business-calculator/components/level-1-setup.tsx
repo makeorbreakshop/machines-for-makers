@@ -5,16 +5,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   CalculatorState, 
   CalculatedMetrics, 
   DEFAULT_PRODUCT_TEMPLATES, 
   DEFAULT_PLATFORM_PRESETS, 
-  PlatformFee 
+  PlatformFee,
+  Material,
+  MaterialUsage 
 } from '../lib/calculator-types';
 import { calculateProductMetrics } from '../lib/calculator-formulas';
+import { MaterialCostModal } from './material-cost-modal';
 
 interface Level1SetupProps {
   state: CalculatorState;
@@ -25,6 +28,10 @@ interface Level1SetupProps {
   onRemoveProduct: (id: string) => void;
   onUpdateHourlyRate: (rate: number) => void;
   onComplete: () => void;
+  onAddMaterial: (material: Omit<Material, 'id'>) => string;
+  onAddMaterialUsage: (productId: string, usage: MaterialUsage) => void;
+  onUpdateMaterialUsage: (productId: string, index: number, usage: MaterialUsage) => void;
+  onRemoveMaterialUsage: (productId: string, index: number) => void;
 }
 
 interface ExpandedSections {
@@ -39,11 +46,21 @@ export function Level1Setup({
   state, 
   onAddProduct, 
   onUpdateProduct, 
-  onRemoveProduct
+  onRemoveProduct,
+  onAddMaterial,
+  onAddMaterialUsage,
+  onUpdateMaterialUsage,
+  onRemoveMaterialUsage
 }: Level1SetupProps) {
   const [showTemplates, setShowTemplates] = useState(false);
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({});
   const [editingCosts, setEditingCosts] = useState<Record<string, string>>({});
+  const [materialModalState, setMaterialModalState] = useState<{
+    open: boolean;
+    productId: string | null;
+    editingIndex: number | null;
+    editingUsage: MaterialUsage | undefined;
+  }>({ open: false, productId: null, editingIndex: null, editingUsage: undefined });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { 
@@ -132,24 +149,6 @@ export function Level1Setup({
     }));
   };
 
-  const addCostItem = (productId: string) => {
-    const product = state.products.find(p => p.id === productId);
-    if (!product) return;
-    
-    const newCostKey = `cost_${Date.now()}`;
-    onUpdateProduct(productId, { 
-      costs: { ...product.costs, [newCostKey]: 0 }
-    });
-  };
-
-  const removeCostItem = (productId: string, costType: string) => {
-    const product = state.products.find(p => p.id === productId);
-    if (!product) return;
-    
-    const newCosts = { ...product.costs };
-    delete newCosts[costType];
-    onUpdateProduct(productId, { costs: newCosts });
-  };
 
   const addTimeItem = (productId: string) => {
     const product = state.products.find(p => p.id === productId);
@@ -247,8 +246,12 @@ export function Level1Setup({
               const unitProfit = (product.sellingPrice || 0) - totalCosts;
               const monthlyProfit = (product.monthlyUnits || 0) * unitProfit;
               
-              const materialCostsTotal = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
-              const costItemCount = Object.keys(costs).length;
+              // Calculate material costs from materialUsage or legacy costs
+              const materialUsage = product.materialUsage || [];
+              const materialCostsTotal = materialUsage.length > 0 
+                ? materialUsage.reduce((sum, usage) => sum + usage.cost, 0)
+                : Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
+              const costItemCount = materialUsage.length || Object.keys(costs).length;
               const laborMinutesTotal = Object.values(timeBreakdown).reduce((sum, minutes) => sum + (minutes || 0), 0);
               const laborHoursTotal = laborMinutesTotal / 60;
               const platformCount = platformFees.length;
@@ -429,49 +432,37 @@ export function Level1Setup({
                           
                           {isExpanded?.materials && (
                             <div className="px-4 pb-4 space-y-2">
-                              {Object.entries(costs).map(([costType, value]) => (
-                                <div key={costType} className="flex items-center gap-3">
-                                  <Input
-                                    value={costType.charAt(0).toUpperCase() + costType.slice(1).replace(/_/g, ' ')}
-                                    onChange={(e) => {
-                                      const newCostType = e.target.value.toLowerCase().replace(/ /g, '_');
-                                      if (newCostType !== costType) {
-                                        const newCosts = { ...costs };
-                                        delete newCosts[costType];
-                                        newCosts[newCostType] = value;
-                                        onUpdateProduct(product.id, { costs: newCosts });
-                                      }
-                                    }}
-                                    className="h-9 text-sm flex-1"
-                                    placeholder="Cost name"
-                                  />
-                                  <div className="relative w-24">
-                                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={value === 0 ? '0' : value || ''}
-                                      onChange={(e) => {
-                                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                        onUpdateProduct(product.id, { 
-                                          costs: { ...costs, [costType]: val || 0 }
-                                        });
-                                      }}
-                                      onBlur={(e) => {
-                                        const roundedValue = e.target.value === '' ? 0 : Math.round(parseFloat(e.target.value) * 100) / 100 || 0;
-                                        onUpdateProduct(product.id, { 
-                                          costs: { ...costs, [costType]: roundedValue }
-                                        });
-                                      }}
-                                      className="pl-6 h-9 text-sm w-full"
-                                      placeholder="0.00"
-                                    />
+                              {/* Display material usage */}
+                              {materialUsage.map((usage, idx) => (
+                                <div key={idx} className="flex items-center gap-3">
+                                  <div className="flex-1 text-sm">
+                                    <span className="font-medium">{usage.name}</span>
+                                    <span className="text-muted-foreground ml-2">
+                                      {usage.quantity} × ${usage.unitCost.toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <div className="text-sm font-medium tabular-nums">
+                                    ${usage.cost.toFixed(2)}
                                   </div>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => removeCostItem(product.id, costType)}
+                                    onClick={() => {
+                                      setMaterialModalState({
+                                        open: true,
+                                        productId: product.id,
+                                        editingIndex: idx,
+                                        editingUsage: usage
+                                      });
+                                    }}
+                                    className="h-8 w-8 p-0 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => onRemoveMaterialUsage(product.id, idx)}
                                     className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                   >
                                     <X className="h-3 w-3" />
@@ -479,9 +470,28 @@ export function Level1Setup({
                                 </div>
                               ))}
                               
+                              {/* Show legacy costs if no material usage */}
+                              {materialUsage.length === 0 && Object.entries(costs).map(([costType, value]) => (
+                                <div key={costType} className="flex items-center gap-3 text-sm text-muted-foreground">
+                                  <span className="flex-1">
+                                    {costType.charAt(0).toUpperCase() + costType.slice(1).replace(/_/g, ' ')}
+                                  </span>
+                                  <span className="font-medium tabular-nums">
+                                    ${(value || 0).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                              
                               <Button
                                 variant="ghost"
-                                onClick={() => addCostItem(product.id)}
+                                onClick={() => {
+                                  setMaterialModalState({
+                                    open: true,
+                                    productId: product.id,
+                                    editingIndex: null,
+                                    editingUsage: undefined
+                                  });
+                                }}
                                 className="w-full h-9 text-sm text-muted-foreground hover:text-foreground mt-2"
                               >
                                 <Plus className="h-4 w-4 mr-2" />
@@ -756,6 +766,25 @@ export function Level1Setup({
           </div>
         )}
       </div>
+
+      {/* Material Cost Modal */}
+      <MaterialCostModal
+        open={materialModalState.open}
+        onClose={() => setMaterialModalState({ open: false, productId: null, editingIndex: null, editingUsage: undefined })}
+        materials={state.materials}
+        onAddMaterial={onAddMaterial}
+        onAddMaterialUsage={(usage) => {
+          if (materialModalState.productId) {
+            if (materialModalState.editingIndex !== null) {
+              onUpdateMaterialUsage(materialModalState.productId, materialModalState.editingIndex, usage);
+            } else {
+              onAddMaterialUsage(materialModalState.productId, usage);
+            }
+          }
+          setMaterialModalState({ open: false, productId: null, editingIndex: null, editingUsage: undefined });
+        }}
+        existingUsage={materialModalState.editingUsage}
+      />
     </div>
   );
 }

@@ -1,24 +1,18 @@
 export interface Material {
   id: string;
   name: string;
-  category: 'wood' | 'acrylic' | 'metal' | 'fabric' | 'paper' | 'plastic' | 'other';
-  supplier?: string;
-  purchaseUnit: string;      // e.g., "sheet", "roll", "pound", "yard"
-  purchaseSize?: string;      // e.g., "24x48 inches", "10 yards"
-  purchaseCost: number;       // Total cost for the purchase unit
-  batchQuantity: number;      // How many units in a batch
-  unitOfMeasure: string;      // e.g., "sq in", "linear ft", "piece"
-  unitCost: number;          // Calculated cost per unit
-  notes?: string;
-  lastUpdated?: Date;
-  inStock?: boolean;
+  batchCost: number;         // Total cost for the batch (e.g., $45)
+  batchQuantity: number;     // Number in batch (e.g., 1 sheet, 10 ft, etc)
+  unit: string;              // Unit name (e.g., "sheet", "ft", "yard", "lb")
+  unitCost: number;          // Calculated: batchCost / batchQuantity
 }
 
 export interface MaterialUsage {
-  materialId: string;
-  quantity: number;           // Amount used per product
-  unitCost: number;          // Cost at time of usage (snapshot)
-  totalCost: number;         // quantity * unitCost
+  materialId?: string;       // Optional - can be a one-off material
+  name: string;              // Material name (for display)
+  quantity: number;          // Amount used per product
+  unitCost: number;          // Cost per unit
+  cost: number;              // Total: quantity * unitCost
 }
 
 export interface PlatformFee {
@@ -33,8 +27,9 @@ export interface Product {
   name: string;
   sellingPrice: number;
   monthlyUnits: number; // Units to produce per month
+  materialUsage?: MaterialUsage[];  // New: material usage with batch pricing
   costs: {
-    materials: number;    // Raw material costs
+    materials: number;    // Raw material costs (calculated from materialUsage)
     finishing: number;    // Post-processing, sanding, etc.
     packaging: number;    // Boxes, bags, labels
     shipping: number;     // Shipping materials, postage
@@ -163,6 +158,7 @@ export interface CalculatorState {
   // Level 1 - Setup
   monthlyGoal: number;
   products: Product[];
+  materials: Material[];  // Materials library
   
   // Level 2 - Time Reality
   hourlyRate: number;

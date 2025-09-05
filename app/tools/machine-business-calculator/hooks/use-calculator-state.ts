@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CalculatorState, Product, BusinessCost, MarketingState, LaborState, DEFAULT_BUSINESS_COSTS, DEFAULT_MARKETING_STATE, DEFAULT_LABOR_STATE } from '../lib/calculator-types';
+import { CalculatorState, Product, BusinessCost, MarketingState, LaborState, Material, MaterialUsage, DEFAULT_BUSINESS_COSTS, DEFAULT_MARKETING_STATE, DEFAULT_LABOR_STATE } from '../lib/calculator-types';
 
 const STORAGE_KEY = 'machine-business-calculator-state';
 
 const createInitialState = (): CalculatorState => ({
   monthlyGoal: 5000,
   products: [],
+  materials: [],
   hourlyRate: 25,
   marketing: DEFAULT_MARKETING_STATE,
   labor: DEFAULT_LABOR_STATE,
@@ -36,6 +37,10 @@ export function useCalculatorState() {
         // Ensure labor state exists (migration for existing users)
         if (!parsed.labor) {
           parsed.labor = DEFAULT_LABOR_STATE;
+        }
+        // Ensure materials array exists (migration for existing users)
+        if (!parsed.materials) {
+          parsed.materials = [];
         }
         setState(prev => ({ ...prev, ...parsed }));
       }
@@ -196,6 +201,99 @@ export function useCalculatorState() {
     }));
   }, []);
 
+  // Material management functions
+  const addMaterial = useCallback((material: Omit<Material, 'id'>) => {
+    const newMaterial: Material = {
+      ...material,
+      id: `material-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+    setState(prev => ({
+      ...prev,
+      materials: [...prev.materials, newMaterial]
+    }));
+    return newMaterial.id;
+  }, []);
+
+  const updateMaterial = useCallback((materialId: string, updates: Partial<Material>) => {
+    setState(prev => ({
+      ...prev,
+      materials: prev.materials.map(m => 
+        m.id === materialId ? { ...m, ...updates } : m
+      )
+    }));
+  }, []);
+
+  const removeMaterial = useCallback((materialId: string) => {
+    setState(prev => ({
+      ...prev,
+      materials: prev.materials.filter(m => m.id !== materialId)
+    }));
+  }, []);
+
+  const addMaterialUsageToProduct = useCallback((productId: string, usage: MaterialUsage) => {
+    setState(prev => ({
+      ...prev,
+      products: prev.products.map(p => {
+        if (p.id === productId) {
+          const existingUsage = p.materialUsage || [];
+          const totalMaterialCost = [...existingUsage, usage].reduce((sum, u) => sum + u.cost, 0);
+          return {
+            ...p,
+            materialUsage: [...existingUsage, usage],
+            costs: {
+              ...p.costs,
+              materials: totalMaterialCost
+            }
+          };
+        }
+        return p;
+      })
+    }));
+  }, []);
+
+  const updateMaterialUsage = useCallback((productId: string, index: number, usage: MaterialUsage) => {
+    setState(prev => ({
+      ...prev,
+      products: prev.products.map(p => {
+        if (p.id === productId && p.materialUsage) {
+          const updatedUsage = [...p.materialUsage];
+          updatedUsage[index] = usage;
+          const totalMaterialCost = updatedUsage.reduce((sum, u) => sum + u.cost, 0);
+          return {
+            ...p,
+            materialUsage: updatedUsage,
+            costs: {
+              ...p.costs,
+              materials: totalMaterialCost
+            }
+          };
+        }
+        return p;
+      })
+    }));
+  }, []);
+
+  const removeMaterialUsage = useCallback((productId: string, index: number) => {
+    setState(prev => ({
+      ...prev,
+      products: prev.products.map(p => {
+        if (p.id === productId && p.materialUsage) {
+          const updatedUsage = p.materialUsage.filter((_, i) => i !== index);
+          const totalMaterialCost = updatedUsage.reduce((sum, u) => sum + u.cost, 0);
+          return {
+            ...p,
+            materialUsage: updatedUsage,
+            costs: {
+              ...p.costs,
+              materials: totalMaterialCost
+            }
+          };
+        }
+        return p;
+      })
+    }));
+  }, []);
+
   const resetCalculator = useCallback(() => {
     setState(createInitialState());
     try {
@@ -223,6 +321,13 @@ export function useCalculatorState() {
     setCurrentLevel,
     completeLevel,
     setUserInfo,
-    resetCalculator
+    resetCalculator,
+    // Material functions
+    addMaterial,
+    updateMaterial,
+    removeMaterial,
+    addMaterialUsageToProduct,
+    updateMaterialUsage,
+    removeMaterialUsage
   };
 }

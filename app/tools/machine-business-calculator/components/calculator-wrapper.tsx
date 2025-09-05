@@ -34,6 +34,13 @@ interface CalculatorWrapperProps {
     updateBusinessCost: (costId: string, updates: any) => void;
     setUserInfo: (email: string, name: string) => void;
     resetCalculator: () => void;
+    // Material functions
+    addMaterial?: (material: any) => string;
+    updateMaterial?: (materialId: string, updates: any) => void;
+    removeMaterial?: (materialId: string) => void;
+    addMaterialUsageToProduct?: (productId: string, usage: any) => void;
+    updateMaterialUsage?: (productId: string, index: number, usage: any) => void;
+    removeMaterialUsage?: (productId: string, index: number) => void;
   };
 }
 
@@ -114,6 +121,10 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             onRemoveProduct={actions.removeProduct}
             onUpdateHourlyRate={actions.updateHourlyRate}
             onComplete={() => setActiveTab('marketing')}
+            onAddMaterial={actions.addMaterial || (() => '')}
+            onAddMaterialUsage={actions.addMaterialUsageToProduct || (() => {})}
+            onUpdateMaterialUsage={actions.updateMaterialUsage || (() => {})}
+            onRemoveMaterialUsage={actions.removeMaterialUsage || (() => {})}
           />
         );
       case 'marketing':
