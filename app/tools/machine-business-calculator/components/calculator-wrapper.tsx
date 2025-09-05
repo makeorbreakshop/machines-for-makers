@@ -168,13 +168,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
     <div className={`min-h-screen bg-background ${isDarkMode ? 'dark' : ''}`}>
       {/* Monthly Goal Progress Bar */}
       <div className="bg-muted/30 border-b border-border">
-        <div className="max-w-6xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-6">
-            <div className="ml-auto">
-              <CalculatorThemeToggle isDark={isDarkMode} onToggle={handleThemeToggle} />
-            </div>
-          </div>
-          <div className="flex items-center gap-6 mt-4">
+        <div className="max-w-6xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium text-foreground">Goal:</span>
@@ -238,12 +233,15 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                 </span>
               </div>
             </div>
+            <div className="ml-auto">
+              <CalculatorThemeToggle isDark={isDarkMode} onToggle={handleThemeToggle} />
+            </div>
           </div>
         </div>
       </div>
       
-      <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+      <div className="max-w-6xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           {/* Tab Navigation */}
           <TabsList className="flex w-full">
             <TabsTrigger value="products" className="flex-1">Products</TabsTrigger>
@@ -253,7 +251,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             <TabsTrigger value="pnl" className="flex-1">P&L</TabsTrigger>
           </TabsList>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Main Content Area */}
             <div className="lg:col-span-2">
               <TabsContent value="products" className="mt-0">

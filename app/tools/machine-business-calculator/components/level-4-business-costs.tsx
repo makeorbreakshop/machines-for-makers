@@ -122,10 +122,10 @@ export function Level4BusinessCosts({
   const canProceed = true; // Always allow proceeding from this level
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-6">
+    <div className="space-y-4">
+      <div className="space-y-4">
         {/* Physical Costs */}
-        <Card className="border-border bg-card shadow-sm">
+        <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-0">
             <Button
               variant="ghost"
@@ -135,24 +135,24 @@ export function Level4BusinessCosts({
               }))}
               className="w-full justify-between p-0 h-auto hover:bg-transparent"
             >
-              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+              <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700 w-full">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Building className="h-4 w-4 text-primary" />
-                    <span className="text-base font-medium text-foreground">Physical Costs</span>
+                    <Building className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Physical Costs</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-foreground">
-                      {formatCurrencyPrecise(physicalCostsTotal)} total
+                    <span className="text-base font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                      {formatCurrencyPrecise(physicalCostsTotal)}
                     </span>
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.physicalCosts.expanded ? 'transform rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${businessExpenses.physicalCosts.expanded ? 'transform rotate-180' : ''}`} />
                   </div>
                 </div>
               </div>
             </Button>
 
             {businessExpenses.physicalCosts.expanded && (
-              <div className="p-6 space-y-1">
+              <div className="p-4 space-y-1">
               {Object.entries(businessExpenses.physicalCosts.items).map(([costType, value]) => (
                 <div key={costType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                   <Input
@@ -232,7 +232,7 @@ export function Level4BusinessCosts({
         </Card>
 
         {/* Software & Tools */}
-        <Card className="border-border bg-card shadow-sm">
+        <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-0">
             <Button
               variant="ghost"
@@ -242,11 +242,11 @@ export function Level4BusinessCosts({
               }))}
               className="w-full justify-between p-0 h-auto hover:bg-transparent"
             >
-              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+              <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700 w-full">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Server className="h-4 w-4 text-primary" />
-                    <span className="text-base font-medium text-foreground">Software & Tools</span>
+                    <Server className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Software & Tools</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-medium text-foreground">
@@ -259,7 +259,7 @@ export function Level4BusinessCosts({
             </Button>
 
             {businessExpenses.softwareCosts.expanded && (
-              <div className="p-6 space-y-1">
+              <div className="p-4 space-y-1">
                 {Object.entries(businessExpenses.softwareCosts.items).map(([costType, value]) => (
                   <div key={costType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                     <Input
@@ -429,7 +429,7 @@ export function Level4BusinessCosts({
             </Button>
 
             {businessExpenses.taxReserve.expanded && (
-              <div className="p-6 space-y-4">
+              <div className="p-4 space-y-3">
                 {/* Self-Employment Tax */}
                 <div className="space-y-2">
                   <div className="flex items-center gap-4">
@@ -545,24 +545,24 @@ export function Level4BusinessCosts({
         </Card>
 
         {/* Business Expenses Summary */}
-        <Card className="border-border bg-card shadow-sm">
+        <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-lg">
           <CardContent className="p-0">
-            <div className="bg-muted/50 px-6 py-4 border-b border-border">
+            <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
-                <Calculator className="h-4 w-4 text-primary" />
-                <span className="text-base font-medium text-foreground">Business Expenses Summary</span>
+                <Calculator className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Business Expenses Summary</span>
               </div>
             </div>
             
-            <div className="p-6 space-y-3 text-sm">
+            <div className="p-4 space-y-2 text-sm">
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Physical Costs</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Physical Costs</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
                       {totalBusinessCosts > 0 ? `${((physicalCostsTotal / totalBusinessCosts) * 100).toFixed(1)}%` : '0%'}
                     </span>
-                    <span className="font-mono font-medium text-foreground w-24 text-right">
+                    <span className="font-mono font-semibold tabular-nums text-gray-900 dark:text-gray-100 w-24 text-right">
                       {formatCurrencyPrecise(physicalCostsTotal)}
                     </span>
                   </div>
@@ -604,8 +604,8 @@ export function Level4BusinessCosts({
               
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-medium text-base">Total Monthly Expenses</span>
-                  <span className="font-mono font-bold text-lg">
+                  <span className="font-semibold text-base text-gray-900 dark:text-gray-100">Total Monthly Expenses</span>
+                  <span className="font-mono font-black text-xl tabular-nums text-gray-900 dark:text-gray-100">
                     {formatCurrency(totalBusinessCosts)}
                   </span>
                 </div>

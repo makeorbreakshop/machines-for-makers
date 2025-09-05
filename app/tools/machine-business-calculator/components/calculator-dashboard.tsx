@@ -87,10 +87,10 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
 
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
 
       {/* Product Performance */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex items-center gap-2">
           <DollarSign className="h-4 w-4 text-primary" />
           <h3 className="text-lg font-medium text-foreground">Product Performance</h3>
@@ -216,7 +216,7 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
       </div>
 
       {/* Profit & Loss Section */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div 
           className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => setExpandedPL(!expandedPL)}
@@ -226,17 +226,17 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
           ) : (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
-          <Calculator className="h-4 w-4 text-primary" />
-          <h3 className="text-lg font-medium text-foreground">Profit & Loss</h3>
+          <Calculator className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Profit & Loss</h3>
         </div>
         
         {expandedPL && (
-          <Card>
-            <div className="p-4 space-y-3">
+          <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm">
+            <div className="p-3 space-y-2">
               {/* Revenue */}
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Revenue</span>
-                <span className="font-mono font-bold text-sm">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Revenue</span>
+                <span className="font-mono font-bold text-base tabular-nums text-gray-900 dark:text-gray-100">
                   {formatCurrency(revenue)}
                 </span>
               </div>

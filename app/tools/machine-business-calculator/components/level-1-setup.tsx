@@ -249,13 +249,13 @@ export function Level1Setup({
               const isExpanded = expandedSections[product.id];
               
               return (
-                <Card key={product.id} className="border-border bg-card shadow-sm">
+                <Card key={product.id} className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-0">
                     {/* Product Header */}
-                    <div className="bg-muted/50 border-b border-border px-6 py-4">
+                    <div className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-1">
-                          <Package className="h-4 w-4 text-primary" />
+                          <Package className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                           {product.isEditingName ? (
                             <Input
                               value={product.name}
@@ -273,15 +273,15 @@ export function Level1Setup({
                           ) : (
                             <button
                               onClick={() => onUpdateProduct(product.id, { isEditingName: true })}
-                              className="text-base font-medium hover:text-primary transition-colors"
+                              className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                             >
                               {product.name || `Product ${index + 1}`}
                             </button>
                           )}
                         </div>
                         <div className="flex items-center gap-4">
-                          <span className={`text-sm font-medium ${
-                            unitProfit > 0 ? 'text-green-600' : unitProfit < 0 ? 'text-destructive' : 'text-muted-foreground'
+                          <span className={`text-sm font-semibold tabular-nums ${
+                            unitProfit > 0 ? 'text-green-600 dark:text-green-400' : unitProfit < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
                           }`}>
                             {formatCurrency(unitProfit)} profit/unit
                           </span>
@@ -293,7 +293,7 @@ export function Level1Setup({
                                 onRemoveProduct(product.id);
                               }
                             }}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -306,7 +306,7 @@ export function Level1Setup({
                       {/* Key Metrics Grid */}
                       <div className="grid grid-cols-4 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Selling Price</Label>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Selling Price</Label>
                           <Input
                             type="number"
                             step="0.01"
@@ -315,11 +315,12 @@ export function Level1Setup({
                               sellingPrice: parseFloat(e.target.value) || 0 
                             })}
                             placeholder="25.00"
+                            className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Units/Month</Label>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Units/Month</Label>
                           <Input
                             type="number"
                             step="1"
@@ -328,11 +329,12 @@ export function Level1Setup({
                               monthlyUnits: parseInt(e.target.value) || 0 
                             })}
                             placeholder="10"
+                            className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Total Cost</Label>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Cost</Label>
                           <Input
                             type="number"
                             step="0.01"
@@ -372,18 +374,19 @@ export function Level1Setup({
                               });
                             }}
                             placeholder="5.00"
+                            className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
                           />
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
                             Minimum: {formatCurrency(totalCosts - materialCostsTotal)}
                           </p>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Monthly Profit</Label>
-                          <div className={`h-10 px-3 flex items-center text-sm font-medium rounded-md border ${
-                            monthlyProfit > 0 ? 'bg-green-500/10 text-green-600 border-green-500/20' : 
-                            monthlyProfit < 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : 
-                            'bg-muted text-muted-foreground border-border'
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Monthly Profit</Label>
+                          <div className={`h-10 px-3 flex items-center text-base font-bold tabular-nums rounded-md border ${
+                            monthlyProfit > 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : 
+                            monthlyProfit < 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 
+                            'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'
                           }`}>
                             {formatCurrency(monthlyProfit)}
                           </div>
@@ -393,15 +396,15 @@ export function Level1Setup({
                       {/* Expandable Cost Sections */}
                       <div className="space-y-3">
                         {/* Material Costs Section */}
-                        <div className="bg-muted/30 rounded-lg border border-border">
+                        <div className="bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
                           <button
                             onClick={() => toggleSection(product.id, 'materials')}
-                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors rounded-lg"
                           >
                             <div className="flex items-center gap-3">
-                              <Package className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm font-medium">Material Costs</span>
-                              <span className="text-sm text-muted-foreground">
+                              <Package className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Material Costs</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
                                 {costItemCount} {costItemCount === 1 ? 'item' : 'items'}
                               </span>
                             </div>
@@ -462,7 +465,7 @@ export function Level1Setup({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => removeCostItem(product.id, costType)}
-                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                   >
                                     <X className="h-3 w-3" />
                                   </Button>
@@ -545,7 +548,7 @@ export function Level1Setup({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => removeTimeItem(product.id, timeType)}
-                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                   >
                                     <X className="h-3 w-3" />
                                   </Button>
@@ -686,7 +689,7 @@ export function Level1Setup({
                                         }
                                         onUpdateProduct(product.id, { platformFees: updated });
                                       }}
-                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                      className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                     >
                                       <X className="h-3 w-3" />
                                     </Button>

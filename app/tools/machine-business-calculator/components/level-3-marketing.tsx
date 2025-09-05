@@ -241,26 +241,26 @@ export function Level3Marketing({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xl font-semibold">Marketing Strategy</h3>
-        <div className="text-right">
-          <div className="text-sm text-muted-foreground">Monthly Sales Target</div>
-          <div className="text-2xl font-bold">{totalUnitsNeeded} units</div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Monthly Sales Target</div>
+        <div className="flex items-baseline gap-1">
+          <span className="text-xl font-bold tabular-nums text-gray-900 dark:text-gray-100">{totalUnitsNeeded}</span>
+          <span className="text-sm text-gray-600 dark:text-gray-400">units</span>
         </div>
       </div>
 
       {/* Sales Distribution Card */}
-      <Card className="border-border bg-card shadow-sm">
+      <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
         <CardContent className="p-0">
-          <div className="bg-muted/50 px-6 py-4 border-b border-border">
+          <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              <span className="text-base font-medium text-foreground">Sales Channel Distribution</span>
+              <TrendingUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+              <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Sales Channel Distribution</span>
             </div>
           </div>
           
-          <div className="p-6 space-y-6">
+          <div className="p-4 space-y-4">
             {/* Organic Sales Slider */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -446,7 +446,7 @@ export function Level3Marketing({
               </div>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-4 space-y-3">
               <div className="grid grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Conversion Rate</Label>
@@ -522,7 +522,7 @@ export function Level3Marketing({
               </div>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-4 space-y-3">
               <div className="grid grid-cols-5 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Event Costs</Label>

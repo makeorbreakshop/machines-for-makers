@@ -294,33 +294,33 @@ export function Level4Labor({
   }, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Workers Management Section */}
-      <Card className="border-border bg-card shadow-sm">
+      <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
         <CardContent className="p-0">
           <Button
             variant="ghost"
             onClick={() => setWorkersExpanded(!workersExpanded)}
             className="w-full justify-between p-0 h-auto hover:bg-transparent"
           >
-            <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+            <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700 w-full">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  <span className="text-base font-medium text-foreground">Workers</span>
+                  <Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                  <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workers</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium text-foreground">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     {laborState.workers.length} {laborState.workers.length === 1 ? 'worker' : 'workers'}
                   </span>
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${workersExpanded ? 'transform rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${workersExpanded ? 'transform rotate-180' : ''}`} />
                 </div>
               </div>
             </div>
           </Button>
           
           {workersExpanded && (
-            <div className="p-6 space-y-4">
+            <div className="p-4 space-y-3">
               {laborState.workers.map((worker) => {
                 const isOwner = worker.id === 'owner';
                 
@@ -354,7 +354,7 @@ export function Level4Labor({
                 const utilizationPercentage = Math.min((assignedHours / capacity) * 100, 100);
                 
                 return (
-                  <div key={worker.id} className="border border-border rounded-lg p-4 space-y-3">
+                  <div key={worker.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-800/30">
                     <div className="flex items-center gap-4">
                       <Input
                         value={worker.name}
@@ -364,7 +364,7 @@ export function Level4Labor({
                       />
                       
                       <div className="flex items-center gap-1">
-                        <span className="text-sm text-muted-foreground">$</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">$</span>
                         <Input
                           type="number"
                           min="10"
@@ -374,7 +374,7 @@ export function Level4Labor({
                           className="w-20"
                           placeholder="Rate"
                         />
-                        <span className="text-sm text-muted-foreground">/hr</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">/hr</span>
                       </div>
                       
                       <div className="flex items-center gap-1">
@@ -388,7 +388,7 @@ export function Level4Labor({
                           className="w-20"
                           placeholder="Hours"
                         />
-                        <span className="text-sm text-muted-foreground">hrs/week</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">hrs/week</span>
                       </div>
                       
                       {!isOwner && (
@@ -406,13 +406,13 @@ export function Level4Labor({
                     {/* Capacity Bar */}
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Workload</span>
-                        <span className={overCapacity ? 'text-red-500 font-medium' : 'text-foreground'}>
+                        <span className="text-gray-600 dark:text-gray-400">Workload</span>
+                        <span className={overCapacity ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-900 dark:text-gray-100 font-medium tabular-nums'}>
                           {formatHours(assignedHours)} / {formatHours(capacity)}
                         </span>
                       </div>
                       
-                      <div className="w-full bg-muted rounded-full h-3">
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                         <div 
                           className={`h-3 rounded-full transition-all duration-300 ${
                             overCapacity 
@@ -427,7 +427,7 @@ export function Level4Labor({
                         />
                       </div>
                       
-                      <div className="flex justify-between text-xs text-muted-foreground">
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                         <span>
                           {overCapacity 
                             ? `Over by ${formatHours(assignedHours - capacity)}` 
@@ -641,16 +641,16 @@ export function Level4Labor({
       </Card>
 
       {/* Labor Summary */}
-      <Card className="border-border bg-card shadow-sm">
+      <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm">
         <CardContent className="p-0">
-          <div className="bg-muted/50 px-6 py-4 border-b border-border">
+          <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-primary" />
-              <span className="text-base font-medium text-foreground">Labor Summary</span>
+              <Briefcase className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+              <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Labor Summary</span>
             </div>
           </div>
           
-          <div className="p-6 space-y-4">
+          <div className="p-4 space-y-3">
             {/* Worker breakdown */}
             <div className="space-y-3">
               {laborState.workers.map((worker) => {
@@ -683,10 +683,10 @@ export function Level4Labor({
                 
                 return (
                   <div key={worker.id} className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">{worker.name}</span>
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{worker.name}</span>
                     <div className="flex items-center gap-4">
-                      <span className="text-xs text-muted-foreground">{formatHours(assignedHours)}/week</span>
-                      <span className="font-mono font-medium text-sm">{formatCurrency(monthlyCost)}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{formatHours(assignedHours)}/week</span>
+                      <span className="font-mono font-semibold text-sm tabular-nums text-gray-900 dark:text-gray-100">{formatCurrency(monthlyCost)}</span>
                     </div>
                   </div>
                 );
@@ -694,23 +694,23 @@ export function Level4Labor({
             </div>
 
             {/* Divider */}
-            <div className="border-t border-border"></div>
+            <div className="border-t border-gray-200 dark:border-gray-700"></div>
 
             {/* Total Labor Cost */}
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Total Labor Cost</span>
-                <span className="font-mono font-bold text-lg">{formatCurrency(totalLaborCost)}</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total Labor Cost</span>
+                <span className="font-mono font-black text-xl tabular-nums text-gray-900 dark:text-gray-100">{formatCurrency(totalLaborCost)}</span>
               </div>
               
               <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Total Weekly Hours</span>
-                <span className="font-mono text-muted-foreground">{formatHours(totalHoursNeeded)}</span>
+                <span className="text-gray-600 dark:text-gray-400">Total Weekly Hours</span>
+                <span className="font-mono font-medium tabular-nums text-gray-700 dark:text-gray-300">{formatHours(totalHoursNeeded)}</span>
               </div>
               
               <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Average Hourly Rate</span>
-                <span className="font-mono text-muted-foreground">
+                <span className="text-gray-600 dark:text-gray-400">Average Hourly Rate</span>
+                <span className="font-mono font-medium tabular-nums text-gray-700 dark:text-gray-300">
                   ${laborState.workers.reduce((sum, w) => sum + w.hourlyRate, 0) / laborState.workers.length}/hr
                 </span>
               </div>
