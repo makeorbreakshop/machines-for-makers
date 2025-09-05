@@ -242,18 +242,78 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
       
       <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          {/* Tab Navigation */}
-          <TabsList className="flex w-full">
-            <TabsTrigger value="products" className="flex-1">Products</TabsTrigger>
-            <TabsTrigger value="marketing" className="flex-1">Marketing</TabsTrigger>
-            <TabsTrigger value="labor" className="flex-1">Labor</TabsTrigger>
-            <TabsTrigger value="business" className="flex-1">Business</TabsTrigger>
-            <TabsTrigger value="pnl" className="flex-1">P&L</TabsTrigger>
+          {/* Tab Navigation - Clean, Subtle Design */}
+          <TabsList className={`flex w-full p-1 rounded-lg ${isDarkMode ? 'bg-slate-900/80 border-slate-700/50' : 'bg-gray-50 border-gray-200'} border`}>
+            <TabsTrigger 
+              value="products" 
+              className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
+                activeTab === 'products' 
+                  ? (isDarkMode 
+                      ? 'bg-blue-500/90 text-white shadow-sm' 
+                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                  : (isDarkMode 
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+              }`}>
+              Products
+            </TabsTrigger>
+            <TabsTrigger 
+              value="marketing" 
+              className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
+                activeTab === 'marketing' 
+                  ? (isDarkMode 
+                      ? 'bg-blue-500/90 text-white shadow-sm' 
+                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                  : (isDarkMode 
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+              }`}>
+              Marketing
+            </TabsTrigger>
+            <TabsTrigger 
+              value="labor" 
+              className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
+                activeTab === 'labor' 
+                  ? (isDarkMode 
+                      ? 'bg-blue-500/90 text-white shadow-sm' 
+                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                  : (isDarkMode 
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+              }`}>
+              Labor
+            </TabsTrigger>
+            <TabsTrigger 
+              value="business" 
+              className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
+                activeTab === 'business' 
+                  ? (isDarkMode 
+                      ? 'bg-blue-500/90 text-white shadow-sm' 
+                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                  : (isDarkMode 
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+              }`}>
+              Business
+            </TabsTrigger>
+            <TabsTrigger 
+              value="pnl" 
+              className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
+                activeTab === 'pnl' 
+                  ? (isDarkMode 
+                      ? 'bg-blue-500/90 text-white shadow-sm' 
+                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                  : (isDarkMode 
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
+              }`}>
+              P&L
+            </TabsTrigger>
           </TabsList>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Main Content Area */}
-            <div className="lg:col-span-2">
+            {/* Main Content Area with Active Background Effect */}
+            <div className={`lg:col-span-2 rounded-lg transition-all duration-300 ${isDarkMode ? 'bg-slate-900/50 ring-1 ring-slate-700/50' : 'bg-gray-50/50 ring-1 ring-gray-200/50'} p-4`}>
               <TabsContent value="products" className="mt-0">
                 {renderTabContent('products')}
               </TabsContent>
