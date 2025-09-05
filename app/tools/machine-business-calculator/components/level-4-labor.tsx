@@ -157,10 +157,12 @@ export function Level4Labor({
     onUpdateLabor(updatedLaborState);
   }, [
     laborState.productionHoursPerWeek,
-    JSON.stringify(laborState.businessTasks.map(t => ({ id: t.id, hoursPerWeek: t.hoursPerWeek, assignedWorkerId: t.assignedWorkerId }))),
-    JSON.stringify(laborState.workers.map(w => ({ id: w.id, hourlyRate: w.hourlyRate, maxHoursPerWeek: w.maxHoursPerWeek }))),
-    JSON.stringify((laborState as any).productAssignments || {}),
-    JSON.stringify(state.products?.map(p => p.id) || [])
+    JSON.stringify(laborState.businessTasks),
+    JSON.stringify(laborState.workers),
+    JSON.stringify((laborState as any).productAssignments),
+    JSON.stringify(state.products),
+    JSON.stringify(metrics.productMetrics),
+    onUpdateLabor
   ]);
 
   const formatCurrency = (amount: number) => 

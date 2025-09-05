@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import * as SelectPrimitive from "@radix-ui/react-select";
 import { 
   CalculatorState, 
   CalculatedMetrics, 
@@ -120,7 +121,7 @@ export function Level1Setup({
     const id = onAddProduct({
       name: '',
       sellingPrice: 0,
-      monthlyUnits: 10,
+      monthlyUnits: 0,
       costs: {
         materials: 0,
         finishing: 0,
@@ -326,7 +327,7 @@ export function Level1Setup({
                             onChange={(e) => onUpdateProduct(product.id, { 
                               sellingPrice: parseFloat(e.target.value) || 0 
                             })}
-                            placeholder="25.00"
+                            placeholder="0.00"
                             className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
                           />
                         </div>
@@ -340,7 +341,7 @@ export function Level1Setup({
                             onChange={(e) => onUpdateProduct(product.id, { 
                               monthlyUnits: parseInt(e.target.value) || 0 
                             })}
-                            placeholder="10"
+                            placeholder="0"
                             className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
                           />
                         </div>
@@ -359,24 +360,29 @@ export function Level1Setup({
                             }}
                             onBlur={(e) => {
                               const newTotalCost = parseFloat(e.target.value) || 0;
-                              const currentMaterialCosts = materialCostsTotal;
-                              const nonMaterialCosts = totalCosts - currentMaterialCosts;
-                              const newMaterialTotal = Math.max(0, newTotalCost - nonMaterialCosts);
                               
-                              // Distribute the change proportionally across existing costs
-                              if (currentMaterialCosts > 0) {
-                                const ratio = newMaterialTotal / currentMaterialCosts;
-                                const updatedCosts = Object.entries(costs).reduce((acc, [key, value]) => {
-                                  acc[key] = (value || 0) * ratio;
-                                  return acc;
-                                }, {} as Record<string, number>);
-                                onUpdateProduct(product.id, { costs: updatedCosts });
-                              } else {
-                                // If no costs yet, add to 'other'
-                                onUpdateProduct(product.id, { 
-                                  costs: { ...costs, other: newMaterialTotal }
-                                });
-                              }
+                              // Calculate current material costs from material usages
+                              const materialUsageCosts = (product.materialUsages || []).reduce((sum, usage) => 
+                                sum + (usage.cost || 0), 0
+                              );
+                              
+                              // Calculate other non-material costs (finishing, packaging, shipping)
+                              const nonMaterialCosts = (costs.finishing || 0) + 
+                                                      (costs.packaging || 0) + 
+                                                      (costs.shipping || 0);
+                              
+                              // Calculate what should go into "other" - this is the remainder
+                              // after accounting for material usages and non-material costs
+                              const otherCost = Math.max(0, newTotalCost - materialUsageCosts - nonMaterialCosts);
+                              
+                              // Update the costs with the new "other" value
+                              onUpdateProduct(product.id, { 
+                                costs: { 
+                                  ...costs,
+                                  materials: materialUsageCosts, // Keep materials synced with usages
+                                  other: otherCost // This is the smart deduction
+                                }
+                              });
                               
                               // Clear editing state
                               setEditingCosts(prev => {
@@ -385,12 +391,9 @@ export function Level1Setup({
                                 return newState;
                               });
                             }}
-                            placeholder="5.00"
+                            placeholder="0.00"
                             className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
                           />
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Minimum: {formatCurrency(totalCosts - materialCostsTotal)}
-                          </p>
                         </div>
 
                         <div className="space-y-2">
@@ -476,7 +479,22 @@ export function Level1Setup({
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => onRemoveMaterialUsage(product.id, idx)}
+                                      onClick={() => {
+                                        const removedCost = usage.cost || 0;
+                                        onRemoveMaterialUsage(product.id, idx);
+                                        
+                                        // After removing material, add its cost back to "other"
+                                        const remainingUsages = product.materialUsages?.filter((_, i) => i !== idx) || [];
+                                        const newMaterialsCost = remainingUsages.reduce((sum, u) => sum + (u.cost || 0), 0);
+                                        
+                                        onUpdateProduct(product.id, {
+                                          costs: {
+                                            ...product.costs,
+                                            materials: newMaterialsCost,
+                                            other: (product.costs?.other || 0) + removedCost
+                                          }
+                                        });
+                                      }}
                                       className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                     >
                                       <X className="h-3.5 w-3.5" />
@@ -574,9 +592,11 @@ export function Level1Setup({
                                           });
                                         }}
                                       >
-                                        <SelectTrigger className="h-9 text-sm bg-background">
-                                          <SelectValue />
-                                        </SelectTrigger>
+                                        <SelectPrimitive.Trigger className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-left ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1">
+                                          <SelectValue placeholder="Select worker">
+                                            {assignedWorker?.name || 'Select worker'}
+                                          </SelectValue>
+                                        </SelectPrimitive.Trigger>
                                         <SelectContent>
                                           {(state.labor?.workers || []).map((worker) => (
                                             <SelectItem key={worker.id} value={worker.id}>
@@ -833,10 +853,36 @@ export function Level1Setup({
         onAddMaterial={onAddMaterial}
         onAddMaterialUsage={(usage) => {
           if (materialModalState.productId) {
-            if (materialModalState.editingIndex !== null) {
-              onUpdateMaterialUsage(materialModalState.productId, materialModalState.editingIndex, usage);
-            } else {
-              onAddMaterialUsage(materialModalState.productId, usage);
+            const product = state.products.find(p => p.id === materialModalState.productId);
+            if (product) {
+              if (materialModalState.editingIndex !== null) {
+                onUpdateMaterialUsage(materialModalState.productId, materialModalState.editingIndex, usage);
+              } else {
+                onAddMaterialUsage(materialModalState.productId, usage);
+              }
+              
+              // After adding/updating material, recalculate the "other" cost
+              // to maintain the total cost by deducting the material costs
+              const updatedUsages = materialModalState.editingIndex !== null 
+                ? product.materialUsages?.map((u, i) => i === materialModalState.editingIndex ? usage : u) || []
+                : [...(product.materialUsages || []), usage];
+              
+              const materialUsageCosts = updatedUsages.reduce((sum, u) => sum + (u.cost || 0), 0);
+              const totalCost = (product.costs?.materials || 0) + (product.costs?.finishing || 0) + 
+                               (product.costs?.packaging || 0) + (product.costs?.shipping || 0) + 
+                               (product.costs?.other || 0);
+              
+              // Smart deduction: reduce "other" by the amount of materials added
+              const newOtherCost = Math.max(0, (product.costs?.other || totalCost) - 
+                                  (materialUsageCosts - (product.costs?.materials || 0)));
+              
+              onUpdateProduct(materialModalState.productId, {
+                costs: {
+                  ...product.costs,
+                  materials: materialUsageCosts,
+                  other: newOtherCost
+                }
+              });
             }
           }
           setMaterialModalState({ open: false, productId: null, editingIndex: null, editingUsage: undefined });

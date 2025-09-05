@@ -347,9 +347,9 @@ export function Level3Marketing({
                       const percentage = totalUnitsNeeded > 0 ? Math.round((units / totalUnitsNeeded) * 100) : 0;
                       handleSliderChange('organic', percentage);
                     }}
-                    className="w-20 h-8 text-right font-bold"
+                    className="w-16 h-8 text-right font-bold"
                   />
-                  <span className="text-sm text-muted-foreground">({salesDistribution.organic}%)</span>
+                  <span className="text-sm text-muted-foreground w-12 text-right">({salesDistribution.organic}%)</span>
                 </div>
               </div>
               <Slider
@@ -395,9 +395,9 @@ export function Level3Marketing({
                       const percentage = totalUnitsNeeded > 0 ? Math.round((units / totalUnitsNeeded) * 100) : 0;
                       handleSliderChange('digital', percentage);
                     }}
-                    className="w-20 h-8 text-right font-bold"
+                    className="w-16 h-8 text-right font-bold"
                   />
-                  <span className="text-sm text-muted-foreground">({salesDistribution.digital}%)</span>
+                  <span className="text-sm text-muted-foreground w-12 text-right">({salesDistribution.digital}%)</span>
                 </div>
               </div>
               <Slider
@@ -443,9 +443,9 @@ export function Level3Marketing({
                       const percentage = totalUnitsNeeded > 0 ? Math.round((units / totalUnitsNeeded) * 100) : 0;
                       handleSliderChange('events', percentage);
                     }}
-                    className="w-20 h-8 text-right font-bold"
+                    className="w-16 h-8 text-right font-bold"
                   />
-                  <span className="text-sm text-muted-foreground">({salesDistribution.events}%)</span>
+                  <span className="text-sm text-muted-foreground w-12 text-right">({salesDistribution.events}%)</span>
                 </div>
               </div>
               <Slider

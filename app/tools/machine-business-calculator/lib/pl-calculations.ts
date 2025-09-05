@@ -57,14 +57,14 @@ export function calculatePL(
   // Operating Expenses
   const actualBusinessExpenses = businessExpenses || {
     taxReserve: { 
-      selfEmploymentRate: 15.3,
-      federalRate: 12,
-      stateRate: 5,
+      selfEmploymentRate: 0,
+      federalRate: 0,
+      stateRate: 0,
       expanded: false
     },
-    physicalCosts: { items: { rent: 200, insurance: 75, utilities: 50 }, expanded: false },
-    softwareCosts: { items: { design_software: 50, accounting_software: 25 }, expanded: false },
-    savings: { rate: 8, expanded: false }
+    physicalCosts: { items: { rent: 0, insurance: 0, utilities: 0 }, expanded: false },
+    softwareCosts: { items: { design_software: 0, accounting_software: 0 }, expanded: false },
+    savings: { rate: 0, expanded: false }
   };
   
   const physicalCostsTotal = Object.values(actualBusinessExpenses.physicalCosts.items).reduce(

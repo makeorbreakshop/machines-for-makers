@@ -1,7 +1,16 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Target, ChevronDown, ChevronRight, Clock, TrendingUp, Calculator } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { DollarSign, Target, ChevronDown, ChevronRight, Clock, TrendingUp, Calculator, RotateCcw } from 'lucide-react';
 import { CalculatedMetrics, Product } from '../lib/calculator-types';
 import { PLCalculation } from '../lib/pl-calculations';
 import { useState } from 'react';
@@ -26,13 +35,15 @@ interface CalculatorDashboardProps {
   plCalculation?: PLCalculation; // Shared P&L calculation
   fullProducts?: Product[]; // Full product objects for updating
   onUpdateProduct?: (productId: string, updates: Partial<Product>) => void; // Callback to update products
+  onReset?: () => void; // Callback to reset calculator
 }
 
-export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses, laborCosts, plCalculation, fullProducts, onUpdateProduct }: CalculatorDashboardProps) {
+export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses, laborCosts, plCalculation, fullProducts, onUpdateProduct, onReset }: CalculatorDashboardProps) {
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [expandedPL, setExpandedPL] = useState(true); // Start expanded
   const [editingUnits, setEditingUnits] = useState<string | null>(null); // Track which product is being edited
   const [editingPrice, setEditingPrice] = useState<string | null>(null); // Track which product price is being edited
+  const [showResetDialog, setShowResetDialog] = useState(false);
   
   // Safety check for metrics object
   if (!metrics) {
@@ -382,6 +393,49 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
           </Card>
         )}
       </div>
+
+      {/* Reset Button */}
+      {onReset && (
+        <div className="mt-4">
+          <Button
+            variant="ghost"
+            onClick={() => setShowResetDialog(true)}
+            className="w-full flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Reset Calculator
+          </Button>
+        </div>
+      )}
+
+      {/* Reset Confirmation Dialog */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Calculator?</DialogTitle>
+            <DialogDescription>
+              This will clear all your current data including products, materials, labor settings, and business expenses. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowResetDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                onReset?.();
+                setShowResetDialog(false);
+              }}
+            >
+              Reset Everything
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

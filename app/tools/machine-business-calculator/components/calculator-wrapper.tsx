@@ -55,9 +55,9 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
     }
     return {
       taxReserve: { 
-        selfEmploymentRate: 15.3,
-        federalRate: 12,
-        stateRate: 5,
+        selfEmploymentRate: 0,
+        federalRate: 0,
+        stateRate: 0,
         expanded: false 
       },
       physicalCosts: {
@@ -75,7 +75,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
           accounting_software: 0
         }
       },
-      savings: { rate: 8, expanded: false }
+      savings: { rate: 0, expanded: false }
     };
   });
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -384,6 +384,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                       }
                     }
                   }}
+                  onReset={actions.resetCalculator}
                 />
               </div>
             </div>

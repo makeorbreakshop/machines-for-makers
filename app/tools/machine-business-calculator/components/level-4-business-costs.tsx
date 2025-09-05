@@ -70,12 +70,12 @@ export function Level4BusinessCosts({
       },
       // Tax breakdown with typical rates
       taxReserve: { 
-        selfEmploymentRate: 15.3,  // Social Security + Medicare
-        federalRate: 12,           // Federal income tax
-        stateRate: 5,              // State/local taxes
+        selfEmploymentRate: 0,  // Social Security + Medicare (recommended: 15.3%)
+        federalRate: 0,           // Federal income tax (recommended: 10-12%)
+        stateRate: 0,              // State/local taxes (recommended: 0-13%)
         expanded: false 
       },
-      savings: { rate: 8, expanded: false }
+      savings: { rate: 0, expanded: false }  // Recommended: 5-10%
     };
   });
 
@@ -155,10 +155,10 @@ export function Level4BusinessCosts({
                     <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Physical Costs</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-base font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                    <span className="text-sm font-medium text-foreground">
                       {formatCurrencyPrecise(physicalCostsTotal)}
                     </span>
-                    <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${businessExpenses.physicalCosts.expanded ? 'transform rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.physicalCosts.expanded ? 'transform rotate-180' : ''}`} />
                   </div>
                 </div>
               </div>
@@ -352,7 +352,7 @@ export function Level4BusinessCosts({
         </Card>
 
         {/* Savings */}
-        <Card className="border-border bg-card shadow-sm">
+        <Card className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-0">
             <Button
               variant="ghost"
@@ -362,11 +362,11 @@ export function Level4BusinessCosts({
               }))}
               className="w-full justify-between p-0 h-auto hover:bg-transparent"
             >
-              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+              <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700 w-full">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-primary" />
-                    <span className="text-base font-medium text-foreground">Savings</span>
+                    <TrendingUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Savings</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-medium text-foreground">
@@ -403,10 +403,7 @@ export function Level4BusinessCosts({
                   </div>
                   <span className="text-sm text-muted-foreground">of revenue</span>
                 </div>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Set aside funds for business growth and emergencies.</p>
-                  <p>• 5-10% for basic business savings</p>
-                  <p>• 10-20% for aggressive growth or equipment upgrades</p>
+                <div className="text-xs text-muted-foreground">
                   <p className="font-medium">Monthly allocation: {formatCurrency(savingsCost)}</p>
                 </div>
               </div>
@@ -415,7 +412,7 @@ export function Level4BusinessCosts({
         </Card>
 
         {/* Tax Reserve - Moved to bottom */}
-        <Card className="border-border bg-card shadow-sm">
+        <Card className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-0">
             <Button
               variant="ghost"
@@ -425,11 +422,11 @@ export function Level4BusinessCosts({
               }))}
               className="w-full justify-between p-0 h-auto hover:bg-transparent"
             >
-              <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+              <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700 w-full">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Percent className="h-4 w-4 text-primary" />
-                    <span className="text-base font-medium text-foreground">Tax Reserve</span>
+                    <Percent className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Tax Reserve</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-medium text-foreground">
