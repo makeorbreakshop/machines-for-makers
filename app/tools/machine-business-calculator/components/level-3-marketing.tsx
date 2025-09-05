@@ -41,24 +41,71 @@ export function Level3Marketing({
     ? metrics.totalGrossProfit / totalUnitsNeeded 
     : 0;
 
-  // Initialize marketing state with percentage-based approach
-  const [salesDistribution, setSalesDistribution] = useState({
-    organic: 40,      // Start with 40% organic
-    digital: 45,      // 45% from digital ads
-    events: 15        // 15% from events
+  // Initialize marketing state from parent state or use defaults
+  const [salesDistribution, setSalesDistribution] = useState(() => {
+    // Check if we have saved distribution in marketing state
+    if (state.marketing && typeof state.marketing.organicPercentage === 'number') {
+      // We have saved percentages, restore them
+      const organic = state.marketing.organicPercentage;
+      const digitalPercentage = (state.marketing as any).digitalPercentage || 0;
+      const eventsPercentage = (state.marketing as any).eventsPercentage || 0;
+      
+      // If we have all three values saved, use them
+      if (digitalPercentage !== undefined && eventsPercentage !== undefined) {
+        return { 
+          organic, 
+          digital: digitalPercentage, 
+          events: eventsPercentage 
+        };
+      }
+      
+      // Otherwise calculate from the organic percentage
+      const remaining = 100 - organic;
+      return { 
+        organic, 
+        digital: Math.round(remaining * 0.75), // Default 75% of non-organic to digital
+        events: Math.round(remaining * 0.25)    // Default 25% of non-organic to events
+      };
+    }
+    
+    // Default for new calculators
+    return {
+      organic: 100,     // Start with 100% organic
+      digital: 0,       // 0% from digital ads
+      events: 0         // 0% from events
+    };
   });
 
-  // Digital advertising parameters
-  const [digitalParams, setDigitalParams] = useState({
-    conversionRate: 2.5,  // 2.5% conversion rate
-    costPerClick: 1.50    // $1.50 per click
+  // Digital advertising parameters - restore from state if available
+  const [digitalParams, setDigitalParams] = useState(() => {
+    const savedChannel = state.marketing?.digitalAdvertising?.channels?.[0];
+    if (savedChannel?.costPerClick) {
+      return {
+        conversionRate: savedChannel.conversionRate || 2.5,
+        costPerClick: savedChannel.costPerClick || 1.50
+      };
+    }
+    return {
+      conversionRate: 2.5,  // 2.5% conversion rate
+      costPerClick: 1.50    // $1.50 per click
+    };
   });
 
-  // Events parameters
-  const [eventParams, setEventParams] = useState({
-    monthlyEventCost: 500,    // Fixed cost for events
-    conversionRate: 10,        // 10% conversion at events
-    averageEventAttendance: 200  // Average people you interact with
+  // Events parameters - restore from state if available
+  const [eventParams, setEventParams] = useState(() => {
+    const savedChannel = state.marketing?.eventsAndShows?.channels?.[0];
+    if (savedChannel?.monthlyBudget !== undefined) {
+      return {
+        monthlyEventCost: savedChannel.monthlyBudget || 0,
+        conversionRate: savedChannel.conversionRate || 10,
+        averageEventAttendance: 200  // This isn't saved, use default
+      };
+    }
+    return {
+      monthlyEventCost: 0,      // Start with $0 for events
+      conversionRate: 10,        // 10% conversion at events
+      averageEventAttendance: 200  // Average people you interact with
+    };
   });
 
   // Calculate units from each channel
@@ -98,13 +145,17 @@ export function Level3Marketing({
       overallCAC: blendedCAC,
       totalUnitsFromMarketing: unitsFromDigital + unitsFromEvents,
       organicPercentage: salesDistribution.organic,
+      digitalPercentage: salesDistribution.digital,
+      eventsPercentage: salesDistribution.events,
       digitalAdvertising: {
         expanded: true,
         channels: [{
           id: 'unified-digital',
           name: 'Digital Advertising',
           monthlySpend: digitalAdSpend,
+          monthlyBudget: digitalAdSpend, // Save for restoration
           conversionRate: digitalParams.conversionRate,
+          costPerClick: digitalParams.costPerClick, // Save for restoration
           unitsPerMonth: unitsFromDigital,
           costPerUnit: digitalCAC,
           isActive: unitsFromDigital > 0
@@ -116,7 +167,9 @@ export function Level3Marketing({
           id: 'events',
           name: 'Events & Shows',
           monthlySpend: eventParams.monthlyEventCost,
+          monthlyBudget: eventParams.monthlyEventCost, // Save for restoration
           monthlyAttendance: eventParams.averageEventAttendance,
+          conversionRate: eventParams.conversionRate, // Use consistent field name
           salesRate: eventParams.conversionRate,
           unitsPerMonth: unitsFromEvents,
           costPerUnit: eventCAC,

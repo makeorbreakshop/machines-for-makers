@@ -35,7 +35,9 @@ export interface MarketingChannel {
   id: string;
   name: string;
   monthlySpend: number;
+  monthlyBudget?: number;  // For saving/restoring state
   conversionRate: number; // percentage: leads to sales
+  costPerClick?: number;  // For digital ads
   unitsPerMonth: number;  // calculated or estimated sales from this channel
   costPerUnit: number;    // CAC for this channel
   isActive: boolean;
@@ -45,7 +47,9 @@ export interface EventChannel {
   id: string;
   name: string;
   monthlySpend: number;     // Booth fees and event costs
+  monthlyBudget?: number;   // For saving/restoring state
   monthlyAttendance: number; // Expected number of people who will see your booth
+  conversionRate?: number;  // Alternative field name for consistency
   salesRate: number;        // percentage: attendees who buy
   unitsPerMonth: number;    // calculated sales from this channel
   costPerUnit: number;      // Cost per sale for this channel
@@ -71,6 +75,8 @@ export interface MarketingState {
   overallCAC?: number;
   totalUnitsFromMarketing?: number;
   organicPercentage?: number;
+  digitalPercentage?: number;
+  eventsPercentage?: number;
 }
 
 export interface Worker {
@@ -147,6 +153,7 @@ export interface CalculatorState {
   // Level 5 - Business Costs
   businessMode: 'hobby' | 'side' | 'business';
   selectedCosts: BusinessCost[];
+  businessExpenses?: any; // Stores the full business expenses state
   
   // Level 6 - Projections & Optimization
   optimizedPrices: { [productId: string]: number };

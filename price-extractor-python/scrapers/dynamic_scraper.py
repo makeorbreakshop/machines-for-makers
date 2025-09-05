@@ -164,8 +164,16 @@ class DynamicScraper:
                 logger.info("DEBUG: Calling _select_commarker_variant")
                 await self._select_commarker_variant(machine_name)
             elif 'cloudraylaser.com' in domain:
-                logger.info("DEBUG: Calling _select_cloudray_variant")
-                await self._select_cloudray_variant(machine_name)
+                logger.info("DEBUG: CloudRay detected - checking for variant parameter")
+                # For CloudRay, if URL has variant parameter, remove it to get base price
+                if '?variant=' in url:
+                    base_url = url.split('?variant=')[0]
+                    logger.info(f"CloudRay URL has variant parameter - navigating to base URL for base price: {base_url}")
+                    await self.page.goto(base_url, wait_until='domcontentloaded', timeout=30000)
+                    await self.page.wait_for_timeout(2000)
+                else:
+                    logger.info("DEBUG: Calling _select_cloudray_variant")
+                    await self._select_cloudray_variant(machine_name)
             elif 'aeonlaser.us' in domain or 'aeonlaser.com' in domain:
                 logger.info("DEBUG: Calling _navigate_aeon_configurator")
                 await self._navigate_aeon_configurator(machine_name)
@@ -1517,12 +1525,16 @@ class DynamicScraper:
                                 if price and (price == 30 or price == 50 or price == 60 or price == 100 or price == 200):
                                     logger.debug(f"Skipping CloudRay variant price: ${price} (likely wattage)")
                                     continue
-                                # Skip prices under $1000 for CloudRay machines
-                                if price and price < 1000:
-                                    logger.debug(f"Skipping CloudRay price under $1000: ${price}")
+                                # Skip 1064 which is the wavelength (1064nm)
+                                if price and (price == 1064 or price == 1064.0):
+                                    logger.debug(f"Skipping CloudRay wavelength value: ${price} (1064nm)")
                                     continue
-                                # Valid CloudRay price should be over $1000
-                                if price and price > 1000:
+                                # Skip prices under $2000 for CloudRay machines (base prices start around $2599)
+                                if price and price < 2000:
+                                    logger.debug(f"Skipping CloudRay price under $2000: ${price}")
+                                    continue
+                                # Valid CloudRay price should be over $2000
+                                if price and price >= 2000:
                                     logger.info(f"Found valid CloudRay price ${price} from text '{price_text}' via selector: {selector}")
                                     valid_prices.append({
                                         'price': price,
@@ -1544,16 +1556,16 @@ class DynamicScraper:
             
             # If we have valid prices, select the best one
             if valid_prices:
-                # Special handling for CloudRay - take the highest valid price (bundle total)
+                # Special handling for CloudRay - take the LOWEST valid price (base price)
                 if 'cloudraylaser.com' in domain:
                     logger.info(f"Found {len(valid_prices)} valid CloudRay price candidates.")
                     for candidate in valid_prices:
                         logger.info(f"  Candidate: ${candidate['price']:,.2f} via {candidate['selector']}")
                     
-                    # Take the highest price (which should be the bundle total)
-                    best_price = max(valid_prices, key=lambda x: x['price'])
-                    logger.info(f"Selected highest CloudRay price (bundle total): ${best_price['price']:,.2f}")
-                    return best_price['price'], f"CloudRay bundle total: {best_price['selector']}"
+                    # Take the LOWEST price (base price without accessories)
+                    best_price = min(valid_prices, key=lambda x: x['price'])
+                    logger.info(f"Selected lowest CloudRay price (base price): ${best_price['price']:,.2f}")
+                    return best_price['price'], f"CloudRay base price: {best_price['selector']}"
                 
                 # Special handling for ComMarker B6 MOPA 60W - use old price as anchor
                 if machine_name and "B6 MOPA 60W" in machine_name and 'commarker.com' in domain:

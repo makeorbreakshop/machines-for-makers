@@ -243,7 +243,8 @@ export function Level1Setup({
               
               const materialCostsTotal = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
               const costItemCount = Object.keys(costs).length;
-              const laborHoursTotal = Object.values(timeBreakdown).reduce((sum, hours) => sum + (hours || 0), 0);
+              const laborMinutesTotal = Object.values(timeBreakdown).reduce((sum, minutes) => sum + (minutes || 0), 0);
+              const laborHoursTotal = laborMinutesTotal / 60;
               const platformCount = platformFees.length;
               
               const isExpanded = expandedSections[product.id];
@@ -494,7 +495,7 @@ export function Level1Setup({
                               <Clock className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm font-medium">Labor</span>
                               <span className="text-sm text-muted-foreground">
-                                {laborHoursTotal.toFixed(1)} hours
+                                {laborMinutesTotal} minutes
                               </span>
                             </div>
                             <div className="flex items-center gap-3">
@@ -511,6 +512,13 @@ export function Level1Setup({
                           
                           {isExpanded?.labor && (
                             <div className="px-4 pb-4 space-y-2">
+                              <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground px-1">
+                                <span className="flex-1">Task</span>
+                                <span className="w-24 text-center">Minutes</span>
+                                <span className="w-20 text-right">Cost</span>
+                                <span className="w-8"></span>
+                              </div>
+                              
                               {Object.entries(timeBreakdown).map(([timeType, value]) => (
                                 <div key={timeType} className="flex items-center gap-3">
                                   <Input
@@ -530,19 +538,19 @@ export function Level1Setup({
                                   <Input
                                     type="number"
                                     min="0"
-                                    step="0.25"
+                                    step="1"
                                     value={value === 0 ? '0' : value || ''}
                                     onChange={(e) => {
-                                      const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                      const val = e.target.value === '' ? 0 : parseInt(e.target.value);
                                       onUpdateProduct(product.id, { 
                                         timeBreakdown: { ...timeBreakdown, [timeType]: val || 0 }
                                       });
                                     }}
                                     className="h-9 text-sm w-24"
-                                    placeholder="0.00"
+                                    placeholder="0"
                                   />
                                   <span className="text-sm font-medium w-20 text-right">
-                                    {formatCurrencyCompact((value || 0) * (state.hourlyRate || 0))}
+                                    {formatCurrencyCompact(((value || 0) / 60) * (state.hourlyRate || 0))}
                                   </span>
                                   <Button
                                     variant="ghost"

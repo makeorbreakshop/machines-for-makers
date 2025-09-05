@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowRight, ArrowLeft, Users, Clock, Plus, X, Briefcase, UserCheck, Package, ChevronDown } from 'lucide-react';
+import { Users, Plus, X, Briefcase, Package, ChevronDown } from 'lucide-react';
 import { CalculatorState, CalculatedMetrics, LaborState, Worker, BusinessTask, DEFAULT_BUSINESS_TASKS } from '../lib/calculator-types';
 
 interface Level4LaborProps {
@@ -38,7 +37,7 @@ export function Level4Labor({
           {
             id: 'owner',
             name: 'You',
-            hourlyRate: state.hourlyRate || 25,
+            hourlyRate: state.hourlyRate ?? 25,
             maxHoursPerWeek: 40,
             skills: ['admin', 'marketing', 'maintenance', 'inventory', 'shipping', 'development', 'production'],
             assignedHours: 0,
@@ -170,6 +169,14 @@ export function Level4Labor({
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
+    }).format(amount);
+
+  const formatCurrencyCompact = (amount: number) => 
+    new Intl.NumberFormat('en-US', { 
+      style: 'currency', 
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(amount);
 
   const formatHours = (hours: number) => `${hours.toFixed(1)}h`;
@@ -308,19 +315,48 @@ export function Level4Labor({
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                   <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workers</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {laborState.workers.length} {laborState.workers.length === 1 ? 'worker' : 'workers'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {laborState.workers.length} {laborState.workers.length === 1 ? 'worker' : 'workers'}
+                  <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+                    {formatCurrency(laborState.workers.reduce((sum, worker) => {
+                      let assignedHours = 0;
+                      
+                      // Add hours from business tasks
+                      laborState.businessTasks.forEach(task => {
+                        if (task.assignedWorkerId === worker.id) {
+                          assignedHours += task.hoursPerWeek;
+                        }
+                      });
+                      
+                      // Add hours from product assignments
+                      const productAssignments = (laborState as any).productAssignments || {};
+                      if (state.products) {
+                        state.products.forEach(product => {
+                          const productMetrics = metrics.productMetrics?.[product.id];
+                          if (productMetrics) {
+                            const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
+                            const assignedWorkerId = productAssignments[product.id] || 'owner';
+                            if (assignedWorkerId === worker.id) {
+                              assignedHours += weeklyHours;
+                            }
+                          }
+                        });
+                      }
+                      
+                      return sum + (assignedHours * worker.hourlyRate);
+                    }, 0))}/wk
                   </span>
                   <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${workersExpanded ? 'transform rotate-180' : ''}`} />
                 </div>
               </div>
             </div>
           </Button>
-          
-          {workersExpanded && (
-            <div className="p-4 space-y-3">
+        
+        {workersExpanded && (
+          <div className="p-4 space-y-1">
               {laborState.workers.map((worker) => {
                 const isOwner = worker.id === 'owner';
                 
@@ -353,135 +389,103 @@ export function Level4Labor({
                 const overCapacity = assignedHours > capacity;
                 const utilizationPercentage = Math.min((assignedHours / capacity) * 100, 100);
                 
+                const overFortyHours = assignedHours > 40;
+                
                 return (
-                  <div key={worker.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-800/30">
-                    <div className="flex items-center gap-4">
+                  <div key={worker.id} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
+                    {/* Worker Name */}
+                    <div className="w-[280px]">
                       <Input
                         value={worker.name}
                         onChange={(e) => updateWorker(worker.id, { name: e.target.value })}
-                        className="flex-1"
-                        placeholder="Worker name"
+                        className="h-8 text-sm w-full bg-background text-foreground"
+                        placeholder="Name"
                       />
-                      
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">$</span>
-                        <Input
-                          type="number"
-                          min="10"
-                          step="1"
-                          value={worker.hourlyRate || ''}
-                          onChange={(e) => updateWorker(worker.id, { hourlyRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
-                          className="w-20"
-                          placeholder="Rate"
-                        />
-                        <span className="text-sm text-gray-500 dark:text-gray-400">/hr</span>
-                      </div>
-                      
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          min="1"
-                          max="80"
-                          step="1"
-                          value={worker.maxHoursPerWeek || ''}
-                          onChange={(e) => updateWorker(worker.id, { maxHoursPerWeek: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
-                          className="w-20"
-                          placeholder="Hours"
-                        />
-                        <span className="text-sm text-gray-500 dark:text-gray-400">hrs/week</span>
-                      </div>
-                      
-                      {!isOwner && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeWorker(worker.id)}
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
                     </div>
                     
-                    {/* Capacity Bar */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">Workload</span>
-                        <span className={overCapacity ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-900 dark:text-gray-100 font-medium tabular-nums'}>
-                          {formatHours(assignedHours)} / {formatHours(capacity)}
-                        </span>
-                      </div>
-                      
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                        <div 
-                          className={`h-3 rounded-full transition-all duration-300 ${
-                            overCapacity 
-                              ? 'bg-red-500' 
-                              : utilizationPercentage > 80 
-                                ? 'bg-yellow-500' 
-                                : 'bg-green-500'
-                          }`}
-                          style={{ 
-                            width: `${Math.min(utilizationPercentage, 100)}%` 
-                          }}
-                        />
-                      </div>
-                      
-                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                        <span>
-                          {overCapacity 
-                            ? `Over by ${formatHours(assignedHours - capacity)}` 
-                            : `${formatHours(capacity - assignedHours)} available`
-                          }
-                        </span>
-                        <span>
-                          {formatCurrency(assignedHours * worker.hourlyRate * 4.33)}/mo
-                        </span>
-                      </div>
+                    {/* Hourly Rate */}
+                    <div className="relative w-20">
+                      <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={worker.hourlyRate || worker.hourlyRate === 0 ? worker.hourlyRate : ''}
+                        onChange={(e) => updateWorker(worker.id, { hourlyRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                        className="pl-6 h-8 text-sm w-full bg-background text-foreground"
+                        placeholder="0.00"
+                      />
                     </div>
+                    <span className="text-sm text-muted-foreground w-10">/hr</span>
+                    
+                    {/* Hours Assigned */}
+                    <span className={`text-sm ${overFortyHours ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'} w-20 text-right`}>
+                      {assignedHours.toFixed(1)} hrs/wk
+                    </span>
+                    
+                    {/* Weekly Cost */}
+                    <span className="text-sm font-medium w-24 text-right text-foreground">
+                      {formatCurrencyCompact(assignedHours * worker.hourlyRate)}
+                    </span>
+                    
+                    {/* Remove Button or Spacer */}
+                    {!isOwner ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeWorker(worker.id)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    ) : (
+                      <div className="w-8 h-8" />
+                    )}
                   </div>
                 );
               })}
-              
-              <Button
-                variant="ghost"
-                onClick={addWorker}
-                className="w-full mt-4 text-muted-foreground hover:text-foreground"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Worker
-              </Button>
-            </div>
-          )}
+            
+            <Button
+              variant="ghost"
+              onClick={addWorker}
+              className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
+            >
+              + Add Worker
+            </Button>
+          </div>
+        )}
         </CardContent>
       </Card>
 
       {/* Production Hours Section */}
-      <Card className="border-border bg-card shadow-sm">
+      <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
         <CardContent className="p-0">
           <Button
             variant="ghost"
             onClick={() => setProductionExpanded(!productionExpanded)}
             className="w-full justify-between p-0 h-auto hover:bg-transparent"
           >
-            <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+            <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700 w-full">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-primary" />
-                  <span className="text-base font-medium text-foreground">Production Hours</span>
+                  <Package className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                  <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Production Hours</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {laborState.productionHoursPerWeek.toFixed(1)} hrs/week
+                  </span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium text-foreground">
-                    {formatHours(laborState.productionHoursPerWeek)}/week • {formatCurrency((laborState.productionHoursPerWeek * (laborState.workers[0]?.hourlyRate || 25) * 4.33))} total
+                  <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+                    {formatCurrency((laborState.productionHoursPerWeek * (laborState.workers[0]?.hourlyRate ?? 25)))}/wk
                   </span>
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${productionExpanded ? 'transform rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${productionExpanded ? 'transform rotate-180' : ''}`} />
                 </div>
               </div>
             </div>
           </Button>
-          
-          {productionExpanded && (
-            <div className="p-4 space-y-1">
+        
+        {productionExpanded && (
+          <div className="p-4 space-y-1">
               {state.products && state.products.length > 0 ? (
                 state.products.map((product, index) => {
                   const productMetrics = metrics.productMetrics?.[product.id];
@@ -490,50 +494,56 @@ export function Level4Labor({
                   const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
                   const productName = product.name || `Product ${index + 1}`;
                   const assignedWorker = laborState.workers.find(w => w.id === (laborState as any).productAssignments?.[product.id]) || laborState.workers.find(w => w.id === 'owner');
-                  const monthlyAmount = weeklyHours * (assignedWorker?.hourlyRate || 25) * 4.33;
+                  const weeklyAmount = weeklyHours * (assignedWorker?.hourlyRate ?? 25);
                   
                   return (
-                    <div key={product.id} className="flex items-center gap-2 py-1.5 px-2 hover:bg-muted/30 rounded-md transition-colors">
-                      <div className="flex-1 flex items-center gap-3 min-w-0">
-                        <span className="font-medium text-sm text-foreground truncate">{productName}</span>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    <div key={product.id} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
+                      {/* Product Name & Units */}
+                      <div className="flex items-center gap-2 w-[280px]">
+                        <span className="text-sm font-medium text-foreground">{productName}</span>
+                        <span className="text-xs text-muted-foreground">
                           {product.monthlyUnits || 0} units/mo
                         </span>
                       </div>
                       
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm text-muted-foreground whitespace-nowrap">
-                          {weeklyHours.toFixed(1)}h/wk
-                        </span>
-                        
-                        <Select
-                          value={((laborState as any).productAssignments?.[product.id]) || "owner"}
-                          onValueChange={(workerId) => {
-                            setLaborState(prev => ({
-                              ...prev,
-                              productAssignments: {
-                                ...((prev as any).productAssignments || {}),
-                                [product.id]: workerId
-                              }
-                            }));
-                          }}
-                        >
-                          <SelectTrigger className="h-7 w-[120px] text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {laborState.workers.map((worker) => (
-                              <SelectItem key={worker.id} value={worker.id}>
-                                {worker.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        
-                        <span className="font-mono text-sm font-medium text-foreground w-16 text-right">
-                          ${monthlyAmount.toFixed(0)}
-                        </span>
+                      {/* Hours (auto-calculated, non-editable) */}
+                      <div className="w-20 h-8 flex items-center justify-center bg-muted border border-border rounded-md">
+                        <span className="text-sm text-muted-foreground">{weeklyHours.toFixed(1)}</span>
                       </div>
+                      <span className="text-sm text-muted-foreground w-10">hr/wk</span>
+                      
+                      {/* Worker Assignment */}
+                      <Select
+                        value={((laborState as any).productAssignments?.[product.id]) || "owner"}
+                        onValueChange={(workerId) => {
+                          setLaborState(prev => ({
+                            ...prev,
+                            productAssignments: {
+                              ...((prev as any).productAssignments || {}),
+                              [product.id]: workerId
+                            }
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className="w-32 h-8 text-sm bg-background text-foreground">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {laborState.workers.map((worker) => (
+                            <SelectItem key={worker.id} value={worker.id}>
+                              {worker.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      {/* Weekly Cost */}
+                      <span className="text-sm font-medium w-24 text-right text-foreground">
+                        {formatCurrencyCompact(weeklyAmount)}
+                      </span>
+                      
+                      {/* Spacer for alignment with business tasks that have delete button */}
+                      <div className="w-8 h-8" />
                     </div>
                   );
                 })
@@ -542,46 +552,49 @@ export function Level4Labor({
                   No products with time breakdown yet
                 </div>
               )}
-            </div>
-          )}
+          </div>
+        )}
         </CardContent>
       </Card>
 
       {/* Business Tasks Section */}
-      <Card className="border-border bg-card shadow-sm">
+      <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
         <CardContent className="p-0">
           <Button
             variant="ghost"
             onClick={() => setBusinessTasksExpanded(!businessTasksExpanded)}
             className="w-full justify-between p-0 h-auto hover:bg-transparent"
           >
-            <div className="bg-muted/50 px-6 py-4 border-b border-border w-full">
+            <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700 w-full">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Briefcase className="h-4 w-4 text-primary" />
-                  <span className="text-base font-medium text-foreground">Business Tasks</span>
+                  <Briefcase className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                  <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Business Tasks</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {laborState.businessTasks.length} tasks
+                  </span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium text-foreground">
-                    {formatCurrency(totalBusinessHours * (laborState.workers[0]?.hourlyRate || 25) * 4.33)} total
+                  <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+                    {formatCurrency(totalBusinessHours * (laborState.workers[0]?.hourlyRate ?? 25))}/wk
                   </span>
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessTasksExpanded ? 'transform rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${businessTasksExpanded ? 'transform rotate-180' : ''}`} />
                 </div>
               </div>
             </div>
           </Button>
-          
-          {businessTasksExpanded && (
-            <div className="p-6 space-y-2">
+        
+        {businessTasksExpanded && (
+          <div className="p-4 space-y-1">
               {laborState.businessTasks.map((task) => {
                 const assignedWorker = laborState.workers.find(w => w.id === task.assignedWorkerId) || laborState.workers[0];
-                const monthlyAmount = task.hoursPerWeek * (assignedWorker?.hourlyRate || 25) * 4.33;
+                const weeklyAmount = task.hoursPerWeek * (assignedWorker?.hourlyRate ?? 25);
                 return (
-                  <div key={task.id} className="flex items-center gap-4">
+                  <div key={task.id} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                     <Input
                       value={task.name}
                       onChange={(e) => updateBusinessTask(task.id, { name: e.target.value })}
-                      className="flex-1"
+                      className="h-8 text-sm w-[280px] bg-background text-foreground"
                       placeholder="Task name"
                     />
                     
@@ -591,15 +604,16 @@ export function Level4Labor({
                       step="0.5"
                       value={task.hoursPerWeek || ''}
                       onChange={(e) => updateBusinessTask(task.id, { hoursPerWeek: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
-                      className="w-20"
-                      placeholder="Hours"
+                      className="w-20 h-8 text-sm bg-background text-foreground"
+                      placeholder="0"
                     />
+                    <span className="text-sm text-muted-foreground w-10">hr/wk</span>
                     
                     <Select
                       value={task.assignedWorkerId || laborState.workers[0]?.id || "owner"}
                       onValueChange={(workerId) => updateBusinessTask(task.id, { assignedWorkerId: workerId })}
                     >
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-32 h-8 text-sm bg-background text-foreground">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -611,37 +625,36 @@ export function Level4Labor({
                       </SelectContent>
                     </Select>
                     
-                    <div className="w-24 text-right font-mono text-sm">
-                      ${monthlyAmount.toFixed(0)}
-                    </div>
+                    <span className="text-sm font-medium w-24 text-right text-foreground">
+                      {formatCurrencyCompact(weeklyAmount)}
+                    </span>
                     
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => removeBusinessTask(task.id)}
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3" />
                     </Button>
                   </div>
                 );
               })}
-              
-              <Button
-                variant="ghost"
-                onClick={addBusinessTask}
-                className="w-full mt-4 text-muted-foreground hover:text-foreground"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Business Task
-              </Button>
-            </div>
-          )}
+            
+            <Button
+              variant="ghost"
+              onClick={addBusinessTask}
+              className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
+            >
+              + Add Business Task
+            </Button>
+          </div>
+        )}
         </CardContent>
       </Card>
 
       {/* Labor Summary */}
-      <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm">
+      <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-lg">
         <CardContent className="p-0">
           <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
@@ -679,14 +692,14 @@ export function Level4Labor({
                   });
                 }
                 
-                const monthlyCost = assignedHours * worker.hourlyRate * 4.33;
+                const weeklyCost = assignedHours * worker.hourlyRate;
                 
                 return (
                   <div key={worker.id} className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{worker.name}</span>
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">{worker.name}</span>
                     <div className="flex items-center gap-4">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">{formatHours(assignedHours)}/week</span>
-                      <span className="font-mono font-semibold text-sm tabular-nums text-gray-900 dark:text-gray-100">{formatCurrency(monthlyCost)}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{assignedHours.toFixed(1)}h/week</span>
+                      <span className="font-mono font-semibold text-sm tabular-nums text-gray-900 dark:text-gray-100">{formatCurrencyCompact(weeklyCost)}</span>
                     </div>
                   </div>
                 );
@@ -699,19 +712,24 @@ export function Level4Labor({
             {/* Total Labor Cost */}
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total Labor Cost</span>
-                <span className="font-mono font-black text-xl tabular-nums text-gray-900 dark:text-gray-100">{formatCurrency(totalLaborCost)}</span>
+                <span className="font-semibold text-base text-gray-900 dark:text-gray-100">Total Labor Cost (Monthly)</span>
+                <span className="font-mono font-black text-xl tabular-nums text-gray-900 dark:text-gray-100">{formatCurrencyCompact(totalLaborCost)}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Total Labor Cost (Weekly)</span>
+                <span className="font-mono font-semibold text-sm tabular-nums text-gray-700 dark:text-gray-300">{formatCurrencyCompact(totalLaborCost / 4.33)}</span>
               </div>
               
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Total Weekly Hours</span>
-                <span className="font-mono font-medium tabular-nums text-gray-700 dark:text-gray-300">{formatHours(totalHoursNeeded)}</span>
+                <span className="text-muted-foreground text-xs">Total Weekly Hours</span>
+                <span className="font-mono text-xs text-muted-foreground">{totalHoursNeeded.toFixed(1)}h</span>
               </div>
               
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Average Hourly Rate</span>
-                <span className="font-mono font-medium tabular-nums text-gray-700 dark:text-gray-300">
-                  ${laborState.workers.reduce((sum, w) => sum + w.hourlyRate, 0) / laborState.workers.length}/hr
+                <span className="text-muted-foreground text-xs">Average Hourly Rate</span>
+                <span className="font-mono text-xs text-muted-foreground">
+                  ${(laborState.workers.reduce((sum, w) => sum + w.hourlyRate, 0) / laborState.workers.length).toFixed(2)}/hr
                 </span>
               </div>
             </div>

@@ -267,7 +267,7 @@ class SiteSpecificExtractor:
                     '.product__price'
                 ],
                 'price_validation': {
-                    'min': 1000,  # CloudRay machines are expensive (minimum $1000)
+                    'min': 2000,  # CloudRay machines are expensive (minimum $2000, base prices start ~$2599)
                     'max': 50000  # Maximum reasonable price
                 }
             },

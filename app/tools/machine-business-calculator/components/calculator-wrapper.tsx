@@ -27,6 +27,7 @@ interface CalculatorWrapperProps {
     updateHourlyRate: (rate: number) => void;
     updateMarketing: (updates: any) => void;
     updateLabor: (updates: any) => void;
+    updateBusinessExpenses: (expenses: any) => void;
     updateOptimizedPrice: (productId: string, price: number) => void;
     updateBusinessMode: (mode: 'hobby' | 'side' | 'business') => void;
     toggleBusinessCost: (cost: any) => void;
@@ -39,29 +40,36 @@ interface CalculatorWrapperProps {
 export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapperProps) {
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
-  const [currentBusinessExpenses, setCurrentBusinessExpenses] = useState({
-    taxReserve: { 
-      selfEmploymentRate: 15.3,
-      federalRate: 12,
-      stateRate: 5,
-      expanded: false 
-    },
-    physicalCosts: {
-      expanded: false,
-      items: {
-        rent: 200,
-        insurance: 75,
-        utilities: 50
-      }
-    },
-    softwareCosts: {
-      expanded: false,
-      items: {
-        design_software: 50,
-        accounting_software: 25
-      }
-    },
-    savings: { rate: 8, expanded: false }
+  
+  // Initialize business expenses from state or use defaults
+  const [currentBusinessExpenses, setCurrentBusinessExpenses] = useState(() => {
+    if (state.businessExpenses) {
+      return state.businessExpenses;
+    }
+    return {
+      taxReserve: { 
+        selfEmploymentRate: 15.3,
+        federalRate: 12,
+        stateRate: 5,
+        expanded: false 
+      },
+      physicalCosts: {
+        expanded: false,
+        items: {
+          rent: 0,
+          insurance: 0,
+          utilities: 0
+        }
+      },
+      softwareCosts: {
+        expanded: false,
+        items: {
+          design_software: 0,
+          accounting_software: 0
+        }
+      },
+      savings: { rate: 8, expanded: false }
+    };
   });
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -138,7 +146,10 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             onUpdateBusinessCost={actions.updateBusinessCost}
             onComplete={() => setActiveTab('projections')}
             onBack={() => setActiveTab('labor')}
-            onBusinessExpensesChange={setCurrentBusinessExpenses}
+            onBusinessExpensesChange={(expenses) => {
+              setCurrentBusinessExpenses(expenses);
+              actions.updateBusinessExpenses(expenses);
+            }}
           />
         );
       case 'optimize':

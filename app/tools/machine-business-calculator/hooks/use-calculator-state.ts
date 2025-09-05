@@ -189,6 +189,13 @@ export function useCalculatorState() {
     }));
   }, []);
 
+  const updateBusinessExpenses = useCallback((expenses: any) => {
+    setState(prev => ({
+      ...prev,
+      businessExpenses: expenses
+    }));
+  }, []);
+
   const resetCalculator = useCallback(() => {
     setState(createInitialState());
     try {
@@ -208,6 +215,7 @@ export function useCalculatorState() {
     updateHourlyRate,
     updateMarketing,
     updateLabor,
+    updateBusinessExpenses,
     updateOptimizedPrice,
     updateBusinessMode,
     toggleBusinessCost,

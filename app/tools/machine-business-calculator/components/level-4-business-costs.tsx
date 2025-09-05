@@ -42,40 +42,53 @@ export function Level4BusinessCosts({
   onComplete,
   onBusinessExpensesChange
 }: Level4BusinessCostsProps) {
-  const [businessExpenses, setBusinessExpenses] = useState<BusinessExpenses>({
-    physicalCosts: {
-      items: {
-        rent: 1500,
-        utilities: 200,
-        insurance: 150
+  // Initialize from saved state or use defaults
+  const [businessExpenses, setBusinessExpenses] = useState<BusinessExpenses>(() => {
+    // Check if we have saved business expenses in state
+    if (state.businessExpenses) {
+      return state.businessExpenses;
+    }
+    
+    // Default values for new calculators
+    return {
+      physicalCosts: {
+        items: {
+          rent: 0,
+          utilities: 0,
+          insurance: 0
+        },
+        expanded: false
       },
-      expanded: false
-    },
-    softwareCosts: {
-      items: {
-        accounting: 50,
-        design_tools: 100,
-        website: 20,
-        marketing_tools: 50
+      softwareCosts: {
+        items: {
+          accounting: 0,
+          design_tools: 0,
+          website: 0,
+          marketing_tools: 0
+        },
+        expanded: false
       },
-      expanded: false
-    },
-    // Tax breakdown with typical rates
-    taxReserve: { 
-      selfEmploymentRate: 15.3,  // Social Security + Medicare
-      federalRate: 12,           // Federal income tax
-      stateRate: 5,              // State/local taxes
-      expanded: false 
-    },
-    savings: { rate: 8, expanded: false }
+      // Tax breakdown with typical rates
+      taxReserve: { 
+        selfEmploymentRate: 15.3,  // Social Security + Medicare
+        federalRate: 12,           // Federal income tax
+        stateRate: 5,              // State/local taxes
+        expanded: false 
+      },
+      savings: { rate: 8, expanded: false }
+    };
   });
 
-  // Notify parent of changes
+  // Notify parent of changes - only when local state actually changes
   useEffect(() => {
     if (onBusinessExpensesChange) {
-      onBusinessExpensesChange(businessExpenses);
+      // Only call if the expenses have actually changed from what's in parent state
+      const hasChanged = JSON.stringify(businessExpenses) !== JSON.stringify(state.businessExpenses);
+      if (hasChanged) {
+        onBusinessExpensesChange(businessExpenses);
+      }
     }
-  }, [businessExpenses, onBusinessExpensesChange]);
+  }, [businessExpenses]); // Removed onBusinessExpensesChange from deps to prevent loops
 
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('en-US', { 
