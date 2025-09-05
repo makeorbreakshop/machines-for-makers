@@ -120,6 +120,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
             onUpdateProduct={actions.updateProduct}
             onRemoveProduct={actions.removeProduct}
             onUpdateHourlyRate={actions.updateHourlyRate}
+            onUpdateLabor={actions.updateLabor}
             onComplete={() => setActiveTab('marketing')}
             onAddMaterial={actions.addMaterial || (() => '')}
             onAddMaterialUsage={actions.addMaterialUsageToProduct || (() => {})}

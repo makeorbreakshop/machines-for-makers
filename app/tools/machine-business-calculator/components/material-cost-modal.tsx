@@ -170,7 +170,7 @@ export function MaterialCostModal({
                 />
               </div>
 
-              <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
+              <div className="border dark:border-gray-700 rounded-lg p-3 space-y-3 bg-muted/30 dark:bg-gray-800/50">
                 <Label className="text-sm font-medium">How do you buy it?</Label>
                 
                 <div className="grid grid-cols-2 gap-3">

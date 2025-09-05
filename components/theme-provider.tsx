@@ -11,9 +11,9 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const pathname = usePathname()
   const isCalculatorPage = pathname?.includes('/machine-business-calculator')
   
-  // For calculator pages, disable the global theme provider and let calculator handle its own theming
+  // For calculator pages, use dark theme
   if (isCalculatorPage) {
-    return <>{children}</>
+    return <NextThemesProvider {...props} defaultTheme="dark" forcedTheme="dark">{children}</NextThemesProvider>
   }
   
   // Force light mode for all other pages

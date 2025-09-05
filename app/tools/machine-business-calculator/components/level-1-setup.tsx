@@ -27,6 +27,7 @@ interface Level1SetupProps {
   onUpdateProduct: (id: string, updates: any) => void;
   onRemoveProduct: (id: string) => void;
   onUpdateHourlyRate: (rate: number) => void;
+  onUpdateLabor: (updates: any) => void;
   onComplete: () => void;
   onAddMaterial: (material: Omit<Material, 'id'>) => string;
   onAddMaterialUsage: (productId: string, usage: MaterialUsage) => void;
@@ -47,6 +48,7 @@ export function Level1Setup({
   onAddProduct, 
   onUpdateProduct, 
   onRemoveProduct,
+  onUpdateLabor,
   onAddMaterial,
   onAddMaterialUsage,
   onUpdateMaterialUsage,
@@ -431,38 +433,23 @@ export function Level1Setup({
                           </button>
                           
                           {isExpanded?.materials && (
-                            <div className="p-4 space-y-3">
+                            <div className="px-4 pb-4 pt-2 space-y-2">
                               {/* Column headers - only show if there are materials */}
-                              {(materialUsage.length > 0 || Object.keys(costs).length > 0) && (
-                                <div className="grid grid-cols-12 gap-3 px-1 text-xs font-medium text-muted-foreground">
+                              {materialUsage.length > 0 && (
+                                <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
                                   <span className="col-span-5">Material</span>
-                                  <span className="col-span-3 text-right">Qty × Price</span>
+                                  <span className="col-span-2 text-center">Qty</span>
+                                  <span className="col-span-2 text-center">Price</span>
                                   <span className="col-span-2 text-right">Total</span>
-                                  <span className="col-span-2"></span>
+                                  <span className="col-span-1"></span>
                                 </div>
                               )}
                               
                               {/* Display material usage */}
                               {materialUsage.map((usage, idx) => (
-                                <div key={idx} className="grid grid-cols-12 gap-3 items-center">
+                                <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                                   <div className="col-span-5">
-                                    <Input
-                                      value={usage.name}
-                                      readOnly
-                                      className="h-9 text-sm bg-background"
-                                      placeholder="Material name"
-                                    />
-                                  </div>
-                                  <div className="col-span-3 text-sm text-right text-muted-foreground tabular-nums">
-                                    {usage.quantity} × ${usage.unitCost.toFixed(2)}
-                                  </div>
-                                  <div className="col-span-2 text-sm font-medium text-right tabular-nums">
-                                    ${usage.cost.toFixed(2)}
-                                  </div>
-                                  <div className="col-span-2 flex justify-end gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
+                                    <button
                                       onClick={() => {
                                         setMaterialModalState({
                                           open: true,
@@ -471,10 +458,21 @@ export function Level1Setup({
                                           editingUsage: usage
                                         });
                                       }}
-                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                                      className="h-9 px-3 text-sm text-left w-full hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                                     >
-                                      <Edit2 className="h-3.5 w-3.5" />
-                                    </Button>
+                                      {usage.name || 'Unnamed material'}
+                                    </button>
+                                  </div>
+                                  <div className="col-span-2 text-sm text-center text-muted-foreground tabular-nums">
+                                    {usage.quantity} ×
+                                  </div>
+                                  <div className="col-span-2 text-sm text-center text-muted-foreground tabular-nums">
+                                    ${usage.unitCost.toFixed(2)}
+                                  </div>
+                                  <div className="col-span-2 text-sm font-medium text-right tabular-nums">
+                                    ${usage.cost.toFixed(2)}
+                                  </div>
+                                  <div className="col-span-1 flex justify-end">
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -484,20 +482,6 @@ export function Level1Setup({
                                       <X className="h-3.5 w-3.5" />
                                     </Button>
                                   </div>
-                                </div>
-                              ))}
-                              
-                              {/* Show legacy costs if no material usage */}
-                              {materialUsage.length === 0 && Object.entries(costs).map(([costType, value]) => (
-                                <div key={costType} className="grid grid-cols-12 gap-3 items-center">
-                                  <div className="col-span-5 text-sm">
-                                    {costType.charAt(0).toUpperCase() + costType.slice(1).replace(/_/g, ' ')}
-                                  </div>
-                                  <div className="col-span-3"></div>
-                                  <div className="col-span-2 text-sm font-medium text-right tabular-nums">
-                                    ${(value || 0).toFixed(2)}
-                                  </div>
-                                  <div className="col-span-2"></div>
                                 </div>
                               ))}
                               
@@ -546,64 +530,94 @@ export function Level1Setup({
                           </button>
                           
                           {isExpanded?.labor && (
-                            <div className="p-4 space-y-3">
+                            <div className="px-4 pb-4 pt-2 space-y-2">
                               {/* Column headers */}
-                              <div className="grid grid-cols-12 gap-3 px-1 text-xs font-medium text-muted-foreground">
+                              <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
                                 <span className="col-span-5">Task</span>
-                                <span className="col-span-3 text-center">Minutes</span>
+                                <span className="col-span-2 text-center">Worker</span>
+                                <span className="col-span-2 text-center">Minutes</span>
                                 <span className="col-span-2 text-right">Cost</span>
-                                <span className="col-span-2"></span>
+                                <span className="col-span-1"></span>
                               </div>
                               
-                              {Object.entries(timeBreakdown).map(([timeType, value]) => (
-                                <div key={timeType} className="grid grid-cols-12 gap-3 items-center">
-                                  <div className="col-span-5">
-                                    <Input
-                                      value={timeType.charAt(0).toUpperCase() + timeType.slice(1).replace(/_/g, ' ')}
-                                      onChange={(e) => {
-                                        const newTimeType = e.target.value.toLowerCase().replace(/ /g, '_');
-                                        if (newTimeType !== timeType) {
-                                          const newTimeBreakdown = { ...timeBreakdown };
-                                          delete newTimeBreakdown[timeType];
-                                          newTimeBreakdown[newTimeType] = value;
-                                          onUpdateProduct(product.id, { timeBreakdown: newTimeBreakdown });
-                                        }
-                                      }}
-                                      className="h-9 text-sm bg-background"
-                                      placeholder="Task name"
-                                    />
+                              {Object.entries(timeBreakdown).map(([timeType, value]) => {
+                                // Get the assigned worker name
+                                const workerName = assignedWorker?.name || 'You';
+                                
+                                return (
+                                  <div key={timeType} className="grid grid-cols-12 gap-2 items-center">
+                                    <div className="col-span-5">
+                                      <Input
+                                        value={timeType.charAt(0).toUpperCase() + timeType.slice(1).replace(/_/g, ' ')}
+                                        onChange={(e) => {
+                                          const newTimeType = e.target.value.toLowerCase().replace(/ /g, '_');
+                                          if (newTimeType !== timeType) {
+                                            const newTimeBreakdown = { ...timeBreakdown };
+                                            delete newTimeBreakdown[timeType];
+                                            newTimeBreakdown[newTimeType] = value;
+                                            onUpdateProduct(product.id, { timeBreakdown: newTimeBreakdown });
+                                          }
+                                        }}
+                                        className="h-9 text-sm bg-background"
+                                        placeholder="Task name"
+                                      />
+                                    </div>
+                                    <div className="col-span-2">
+                                      <Select
+                                        value={assignedWorkerId || 'owner'}
+                                        onValueChange={(workerId) => {
+                                          const productAssignments = (state.labor as any)?.productAssignments || {};
+                                          const updatedAssignments = { ...productAssignments, [product.id]: workerId };
+                                          onUpdateLabor({ 
+                                            ...state.labor,
+                                            productAssignments: updatedAssignments 
+                                          });
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-9 text-sm bg-background">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {(state.labor?.workers || []).map((worker) => (
+                                            <SelectItem key={worker.id} value={worker.id}>
+                                              {worker.name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="col-span-2">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={value === 0 ? '0' : value || ''}
+                                        onChange={(e) => {
+                                          const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                          onUpdateProduct(product.id, { 
+                                            timeBreakdown: { ...timeBreakdown, [timeType]: val || 0 }
+                                          });
+                                        }}
+                                        className="h-9 text-sm text-center tabular-nums bg-background"
+                                        placeholder="0"
+                                      />
+                                    </div>
+                                    <div className="col-span-2 text-sm font-medium text-right tabular-nums">
+                                      ${(((value || 0) / 60) * workerHourlyRate).toFixed(2)}
+                                    </div>
+                                    <div className="col-span-1 flex justify-end">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => removeTimeItem(product.id, timeType)}
+                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
                                   </div>
-                                  <div className="col-span-3">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="1"
-                                      value={value === 0 ? '0' : value || ''}
-                                      onChange={(e) => {
-                                        const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                                        onUpdateProduct(product.id, { 
-                                          timeBreakdown: { ...timeBreakdown, [timeType]: val || 0 }
-                                        });
-                                      }}
-                                      className="h-9 text-sm text-center tabular-nums bg-background"
-                                      placeholder="0"
-                                    />
-                                  </div>
-                                  <div className="col-span-2 text-sm font-medium text-right tabular-nums">
-                                    ${(((value || 0) / 60) * workerHourlyRate).toFixed(2)}
-                                  </div>
-                                  <div className="col-span-2 flex justify-end">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeTimeItem(product.id, timeType)}
-                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                               
                               <Button
                                 variant="ghost"
@@ -614,7 +628,7 @@ export function Level1Setup({
                                 Add Labor Task
                               </Button>
                             </div>
-                          ))
+                          )}
                         </div>
 
                         {/* Platform Fees Section */}
@@ -643,118 +657,127 @@ export function Level1Setup({
                           </button>
                           
                           {isExpanded?.platforms && (
-                            <div className="p-4 space-y-3">
+                            <div className="px-4 pb-4 pt-2 space-y-2">
                               {/* Column headers */}
-                              <div className="grid grid-cols-12 gap-3 px-1 text-xs font-medium text-muted-foreground">
-                                <span className="col-span-5">Platform</span>
-                                <span className="col-span-2 text-center">Fee %</span>
+                              <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
+                                <span className="col-span-4">Platform</span>
+                                <span className="col-span-1 text-center">Fee %</span>
                                 <span className="col-span-2 text-center">Sales %</span>
-                                <span className="col-span-1 text-center">Units</span>
-                                <span className="col-span-2"></span>
+                                <span className="col-span-2 text-center">Units</span>
+                                <span className="col-span-2 text-right">Cost</span>
+                                <span className="col-span-1"></span>
                               </div>
                               
-                              {platformFees.map(platformFee => (
-                                <div key={platformFee.id} className="grid grid-cols-12 gap-3 items-center">
-                                  <div className="col-span-5">
-                                    <Input
-                                      value={platformFee.name}
-                                      onChange={(e) => {
-                                        const updated = platformFees.map(pf =>
-                                          pf.id === platformFee.id ? { ...pf, name: e.target.value } : pf
-                                        );
-                                        onUpdateProduct(product.id, { platformFees: updated });
-                                      }}
-                                      className="h-9 text-sm bg-background"
-                                      placeholder="Platform name"
-                                    />
-                                  </div>
-                                  <div className="col-span-2">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      step="0.01"
-                                      value={platformFee.feePercentage || ''}
-                                      onChange={(e) => {
-                                        const updated = platformFees.map(pf =>
-                                          pf.id === platformFee.id 
-                                            ? { ...pf, feePercentage: parseFloat(e.target.value) || 0 }
-                                            : pf
-                                        );
-                                        onUpdateProduct(product.id, { platformFees: updated });
-                                      }}
-                                      className="h-9 text-sm text-center tabular-nums bg-background"
-                                      placeholder="0.00"
-                                    />
-                                  </div>
-                                  <div className="col-span-2">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      step="0.01"
-                                      value={platformFee.salesPercentage || ''}
-                                      onChange={(e) => {
-                                        const newPercentage = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
-                                        
-                                        if (platformFees.length === 1) {
+                              {platformFees.map(platformFee => {
+                                const platformUnits = Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100));
+                                const platformCost = (product.sellingPrice || 0) * platformUnits * (platformFee.feePercentage / 100);
+                                
+                                return (
+                                  <div key={platformFee.id} className="grid grid-cols-12 gap-2 items-center">
+                                    <div className="col-span-4">
+                                      <Input
+                                        value={platformFee.name}
+                                        onChange={(e) => {
+                                          const updated = platformFees.map(pf =>
+                                            pf.id === platformFee.id ? { ...pf, name: e.target.value } : pf
+                                          );
+                                          onUpdateProduct(product.id, { platformFees: updated });
+                                        }}
+                                        className="h-9 text-sm bg-background"
+                                        placeholder="Platform name"
+                                      />
+                                    </div>
+                                    <div className="col-span-1">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        value={platformFee.feePercentage || ''}
+                                        onChange={(e) => {
                                           const updated = platformFees.map(pf =>
                                             pf.id === platformFee.id 
-                                              ? { ...pf, salesPercentage: newPercentage }
+                                              ? { ...pf, feePercentage: parseFloat(e.target.value) || 0 }
                                               : pf
                                           );
                                           onUpdateProduct(product.id, { platformFees: updated });
-                                        } else {
-                                          // Adjust others proportionally
-                                          const otherFees = platformFees.filter(pf => pf.id !== platformFee.id);
-                                          const currentOtherTotal = otherFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
-                                          const remainingPercentage = 100 - newPercentage;
-                                          
-                                          const updated = platformFees.map(pf => {
-                                            if (pf.id === platformFee.id) {
-                                              return { ...pf, salesPercentage: newPercentage };
-                                            } else if (currentOtherTotal > 0) {
-                                              const proportion = pf.salesPercentage / currentOtherTotal;
-                                              return { ...pf, salesPercentage: remainingPercentage * proportion };
-                                            } else {
-                                              return pf;
-                                            }
-                                          });
-                                          onUpdateProduct(product.id, { platformFees: updated });
-                                        }
-                                      }}
-                                      className="h-9 text-sm text-center tabular-nums bg-background"
-                                      placeholder="0.00"
-                                    />
-                                  </div>
-                                  <div className="col-span-1 text-sm text-muted-foreground text-center tabular-nums">
-                                    {Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100))}
-                                  </div>
-                                  <div className="col-span-2 flex justify-end">
-                                    {platformFees.length > 1 && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                          const updated = platformFees.filter(pf => pf.id !== platformFee.id);
-                                          // Redistribute percentages
-                                          const totalPercentage = 100;
-                                          if (updated.length > 0) {
-                                            const equalShare = totalPercentage / updated.length;
-                                            updated.forEach(pf => {
-                                              pf.salesPercentage = equalShare;
-                                            });
-                                          }
-                                          onUpdateProduct(product.id, { platformFees: updated });
                                         }}
-                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                      >
-                                        <X className="h-3.5 w-3.5" />
-                                      </Button>
-                                    )}
+                                        className="h-9 text-sm text-center tabular-nums bg-background"
+                                        placeholder="0"
+                                      />
+                                    </div>
+                                    <div className="col-span-2">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        value={platformFee.salesPercentage || ''}
+                                        onChange={(e) => {
+                                          const newPercentage = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                                          
+                                          if (platformFees.length === 1) {
+                                            const updated = platformFees.map(pf =>
+                                              pf.id === platformFee.id 
+                                                ? { ...pf, salesPercentage: newPercentage }
+                                                : pf
+                                            );
+                                            onUpdateProduct(product.id, { platformFees: updated });
+                                          } else {
+                                            // Adjust others proportionally
+                                            const otherFees = platformFees.filter(pf => pf.id !== platformFee.id);
+                                            const currentOtherTotal = otherFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                            const remainingPercentage = 100 - newPercentage;
+                                            
+                                            const updated = platformFees.map(pf => {
+                                              if (pf.id === platformFee.id) {
+                                                return { ...pf, salesPercentage: newPercentage };
+                                              } else if (currentOtherTotal > 0) {
+                                                const proportion = pf.salesPercentage / currentOtherTotal;
+                                                return { ...pf, salesPercentage: remainingPercentage * proportion };
+                                              } else {
+                                                return pf;
+                                              }
+                                            });
+                                            onUpdateProduct(product.id, { platformFees: updated });
+                                          }
+                                        }}
+                                        className="h-9 text-sm text-center tabular-nums bg-background"
+                                        placeholder="0"
+                                      />
+                                    </div>
+                                    <div className="col-span-2 text-sm text-muted-foreground text-center tabular-nums">
+                                      {platformUnits}
+                                    </div>
+                                    <div className="col-span-2 text-sm font-medium text-right tabular-nums">
+                                      ${platformCost.toFixed(2)}
+                                    </div>
+                                    <div className="col-span-1 flex justify-end">
+                                      {platformFees.length > 1 && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            const updated = platformFees.filter(pf => pf.id !== platformFee.id);
+                                            // Redistribute percentages
+                                            const totalPercentage = 100;
+                                            if (updated.length > 0) {
+                                              const equalShare = totalPercentage / updated.length;
+                                              updated.forEach(pf => {
+                                                pf.salesPercentage = equalShare;
+                                              });
+                                            }
+                                            onUpdateProduct(product.id, { platformFees: updated });
+                                          }}
+                                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                        >
+                                          <X className="h-3.5 w-3.5" />
+                                        </Button>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                               
                               <Select onValueChange={(value) => {
                                 const preset = DEFAULT_PLATFORM_PRESETS.find(p => p.name === value);
