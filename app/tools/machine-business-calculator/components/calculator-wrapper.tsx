@@ -168,7 +168,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
     <div className={`min-h-screen bg-background ${isDarkMode ? 'dark' : ''}`}>
       {/* Monthly Goal Progress Bar */}
       <div className="bg-muted/30 border-b border-border">
-        <div className="max-w-6xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
@@ -240,7 +240,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
         </div>
       </div>
       
-      <div className="max-w-6xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           {/* Tab Navigation */}
           <TabsList className="flex w-full">
@@ -285,6 +285,22 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                   businessExpenses={currentBusinessExpenses}
                   laborCosts={state.labor?.totalLaborCost || 0}
                   plCalculation={plCalculation}
+                  fullProducts={state.products}
+                  onUpdateProduct={(productId, updates) => {
+                    if (state.products) {
+                      const product = state.products.find(p => p.id === productId);
+                      if (product && actions.updateProduct) {
+                        const updatedProduct = { ...product };
+                        if (updates.monthlyUnits !== undefined) {
+                          updatedProduct.monthlyUnits = updates.monthlyUnits;
+                        }
+                        if (updates.sellingPrice !== undefined) {
+                          updatedProduct.sellingPrice = updates.sellingPrice;
+                        }
+                        actions.updateProduct(productId, updatedProduct);
+                      }
+                    }
+                  }}
                 />
               </div>
             </div>

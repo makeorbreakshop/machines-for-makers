@@ -2,9 +2,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Target, ChevronDown, ChevronRight, Clock, TrendingUp, Calculator } from 'lucide-react';
-import { CalculatedMetrics } from '../lib/calculator-types';
+import { CalculatedMetrics, Product } from '../lib/calculator-types';
 import { PLCalculation } from '../lib/pl-calculations';
 import { useState } from 'react';
+import { Input } from '@/components/ui/input';
 
 interface CalculatorDashboardProps {
   metrics: CalculatedMetrics;
@@ -23,11 +24,15 @@ interface CalculatorDashboardProps {
   };
   laborCosts?: number; // Monthly labor costs
   plCalculation?: PLCalculation; // Shared P&L calculation
+  fullProducts?: Product[]; // Full product objects for updating
+  onUpdateProduct?: (productId: string, updates: Partial<Product>) => void; // Callback to update products
 }
 
-export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses, laborCosts, plCalculation }: CalculatorDashboardProps) {
+export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses, laborCosts, plCalculation, fullProducts, onUpdateProduct }: CalculatorDashboardProps) {
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [expandedPL, setExpandedPL] = useState(true); // Start expanded
+  const [editingUnits, setEditingUnits] = useState<string | null>(null); // Track which product is being edited
+  const [editingPrice, setEditingPrice] = useState<string | null>(null); // Track which product price is being edited
   
   // Safety check for metrics object
   if (!metrics) {
@@ -114,9 +119,103 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     )}
                     <span className="font-medium text-base text-foreground">{productName}</span>
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                      {productMetric.unitsProduced || 0} units
-                    </span>
+                    
+                    <div className="ml-auto flex items-center gap-2">
+                      {/* Interactive Units Input */}
+                      {editingUnits === productId && onUpdateProduct && fullProducts ? (
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={productMetric.unitsProduced || ''}
+                            onChange={(e) => {
+                              const value = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                              const product = fullProducts.find(p => p.id === productId);
+                              if (product) {
+                                onUpdateProduct(productId, { monthlyUnits: value });
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                setEditingUnits(null);
+                              }
+                            }}
+                            className="w-20 h-7 text-sm"
+                            autoFocus
+                          />
+                          <span className="text-xs text-muted-foreground">units</span>
+                          <button
+                            className="text-xs text-primary hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingUnits(null);
+                            }}
+                          >
+                            Done
+                          </button>
+                        </div>
+                      ) : (
+                        <span 
+                          className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onUpdateProduct && fullProducts) {
+                              setEditingUnits(productId);
+                            }
+                          }}
+                        >
+                          {productMetric.unitsProduced || 0} units
+                        </span>
+                      )}
+                      
+                      {/* Interactive Price Input */}
+                      {editingPrice === productId && onUpdateProduct && fullProducts ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-xs text-muted-foreground">$</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={fullProducts.find(p => p.id === productId)?.sellingPrice || ''}
+                            onChange={(e) => {
+                              const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                              const product = fullProducts.find(p => p.id === productId);
+                              if (product) {
+                                onUpdateProduct(productId, { sellingPrice: value });
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                setEditingPrice(null);
+                              }
+                            }}
+                            className="w-20 h-7 text-sm"
+                            autoFocus
+                          />
+                          <button
+                            className="text-xs text-primary hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingPrice(null);
+                            }}
+                          >
+                            Done
+                          </button>
+                        </div>
+                      ) : (
+                        <span 
+                          className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors font-mono"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onUpdateProduct && fullProducts) {
+                              setEditingPrice(productId);
+                            }
+                          }}
+                        >
+                          ${fullProducts?.find(p => p.id === productId)?.sellingPrice?.toFixed(2) || '0.00'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-3 gap-3 text-sm">

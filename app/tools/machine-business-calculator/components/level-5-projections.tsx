@@ -119,10 +119,10 @@ export function Level5Projections({
 
             {/* Cost of Goods Sold */}
             <div className="space-y-1">
-              <div className="text-sm font-semibold text-gray-600 dark:text-gray-400">Cost of Goods Sold</div>
+              <div className="text-base font-semibold text-gray-700 dark:text-gray-300">Cost of Goods Sold</div>
               <div className="pl-3 space-y-0.5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Materials & Supplies</span>
+                <div className="flex justify-between text-base">
+                  <span className="text-gray-700 dark:text-gray-300">Materials & Supplies</span>
                   <span className="font-mono tabular-nums text-gray-600 dark:text-gray-400">
                     {formatCurrencyPrecise(
                       Object.values(metrics.productMetrics || {}).reduce(
@@ -135,9 +135,9 @@ export function Level5Projections({
                     )}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Direct Labor</span>
-                  <span className="font-mono text-muted-foreground">
+                <div className="flex justify-between text-base">
+                  <span className="text-gray-700 dark:text-gray-300">Direct Labor</span>
+                  <span className="font-mono text-gray-600 dark:text-gray-400">
                     {formatCurrencyPrecise(
                       Object.values(metrics.productMetrics || {}).reduce(
                         (sum, p: any) => sum + (p.costBreakdown?.labor || 0), 0
@@ -145,9 +145,9 @@ export function Level5Projections({
                     )}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Platform Fees</span>
-                  <span className="font-mono text-muted-foreground">
+                <div className="flex justify-between text-base">
+                  <span className="text-gray-700 dark:text-gray-300">Platform Fees</span>
+                  <span className="font-mono text-gray-600 dark:text-gray-400">
                     {formatCurrencyPrecise(
                       Object.values(metrics.productMetrics || {}).reduce(
                         (sum, p: any) => sum + (p.costBreakdown?.platformFees || 0), 0
@@ -157,8 +157,8 @@ export function Level5Projections({
                 </div>
               </div>
               <div className="flex justify-between font-medium border-t pt-2">
-                <span className="font-medium text-gray-600 dark:text-gray-400">Total COGS</span>
-                <span className="font-mono font-semibold tabular-nums text-gray-700 dark:text-gray-300">-{formatCurrency(productCosts)}</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">Total COGS</span>
+                <span className="font-mono font-semibold tabular-nums text-gray-600 dark:text-gray-400">-{formatCurrency(productCosts)}</span>
               </div>
             </div>
             
@@ -177,36 +177,36 @@ export function Level5Projections({
 
             {/* Operating Expenses */}
             <div className="space-y-1">
-              <div className="text-sm font-semibold text-gray-600 dark:text-gray-400">Operating Expenses</div>
+              <div className="text-base font-semibold text-gray-700 dark:text-gray-300">Operating Expenses</div>
               <div className="pl-3 space-y-0.5">
                 {marketingCosts > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Marketing & Advertising</span>
-                    <span className="font-mono text-muted-foreground">{formatCurrencyPrecise(marketingCosts)}</span>
+                  <div className="flex justify-between text-base">
+                    <span className="text-gray-700 dark:text-gray-300">Marketing & Advertising</span>
+                    <span className="font-mono text-gray-600 dark:text-gray-400">{formatCurrencyPrecise(marketingCosts)}</span>
                   </div>
                 )}
                 {indirectLaborCost > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Business Labor (Admin, etc.)</span>
-                    <span className="font-mono text-muted-foreground">{formatCurrencyPrecise(indirectLaborCost)}</span>
+                  <div className="flex justify-between text-base">
+                    <span className="text-gray-700 dark:text-gray-300">Business Labor (Admin, etc.)</span>
+                    <span className="font-mono text-gray-600 dark:text-gray-400">{formatCurrencyPrecise(indirectLaborCost)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Physical Costs</span>
-                  <span className="font-mono text-muted-foreground">{formatCurrencyPrecise(physicalCostsTotal)}</span>
+                <div className="flex justify-between text-base">
+                  <span className="text-gray-700 dark:text-gray-300">Physical Costs</span>
+                  <span className="font-mono text-gray-600 dark:text-gray-400">{formatCurrencyPrecise(physicalCostsTotal)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Software & Tools</span>
-                  <span className="font-mono text-muted-foreground">{formatCurrencyPrecise(softwareCostsTotal)}</span>
+                <div className="flex justify-between text-base">
+                  <span className="text-gray-700 dark:text-gray-300">Software & Tools</span>
+                  <span className="font-mono text-gray-600 dark:text-gray-400">{formatCurrencyPrecise(softwareCostsTotal)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Savings ({actualBusinessExpenses.savings.rate}%)</span>
-                  <span className="font-mono text-muted-foreground">{formatCurrencyPrecise(savingsCost)}</span>
+                <div className="flex justify-between text-base">
+                  <span className="text-gray-700 dark:text-gray-300">Savings ({actualBusinessExpenses.savings.rate}%)</span>
+                  <span className="font-mono text-gray-600 dark:text-gray-400">{formatCurrencyPrecise(savingsCost)}</span>
                 </div>
               </div>
               <div className="flex justify-between font-medium border-t pt-2">
-                <span className="text-muted-foreground">Total Operating</span>
-                <span className="font-mono text-muted-foreground">
+                <span className="text-gray-700 dark:text-gray-300">Total Operating</span>
+                <span className="font-mono text-gray-600 dark:text-gray-400">
                   -{formatCurrency(operatingExpensesBeforeTax)}
                 </span>
               </div>
@@ -215,10 +215,10 @@ export function Level5Projections({
             {/* Pre-Tax Profit */}
             <div className="border-t pt-3">
               <div className="flex justify-between items-center">
-                <span className="font-medium">Pre-Tax Profit (EBIT)</span>
+                <span className="font-semibold text-gray-700 dark:text-gray-300">Pre-Tax Profit (EBIT)</span>
                 <div className="text-right">
-                  <div className="font-mono font-bold">{formatCurrency(preTaxProfit)}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="font-mono font-bold text-lg tabular-nums text-gray-900 dark:text-gray-100">{formatCurrency(preTaxProfit)}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     {monthlyRevenue > 0 ? `${((preTaxProfit / monthlyRevenue) * 100).toFixed(1)}% margin` : 'N/A'}
                   </div>
                 </div>
@@ -227,9 +227,9 @@ export function Level5Projections({
 
             {/* Taxes */}
             <div className="space-y-1">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Tax Reserve ({totalTaxRate.toFixed(1)}% of pre-tax)</span>
-                <span className="font-mono text-muted-foreground">-{formatCurrencyPrecise(taxCost)}</span>
+              <div className="flex justify-between text-base">
+                <span className="text-gray-700 dark:text-gray-300">Tax Reserve ({totalTaxRate.toFixed(1)}% of pre-tax)</span>
+                <span className="font-mono text-gray-600 dark:text-gray-400">-{formatCurrencyPrecise(taxCost)}</span>
               </div>
             </div>
             
