@@ -236,7 +236,13 @@ export function Level1Setup({
                 ? product.platformFees 
                 : [{ id: 'direct-default', name: 'Direct Sales', feePercentage: 0, salesPercentage: 100 }];
               
-              const productMetrics = calculateProductMetrics({ ...product, platformFees }, state.hourlyRate || 0);
+              // Get the assigned worker's rate for this product
+              const productAssignments = (state.labor as any)?.productAssignments || {};
+              const assignedWorkerId = productAssignments[product.id] || 'owner';
+              const assignedWorker = state.labor?.workers?.find(w => w.id === assignedWorkerId);
+              const workerHourlyRate = assignedWorker?.hourlyRate ?? state.hourlyRate ?? 0;
+              
+              const productMetrics = calculateProductMetrics({ ...product, platformFees }, workerHourlyRate);
               const totalCosts = productMetrics.totalCosts;
               const unitProfit = (product.sellingPrice || 0) - totalCosts;
               const monthlyProfit = (product.monthlyUnits || 0) * unitProfit;
@@ -250,7 +256,7 @@ export function Level1Setup({
               const isExpanded = expandedSections[product.id];
               
               return (
-                <Card key={product.id} className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
+                <Card key={product.id} className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-0">
                     {/* Product Header */}
                     <div className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
@@ -550,7 +556,7 @@ export function Level1Setup({
                                     placeholder="0"
                                   />
                                   <span className="text-sm font-medium w-20 text-right">
-                                    {formatCurrencyCompact(((value || 0) / 60) * (state.hourlyRate || 0))}
+                                    {formatCurrencyCompact(((value || 0) / 60) * workerHourlyRate)}
                                   </span>
                                   <Button
                                     variant="ghost"

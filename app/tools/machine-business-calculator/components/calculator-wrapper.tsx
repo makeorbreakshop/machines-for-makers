@@ -260,8 +260,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'products' 
                   ? (isDarkMode 
-                      ? 'bg-blue-500/90 text-white shadow-sm' 
-                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                      ? 'bg-gray-700 text-white shadow-md' 
+                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
                   : (isDarkMode 
                       ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
@@ -273,8 +273,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'marketing' 
                   ? (isDarkMode 
-                      ? 'bg-blue-500/90 text-white shadow-sm' 
-                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                      ? 'bg-gray-700 text-white shadow-md' 
+                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
                   : (isDarkMode 
                       ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
@@ -286,8 +286,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'labor' 
                   ? (isDarkMode 
-                      ? 'bg-blue-500/90 text-white shadow-sm' 
-                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                      ? 'bg-gray-700 text-white shadow-md' 
+                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
                   : (isDarkMode 
                       ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
@@ -299,8 +299,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'business' 
                   ? (isDarkMode 
-                      ? 'bg-blue-500/90 text-white shadow-sm' 
-                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                      ? 'bg-gray-700 text-white shadow-md' 
+                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
                   : (isDarkMode 
                       ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')
@@ -312,8 +312,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
               className={`flex-1 font-medium transition-all duration-150 rounded-md py-2 px-3 ${
                 activeTab === 'pnl' 
                   ? (isDarkMode 
-                      ? 'bg-blue-500/90 text-white shadow-sm' 
-                      : 'bg-white text-gray-900 border border-gray-200 shadow-sm') 
+                      ? 'bg-gray-700 text-white shadow-md' 
+                      : 'bg-white text-gray-900 shadow-md border border-gray-200') 
                   : (isDarkMode 
                       ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60' 
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80')

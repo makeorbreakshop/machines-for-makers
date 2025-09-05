@@ -1,3 +1,26 @@
+export interface Material {
+  id: string;
+  name: string;
+  category: 'wood' | 'acrylic' | 'metal' | 'fabric' | 'paper' | 'plastic' | 'other';
+  supplier?: string;
+  purchaseUnit: string;      // e.g., "sheet", "roll", "pound", "yard"
+  purchaseSize?: string;      // e.g., "24x48 inches", "10 yards"
+  purchaseCost: number;       // Total cost for the purchase unit
+  batchQuantity: number;      // How many units in a batch
+  unitOfMeasure: string;      // e.g., "sq in", "linear ft", "piece"
+  unitCost: number;          // Calculated cost per unit
+  notes?: string;
+  lastUpdated?: Date;
+  inStock?: boolean;
+}
+
+export interface MaterialUsage {
+  materialId: string;
+  quantity: number;           // Amount used per product
+  unitCost: number;          // Cost at time of usage (snapshot)
+  totalCost: number;         // quantity * unitCost
+}
+
 export interface PlatformFee {
   id: string;
   name: string;          // Platform name (Etsy, Amazon, Direct, etc.)

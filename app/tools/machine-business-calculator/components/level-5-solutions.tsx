@@ -29,7 +29,7 @@ export function Level5Solutions({
         </p>
       </div>
 
-      <Card className="border-gray-200 shadow-sm">
+      <Card className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl text-gray-900">
             <Lightbulb className="w-5 h-5" />

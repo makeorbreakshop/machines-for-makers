@@ -98,7 +98,7 @@ export function Level5Projections({
   return (
     <div className="space-y-4">
       {/* P&L Statement */}
-      <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-lg">
+      <Card className="border-0 bg-white dark:bg-gray-800/50 shadow-lg">
         <CardContent className="p-0">
           <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
@@ -253,7 +253,7 @@ export function Level5Projections({
 
       {/* Time Period Projections */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <Activity className="h-4 w-4 text-gray-600 dark:text-gray-400" />
@@ -270,7 +270,7 @@ export function Level5Projections({
           </CardContent>
         </Card>
 
-        <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="h-4 w-4 text-gray-600 dark:text-gray-400" />
@@ -287,7 +287,7 @@ export function Level5Projections({
           </CardContent>
         </Card>
 
-        <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <DollarSign className="h-4 w-4 text-gray-600 dark:text-gray-400" />

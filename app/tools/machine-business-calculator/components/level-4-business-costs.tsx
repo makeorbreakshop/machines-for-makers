@@ -138,7 +138,7 @@ export function Level4BusinessCosts({
     <div className="space-y-4">
       <div className="space-y-4">
         {/* Physical Costs */}
-        <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-0">
             <Button
               variant="ghost"
@@ -245,7 +245,7 @@ export function Level4BusinessCosts({
         </Card>
 
         {/* Software & Tools */}
-        <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-0">
             <Button
               variant="ghost"
@@ -558,7 +558,7 @@ export function Level4BusinessCosts({
         </Card>
 
         {/* Business Expenses Summary */}
-        <Card className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-lg">
+        <Card className="border-0 bg-white dark:bg-gray-800/50 shadow-lg">
           <CardContent className="p-0">
             <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">

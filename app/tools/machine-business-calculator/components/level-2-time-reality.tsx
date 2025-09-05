@@ -59,7 +59,7 @@ export function Level2TimeReality({
       </div>
 
       {/* Hourly Rate Input */}
-      <Card className="border-gray-200 shadow-sm">
+      <Card className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl text-gray-900">
             <DollarSign className="w-5 h-5" />
@@ -109,7 +109,7 @@ export function Level2TimeReality({
           const actualHourlyRate = productMetric?.hourlyRate || 0;
           
           return (
-            <Card key={product.id} className="border-gray-200 shadow-sm">
+            <Card key={product.id} className="border-0 shadow-sm">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg text-gray-900">{product.name}</CardTitle>
@@ -140,9 +140,9 @@ export function Level2TimeReality({
                     <Input
                       type="number"
                       min="0"
-                      value={product.timeBreakdown.design || ''}
+                      value={product.timeBreakdown.design === 0 ? '' : product.timeBreakdown.design}
                       onChange={(e) => updateTimeBreakdown(product.id, 'design', parseInt(e.target.value) || 0)}
-                      placeholder="15"
+                      placeholder="0"
                       className="border-gray-300 focus:border-gray-500 focus:ring-gray-500"
                     />
                   </div>
@@ -155,9 +155,9 @@ export function Level2TimeReality({
                     <Input
                       type="number"
                       min="0"
-                      value={product.timeBreakdown.setup || ''}
+                      value={product.timeBreakdown.setup === 0 ? '' : product.timeBreakdown.setup}
                       onChange={(e) => updateTimeBreakdown(product.id, 'setup', parseInt(e.target.value) || 0)}
-                      placeholder="5"
+                      placeholder="0"
                       className="border-gray-300 focus:border-gray-500 focus:ring-gray-500"
                     />
                   </div>
@@ -170,9 +170,9 @@ export function Level2TimeReality({
                     <Input
                       type="number"
                       min="0"
-                      value={product.timeBreakdown.machine || ''}
+                      value={product.timeBreakdown.machine === 0 ? '' : product.timeBreakdown.machine}
                       onChange={(e) => updateTimeBreakdown(product.id, 'machine', parseInt(e.target.value) || 0)}
-                      placeholder="10"
+                      placeholder="0"
                       className="border-gray-300 focus:border-gray-500 focus:ring-gray-500"
                     />
                   </div>
@@ -185,9 +185,9 @@ export function Level2TimeReality({
                     <Input
                       type="number"
                       min="0"
-                      value={product.timeBreakdown.finishing || ''}
+                      value={product.timeBreakdown.finishing === 0 ? '' : product.timeBreakdown.finishing}
                       onChange={(e) => updateTimeBreakdown(product.id, 'finishing', parseInt(e.target.value) || 0)}
-                      placeholder="5"
+                      placeholder="0"
                       className="border-gray-300 focus:border-gray-500 focus:ring-gray-500"
                     />
                   </div>
@@ -200,9 +200,9 @@ export function Level2TimeReality({
                     <Input
                       type="number"
                       min="0"
-                      value={product.timeBreakdown.packaging || ''}
+                      value={product.timeBreakdown.packaging === 0 ? '' : product.timeBreakdown.packaging}
                       onChange={(e) => updateTimeBreakdown(product.id, 'packaging', parseInt(e.target.value) || 0)}
-                      placeholder="5"
+                      placeholder="0"
                       className="border-gray-300 focus:border-gray-500 focus:ring-gray-500"
                     />
                   </div>
@@ -246,7 +246,7 @@ export function Level2TimeReality({
 
       {/* Reality Check Summary */}
       {hasTimeBreakdowns && (
-        <Card className="border-gray-200 shadow-sm">
+        <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl text-gray-900">
               <TrendingUp className="w-5 h-5" />
