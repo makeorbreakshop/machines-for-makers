@@ -413,8 +413,8 @@ export function Level1Setup({
                           >
                             <div className="flex items-center gap-3">
                               <Package className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Material Costs</span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                              <span className="text-sm font-medium">Material Costs</span>
+                              <span className="text-sm text-muted-foreground">
                                 {costItemCount} {costItemCount === 1 ? 'item' : 'items'}
                               </span>
                             </div>
@@ -431,54 +431,73 @@ export function Level1Setup({
                           </button>
                           
                           {isExpanded?.materials && (
-                            <div className="px-4 pb-4 space-y-2">
+                            <div className="p-4 space-y-3">
+                              {/* Column headers - only show if there are materials */}
+                              {(materialUsage.length > 0 || Object.keys(costs).length > 0) && (
+                                <div className="grid grid-cols-12 gap-3 px-1 text-xs font-medium text-muted-foreground">
+                                  <span className="col-span-5">Material</span>
+                                  <span className="col-span-3 text-right">Qty × Price</span>
+                                  <span className="col-span-2 text-right">Total</span>
+                                  <span className="col-span-2"></span>
+                                </div>
+                              )}
+                              
                               {/* Display material usage */}
                               {materialUsage.map((usage, idx) => (
-                                <div key={idx} className="flex items-center gap-3">
-                                  <div className="flex-1 text-sm">
-                                    <span className="font-medium">{usage.name}</span>
-                                    <span className="text-muted-foreground ml-2">
-                                      {usage.quantity} × ${usage.unitCost.toFixed(2)}
-                                    </span>
+                                <div key={idx} className="grid grid-cols-12 gap-3 items-center">
+                                  <div className="col-span-5">
+                                    <Input
+                                      value={usage.name}
+                                      readOnly
+                                      className="h-9 text-sm bg-background"
+                                      placeholder="Material name"
+                                    />
                                   </div>
-                                  <div className="text-sm font-medium tabular-nums">
+                                  <div className="col-span-3 text-sm text-right text-muted-foreground tabular-nums">
+                                    {usage.quantity} × ${usage.unitCost.toFixed(2)}
+                                  </div>
+                                  <div className="col-span-2 text-sm font-medium text-right tabular-nums">
                                     ${usage.cost.toFixed(2)}
                                   </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setMaterialModalState({
-                                        open: true,
-                                        productId: product.id,
-                                        editingIndex: idx,
-                                        editingUsage: usage
-                                      });
-                                    }}
-                                    className="h-8 w-8 p-0 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                                  >
-                                    <Edit2 className="h-3 w-3" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onRemoveMaterialUsage(product.id, idx)}
-                                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
+                                  <div className="col-span-2 flex justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setMaterialModalState({
+                                          open: true,
+                                          productId: product.id,
+                                          editingIndex: idx,
+                                          editingUsage: usage
+                                        });
+                                      }}
+                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => onRemoveMaterialUsage(product.id, idx)}
+                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
                                 </div>
                               ))}
                               
                               {/* Show legacy costs if no material usage */}
                               {materialUsage.length === 0 && Object.entries(costs).map(([costType, value]) => (
-                                <div key={costType} className="flex items-center gap-3 text-sm text-muted-foreground">
-                                  <span className="flex-1">
+                                <div key={costType} className="grid grid-cols-12 gap-3 items-center">
+                                  <div className="col-span-5 text-sm">
                                     {costType.charAt(0).toUpperCase() + costType.slice(1).replace(/_/g, ' ')}
-                                  </span>
-                                  <span className="font-medium tabular-nums">
+                                  </div>
+                                  <div className="col-span-3"></div>
+                                  <div className="col-span-2 text-sm font-medium text-right tabular-nums">
                                     ${(value || 0).toFixed(2)}
-                                  </span>
+                                  </div>
+                                  <div className="col-span-2"></div>
                                 </div>
                               ))}
                               
@@ -492,7 +511,7 @@ export function Level1Setup({
                                     editingUsage: undefined
                                   });
                                 }}
-                                className="w-full h-9 text-sm text-muted-foreground hover:text-foreground mt-2"
+                                className="w-full h-9 text-sm text-muted-foreground hover:text-foreground mt-1"
                               >
                                 <Plus className="h-4 w-4 mr-2" />
                                 Add Material Cost
@@ -527,68 +546,75 @@ export function Level1Setup({
                           </button>
                           
                           {isExpanded?.labor && (
-                            <div className="px-4 pb-4 space-y-2">
-                              <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground px-1">
-                                <span className="flex-1">Task</span>
-                                <span className="w-24 text-center">Minutes</span>
-                                <span className="w-20 text-right">Cost</span>
-                                <span className="w-8"></span>
+                            <div className="p-4 space-y-3">
+                              {/* Column headers */}
+                              <div className="grid grid-cols-12 gap-3 px-1 text-xs font-medium text-muted-foreground">
+                                <span className="col-span-5">Task</span>
+                                <span className="col-span-3 text-center">Minutes</span>
+                                <span className="col-span-2 text-right">Cost</span>
+                                <span className="col-span-2"></span>
                               </div>
                               
                               {Object.entries(timeBreakdown).map(([timeType, value]) => (
-                                <div key={timeType} className="flex items-center gap-3">
-                                  <Input
-                                    value={timeType.charAt(0).toUpperCase() + timeType.slice(1).replace(/_/g, ' ')}
-                                    onChange={(e) => {
-                                      const newTimeType = e.target.value.toLowerCase().replace(/ /g, '_');
-                                      if (newTimeType !== timeType) {
-                                        const newTimeBreakdown = { ...timeBreakdown };
-                                        delete newTimeBreakdown[timeType];
-                                        newTimeBreakdown[newTimeType] = value;
-                                        onUpdateProduct(product.id, { timeBreakdown: newTimeBreakdown });
-                                      }
-                                    }}
-                                    className="h-9 text-sm flex-1"
-                                    placeholder="Task name"
-                                  />
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={value === 0 ? '0' : value || ''}
-                                    onChange={(e) => {
-                                      const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                                      onUpdateProduct(product.id, { 
-                                        timeBreakdown: { ...timeBreakdown, [timeType]: val || 0 }
-                                      });
-                                    }}
-                                    className="h-9 text-sm w-24"
-                                    placeholder="0"
-                                  />
-                                  <span className="text-sm font-medium w-20 text-right">
-                                    {formatCurrencyCompact(((value || 0) / 60) * workerHourlyRate)}
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => removeTimeItem(product.id, timeType)}
-                                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
+                                <div key={timeType} className="grid grid-cols-12 gap-3 items-center">
+                                  <div className="col-span-5">
+                                    <Input
+                                      value={timeType.charAt(0).toUpperCase() + timeType.slice(1).replace(/_/g, ' ')}
+                                      onChange={(e) => {
+                                        const newTimeType = e.target.value.toLowerCase().replace(/ /g, '_');
+                                        if (newTimeType !== timeType) {
+                                          const newTimeBreakdown = { ...timeBreakdown };
+                                          delete newTimeBreakdown[timeType];
+                                          newTimeBreakdown[newTimeType] = value;
+                                          onUpdateProduct(product.id, { timeBreakdown: newTimeBreakdown });
+                                        }
+                                      }}
+                                      className="h-9 text-sm bg-background"
+                                      placeholder="Task name"
+                                    />
+                                  </div>
+                                  <div className="col-span-3">
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      value={value === 0 ? '0' : value || ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                        onUpdateProduct(product.id, { 
+                                          timeBreakdown: { ...timeBreakdown, [timeType]: val || 0 }
+                                        });
+                                      }}
+                                      className="h-9 text-sm text-center tabular-nums bg-background"
+                                      placeholder="0"
+                                    />
+                                  </div>
+                                  <div className="col-span-2 text-sm font-medium text-right tabular-nums">
+                                    ${(((value || 0) / 60) * workerHourlyRate).toFixed(2)}
+                                  </div>
+                                  <div className="col-span-2 flex justify-end">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => removeTimeItem(product.id, timeType)}
+                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
                                 </div>
                               ))}
                               
                               <Button
                                 variant="ghost"
                                 onClick={() => addTimeItem(product.id)}
-                                className="w-full h-9 text-sm text-muted-foreground hover:text-foreground mt-2"
+                                className="w-full h-9 text-sm text-muted-foreground hover:text-foreground mt-1"
                               >
                                 <Plus className="h-4 w-4 mr-2" />
                                 Add Labor Task
                               </Button>
                             </div>
-                          )}
+                          ))
                         </div>
 
                         {/* Platform Fees Section */}
@@ -617,107 +643,116 @@ export function Level1Setup({
                           </button>
                           
                           {isExpanded?.platforms && (
-                            <div className="px-4 pb-4 space-y-3">
-                              <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground px-1">
-                                <span className="flex-1">Platform</span>
-                                <span className="w-20 text-center">Fee %</span>
-                                <span className="w-20 text-center">Sales %</span>
-                                <span className="w-16 text-center">Units</span>
-                                <span className="w-8"></span>
+                            <div className="p-4 space-y-3">
+                              {/* Column headers */}
+                              <div className="grid grid-cols-12 gap-3 px-1 text-xs font-medium text-muted-foreground">
+                                <span className="col-span-5">Platform</span>
+                                <span className="col-span-2 text-center">Fee %</span>
+                                <span className="col-span-2 text-center">Sales %</span>
+                                <span className="col-span-1 text-center">Units</span>
+                                <span className="col-span-2"></span>
                               </div>
                               
                               {platformFees.map(platformFee => (
-                                <div key={platformFee.id} className="flex items-center gap-3">
-                                  <Input
-                                    value={platformFee.name}
-                                    onChange={(e) => {
-                                      const updated = platformFees.map(pf =>
-                                        pf.id === platformFee.id ? { ...pf, name: e.target.value } : pf
-                                      );
-                                      onUpdateProduct(product.id, { platformFees: updated });
-                                    }}
-                                    className="h-9 text-sm flex-1"
-                                    placeholder="Platform name"
-                                  />
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="0.01"
-                                    value={platformFee.feePercentage || ''}
-                                    onChange={(e) => {
-                                      const updated = platformFees.map(pf =>
-                                        pf.id === platformFee.id 
-                                          ? { ...pf, feePercentage: parseFloat(e.target.value) || 0 }
-                                          : pf
-                                      );
-                                      onUpdateProduct(product.id, { platformFees: updated });
-                                    }}
-                                    className="h-9 text-sm w-20"
-                                    placeholder="0.00"
-                                  />
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="0.01"
-                                    value={platformFee.salesPercentage || ''}
-                                    onChange={(e) => {
-                                      const newPercentage = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
-                                      
-                                      if (platformFees.length === 1) {
+                                <div key={platformFee.id} className="grid grid-cols-12 gap-3 items-center">
+                                  <div className="col-span-5">
+                                    <Input
+                                      value={platformFee.name}
+                                      onChange={(e) => {
+                                        const updated = platformFees.map(pf =>
+                                          pf.id === platformFee.id ? { ...pf, name: e.target.value } : pf
+                                        );
+                                        onUpdateProduct(product.id, { platformFees: updated });
+                                      }}
+                                      className="h-9 text-sm bg-background"
+                                      placeholder="Platform name"
+                                    />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.01"
+                                      value={platformFee.feePercentage || ''}
+                                      onChange={(e) => {
                                         const updated = platformFees.map(pf =>
                                           pf.id === platformFee.id 
-                                            ? { ...pf, salesPercentage: newPercentage }
+                                            ? { ...pf, feePercentage: parseFloat(e.target.value) || 0 }
                                             : pf
                                         );
                                         onUpdateProduct(product.id, { platformFees: updated });
-                                      } else {
-                                        // Adjust others proportionally
-                                        const otherFees = platformFees.filter(pf => pf.id !== platformFee.id);
-                                        const currentOtherTotal = otherFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
-                                        const remainingPercentage = 100 - newPercentage;
-                                        
-                                        const updated = platformFees.map(pf => {
-                                          if (pf.id === platformFee.id) {
-                                            return { ...pf, salesPercentage: newPercentage };
-                                          } else if (currentOtherTotal > 0) {
-                                            const proportion = pf.salesPercentage / currentOtherTotal;
-                                            return { ...pf, salesPercentage: remainingPercentage * proportion };
-                                          } else {
-                                            return pf;
-                                          }
-                                        });
-                                        onUpdateProduct(product.id, { platformFees: updated });
-                                      }
-                                    }}
-                                    className="h-9 text-sm w-20"
-                                    placeholder="0.00"
-                                  />
-                                  <span className="text-sm text-muted-foreground w-16 text-center">
-                                    {Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100))}
-                                  </span>
-                                  {platformFees.length > 1 && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        const updated = platformFees.filter(pf => pf.id !== platformFee.id);
-                                        // Redistribute percentages
-                                        const totalPercentage = 100;
-                                        if (updated.length > 0) {
-                                          const equalShare = totalPercentage / updated.length;
-                                          updated.forEach(pf => {
-                                            pf.salesPercentage = equalShare;
-                                          });
-                                        }
-                                        onUpdateProduct(product.id, { platformFees: updated });
                                       }}
-                                      className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  )}
+                                      className="h-9 text-sm text-center tabular-nums bg-background"
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.01"
+                                      value={platformFee.salesPercentage || ''}
+                                      onChange={(e) => {
+                                        const newPercentage = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                                        
+                                        if (platformFees.length === 1) {
+                                          const updated = platformFees.map(pf =>
+                                            pf.id === platformFee.id 
+                                              ? { ...pf, salesPercentage: newPercentage }
+                                              : pf
+                                          );
+                                          onUpdateProduct(product.id, { platformFees: updated });
+                                        } else {
+                                          // Adjust others proportionally
+                                          const otherFees = platformFees.filter(pf => pf.id !== platformFee.id);
+                                          const currentOtherTotal = otherFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                          const remainingPercentage = 100 - newPercentage;
+                                          
+                                          const updated = platformFees.map(pf => {
+                                            if (pf.id === platformFee.id) {
+                                              return { ...pf, salesPercentage: newPercentage };
+                                            } else if (currentOtherTotal > 0) {
+                                              const proportion = pf.salesPercentage / currentOtherTotal;
+                                              return { ...pf, salesPercentage: remainingPercentage * proportion };
+                                            } else {
+                                              return pf;
+                                            }
+                                          });
+                                          onUpdateProduct(product.id, { platformFees: updated });
+                                        }
+                                      }}
+                                      className="h-9 text-sm text-center tabular-nums bg-background"
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                  <div className="col-span-1 text-sm text-muted-foreground text-center tabular-nums">
+                                    {Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100))}
+                                  </div>
+                                  <div className="col-span-2 flex justify-end">
+                                    {platformFees.length > 1 && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          const updated = platformFees.filter(pf => pf.id !== platformFee.id);
+                                          // Redistribute percentages
+                                          const totalPercentage = 100;
+                                          if (updated.length > 0) {
+                                            const equalShare = totalPercentage / updated.length;
+                                            updated.forEach(pf => {
+                                              pf.salesPercentage = equalShare;
+                                            });
+                                          }
+                                          onUpdateProduct(product.id, { platformFees: updated });
+                                        }}
+                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                               
@@ -733,7 +768,7 @@ export function Level1Setup({
                                   onUpdateProduct(product.id, { platformFees: [...platformFees, newPlatform] });
                                 }
                               }}>
-                                <SelectTrigger className="w-full h-9 text-sm">
+                                <SelectTrigger className="w-full h-9 text-sm text-muted-foreground hover:text-foreground">
                                   <SelectValue placeholder="+ Add Platform" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -748,7 +783,7 @@ export function Level1Setup({
                               {(() => {
                                 const total = platformFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
                                 return total !== 100 && total > 0 ? (
-                                  <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50/80 px-3 py-2 rounded-md border border-amber-200/50">
+                                  <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-500 bg-amber-50/50 dark:bg-amber-950/20 px-3 py-2 rounded-md border border-amber-200/50 dark:border-amber-800/50">
                                     <div className="w-1.5 h-1.5 bg-amber-500 rounded-full"></div>
                                     <span>Distribution totals {Math.round(total)}% (should be 100%)</span>
                                   </div>
