@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2, Layers, Cpu, Calculator } from 'lucide-react';
+import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2, Layers, Cpu, Calculator, RotateCw, Check } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { 
@@ -58,6 +58,7 @@ export function Level1Setup({
 }: Level1SetupProps) {
   const [showTemplates, setShowTemplates] = useState(false);
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({});
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [materialModalState, setMaterialModalState] = useState<{
     open: boolean;
     productId: string | null;
@@ -69,6 +70,16 @@ export function Level1Setup({
     productId: string | null;
     currentCostPerHour: number;
   }>({ open: false, productId: null, currentCostPerHour: 5 });
+  
+  // Batch mode state for labor
+  const [batchModeState, setBatchModeState] = useState<{
+    [productId: string]: {
+      active: boolean;
+      batchSize: number;
+      selectedTasks: Set<string>;
+      appliedBatches: { [taskKey: string]: number }; // Store which tasks have been batch-converted and by what size
+    };
+  }>({});
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { 
@@ -126,6 +137,8 @@ export function Level1Setup({
       ...prev,
       [id]: { materials: false, labor: false, platforms: false, machine: false }
     }));
+    // Auto-expand the newly added product
+    setExpandedProducts(prev => new Set([...prev, id]));
   };
 
   const addBlankProduct = () => {
@@ -167,6 +180,8 @@ export function Level1Setup({
       ...prev,
       [id]: { materials: false, labor: false, platforms: false, machine: false }
     }));
+    // Auto-expand the newly added product
+    setExpandedProducts(prev => new Set([...prev, id]));
   };
 
 
@@ -283,10 +298,28 @@ export function Level1Setup({
               return (
                 <Card key={product.id} className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-0">
-                    {/* Product Header */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-1">
+                    {/* Product Header - Clickable to expand/collapse */}
+                    <div className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between px-6 py-4">
+                        <button
+                          onClick={() => {
+                            setExpandedProducts(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(product.id)) {
+                                newSet.delete(product.id);
+                              } else {
+                                newSet.add(product.id);
+                              }
+                              return newSet;
+                            });
+                          }}
+                          className="flex items-center gap-2 flex-1 text-left"
+                        >
+                          {expandedProducts.has(product.id) ? (
+                            <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                          ) : (
+                            <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                          )}
                           <Package className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                           {product.isEditingName ? (
                             <Input
@@ -298,19 +331,23 @@ export function Level1Setup({
                                   onUpdateProduct(product.id, { isEditingName: false });
                                 }
                               }}
+                              onClick={(e) => e.stopPropagation()}
                               className="text-base font-medium max-w-xs"
                               placeholder={`Product ${index + 1}`}
                               autoFocus
                             />
                           ) : (
-                            <button
-                              onClick={() => onUpdateProduct(product.id, { isEditingName: true })}
-                              className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUpdateProduct(product.id, { isEditingName: true });
+                              }}
+                              className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-text"
                             >
                               {product.name || `Product ${index + 1}`}
-                            </button>
+                            </span>
                           )}
-                        </div>
+                        </button>
                         <div className="flex items-center gap-4">
                           <span className={`text-sm font-semibold tabular-nums ${
                             unitProfit > 0 ? 'text-green-600 dark:text-green-400' : unitProfit < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
@@ -334,6 +371,7 @@ export function Level1Setup({
                     </div>
                     
                     {/* Main Product Body - Mobile Optimized */}
+                    {expandedProducts.has(product.id) && (
                     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
                       {/* Key Metrics Grid - Responsive */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
@@ -566,8 +604,8 @@ export function Level1Setup({
                             <div className="flex items-center gap-3">
                               <Cpu className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm font-medium">Machine Time</span>
-                              <span className="text-sm text-muted-foreground">
-                                {timeBreakdown.machine || 0} minutes
+                              <span className={`text-sm ${batchModeState[product.id]?.appliedBatches?.['machine'] ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-muted-foreground'}`}>
+                                {(timeBreakdown.machine || 0).toFixed((timeBreakdown.machine || 0) % 1 !== 0 ? 2 : 0)} minutes
                               </span>
                             </div>
                             <div className="flex items-center gap-3">
@@ -587,6 +625,36 @@ export function Level1Setup({
                           
                           {isExpanded?.machine && (
                             <div className="px-4 pb-4 pt-2 space-y-3">
+                              {/* Machine batch mode controls */}
+                              {batchModeState[product.id]?.active && (
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md px-3 py-2">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={batchModeState[product.id]?.selectedTasks?.has('machine')}
+                                      onChange={(e) => {
+                                        const newSelected = new Set(batchModeState[product.id].selectedTasks);
+                                        if (e.target.checked) {
+                                          newSelected.add('machine');
+                                        } else {
+                                          newSelected.delete('machine');
+                                        }
+                                        setBatchModeState(prev => ({
+                                          ...prev,
+                                          [product.id]: {
+                                            ...prev[product.id],
+                                            selectedTasks: newSelected
+                                          }
+                                        }));
+                                      }}
+                                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-blue-700 dark:text-blue-400">
+                                      Include machine time in batch conversion
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                   <Label className="text-xs font-medium text-muted-foreground">Machine Minutes</Label>
@@ -607,7 +675,7 @@ export function Level1Setup({
                                         }
                                       });
                                     }}
-                                    className="h-9 text-sm bg-background"
+                                    className={`h-9 text-sm bg-background ${batchModeState[product.id]?.appliedBatches?.['machine'] ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}`}
                                     placeholder="0"
                                   />
                                 </div>
@@ -686,8 +754,14 @@ export function Level1Setup({
                               <Clock className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm font-medium">Labor</span>
                               <span className="text-sm text-muted-foreground">
-                                {laborMinutesTotal} minutes
+                                {laborMinutesTotal.toFixed(laborMinutesTotal % 1 !== 0 ? 2 : 0)} minutes
                               </span>
+                              {batchModeState[product.id]?.appliedBatches && 
+                               Object.keys(batchModeState[product.id].appliedBatches).filter(k => k !== 'machine').length > 0 && (
+                                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                  batch applied
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-3">
                               <span className="text-sm font-medium">
@@ -703,9 +777,129 @@ export function Level1Setup({
                           
                           {isExpanded?.labor && (
                             <div className="px-4 pb-4 pt-2 space-y-2">
+                              {/* Batch mode controls */}
+                              {batchModeState[product.id]?.active && (
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md px-3 py-2 mb-3">
+                                  <div className="flex items-center gap-3">
+                                    <RotateCw className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Batch Mode:</span>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      value={batchModeState[product.id].batchSize}
+                                      onChange={(e) => {
+                                        const newSize = parseInt(e.target.value) || 1;
+                                        setBatchModeState(prev => ({
+                                          ...prev,
+                                          [product.id]: {
+                                            ...prev[product.id],
+                                            batchSize: newSize
+                                          }
+                                        }));
+                                      }}
+                                      className="h-7 w-20 text-sm"
+                                      placeholder="30"
+                                    />
+                                    <span className="text-sm text-blue-700 dark:text-blue-400">units per batch</span>
+                                    <div className="ml-auto flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        onClick={() => {
+                                          // Apply batch conversion
+                                          const batchState = batchModeState[product.id];
+                                          const newTimeBreakdown = { ...timeBreakdown };
+                                          const newAppliedBatches = { ...batchState.appliedBatches };
+                                          
+                                          batchState.selectedTasks.forEach(taskKey => {
+                                            if (taskKey in newTimeBreakdown) {
+                                              // Convert to per-unit time
+                                              newTimeBreakdown[taskKey] = Math.round((newTimeBreakdown[taskKey] / batchState.batchSize) * 100) / 100;
+                                              newAppliedBatches[taskKey] = batchState.batchSize;
+                                            }
+                                          });
+                                          
+                                          // Also update machine time if it was converted
+                                          const machineUpdates: any = { timeBreakdown: newTimeBreakdown };
+                                          if (batchState.selectedTasks.has('machine') && product.machineTime) {
+                                            machineUpdates.machineTime = {
+                                              ...product.machineTime,
+                                              machineMinutes: newTimeBreakdown.machine,
+                                              totalCost: (newTimeBreakdown.machine / 60) * (product.machineTime.costPerHour || 5)
+                                            };
+                                          }
+                                          
+                                          onUpdateProduct(product.id, machineUpdates);
+                                          
+                                          // Exit batch mode but remember what was converted
+                                          setBatchModeState(prev => ({
+                                            ...prev,
+                                            [product.id]: {
+                                              ...batchState,
+                                              active: false,
+                                              selectedTasks: new Set(),
+                                              appliedBatches: newAppliedBatches
+                                            }
+                                          }));
+                                        }}
+                                        className="h-7"
+                                      >
+                                        Apply
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          // Cancel batch mode and restore per-unit values
+                                          const batchState = batchModeState[product.id];
+                                          const appliedBatches = batchState.appliedBatches || {};
+                                          const restoredTimeBreakdown = { ...timeBreakdown };
+                                          
+                                          // Convert back to per-unit for previously converted tasks
+                                          Object.keys(appliedBatches).forEach(taskKey => {
+                                            if (taskKey in restoredTimeBreakdown && appliedBatches[taskKey]) {
+                                              restoredTimeBreakdown[taskKey] = Math.round((restoredTimeBreakdown[taskKey] / appliedBatches[taskKey]) * 100) / 100;
+                                            }
+                                          });
+                                          
+                                          onUpdateProduct(product.id, { timeBreakdown: restoredTimeBreakdown });
+                                          
+                                          // Restore machine time if it was converted
+                                          if (appliedBatches['machine'] && product.machineTime) {
+                                            onUpdateProduct(product.id, {
+                                              timeBreakdown: restoredTimeBreakdown,
+                                              machineTime: {
+                                                ...product.machineTime,
+                                                machineMinutes: restoredTimeBreakdown.machine,
+                                                totalCost: (restoredTimeBreakdown.machine / 60) * (product.machineTime.costPerHour || 5)
+                                              }
+                                            });
+                                          }
+                                          
+                                          setBatchModeState(prev => ({
+                                            ...prev,
+                                            [product.id]: {
+                                              ...prev[product.id],
+                                              active: false,
+                                              selectedTasks: new Set()
+                                            }
+                                          }));
+                                        }}
+                                        className="h-7"
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
                               {/* Column headers */}
                               <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
-                                <span className="col-span-5">Task</span>
+                                {batchModeState[product.id]?.active && (
+                                  <span className="col-span-1"></span>
+                                )}
+                                <span className={batchModeState[product.id]?.active ? "col-span-4" : "col-span-5"}>Task</span>
                                 <span className="col-span-2 text-center">Worker</span>
                                 <span className="col-span-2 text-center">Minutes</span>
                                 <span className="col-span-2 text-right">Cost</span>
@@ -717,10 +911,39 @@ export function Level1Setup({
                                 .map(([timeType, value]) => {
                                 // Get the assigned worker name
                                 const workerName = assignedWorker?.name || 'You';
+                                const batchState = batchModeState[product.id];
+                                const isInBatchMode = batchState?.active;
+                                const isSelected = batchState?.selectedTasks?.has(timeType);
+                                const batchSize = batchState?.appliedBatches?.[timeType];
                                 
                                 return (
                                   <div key={timeType} className="grid grid-cols-12 gap-2 items-center">
-                                    <div className="col-span-5">
+                                    {/* Checkbox for batch mode */}
+                                    {isInBatchMode && (
+                                      <div className="col-span-1 flex justify-center">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={(e) => {
+                                            const newSelected = new Set(batchState.selectedTasks);
+                                            if (e.target.checked) {
+                                              newSelected.add(timeType);
+                                            } else {
+                                              newSelected.delete(timeType);
+                                            }
+                                            setBatchModeState(prev => ({
+                                              ...prev,
+                                              [product.id]: {
+                                                ...prev[product.id],
+                                                selectedTasks: newSelected
+                                              }
+                                            }));
+                                          }}
+                                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                      </div>
+                                    )}
+                                    <div className={isInBatchMode ? "col-span-4" : "col-span-5"}>
                                       <Input
                                         defaultValue={timeType ? timeType.charAt(0).toUpperCase() + timeType.slice(1).replace(/_/g, ' ') : ''}
                                         onBlur={(e) => {
@@ -779,7 +1002,7 @@ export function Level1Setup({
                                             timeBreakdown: { ...timeBreakdown, [timeType]: numericValue }
                                           });
                                         }}
-                                        className="h-9 text-sm text-center tabular-nums bg-background"
+                                        className={`h-9 text-sm text-center tabular-nums bg-background ${batchSize ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}`}
                                         placeholder="0"
                                         inputMode="decimal"
                                       />
@@ -801,14 +1024,81 @@ export function Level1Setup({
                                 );
                               })}
                               
-                              <Button
-                                variant="ghost"
-                                onClick={() => addTimeItem(product.id)}
-                                className="w-full h-9 text-sm text-muted-foreground hover:text-foreground mt-1"
-                              >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add Labor Task
-                              </Button>
+                              <div className="flex gap-2 mt-1">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => addTimeItem(product.id)}
+                                  className="flex-1 h-9 text-sm text-muted-foreground hover:text-foreground"
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add Labor Task
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => {
+                                    const currentBatchState = batchModeState[product.id] || {
+                                      active: false,
+                                      batchSize: 30,
+                                      selectedTasks: new Set(),
+                                      appliedBatches: {}
+                                    };
+                                    
+                                    if (currentBatchState.active) {
+                                      // Cancel batch mode
+                                      setBatchModeState(prev => ({
+                                        ...prev,
+                                        [product.id]: {
+                                          ...currentBatchState,
+                                          active: false,
+                                          selectedTasks: new Set()
+                                        }
+                                      }));
+                                    } else {
+                                      // Enter batch mode - pre-select all tasks and convert times back to batch totals
+                                      const allTaskKeys = Object.keys(timeBreakdown).filter(key => key !== 'machine');
+                                      const appliedBatches = currentBatchState.appliedBatches || {};
+                                      
+                                      // Convert times back to batch totals for tasks that were previously converted
+                                      const batchTimeBreakdown = { ...timeBreakdown };
+                                      Object.keys(appliedBatches).forEach(taskKey => {
+                                        if (taskKey in batchTimeBreakdown && appliedBatches[taskKey]) {
+                                          // Multiply back by the batch size to get batch total
+                                          batchTimeBreakdown[taskKey] = Math.round(batchTimeBreakdown[taskKey] * appliedBatches[taskKey] * 100) / 100;
+                                        }
+                                      });
+                                      
+                                      // Update the product with batch totals temporarily
+                                      onUpdateProduct(product.id, { timeBreakdown: batchTimeBreakdown });
+                                      
+                                      // Also update machine time if it was converted
+                                      if (appliedBatches['machine'] && product.machineTime) {
+                                        onUpdateProduct(product.id, {
+                                          timeBreakdown: batchTimeBreakdown,
+                                          machineTime: {
+                                            ...product.machineTime,
+                                            machineMinutes: batchTimeBreakdown.machine,
+                                            totalCost: (batchTimeBreakdown.machine / 60) * (product.machineTime.costPerHour || 5)
+                                          }
+                                        });
+                                      }
+                                      
+                                      setBatchModeState(prev => ({
+                                        ...prev,
+                                        [product.id]: {
+                                          ...currentBatchState,
+                                          active: true,
+                                          selectedTasks: new Set(allTaskKeys),
+                                          batchSize: currentBatchState.batchSize || 30
+                                        }
+                                      }));
+                                    }
+                                  }}
+                                  className="flex-1 h-9 text-sm text-muted-foreground hover:text-foreground"
+                                >
+                                  <RotateCw className="h-4 w-4 mr-2" />
+                                  Batch Mode
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -999,6 +1289,7 @@ export function Level1Setup({
                         </div>
                       </div>
                     </div>
+                    )}
                   </CardContent>
                 </Card>
               );
