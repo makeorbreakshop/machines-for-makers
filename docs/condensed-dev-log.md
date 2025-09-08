@@ -660,3 +660,14 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Solution**: Route-based theme isolation - calculator has independent theme system, main site forced light mode
 - **Technical**: Calculator-specific theme toggle, localStorage separation (`calculator-theme` key), bypass global ThemeProvider
 - **Impact**: Complete theme independence - users can toggle calculator dark mode without affecting site navigation
+
+### 2025-09-05: Machine Business Calculator - Major UI/UX Enhancements
+- **Issue**: Multiple UI problems - P&L text too small, sidebar editing not working, tabs invisible in dark mode, Labor tab inconsistent
+- **P&L Typography**: Increased font size from text-sm to text-base, fixed color hierarchy (categories vs costs)
+- **Sidebar Editing**: Added inline click-to-edit for product units/prices, fixed state management flow through wrapper component
+- **Dark Mode Tabs**: JavaScript-based conditional styling with high contrast (blue-600 on slate-900) for visibility
+- **Labor Tab Standardization**: Complete refactor using Card components matching other tabs, fixed weekly/monthly cost display
+- **Time Input Fix**: Resolved backspace/delete issues on 0 values in Products tab time breakdown fields
+- **Worker Rate Integration**: Products tab now uses actual worker rates from Labor assignments, not generic hourly rate
+- **Impact**: Professional unified interface, improved readability, efficient inline editing workflow, proper dark mode support
+- **Technical**: State management through actions pattern, conditional JSX classes for dark mode, weekly cost unification

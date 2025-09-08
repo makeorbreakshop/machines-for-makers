@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2 } from 'lucide-react';
+import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2, Layers } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { 
@@ -313,12 +313,12 @@ export function Level1Setup({
                       </div>
                     </div>
                     
-                    {/* Main Product Body */}
-                    <div className="p-6 space-y-6">
-                      {/* Key Metrics Grid */}
-                      <div className="grid grid-cols-4 gap-4">
+                    {/* Main Product Body - Mobile Optimized */}
+                    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                      {/* Key Metrics Grid - Responsive */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Selling Price</Label>
+                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Selling Price</Label>
                           <Input
                             type="number"
                             step="0.01"
@@ -327,12 +327,13 @@ export function Level1Setup({
                               sellingPrice: parseFloat(e.target.value) || 0 
                             })}
                             placeholder="0.00"
-                            className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
+                            inputMode="decimal"
+                            className="h-10 sm:h-9 text-base sm:text-sm bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Units/Month</Label>
+                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Units/Month</Label>
                           <Input
                             type="number"
                             step="1"
@@ -341,20 +342,21 @@ export function Level1Setup({
                               monthlyUnits: parseInt(e.target.value) || 0 
                             })}
                             placeholder="0"
-                            className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
+                            inputMode="numeric"
+                            className="h-10 sm:h-9 text-base sm:text-sm bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Cost</Label>
+                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Total Cost</Label>
                           <div className="h-10 px-3 flex items-center text-base font-semibold tabular-nums rounded-md border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700">
                             {formatCurrencyCompact(totalCosts)}
                           </div>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Monthly Profit</Label>
-                          <div className={`h-10 px-3 flex items-center text-base font-bold tabular-nums rounded-md border ${
+                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Monthly Profit</Label>
+                          <div className={`h-10 px-3 flex items-center text-base sm:text-sm font-bold tabular-nums rounded-md border ${
                             monthlyProfit > 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : 
                             monthlyProfit < 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 
                             'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'
@@ -364,13 +366,13 @@ export function Level1Setup({
                         </div>
                       </div>
 
-                      {/* Expandable Cost Sections */}
+                      {/* Expandable Cost Sections - Mobile Optimized */}
                       <div className="space-y-3">
                         {/* Material Costs Section */}
                         <div className="bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
                           <button
                             onClick={() => toggleSection(product.id, 'materials')}
-                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors rounded-lg"
+                            className="w-full px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors rounded-lg min-h-[48px]"
                           >
                             <div className="flex items-center gap-3">
                               <Package className="h-4 w-4 text-gray-500 dark:text-gray-400" />
@@ -393,74 +395,144 @@ export function Level1Setup({
                           
                           {isExpanded?.materials && (
                             <div className="px-4 pb-4 pt-2 space-y-2">
-                              {/* Column headers - only show if there are materials */}
-                              {materialUsage.length > 0 && (
-                                <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
-                                  <span className="col-span-5">Material</span>
-                                  <span className="col-span-2 text-center">Qty</span>
-                                  <span className="col-span-2 text-center">Price</span>
-                                  <span className="col-span-2 text-right">Total</span>
-                                  <span className="col-span-1"></span>
-                                </div>
-                              )}
+                              {/* Column headers */}
+                              <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
+                                <span className="col-span-5">Material</span>
+                                <span className="col-span-2 text-center">Qty</span>
+                                <span className="col-span-2 text-center">Price</span>
+                                <span className="col-span-2 text-right">Total</span>
+                                <span className="col-span-1"></span>
+                              </div>
                               
-                              {/* Display material usage */}
-                              {materialUsage.map((usage, idx) => (
-                                <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                                  <div className="col-span-5">
-                                    <button
-                                      onClick={() => {
-                                        setMaterialModalState({
-                                          open: true,
-                                          productId: product.id,
-                                          editingIndex: idx,
-                                          editingUsage: usage
-                                        });
-                                      }}
-                                      className="h-9 px-3 text-sm text-left w-full hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                                    >
-                                      {usage.name || 'Unnamed material'}
-                                    </button>
+                              {/* Display existing materials */}
+                              {materialUsage.map((usage, idx) => {
+                                const isBatch = usage.isBatch || (usage.batchQuantities && usage.batchQuantities.length > 0);
+                                
+                                return (
+                                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                                    <div className="col-span-5">
+                                      {isBatch ? (
+                                        <div className="relative flex items-center gap-2">
+                                          <Layers className="h-3.5 w-3.5 text-blue-500 absolute left-2 z-10" />
+                                          <button
+                                            onClick={() => {
+                                              setMaterialModalState({
+                                                open: true,
+                                                productId: product.id,
+                                                editingIndex: idx,
+                                                editingUsage: usage
+                                              });
+                                            }}
+                                            className="h-9 pl-8 pr-3 text-sm text-left w-full hover:bg-blue-900/20 rounded transition-colors text-blue-400 hover:text-blue-300"
+                                          >
+                                            {usage.name || 'Unnamed material'}
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <Input
+                                          value={usage.name || ''}
+                                          onChange={(e) => {
+                                            const updatedUsage = { ...usage, name: e.target.value };
+                                            onUpdateMaterialUsage(product.id, idx, updatedUsage);
+                                          }}
+                                          className="h-9 text-sm bg-background"
+                                          placeholder="Material name"
+                                        />
+                                      )}
+                                    </div>
+                                    <div className="col-span-2">
+                                      <Input
+                                        type="number"
+                                        value={usage.quantity || 1}
+                                        onChange={(e) => {
+                                          const qty = parseFloat(e.target.value) || 1;
+                                          const updatedUsage = { 
+                                            ...usage, 
+                                            quantity: qty,
+                                            cost: qty * usage.unitCost
+                                          };
+                                          onUpdateMaterialUsage(product.id, idx, updatedUsage);
+                                        }}
+                                        className={`h-9 text-sm text-center bg-background ${isBatch ? 'text-blue-400' : ''}`}
+                                        min="0"
+                                        step="0.01"
+                                      />
+                                    </div>
+                                    <div className="col-span-2">
+                                      <div className="relative">
+                                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-sm ${isBatch ? 'text-blue-500' : 'text-muted-foreground'}`}>$</span>
+                                        <Input
+                                          type="number"
+                                          value={usage.unitCost || 0}
+                                          onChange={(e) => {
+                                            const cost = parseFloat(e.target.value) || 0;
+                                            const updatedUsage = { 
+                                              ...usage, 
+                                              unitCost: cost,
+                                              cost: usage.quantity * cost
+                                            };
+                                            onUpdateMaterialUsage(product.id, idx, updatedUsage);
+                                          }}
+                                          className={`h-9 text-sm pl-6 bg-background text-center ${isBatch ? 'text-blue-400' : ''}`}
+                                          min="0"
+                                          step="0.01"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className={`col-span-2 text-sm font-medium text-right tabular-nums ${isBatch ? 'text-blue-400' : ''}`}>
+                                      ${usage.cost.toFixed(2)}
+                                    </div>
+                                    <div className="col-span-1 flex justify-end">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          onRemoveMaterialUsage(product.id, idx);
+                                        }}
+                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
                                   </div>
-                                  <div className="col-span-2 text-sm text-center text-muted-foreground tabular-nums">
-                                    {usage.quantity} ×
-                                  </div>
-                                  <div className="col-span-2 text-sm text-center text-muted-foreground tabular-nums">
-                                    ${usage.unitCost.toFixed(2)}
-                                  </div>
-                                  <div className="col-span-2 text-sm font-medium text-right tabular-nums">
-                                    ${usage.cost.toFixed(2)}
-                                  </div>
-                                  <div className="col-span-1 flex justify-end">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        onRemoveMaterialUsage(product.id, idx);
-                                      }}
-                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                               
-                              <Button
-                                variant="ghost"
-                                onClick={() => {
-                                  setMaterialModalState({
-                                    open: true,
-                                    productId: product.id,
-                                    editingIndex: null,
-                                    editingUsage: undefined
-                                  });
-                                }}
-                                className="w-full h-9 text-sm text-muted-foreground hover:text-foreground mt-1"
-                              >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add Material Cost
-                              </Button>
+                              {/* Add Material Buttons */}
+                              <div className="flex gap-2 mt-1">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => {
+                                    // Add a new empty material
+                                    onAddMaterialUsage(product.id, {
+                                      name: '',
+                                      quantity: 1,
+                                      unitCost: 0,
+                                      cost: 0,
+                                      isBatch: false
+                                    });
+                                  }}
+                                  className="flex-1 h-9 text-sm text-muted-foreground hover:text-foreground"
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add Material
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setMaterialModalState({
+                                      open: true,
+                                      productId: product.id,
+                                      editingIndex: null,
+                                      editingUsage: undefined
+                                    });
+                                  }}
+                                  className="flex-1 h-9 text-sm text-muted-foreground hover:text-foreground"
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add Batch Material
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>

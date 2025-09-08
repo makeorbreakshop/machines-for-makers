@@ -102,13 +102,19 @@ export function MaterialCostModal({
   const handleSubmit = () => {
     const quantity = parseFloat(usageQuantity) || 0;
     
-    // Create material usage
+    // Create material usage with batch flag since it comes from batch pricing modal
     const usage: MaterialUsage = {
       materialId: selectedMaterialId === 'new' ? undefined : selectedMaterialId,
       name: materialName,
       quantity,
       unitCost,
       cost: totalCost,
+      isBatch: true, // Mark as batch since it comes from batch pricing modal
+      batchQuantities: [{
+        quantity: parseFloat(batchQuantity) || 1,
+        totalCost: parseFloat(batchCost) || 0,
+        unitCost: unitCost
+      }]
     };
 
     // Save to library if needed

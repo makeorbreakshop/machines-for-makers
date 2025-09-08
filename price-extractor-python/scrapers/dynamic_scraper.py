@@ -1420,23 +1420,26 @@ class DynamicScraper:
                         '.entry-summary [data-price]'
                     ]
             elif 'cloudraylaser.com' in domain:
-                # CloudRay specific price selectors - need to find the bundle total
-                logger.info("🎯 CloudRay detected - using special selectors for bundle totals")
+                # CloudRay specific price selectors - need to find the INDIVIDUAL machine price (NOT bundle)
+                logger.info("🎯 CloudRay detected - using special selectors for individual machine price")
                 price_selectors = [
-                    # Look for the final bundle/total price (usually last data-price)
-                    '[data-price]:last-of-type',
-                    
-                    # Price display areas
-                    '.price__container .price-item--regular',
+                    # Primary price display areas - individual machine price
+                    '.price__container .price__regular .price-item--regular',
                     '.price__container .price-item--sale',
                     '.product__price .price-item--regular',
                     '.product__price .price-item--sale',
+                    
+                    # Individual product price (NOT bundle) - first data-price is usually the machine
+                    '[data-price]:first-of-type',
+                    '.product-single__price [data-price]',
                     
                     # Fallback to generic price selectors
                     '.product-price .price',
                     '.price-current',
                     '.product__price',
                     '.price'
+                    
+                    # NOTE: Avoiding '[data-price]:last-of-type' as it's often the bundle total
                 ]
             elif 'xtool.com' in domain:
                 # xTool Shopify-specific selectors
@@ -1528,6 +1531,10 @@ class DynamicScraper:
                                 # Skip 1064 which is the wavelength (1064nm)
                                 if price and (price == 1064 or price == 1064.0):
                                     logger.debug(f"Skipping CloudRay wavelength value: ${price} (1064nm)")
+                                    continue
+                                # Skip bundle totals - usually > $10,000 and contain "total" in text
+                                if price and price > 10000 and 'total' in price_text.lower():
+                                    logger.debug(f"Skipping CloudRay bundle total: ${price} (text contains 'total')")
                                     continue
                                 # Skip prices under $2000 for CloudRay machines (base prices start around $2599)
                                 if price and price < 2000:

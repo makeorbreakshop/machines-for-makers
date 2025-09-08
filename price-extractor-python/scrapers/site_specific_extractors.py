@@ -242,7 +242,11 @@ class SiteSpecificExtractor:
                     'input[data-price]',             # Input elements with prices
                     '.product-form__input [data-price]',  # Form inputs
                     '.variant-selector [data-price]', # Variant selectors
-                    '.product-form__buttons [data-price]'  # Button price data
+                    '.product-form__buttons [data-price]',  # Button price data
+                    # IMPORTANT: Avoid bundle/total prices
+                    '.product-bundle-total [data-price]',  # Bundle total
+                    '.total-price [data-price]',  # Total price
+                    '[data-price]:last-of-type'  # Often the bundle total
                 ],
                 'prefer_json_ld': True,
                 'json_ld_paths': [
@@ -251,15 +255,15 @@ class SiteSpecificExtractor:
                     'price'
                 ],
                 'price_selectors': [
-                    # Primary price display areas
+                    # Primary price display areas - individual machine price
                     '.price__container .price__regular .price-item--regular',
                     '.price__container .price-item--sale',
                     '.product__price .price-item--regular',
+                    '.product__price .price-item--sale',
                     
-                    # Bundle total price (what we want)
-                    '[data-price]:not(option):not(input):not(select):last-of-type',
-                    '.product-bundle-total [data-price]',
-                    '.total-price [data-price]',
+                    # Individual product price (NOT bundle)
+                    '.price:not(.total-price):not(.bundle-price) [data-price]',
+                    '.product-single__price [data-price]',
                     
                     # Fallback selectors
                     '.product-price .price',
@@ -1150,7 +1154,7 @@ class SiteSpecificExtractor:
         
         # Method 1: JSON-LD (for Shopify sites)
         if rules.get('prefer_json_ld', False):
-            price, method = self._extract_json_ld_with_paths(soup, rules.get('json_ld_paths', []))
+            price, method = self._extract_json_ld_with_paths(soup, rules.get('json_ld_paths', []), domain)
             if price and self._validate_price(price, rules, machine_data):
                 return price, f"Site-specific JSON-LD ({method})"
         
@@ -2025,7 +2029,7 @@ class SiteSpecificExtractor:
         logger.warning(f"Could not find table price for {machine_name}")
         return None, None
     
-    def _extract_json_ld_with_paths(self, soup, json_ld_paths):
+    def _extract_json_ld_with_paths(self, soup, json_ld_paths, domain=None):
         """Extract from JSON-LD using specific paths."""
         json_ld_scripts = soup.find_all('script', type='application/ld+json')
         
@@ -2038,17 +2042,19 @@ class SiteSpecificExtractor:
                 items = data if isinstance(data, list) else [data]
                 
                 for item in items:
-                    for path in json_ld_paths:
-                        value = self._get_nested_value(item, path)
-                        if value:
-                            logger.debug(f"Found price at path '{path}': {value}")
-                            if isinstance(value, (int, float)):
-                                return float(value), path
-                            else:
-                                # Try to parse string value
-                                parsed = self._parse_price_string(str(value))
-                                if parsed:
-                                    return parsed, path
+                    # CloudRay uses ProductGroup instead of Product
+                    if item.get('@type') in ['Product', 'ProductGroup']:
+                        for path in json_ld_paths:
+                            value = self._get_nested_value(item, path)
+                            if value:
+                                logger.debug(f"Found price at path '{path}': {value}")
+                                if isinstance(value, (int, float)):
+                                    return float(value), path
+                                else:
+                                    # Try to parse string value
+                                    parsed = self._parse_price_string(str(value))
+                                    if parsed:
+                                        return parsed, path
                                     
             except (json.JSONDecodeError, AttributeError) as e:
                 logger.debug(f"Error parsing JSON-LD script {script_idx}: {e}")
@@ -2250,8 +2256,8 @@ class SiteSpecificExtractor:
         
         # Extract first price (handle cases with multiple prices like "$8,888 $6,666")
         # Look for price patterns: 1,234.56 or 1234.56 or 1234
-        # Updated regex to properly capture comma-separated thousands
-        matches = re.findall(r'\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?', price_str)
+        # Updated regex - match full decimal numbers first, then comma-separated, then plain integers
+        matches = re.findall(r'\d+\.\d{1,2}|\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+', price_str)
         
         # Debug regex matches
         if "270" in price_str or "80" in price_str:

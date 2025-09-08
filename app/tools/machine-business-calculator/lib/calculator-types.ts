@@ -13,6 +13,12 @@ export interface MaterialUsage {
   quantity: number;          // Amount used per product
   unitCost: number;          // Cost per unit
   cost: number;              // Total: quantity * unitCost
+  isBatch?: boolean;         // Whether this material comes from batch pricing
+  batchQuantities?: Array<{  // Batch pricing tiers for reference
+    quantity: number;
+    totalCost: number;
+    unitCost: number;
+  }>;
 }
 
 export interface PlatformFee {
