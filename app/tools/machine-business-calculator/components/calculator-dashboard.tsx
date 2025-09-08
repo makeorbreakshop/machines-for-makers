@@ -368,7 +368,7 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
             });
             
             // Add hours from production (if we have product assignments)
-            const productAssignments = (laborState as any).productAssignments || {};
+            const productAssignments = laborState.productAssignments || {};
             if (fullProducts) {
               fullProducts.forEach(product => {
                 const productMetrics = metrics.productMetrics?.[product.id];

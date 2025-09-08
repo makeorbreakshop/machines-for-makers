@@ -34,23 +34,38 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const endDate = new Date();
     
-    // Build query
-    let query = supabase
-      .from('email_subscribers')
-      .select('source, referrer, created_at, email')
-      .gte('created_at', startDate.toISOString())
-      .lt('created_at', endDate.toISOString());
+    // Fetch subscribers using pagination
+    let subscribers: any[] = [];
+    let offset = 0;
+    const pageSize = 1000;
+    let hasMore = true;
     
-    // Filter by funnel if specified
-    if (funnel !== 'all') {
-      query = query.ilike('source', `${funnel}%`);
-    }
-    
-    const { data: subscribers, error } = await query;
-    
-    if (error) {
-      console.error('Error fetching subscribers:', error);
-      return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
+    while (hasMore) {
+      // Build query
+      let query = supabase
+        .from('email_subscribers')
+        .select('source, referrer, created_at, email')
+        .gte('created_at', startDate.toISOString())
+        .lt('created_at', endDate.toISOString())
+        .range(offset, offset + pageSize - 1);
+      
+      // Filter by funnel if specified
+      if (funnel !== 'all') {
+        query = query.ilike('source', `${funnel}%`);
+      }
+      
+      const { data: batch, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching subscribers batch:', error);
+        hasMore = false;
+      } else if (batch && batch.length > 0) {
+        subscribers = subscribers.concat(batch);
+        offset += pageSize;
+        hasMore = batch.length === pageSize;
+      } else {
+        hasMore = false;
+      }
     }
     
     // Process the data to extract UTM parameters

@@ -66,18 +66,56 @@ export async function GET(request: NextRequest) {
       ? ((rangeSubscribers! - previousPeriodSubscribers) / previousPeriodSubscribers * 100).toFixed(1)
       : '0';
     
-    // Get chart data for specified date range
-    const { data: chartData } = await supabase
-      .from('email_subscribers')
-      .select('created_at, source')
-      .gte('created_at', rangeStart.toISOString())
-      .order('created_at', { ascending: true });
+    // Get chart data for specified date range using pagination
+    let chartData: any[] = [];
+    let chartOffset = 0;
+    const chartPageSize = 1000;
+    let hasMoreChart = true;
     
-    // Get source breakdown for specified date range
-    const { data: sourceData } = await supabase
-      .from('email_subscribers')
-      .select('source')
-      .gte('created_at', rangeStart.toISOString());
+    while (hasMoreChart) {
+      const { data: chartBatch, error: chartError } = await supabase
+        .from('email_subscribers')
+        .select('created_at, source')
+        .gte('created_at', rangeStart.toISOString())
+        .order('created_at', { ascending: true })
+        .range(chartOffset, chartOffset + chartPageSize - 1);
+      
+      if (chartError) {
+        console.error('Error fetching chart data batch:', chartError);
+        hasMoreChart = false;
+      } else if (chartBatch && chartBatch.length > 0) {
+        chartData = chartData.concat(chartBatch);
+        chartOffset += chartPageSize;
+        hasMoreChart = chartBatch.length === chartPageSize;
+      } else {
+        hasMoreChart = false;
+      }
+    }
+    
+    // Get source breakdown for specified date range using pagination
+    let sourceData: any[] = [];
+    let sourceOffset = 0;
+    const sourcePageSize = 1000;
+    let hasMoreSource = true;
+    
+    while (hasMoreSource) {
+      const { data: sourceBatch, error: sourceError } = await supabase
+        .from('email_subscribers')
+        .select('source')
+        .gte('created_at', rangeStart.toISOString())
+        .range(sourceOffset, sourceOffset + sourcePageSize - 1);
+      
+      if (sourceError) {
+        console.error('Error fetching source data batch:', sourceError);
+        hasMoreSource = false;
+      } else if (sourceBatch && sourceBatch.length > 0) {
+        sourceData = sourceData.concat(sourceBatch);
+        sourceOffset += sourcePageSize;
+        hasMoreSource = sourceBatch.length === sourcePageSize;
+      } else {
+        hasMoreSource = false;
+      }
+    }
     
     // Get recent signups (last 10)
     const { data: recentSignups } = await supabase

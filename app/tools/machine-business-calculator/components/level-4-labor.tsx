@@ -74,19 +74,20 @@ export function Level4Labor({
     const totalBusinessHours = laborState.businessTasks.reduce((sum, task) => sum + task.hoursPerWeek, 0);
     const totalHoursNeeded = laborState.productionHoursPerWeek + totalBusinessHours;
     
-    // Calculate labor costs for business tasks
-    let totalLaborCost = 0;
+    // Calculate labor costs for business tasks (OPERATING EXPENSES)
+    let businessTasksLaborCost = 0;
     laborState.businessTasks.forEach(task => {
       // Default to owner if no worker assigned
       const assignedWorkerId = task.assignedWorkerId || 'owner';
       const worker = laborState.workers.find(w => w.id === assignedWorkerId);
       if (worker) {
-        totalLaborCost += task.hoursPerWeek * worker.hourlyRate;
+        businessTasksLaborCost += task.hoursPerWeek * worker.hourlyRate;
       }
     });
     
-    // Calculate labor costs for product hours
-    const productAssignments = (laborState as any).productAssignments || {};
+    // Calculate labor costs for product hours (COGS)
+    let productLaborCost = 0;
+    const productAssignments = laborState.productAssignments || {};
     if (state.products) {
       state.products.forEach(product => {
         const productMetrics = metrics.productMetrics?.[product.id];
@@ -95,11 +96,14 @@ export function Level4Labor({
           const assignedWorkerId = productAssignments[product.id] || 'owner';
           const worker = laborState.workers.find(w => w.id === assignedWorkerId);
           if (worker) {
-            totalLaborCost += weeklyHours * worker.hourlyRate;
+            productLaborCost += weeklyHours * worker.hourlyRate;
           }
         }
       });
     }
+    
+    // Total labor cost is sum of both
+    const totalLaborCost = businessTasksLaborCost + productLaborCost;
     
     // Calculate total assigned hours for unassigned calculation
     let totalAssignedHours = 0;
@@ -150,6 +154,8 @@ export function Level4Labor({
       ...laborState,
       totalHoursNeeded,
       totalLaborCost: totalLaborCost * 4.33, // Convert to monthly
+      businessTasksLaborCost: businessTasksLaborCost * 4.33, // Convert to monthly (for Operating Expenses)
+      productLaborCost: productLaborCost * 4.33, // Convert to monthly (for COGS)
       unassignedHours,
       ownerHours,
       productAssignments
@@ -160,7 +166,7 @@ export function Level4Labor({
     laborState.productionHoursPerWeek,
     JSON.stringify(laborState.businessTasks),
     JSON.stringify(laborState.workers),
-    JSON.stringify((laborState as any).productAssignments),
+    JSON.stringify(laborState.productAssignments),
     JSON.stringify(state.products),
     JSON.stringify(metrics.productMetrics),
     onUpdateLabor
@@ -215,7 +221,7 @@ export function Level4Labor({
     
     setLaborState(prev => {
       // Find all product assignments that need to be reassigned
-      const productAssignments = (prev as any).productAssignments || {};
+      const productAssignments = prev.productAssignments || {};
       const updatedProductAssignments = { ...productAssignments };
       
       // Reassign products from removed worker to owner
@@ -274,35 +280,9 @@ export function Level4Labor({
   const totalAssignedHours = laborState.workers.reduce((sum, worker) => sum + worker.assignedHours, 0);
   const unassignedHours = Math.max(0, totalHoursNeeded - totalAssignedHours);
 
-  // Calculate total labor cost
-  const totalLaborCost = laborState.workers.reduce((sum, worker) => {
-    let workerHours = 0;
-    
-    // Add hours from business tasks
-    laborState.businessTasks.forEach(task => {
-      const assignedWorkerId = task.assignedWorkerId || 'owner';
-      if (assignedWorkerId === worker.id) {
-        workerHours += task.hoursPerWeek;
-      }
-    });
-    
-    // Add hours from products
-    const productAssignments = (laborState as any).productAssignments || {};
-    if (state.products) {
-      state.products.forEach(product => {
-        const productMetrics = metrics.productMetrics?.[product.id];
-        if (productMetrics) {
-          const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
-          const assignedWorkerId = productAssignments[product.id] || 'owner';
-          if (assignedWorkerId === worker.id) {
-            workerHours += weeklyHours;
-          }
-        }
-      });
-    }
-    
-    return sum + (workerHours * worker.hourlyRate * 4.33);
-  }, 0);
+  // Use the total labor cost from state (already calculated and monthly)
+  const totalLaborCostMonthly = laborState.totalLaborCost || 0;
+  const totalLaborCostWeekly = totalLaborCostMonthly / 4.33;
 
   return (
     <div className="space-y-4">
@@ -337,7 +317,7 @@ export function Level4Labor({
                       });
                       
                       // Add hours from product assignments
-                      const productAssignments = (laborState as any).productAssignments || {};
+                      const productAssignments = laborState.productAssignments || {};
                       if (state.products) {
                         state.products.forEach(product => {
                           const productMetrics = metrics.productMetrics?.[product.id];
@@ -377,7 +357,7 @@ export function Level4Labor({
                 });
                 
                 // Add hours from product assignments
-                const productAssignments = (laborState as any).productAssignments || {};
+                const productAssignments = laborState.productAssignments || {};
                 if (state.products) {
                   state.products.forEach(product => {
                     const productMetrics = metrics.productMetrics?.[product.id];
@@ -482,7 +462,22 @@ export function Level4Labor({
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">
-                    {formatCurrency((laborState.productionHoursPerWeek * (laborState.workers[0]?.hourlyRate ?? 25)))}/wk
+                    {(() => {
+                      let totalProductionCost = 0;
+                      const productAssignments = laborState.productAssignments || {};
+                      if (state.products) {
+                        state.products.forEach(product => {
+                          const productMetric = metrics.productMetrics?.[product.id];
+                          if (productMetric) {
+                            const weeklyHours = (productMetric.monthlyTimeHours || 0) / 4.33;
+                            const assignedWorkerId = productAssignments[product.id] || 'owner';
+                            const worker = laborState.workers.find(w => w.id === assignedWorkerId);
+                            totalProductionCost += weeklyHours * (worker?.hourlyRate ?? 25);
+                          }
+                        });
+                      }
+                      return formatCurrency(totalProductionCost);
+                    })()}/wk
                   </span>
                   <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${productionExpanded ? 'transform rotate-180' : ''}`} />
                 </div>
@@ -499,7 +494,7 @@ export function Level4Labor({
                   
                   const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
                   const productName = product.name || `Product ${index + 1}`;
-                  const assignedWorker = laborState.workers.find(w => w.id === (laborState as any).productAssignments?.[product.id]) || laborState.workers.find(w => w.id === 'owner');
+                  const assignedWorker = laborState.workers.find(w => w.id === laborState.productAssignments?.[product.id]) || laborState.workers.find(w => w.id === 'owner');
                   const weeklyAmount = weeklyHours * (assignedWorker?.hourlyRate ?? 25);
                   
                   return (
@@ -520,12 +515,12 @@ export function Level4Labor({
                       
                       {/* Worker Assignment */}
                       <Select
-                        value={((laborState as any).productAssignments?.[product.id]) || "owner"}
+                        value={(laborState.productAssignments?.[product.id]) || "owner"}
                         onValueChange={(workerId) => {
                           setLaborState(prev => ({
                             ...prev,
                             productAssignments: {
-                              ...((prev as any).productAssignments || {}),
+                              ...(prev.productAssignments || {}),
                               [product.id]: workerId
                             }
                           }));
@@ -582,7 +577,11 @@ export function Level4Labor({
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">
-                    {formatCurrency(totalBusinessHours * (laborState.workers[0]?.hourlyRate ?? 25))}/wk
+                    {formatCurrency(laborState.businessTasks.reduce((sum, task) => {
+                      const assignedWorkerId = task.assignedWorkerId || 'owner';
+                      const worker = laborState.workers.find(w => w.id === assignedWorkerId);
+                      return sum + (task.hoursPerWeek * (worker?.hourlyRate ?? 25));
+                    }, 0))}/wk
                   </span>
                   <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${businessTasksExpanded ? 'transform rotate-180' : ''}`} />
                 </div>
@@ -685,7 +684,7 @@ export function Level4Labor({
                 });
                 
                 // Add hours from product assignments
-                const productAssignments = (laborState as any).productAssignments || {};
+                const productAssignments = laborState.productAssignments || {};
                 if (state.products) {
                   state.products.forEach(product => {
                     const productMetrics = metrics.productMetrics?.[product.id];
@@ -720,12 +719,12 @@ export function Level4Labor({
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-base text-gray-900 dark:text-gray-100">Total Labor Cost (Monthly)</span>
-                <span className="font-mono font-black text-xl tabular-nums text-gray-900 dark:text-gray-100">{formatCurrencyCompact(totalLaborCost)}</span>
+                <span className="font-mono font-black text-xl tabular-nums text-gray-900 dark:text-gray-100">{formatCurrencyCompact(totalLaborCostMonthly)}</span>
               </div>
               
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600 dark:text-gray-400">Total Labor Cost (Weekly)</span>
-                <span className="font-mono font-semibold text-sm tabular-nums text-gray-700 dark:text-gray-300">{formatCurrencyCompact(totalLaborCost / 4.33)}</span>
+                <span className="font-mono font-semibold text-sm tabular-nums text-gray-700 dark:text-gray-300">{formatCurrencyCompact(totalLaborCostWeekly)}</span>
               </div>
               
               <div className="flex justify-between items-center text-sm">

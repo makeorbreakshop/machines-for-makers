@@ -163,21 +163,30 @@ function processEmailChartData(chartData: Array<{ created_at: string }>) {
     }
   });
   
-  // Convert to chart format
-  return Object.entries(dailyCounts).map(([date, count]) => ({
-    date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    emails: count,
-    clicks: 0, // Will be filled from funnel data
-    traffic: 0 // Will be filled from funnel data
-  }));
+  // Convert to chart format - FIX: use UTC to avoid timezone issues
+  return Object.entries(dailyCounts).map(([date, count]) => {
+    // Parse the date string and format it correctly without timezone shifts
+    const [year, month, day] = date.split('-');
+    const displayDate = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
+    
+    return {
+      date: displayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+      dateKey: date, // Preserve the actual date for mapping
+      emails: count,
+      clicks: 0, // Will be filled from funnel data
+      traffic: 0 // Will be filled from funnel data
+    };
+  });
 }
 
 
 export default function DashboardClient() {
   const [emailStats, setEmailStats] = useState<EmailStats | null>(null);
   const [funnelData, setFunnelData] = useState<FunnelData | null>(null);
+  const [dashboardTotals, setDashboardTotals] = useState<any>(null);
   const [combinedChartData, setCombinedChartData] = useState<Array<{
     date: string;
+    dateKey?: string;
     emails: number;
     clicks: number;
     traffic: number;
@@ -233,9 +242,32 @@ export default function DashboardClient() {
           setFunnelData(funnelDataRes);
         }
 
+        // Fetch dashboard totals using the new function
+        const totalsResponse = await fetch('/api/admin/analytics/dashboard-totals');
+        const dashboardTotalsData = totalsResponse.ok ? await totalsResponse.json() : null;
+        
+        if (dashboardTotalsData) {
+          setDashboardTotals(dashboardTotalsData);
+        }
+
         // Fetch clicks chart data
         const clicksResponse = await fetch('/api/admin/analytics/clicks-chart?days=30');
         const clicksData = clicksResponse.ok ? await clicksResponse.json() : null;
+        
+        console.log('🔍 DEBUG: Clicks API Response:', {
+          status: clicksResponse.status,
+          ok: clicksResponse.ok,
+          dataLength: clicksData?.chartData?.length,
+          firstFew: clicksData?.chartData?.slice(0, 3),
+          lastFew: clicksData?.chartData?.slice(-3),
+          sept6Count: clicksData?.chartData?.filter((d: any) => 
+            d.clicked_at?.startsWith('2025-09-06'))?.length,
+          sept7Count: clicksData?.chartData?.filter((d: any) => 
+            d.clicked_at?.startsWith('2025-09-07'))?.length,
+          sept8Count: clicksData?.chartData?.filter((d: any) => 
+            d.clicked_at?.startsWith('2025-09-08'))?.length,
+          lastClickDate: clicksData?.chartData?.[clicksData?.chartData?.length - 1]?.clicked_at
+        });
 
         // Fetch traffic data from the same API as the analytics overview page
         const startDate = new Date();
@@ -262,18 +294,41 @@ export default function DashboardClient() {
         const emailChartCounts = emailData?.chartData ? processEmailChartData(emailData.chartData) : [];
         const clickChartCounts = clicksData?.chartData ? processClicksChartData(clicksData.chartData) : {};
         
+        console.log('🔍 DEBUG: Click Chart Counts:', {
+          totalDays: Object.keys(clickChartCounts).length,
+          sampleDates: Object.keys(clickChartCounts).slice(0, 5),
+          lastDates: Object.keys(clickChartCounts).slice(-5),
+          sept6: clickChartCounts['2025-09-06'],
+          sept7: clickChartCounts['2025-09-07'],
+          sept8: clickChartCounts['2025-09-08'],
+          today: clickChartCounts[new Date().toISOString().split('T')[0]]
+        });
+        
         // Merge email, click, and traffic data
-        const combined = emailChartCounts.map((emailDay, index) => {
-          // Get the actual date key for this day (30 days ago + index)
-          const actualDate = new Date();
-          actualDate.setDate(actualDate.getDate() - (29 - index));
-          const dateKey = actualDate.toISOString().split('T')[0];
+        const combined = emailChartCounts.map((emailDay) => {
+          // Use the preserved dateKey instead of recalculating
+          const dateKey = emailDay.dateKey;
+          
+          console.log(`🔍 DEBUG: Day mapping:`, {
+            displayDate: emailDay.date,
+            actualDateKey: dateKey,
+            clicksFound: clickChartCounts[dateKey] || 0
+          });
           
           return {
             ...emailDay,
             clicks: clickChartCounts[dateKey] || 0,
             traffic: trafficByDate[dateKey] || 0
           };
+        });
+
+        console.log('🔍 DEBUG: Combined Chart Data:', {
+          totalDays: combined.length,
+          last7Days: combined.slice(-7).map(d => ({
+            date: d.date,
+            clicks: d.clicks
+          })),
+          todayData: combined[combined.length - 1]
         });
 
         setCombinedChartData(combined);
@@ -304,13 +359,28 @@ export default function DashboardClient() {
 
   // Calculate totals
   const totalEmailSignups = emailStats?.totalSubscribers || 0;
-  const totalLeadClicks = funnelData?.totals?.clicks || 0;
+  const totalLeadClicks = dashboardTotals?.total_lead_clicks || funnelData?.totals?.clicks || 0;
   const totalSubmissions = funnelData?.totals?.submissions || 0;
   const totalConfirmed = funnelData?.totals?.confirmed || 0;
 
   // Generate 7-day totals and percentage changes
   const last7Days = combinedChartData.slice(-7);
   const previous7Days = combinedChartData.slice(-14, -7);
+  
+  const todayDate = new Date().toISOString().split('T')[0];
+  const todayData = combinedChartData.find(d => d.dateKey === todayDate);
+  
+  console.log('🎯 DASHBOARD DISPLAY DEBUG:', {
+    currentDate: todayDate,
+    todayDataFromFind: todayData,
+    last7Days: last7Days.map(d => ({
+      date: d.date,
+      dateKey: d.dateKey,
+      clicks: d.clicks
+    })),
+    lastDayInArray: last7Days[last7Days.length - 1],
+    todayClicksShown: last7Days.length > 0 ? last7Days[last7Days.length - 1]?.clicks || 0 : 0
+  });
   
   // Calculate 7-day totals
   const emails7DayTotal = last7Days.reduce((sum, day) => sum + day.emails, 0);

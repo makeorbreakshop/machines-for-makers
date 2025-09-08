@@ -141,11 +141,16 @@ export interface LaborState {
   // Workers
   workers: Worker[];
   
+  // Product to worker assignments
+  productAssignments?: { [productId: string]: string };
+  
   // Calculated totals
   totalHoursNeeded?: number;
   totalLaborCost?: number;
   unassignedHours?: number;
   ownerHours?: number;
+  businessTasksLaborCost?: number;
+  productLaborCost?: number;
 }
 
 export interface BusinessCost {
@@ -294,6 +299,8 @@ export const DEFAULT_MARKETING_STATE: MarketingState = {
         id: 'craft-shows',
         name: 'Craft Shows',
         monthlySpend: 0,
+        monthlyAttendance: 0,
+        salesRate: 15,
         conversionRate: 15,
         unitsPerMonth: 0,
         costPerUnit: 0,
@@ -303,6 +310,8 @@ export const DEFAULT_MARKETING_STATE: MarketingState = {
         id: 'maker-faires',
         name: 'Maker Faires',
         monthlySpend: 0,
+        monthlyAttendance: 0,
+        salesRate: 12,
         conversionRate: 12,
         unitsPerMonth: 0,
         costPerUnit: 0,

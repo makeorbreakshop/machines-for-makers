@@ -271,7 +271,7 @@ export function Level1Setup({
                 : [{ id: 'direct-default', name: 'Direct Sales', feePercentage: 0, salesPercentage: 100 }];
               
               // Get the assigned worker's rate for this product
-              const productAssignments = (state.labor as any)?.productAssignments || {};
+              const productAssignments = state.labor?.productAssignments || {};
               const assignedWorkerId = productAssignments[product.id] || 'owner';
               const assignedWorker = state.labor?.workers?.find(w => w.id === assignedWorkerId);
               const workerHourlyRate = assignedWorker?.hourlyRate ?? state.hourlyRate ?? 0;
@@ -967,7 +967,7 @@ export function Level1Setup({
                                       <Select
                                         value={assignedWorkerId || 'owner'}
                                         onValueChange={(workerId) => {
-                                          const productAssignments = (state.labor as any)?.productAssignments || {};
+                                          const productAssignments = state.labor?.productAssignments || {};
                                           const updatedAssignments = { ...productAssignments, [product.id]: workerId };
                                           onUpdateLabor({ 
                                             ...state.labor,

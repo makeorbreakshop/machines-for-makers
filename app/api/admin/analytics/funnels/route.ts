@@ -123,25 +123,44 @@ export async function GET(request: NextRequest) {
     
     // Process each lead magnet's funnel data
     const funnelData = await Promise.all(leadMagnets.map(async (leadMagnet) => {
-      // Get clicks from short links pointing to this landing page
-      const { data: clicks } = await supabase
-        .from('link_clicks')
-        .select(`
-          *,
-          short_links!inner(
-            slug,
-            destination_url,
-            utm_source,
-            utm_medium,
-            utm_campaign,
-            utm_content,
-            metadata
-          )
-        `)
-        .eq('short_links.destination_url', leadMagnet.landing_page_url)
-        .gte('clicked_at', startDate.toISOString())
-        .lt('clicked_at', endDate.toISOString())
-        .eq('is_bot', false);
+      // Get clicks from short links pointing to this landing page using pagination
+      let clicks: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: batch, error: batchError } = await supabase
+          .from('link_clicks')
+          .select(`
+            *,
+            short_links!inner(
+              slug,
+              destination_url,
+              utm_source,
+              utm_medium,
+              utm_campaign,
+              utm_content,
+              metadata
+            )
+          `)
+          .eq('short_links.destination_url', leadMagnet.landing_page_url)
+          .gte('clicked_at', startDate.toISOString())
+          .lt('clicked_at', endDate.toISOString())
+          .eq('is_bot', false)
+          .range(offset, offset + pageSize - 1);
+        
+        if (batchError) {
+          console.error('Error fetching clicks batch:', batchError);
+          hasMore = false;
+        } else if (batch && batch.length > 0) {
+          clicks = clicks.concat(batch);
+          offset += pageSize;
+          hasMore = batch.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
       
       // Get email submissions that came through this lead magnet's landing page
       // Match by the destination URL in the referrer or by matching UTM campaigns
@@ -377,21 +396,42 @@ export async function GET(request: NextRequest) {
     
     // Calculate lead-magnet-specific campaign data for each funnel
     const totalSignups = allSubscribers?.length || 0;
-    const { data: allCampaignClicks } = await supabase
-      .from('link_clicks')
-      .select(`
-        clicked_at,
-        short_links!inner(
-          utm_campaign,
-          utm_source,
-          utm_medium,
-          destination_url,
-          metadata
-        )
-      `)
-      .gte('clicked_at', startDate.toISOString())
-      .lt('clicked_at', endDate.toISOString())
-      .eq('is_bot', false);
+    
+    // Get all campaign clicks using pagination
+    let allCampaignClicks: any[] = [];
+    let campaignOffset = 0;
+    const campaignPageSize = 1000;
+    let hasMoreCampaignClicks = true;
+    
+    while (hasMoreCampaignClicks) {
+      const { data: campaignBatch, error: campaignError } = await supabase
+        .from('link_clicks')
+        .select(`
+          clicked_at,
+          short_links!inner(
+            utm_campaign,
+            utm_source,
+            utm_medium,
+            destination_url,
+            metadata
+          )
+        `)
+        .gte('clicked_at', startDate.toISOString())
+        .lt('clicked_at', endDate.toISOString())
+        .eq('is_bot', false)
+        .range(campaignOffset, campaignOffset + campaignPageSize - 1);
+      
+      if (campaignError) {
+        console.error('Error fetching campaign clicks batch:', campaignError);
+        hasMoreCampaignClicks = false;
+      } else if (campaignBatch && campaignBatch.length > 0) {
+        allCampaignClicks = allCampaignClicks.concat(campaignBatch);
+        campaignOffset += campaignPageSize;
+        hasMoreCampaignClicks = campaignBatch.length === campaignPageSize;
+      } else {
+        hasMoreCampaignClicks = false;
+      }
+    }
 
     // Add campaign data to each funnel
     funnelData.forEach(funnel => {
