@@ -96,8 +96,8 @@ export function MaterialCostModal({
     }
   }, [selectedMaterialId, materials]);
 
-  const unitCost = parseFloat(batchCost) / parseFloat(batchQuantity) || 0;
-  const totalCost = unitCost * parseFloat(usageQuantity) || 0;
+  const unitCost = Math.round((parseFloat(batchCost) / parseFloat(batchQuantity) || 0) * 100) / 100;
+  const totalCost = Math.round((unitCost * parseFloat(usageQuantity) || 0) * 100) / 100;
 
   const handleSubmit = () => {
     const quantity = parseFloat(usageQuantity) || 0;

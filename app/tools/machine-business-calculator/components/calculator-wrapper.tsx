@@ -410,6 +410,8 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
                     }
                   }}
                   onReset={actions.resetCalculator}
+                  laborState={state.labor}
+                  onUpdateLabor={actions.updateLabor}
                 />
               </div>
             </div>

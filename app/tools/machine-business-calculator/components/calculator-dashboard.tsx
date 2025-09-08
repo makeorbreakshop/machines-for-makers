@@ -10,8 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { DollarSign, Target, ChevronDown, ChevronRight, Clock, TrendingUp, Calculator, RotateCcw } from 'lucide-react';
-import { CalculatedMetrics, Product } from '../lib/calculator-types';
+import { DollarSign, Target, ChevronDown, ChevronRight, Clock, TrendingUp, Calculator, RotateCcw, Users } from 'lucide-react';
+import { CalculatedMetrics, Product, LaborState } from '../lib/calculator-types';
 import { PLCalculation } from '../lib/pl-calculations';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
@@ -36,13 +36,17 @@ interface CalculatorDashboardProps {
   fullProducts?: Product[]; // Full product objects for updating
   onUpdateProduct?: (productId: string, updates: Partial<Product>) => void; // Callback to update products
   onReset?: () => void; // Callback to reset calculator
+  laborState?: LaborState; // Labor state for People section
+  onUpdateLabor?: (updates: Partial<LaborState>) => void; // Callback to update labor
 }
 
-export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses, laborCosts, plCalculation, fullProducts, onUpdateProduct, onReset }: CalculatorDashboardProps) {
+export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab, businessExpenses, laborCosts, plCalculation, fullProducts, onUpdateProduct, onReset, laborState, onUpdateLabor }: CalculatorDashboardProps) {
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+  const [expandedPeople, setExpandedPeople] = useState<Set<string>>(new Set());
   const [expandedPL, setExpandedPL] = useState(true); // Start expanded
   const [editingUnits, setEditingUnits] = useState<string | null>(null); // Track which product is being edited
   const [editingPrice, setEditingPrice] = useState<string | null>(null); // Track which product price is being edited
+  const [editingWage, setEditingWage] = useState<string | null>(null); // Track which worker wage is being edited
   const [showResetDialog, setShowResetDialog] = useState(false);
   
   // Safety check for metrics object
@@ -58,6 +62,16 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
       newExpanded.add(productId);
     }
     setExpandedProducts(newExpanded);
+  };
+
+  const togglePerson = (workerId: string) => {
+    const newExpanded = new Set(expandedPeople);
+    if (newExpanded.has(workerId)) {
+      newExpanded.delete(workerId);
+    } else {
+      newExpanded.add(workerId);
+    }
+    setExpandedPeople(newExpanded);
   };
 
   const formatCurrency = (amount: number) => {
@@ -105,11 +119,11 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
   return (
     <div className="space-y-3">
 
-      {/* Product Performance */}
+      {/* Products Section */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <DollarSign className="h-4 w-4 text-primary" />
-          <h3 className="text-lg font-medium text-foreground">Product Performance</h3>
+          <h3 className="text-lg font-medium text-foreground">Products</h3>
         </div>
         
         {metrics.productMetrics && Object.keys(metrics.productMetrics).length > 0 ? (
@@ -331,6 +345,199 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
         )}
       </div>
 
+      {/* People Section */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-primary" />
+          <h3 className="text-lg font-medium text-foreground">People</h3>
+        </div>
+        
+        {laborState?.workers && laborState.workers.length > 0 ? (
+          laborState.workers.map((worker) => {
+            const isExpanded = expandedPeople.has(worker.id);
+            
+            // Calculate worker's total hours
+            let workerHours = 0;
+            
+            // Add hours from business tasks
+            laborState.businessTasks?.forEach(task => {
+              const assignedWorkerId = task.assignedWorkerId || 'owner';
+              if (assignedWorkerId === worker.id) {
+                workerHours += task.hoursPerWeek;
+              }
+            });
+            
+            // Add hours from production (if we have product assignments)
+            const productAssignments = (laborState as any).productAssignments || {};
+            if (fullProducts) {
+              fullProducts.forEach(product => {
+                const productMetrics = metrics.productMetrics?.[product.id];
+                if (productMetrics) {
+                  const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
+                  const assignedWorkerId = productAssignments[product.id] || 'owner';
+                  if (assignedWorkerId === worker.id) {
+                    workerHours += weeklyHours;
+                  }
+                }
+              });
+            }
+            
+            const weeklyCost = workerHours * worker.hourlyRate;
+            const monthlyCost = weeklyCost * 4.33;
+            
+            return (
+              <Card key={worker.id}>
+                <div 
+                  className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => togglePerson(worker.id)}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className="font-medium text-base text-foreground">
+                      {worker.name || 'Unnamed Worker'}
+                    </span>
+                    
+                    <div className="ml-auto flex items-center gap-2">
+                      {/* Interactive Wage Input */}
+                      {editingWage === worker.id && onUpdateLabor ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-xs text-muted-foreground">$</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={worker.hourlyRate || ''}
+                            onChange={(e) => {
+                              const value = e.target.value === '' ? 0 : Math.round((parseFloat(e.target.value) || 0) * 100) / 100;
+                              const updatedWorkers = laborState.workers.map(w =>
+                                w.id === worker.id ? { ...w, hourlyRate: value } : w
+                              );
+                              onUpdateLabor({ workers: updatedWorkers });
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                setEditingWage(null);
+                              }
+                            }}
+                            className="w-20 h-7 text-sm"
+                            autoFocus
+                          />
+                          <span className="text-xs text-muted-foreground">/hr</span>
+                          <button
+                            className="text-xs text-primary hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingWage(null);
+                            }}
+                          >
+                            Done
+                          </button>
+                        </div>
+                      ) : (
+                        <span 
+                          className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors font-mono"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onUpdateLabor) {
+                              setEditingWage(worker.id);
+                            }
+                          }}
+                        >
+                          ${worker.hourlyRate.toFixed(2)}/hr
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Weekly Hours</div>
+                      <div className="font-mono font-medium">
+                        {workerHours.toFixed(1)}h
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Weekly Cost</div>
+                      <div className="font-mono font-medium text-muted-foreground">
+                        {formatCurrency(weeklyCost)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Monthly Cost</div>
+                      <div className="font-mono font-medium">
+                        {formatCurrency(monthlyCost)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                  
+                {/* Expanded Details */}
+                {isExpanded && (
+                  <div className="border-t border-border bg-muted/30 px-4 py-3">
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium mb-2">Task Breakdown</h5>
+                      <div className="space-y-1 text-sm">
+                        {/* Business Tasks */}
+                        {laborState.businessTasks?.map(task => {
+                          const assignedWorkerId = task.assignedWorkerId || 'owner';
+                          if (assignedWorkerId === worker.id && task.hoursPerWeek > 0) {
+                            return (
+                              <div key={task.id} className="flex justify-between">
+                                <span className="text-muted-foreground">{task.name}</span>
+                                <span className="font-mono">{task.hoursPerWeek.toFixed(1)}h/wk</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                        
+                        {/* Production Tasks */}
+                        {fullProducts?.map((product, index) => {
+                          const productMetrics = metrics.productMetrics?.[product.id];
+                          if (productMetrics) {
+                            const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
+                            const assignedWorkerId = productAssignments[product.id] || 'owner';
+                            if (assignedWorkerId === worker.id && weeklyHours > 0) {
+                              const productName = product.name || `Product ${index + 1}`;
+                              return (
+                                <div key={product.id} className="flex justify-between">
+                                  <span className="text-muted-foreground">{productName} Production</span>
+                                  <span className="font-mono">{weeklyHours.toFixed(1)}h/wk</span>
+                                </div>
+                              );
+                            }
+                          }
+                          return null;
+                        })}
+                      </div>
+                      
+                      <div className="pt-2 mt-2 border-t border-border">
+                        <div className="flex justify-between text-sm font-medium">
+                          <span>Total Hours</span>
+                          <span className="font-mono">{workerHours.toFixed(1)}h/wk</span>
+                        </div>
+                        <div className="flex justify-between text-sm font-medium mt-1">
+                          <span>Effective Hourly Rate</span>
+                          <span className="font-mono">${worker.hourlyRate.toFixed(2)}/hr</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            );
+          })
+        ) : (
+          <div className="text-sm text-muted-foreground text-center py-4">
+            No workers configured
+          </div>
+        )}
+      </div>
+
       {/* Profit & Loss Section */}
       <div className="space-y-3">
         <div 
@@ -342,8 +549,8 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
           ) : (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
-          <Calculator className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Profit & Loss</h3>
+          <Calculator className="h-4 w-4 text-primary" />
+          <h3 className="text-lg font-medium text-foreground">Profit</h3>
         </div>
         
         {expandedPL && (

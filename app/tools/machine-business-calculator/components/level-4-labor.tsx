@@ -58,10 +58,10 @@ export function Level4Labor({
 
   // Calculate production hours from products
   useEffect(() => {
-    const totalProductionMinutesPerMonth = Object.values(metrics.productMetrics || {}).reduce(
-      (sum, product: any) => sum + (product.monthlyTimeHours * 60 || 0), 0
+    const totalProductionHoursPerMonth = Object.values(metrics.productMetrics || {}).reduce(
+      (sum, product: any) => sum + (product.monthlyTimeHours || 0), 0
     );
-    const productionHoursPerWeek = (totalProductionMinutesPerMonth / 60) / 4.33; // Convert to weekly
+    const productionHoursPerWeek = totalProductionHoursPerMonth / 4.33; // Convert to weekly
     
     setLaborState(prev => ({
       ...prev,
@@ -77,11 +77,11 @@ export function Level4Labor({
     // Calculate labor costs for business tasks
     let totalLaborCost = 0;
     laborState.businessTasks.forEach(task => {
-      if (task.assignedWorkerId) {
-        const worker = laborState.workers.find(w => w.id === task.assignedWorkerId);
-        if (worker) {
-          totalLaborCost += task.hoursPerWeek * worker.hourlyRate;
-        }
+      // Default to owner if no worker assigned
+      const assignedWorkerId = task.assignedWorkerId || 'owner';
+      const worker = laborState.workers.find(w => w.id === assignedWorkerId);
+      if (worker) {
+        totalLaborCost += task.hoursPerWeek * worker.hourlyRate;
       }
     });
     
@@ -104,9 +104,8 @@ export function Level4Labor({
     // Calculate total assigned hours for unassigned calculation
     let totalAssignedHours = 0;
     laborState.businessTasks.forEach(task => {
-      if (task.assignedWorkerId) {
-        totalAssignedHours += task.hoursPerWeek;
-      }
+      // All tasks are assigned (default to owner if not specified)
+      totalAssignedHours += task.hoursPerWeek;
     });
     
     // Add product hours to assigned hours
@@ -128,7 +127,9 @@ export function Level4Labor({
     // Calculate owner hours from both business tasks and products
     let ownerHours = 0;
     laborState.businessTasks.forEach(task => {
-      if (task.assignedWorkerId === 'owner') {
+      // Default to owner if not assigned
+      const assignedWorkerId = task.assignedWorkerId || 'owner';
+      if (assignedWorkerId === 'owner') {
         ownerHours += task.hoursPerWeek;
       }
     });
@@ -279,7 +280,8 @@ export function Level4Labor({
     
     // Add hours from business tasks
     laborState.businessTasks.forEach(task => {
-      if (task.assignedWorkerId === worker.id) {
+      const assignedWorkerId = task.assignedWorkerId || 'owner';
+      if (assignedWorkerId === worker.id) {
         workerHours += task.hoursPerWeek;
       }
     });
@@ -328,7 +330,8 @@ export function Level4Labor({
                       
                       // Add hours from business tasks
                       laborState.businessTasks.forEach(task => {
-                        if (task.assignedWorkerId === worker.id) {
+                        const assignedWorkerId = task.assignedWorkerId || 'owner';
+                        if (assignedWorkerId === worker.id) {
                           assignedHours += task.hoursPerWeek;
                         }
                       });
@@ -367,7 +370,8 @@ export function Level4Labor({
                 
                 // Add hours from business tasks
                 laborState.businessTasks.forEach(task => {
-                  if (task.assignedWorkerId === worker.id) {
+                  const assignedWorkerId = task.assignedWorkerId || 'owner';
+                  if (assignedWorkerId === worker.id) {
                     assignedHours += task.hoursPerWeek;
                   }
                 });
@@ -413,7 +417,7 @@ export function Level4Labor({
                         min="0"
                         step="1"
                         value={worker.hourlyRate || worker.hourlyRate === 0 ? worker.hourlyRate : ''}
-                        onChange={(e) => updateWorker(worker.id, { hourlyRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => updateWorker(worker.id, { hourlyRate: e.target.value === '' ? 0 : Math.round((parseFloat(e.target.value) || 0) * 100) / 100 })}
                         className="pl-6 h-8 text-sm w-full bg-background text-foreground"
                         placeholder="0.00"
                       />
@@ -674,7 +678,8 @@ export function Level4Labor({
                 
                 // Add hours from business tasks
                 laborState.businessTasks.forEach(task => {
-                  if (task.assignedWorkerId === worker.id) {
+                  const assignedWorkerId = task.assignedWorkerId || 'owner';
+                  if (assignedWorkerId === worker.id) {
                     assignedHours += task.hoursPerWeek;
                   }
                 });

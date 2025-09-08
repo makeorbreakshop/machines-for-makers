@@ -311,12 +311,45 @@ export function calculateComprehensiveMetrics(state: CalculatorState): Calculate
     totalMonthlyCosts += revenueMetric.monthlyCosts;
   });
 
+  // Calculate labor costs from business tasks
+  let businessTasksLaborCost = 0;
+  if (state.labor) {
+    const businessTasks = state.labor.businessTasks || [];
+    const workers = state.labor.workers || [];
+    
+    // Calculate weekly business tasks labor cost
+    let weeklyBusinessTasksCost = 0;
+    businessTasks.forEach(task => {
+      const assignedWorker = workers.find(w => w.id === task.assignedWorkerId);
+      if (assignedWorker) {
+        weeklyBusinessTasksCost += task.hoursPerWeek * assignedWorker.hourlyRate;
+      } else {
+        // Default to owner's rate if no worker assigned
+        const owner = workers.find(w => w.id === 'owner');
+        weeklyBusinessTasksCost += task.hoursPerWeek * (owner?.hourlyRate || state.hourlyRate || 25);
+      }
+    });
+    
+    // Convert weekly to monthly (4.33 weeks per month)
+    businessTasksLaborCost = weeklyBusinessTasksCost * 4.33;
+    
+    // Add business task hours to total monthly hours
+    const weeklyBusinessHours = businessTasks.reduce((sum, task) => sum + task.hoursPerWeek, 0);
+    totalMonthlyHours += weeklyBusinessHours * 4.33;
+  }
+
+  // Add business tasks labor cost to total monthly costs
+  totalMonthlyCosts += businessTasksLaborCost;
+
   // Calculate business costs
   const totalBusinessCosts = calculateBusinessCosts(
     totalMonthlyRevenue,
     totalGrossProfit,
     state.selectedCosts
   );
+
+  // Adjust gross profit to account for business tasks labor
+  totalGrossProfit -= businessTasksLaborCost;
 
   const totalNetProfit = totalGrossProfit - totalBusinessCosts;
   const averageHourlyRate = totalMonthlyHours > 0 ? totalGrossProfit / totalMonthlyHours : 0;

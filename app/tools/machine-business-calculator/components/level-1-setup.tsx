@@ -344,7 +344,7 @@ export function Level1Setup({
                             step="0.01"
                             value={product.sellingPrice || ''}
                             onChange={(e) => onUpdateProduct(product.id, { 
-                              sellingPrice: parseFloat(e.target.value) || 0 
+                              sellingPrice: Math.round((parseFloat(e.target.value) || 0) * 100) / 100 
                             })}
                             placeholder="0.00"
                             inputMode="decimal"
@@ -469,7 +469,7 @@ export function Level1Setup({
                                           const updatedUsage = { 
                                             ...usage, 
                                             quantity: qty,
-                                            cost: qty * usage.unitCost
+                                            cost: Math.round(qty * usage.unitCost * 100) / 100
                                           };
                                           onUpdateMaterialUsage(product.id, idx, updatedUsage);
                                         }}
@@ -488,8 +488,8 @@ export function Level1Setup({
                                             const cost = parseFloat(e.target.value) || 0;
                                             const updatedUsage = { 
                                               ...usage, 
-                                              unitCost: cost,
-                                              cost: usage.quantity * cost
+                                              unitCost: Math.round(cost * 100) / 100,
+                                              cost: Math.round(usage.quantity * cost * 100) / 100
                                             };
                                             onUpdateMaterialUsage(product.id, idx, updatedUsage);
                                           }}
@@ -639,12 +639,12 @@ export function Level1Setup({
                                       step="0.01"
                                       value={product.machineTime?.costPerHour || 5}
                                       onChange={(e) => {
-                                        const costPerHour = parseFloat(e.target.value) || 0;
+                                        const costPerHour = Math.round((parseFloat(e.target.value) || 0) * 100) / 100;
                                         onUpdateProduct(product.id, {
                                           machineTime: {
                                             machineMinutes: timeBreakdown.machine || 0,
                                             costPerHour: costPerHour,
-                                            totalCost: ((timeBreakdown.machine || 0) / 60) * costPerHour
+                                            totalCost: Math.round(((timeBreakdown.machine || 0) / 60) * costPerHour * 100) / 100
                                           }
                                         });
                                       }}
@@ -770,16 +770,18 @@ export function Level1Setup({
                                       <Input
                                         type="number"
                                         min="0"
-                                        step="1"
-                                        value={value === 0 ? '0' : value || ''}
+                                        step="0.1"
+                                        value={value || ''}
                                         onChange={(e) => {
-                                          const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                          const inputValue = e.target.value;
+                                          const numericValue = inputValue === '' ? 0 : parseFloat(inputValue) || 0;
                                           onUpdateProduct(product.id, { 
-                                            timeBreakdown: { ...timeBreakdown, [timeType]: val || 0 }
+                                            timeBreakdown: { ...timeBreakdown, [timeType]: numericValue }
                                           });
                                         }}
                                         className="h-9 text-sm text-center tabular-nums bg-background"
                                         placeholder="0"
+                                        inputMode="decimal"
                                       />
                                     </div>
                                     <div className="col-span-2 text-sm font-medium text-right tabular-nums">
@@ -877,7 +879,7 @@ export function Level1Setup({
                                         onChange={(e) => {
                                           const updated = platformFees.map(pf =>
                                             pf.id === platformFee.id 
-                                              ? { ...pf, feePercentage: parseFloat(e.target.value) || 0 }
+                                              ? { ...pf, feePercentage: Math.round((parseFloat(e.target.value) || 0) * 100) / 100 }
                                               : pf
                                           );
                                           onUpdateProduct(product.id, { platformFees: updated });
@@ -894,7 +896,7 @@ export function Level1Setup({
                                         step="0.01"
                                         value={platformFee.salesPercentage || ''}
                                         onChange={(e) => {
-                                          const newPercentage = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                                          const newPercentage = Math.round(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) * 100) / 100;
                                           
                                           if (platformFees.length === 1) {
                                             const updated = platformFees.map(pf =>

@@ -376,49 +376,49 @@ export const DEFAULT_BUSINESS_TASKS: BusinessTask[] = [
     id: 'admin-bookkeeping',
     name: 'Bookkeeping & Admin',
     category: 'admin',
-    hoursPerWeek: 3,
+    hoursPerWeek: 0,
     description: 'Record transactions, manage expenses, handle paperwork'
   },
   {
     id: 'admin-emails',
     name: 'Customer Service & Emails',
     category: 'admin',
-    hoursPerWeek: 2,
+    hoursPerWeek: 0,
     description: 'Respond to customer inquiries, handle support tickets'
   },
   {
     id: 'marketing-social',
     name: 'Social Media & Marketing',
     category: 'marketing',
-    hoursPerWeek: 4,
+    hoursPerWeek: 0,
     description: 'Create posts, engage with customers, run ad campaigns'
   },
   {
     id: 'inventory-management',
     name: 'Inventory & Procurement',
     category: 'inventory',
-    hoursPerWeek: 2,
+    hoursPerWeek: 0,
     description: 'Order materials, manage stock levels, organize supplies'
   },
   {
     id: 'shipping-fulfillment',
     name: 'Order Fulfillment & Shipping',
     category: 'shipping',
-    hoursPerWeek: 3,
+    hoursPerWeek: 0,
     description: 'Pack orders, print labels, coordinate pickups'
   },
   {
     id: 'maintenance-shop',
     name: 'Shop Maintenance & Setup',
     category: 'maintenance',
-    hoursPerWeek: 2,
+    hoursPerWeek: 0,
     description: 'Clean workspace, maintain equipment, organize tools'
   },
   {
     id: 'development-planning',
     name: 'Product Development & Planning',
     category: 'development',
-    hoursPerWeek: 3,
+    hoursPerWeek: 0,
     description: 'Design new products, improve processes, strategic planning'
   }
 ];
