@@ -297,6 +297,12 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
                               <span className="font-mono">{formatCurrency(productMetric.costBreakdown.labor)}</span>
                             </div>
                           )}
+                          {(productMetric.costBreakdown?.machineCosts || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Machine Time</span>
+                              <span className="font-mono">{formatCurrency(productMetric.costBreakdown.machineCosts)}</span>
+                            </div>
+                          )}
                           {(productMetric.costBreakdown?.platformFees || 0) > 0 && (
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Platform Fees</span>

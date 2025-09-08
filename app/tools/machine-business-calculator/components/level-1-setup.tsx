@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2, Layers } from 'lucide-react';
+import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2, Layers, Cpu, Calculator } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { 
@@ -19,6 +19,7 @@ import {
 } from '../lib/calculator-types';
 import { calculateProductMetrics } from '../lib/calculator-formulas';
 import { MaterialCostModal } from './material-cost-modal';
+import { MachineCostCalculator } from './machine-cost-calculator';
 
 interface Level1SetupProps {
   state: CalculatorState;
@@ -63,6 +64,11 @@ export function Level1Setup({
     editingIndex: number | null;
     editingUsage: MaterialUsage | undefined;
   }>({ open: false, productId: null, editingIndex: null, editingUsage: undefined });
+  const [machineCalculatorState, setMachineCalculatorState] = useState<{
+    open: boolean;
+    productId: string | null;
+    currentCostPerHour: number;
+  }>({ open: false, productId: null, currentCostPerHour: 5 });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { 
@@ -82,7 +88,7 @@ export function Level1Setup({
     }).format(amount);
   };
 
-  const toggleSection = (productId: string, section: 'materials' | 'labor' | 'platforms') => {
+  const toggleSection = (productId: string, section: 'materials' | 'machine' | 'labor' | 'platforms') => {
     setExpandedSections(prev => ({
       ...prev,
       [productId]: {
@@ -98,8 +104,14 @@ export function Level1Setup({
       sellingPrice: template.estimatedSellingPrice,
       monthlyUnits: template.estimatedMonthlyUnits,
       costs: template.estimatedCosts,
+      materialUsage: template.materialUsage || [], // Include material usage from template
+      machineTime: template.machineTime || { // Include machine time from template
+        machineMinutes: template.timeBreakdown?.machine || 0,
+        costPerHour: 5,
+        totalCost: ((template.timeBreakdown?.machine || 0) / 60) * 5
+      },
       timeBreakdown: template.timeBreakdown,
-      platformFees: [
+      platformFees: template.platformFees || [
         {
           id: 'direct-default',
           name: 'Direct Sales',
@@ -112,7 +124,7 @@ export function Level1Setup({
     // Initialize expanded state for this product
     setExpandedSections(prev => ({
       ...prev,
-      [id]: { materials: false, labor: false, platforms: false }
+      [id]: { materials: false, labor: false, platforms: false, machine: false }
     }));
   };
 
@@ -127,6 +139,12 @@ export function Level1Setup({
         packaging: 0,
         shipping: 0,
         other: 0
+      },
+      materialUsage: [], // Initialize with empty material usage array
+      machineTime: {     // Initialize machine time
+        machineMinutes: 0,
+        costPerHour: 5,  // Default $5/hour for electricity and maintenance
+        totalCost: 0
       },
       timeBreakdown: {
         design: 0,
@@ -147,7 +165,7 @@ export function Level1Setup({
     // Initialize expanded state for this product
     setExpandedSections(prev => ({
       ...prev,
-      [id]: { materials: false, labor: false, platforms: false }
+      [id]: { materials: false, labor: false, platforms: false, machine: false }
     }));
   };
 
@@ -254,7 +272,9 @@ export function Level1Setup({
                 ? materialUsage.reduce((sum, usage) => sum + usage.cost, 0)
                 : Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
               const costItemCount = materialUsage.length || Object.keys(costs).length;
-              const laborMinutesTotal = Object.values(timeBreakdown).reduce((sum, minutes) => sum + (minutes || 0), 0);
+              const laborMinutesTotal = Object.entries(timeBreakdown)
+                .filter(([key]) => key !== 'machine')
+                .reduce((sum, [, minutes]) => sum + (minutes || 0), 0);
               const laborHoursTotal = laborMinutesTotal / 60;
               const platformCount = platformFees.length;
               
@@ -537,6 +557,124 @@ export function Level1Setup({
                           )}
                         </div>
 
+                        {/* Machine Time Section */}
+                        <div className="bg-muted/30 rounded-lg border border-border">
+                          <button
+                            onClick={() => toggleSection(product.id, 'machine')}
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Cpu className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">Machine Time</span>
+                              <span className="text-sm text-muted-foreground">
+                                {timeBreakdown.machine || 0} minutes
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-medium">
+                                {formatCurrencyCompact(
+                                  product.machineTime?.totalCost || 
+                                  ((timeBreakdown.machine || 0) / 60) * (product.machineTime?.costPerHour || 5)
+                                )}
+                              </span>
+                              {isExpanded?.machine ? (
+                                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </div>
+                          </button>
+                          
+                          {isExpanded?.machine && (
+                            <div className="px-4 pb-4 pt-2 space-y-3">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label className="text-xs font-medium text-muted-foreground">Machine Minutes</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={timeBreakdown.machine || 0}
+                                    onChange={(e) => {
+                                      const minutes = parseInt(e.target.value) || 0;
+                                      onUpdateProduct(product.id, { 
+                                        timeBreakdown: { ...timeBreakdown, machine: minutes },
+                                        machineTime: {
+                                          machineMinutes: minutes,
+                                          costPerHour: product.machineTime?.costPerHour || 5,
+                                          totalCost: (minutes / 60) * (product.machineTime?.costPerHour || 5)
+                                        }
+                                      });
+                                    }}
+                                    className="h-9 text-sm bg-background"
+                                    placeholder="0"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-xs font-medium text-muted-foreground">Cost per Hour</Label>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs"
+                                      onClick={() => {
+                                        setMachineCalculatorState({
+                                          open: true,
+                                          productId: product.id,
+                                          currentCostPerHour: product.machineTime?.costPerHour || 5
+                                        });
+                                      }}
+                                    >
+                                      <Calculator className="h-3 w-3 mr-1" />
+                                      Calculate
+                                    </Button>
+                                  </div>
+                                  <div className="relative">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={product.machineTime?.costPerHour || 5}
+                                      onChange={(e) => {
+                                        const costPerHour = parseFloat(e.target.value) || 0;
+                                        onUpdateProduct(product.id, {
+                                          machineTime: {
+                                            machineMinutes: timeBreakdown.machine || 0,
+                                            costPerHour: costPerHour,
+                                            totalCost: ((timeBreakdown.machine || 0) / 60) * costPerHour
+                                          }
+                                        });
+                                      }}
+                                      className="h-9 text-sm pl-6 bg-background"
+                                      placeholder="5.00"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="bg-muted/50 rounded-md p-3 space-y-1">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Machine Hours:</span>
+                                  <span className="font-medium">{((timeBreakdown.machine || 0) / 60).toFixed(2)} hrs</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Total Machine Cost:</span>
+                                  <span className="font-medium">
+                                    {formatCurrencyCompact(
+                                      ((timeBreakdown.machine || 0) / 60) * (product.machineTime?.costPerHour || 5)
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-2">
+                                  This covers electricity, maintenance, and machine depreciation
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         {/* Labor Costs Section */}
                         <div className="bg-muted/30 rounded-lg border border-border">
                           <button
@@ -573,7 +711,9 @@ export function Level1Setup({
                                 <span className="col-span-1"></span>
                               </div>
                               
-                              {Object.entries(timeBreakdown).map(([timeType, value]) => {
+                              {Object.entries(timeBreakdown)
+                                .filter(([timeType]) => timeType !== 'machine') // Exclude machine time from labor
+                                .map(([timeType, value]) => {
                                 // Get the assigned worker name
                                 const workerName = assignedWorker?.name || 'You';
                                 
@@ -877,6 +1017,32 @@ export function Level1Setup({
           }
         }}
         existingUsage={materialModalState.editingUsage}
+      />
+
+      {/* Machine Cost Calculator Modal */}
+      <MachineCostCalculator
+        open={machineCalculatorState.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMachineCalculatorState({ open: false, productId: null, currentCostPerHour: 5 });
+          }
+        }}
+        onCalculate={(costPerHour) => {
+          if (machineCalculatorState.productId) {
+            const product = state.products.find(p => p.id === machineCalculatorState.productId);
+            if (product) {
+              const machineMinutes = product.timeBreakdown?.machine || 0;
+              onUpdateProduct(machineCalculatorState.productId, {
+                machineTime: {
+                  machineMinutes: machineMinutes,
+                  costPerHour: costPerHour,
+                  totalCost: (machineMinutes / 60) * costPerHour
+                }
+              });
+            }
+          }
+        }}
+        currentCostPerHour={machineCalculatorState.currentCostPerHour}
       />
     </div>
   );

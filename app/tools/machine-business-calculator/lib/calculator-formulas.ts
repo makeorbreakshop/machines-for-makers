@@ -57,6 +57,7 @@ export function calculateProductMetrics(product: Product, globalHourlyRate: numb
   totalTimeHours: number;
   totalCosts: number;
   laborCosts: number;
+  machineCosts: number;
   platformFees: number;
   grossProfit: number;
   profitMargin: number;
@@ -70,14 +71,27 @@ export function calculateProductMetrics(product: Product, globalHourlyRate: numb
     materials: 0, finishing: 0, packaging: 0, shipping: 0, other: 0
   };
   
-  const totalTimeMinutes = Object.values(timeBreakdown).reduce((sum, time) => sum + (time || 0), 0);
-  const totalTimeHours = totalTimeMinutes / 60;
-  const laborCosts = totalTimeHours * globalHourlyRate;
+  // Calculate labor time WITHOUT machine time (since machine time is often unattended)
+  const laborTimeMinutes = (timeBreakdown.design || 0) + 
+                           (timeBreakdown.setup || 0) + 
+                           (timeBreakdown.finishing || 0) + 
+                           (timeBreakdown.packaging || 0);
+  const laborTimeHours = laborTimeMinutes / 60;
+  const laborCosts = laborTimeHours * globalHourlyRate;
   
-  // Calculate material costs from materialUsages if available, otherwise use legacy costs
+  // Calculate machine costs separately
+  const machineMinutes = timeBreakdown.machine || 0;
+  const machineCosts = product.machineTime?.totalCost || 
+                      ((machineMinutes / 60) * (product.machineTime?.costPerHour || 5));
+  
+  // Total time for metrics (includes all time)
+  const totalTimeMinutes = laborTimeMinutes + machineMinutes;
+  const totalTimeHours = totalTimeMinutes / 60;
+  
+  // Calculate material costs from materialUsage if available, otherwise use legacy costs
   let materialCosts = 0;
-  if (product.materialUsages && product.materialUsages.length > 0) {
-    materialCosts = product.materialUsages.reduce((sum, usage) => sum + (usage.cost || 0), 0);
+  if (product.materialUsage && product.materialUsage.length > 0) {
+    materialCosts = product.materialUsage.reduce((sum, usage) => sum + (usage.cost || 0), 0);
   } else {
     materialCosts = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
   }
@@ -86,16 +100,17 @@ export function calculateProductMetrics(product: Product, globalHourlyRate: numb
   const platformFeeCalc = calculatePlatformFees(product);
   const platformFees = platformFeeCalc.totalFeesPerUnit;
   
-  const totalCosts = materialCosts + laborCosts + platformFees;
+  const totalCosts = materialCosts + laborCosts + machineCosts + platformFees;
   const grossProfit = (product.sellingPrice || 0) - totalCosts;
   const profitMargin = product.sellingPrice > 0 ? grossProfit / product.sellingPrice : 0;
-  const hourlyRate = totalTimeHours > 0 ? grossProfit / totalTimeHours : 0;
+  const hourlyRate = laborTimeHours > 0 ? grossProfit / laborTimeHours : 0; // Based on human labor hours only
 
   return {
     totalTimeMinutes,
     totalTimeHours,
     totalCosts,
     laborCosts,
+    machineCosts,
     platformFees,
     grossProfit,
     profitMargin,
@@ -179,6 +194,7 @@ export function calculateProductRevenue(product: Product, globalHourlyRate: numb
     shipping: number;
     other: number;
     labor: number;
+    machineCosts: number;
     platformFees: number;
     marketing: number;
   };
@@ -195,9 +211,21 @@ export function calculateProductRevenue(product: Product, globalHourlyRate: numb
   const sellingPrice = product.sellingPrice || 0;
   
   const monthlyRevenue = monthlyUnits * sellingPrice;
-  const totalTimeMinutes = Object.values(timeBreakdown).reduce((sum, time) => sum + (time || 0), 0);
-  const totalTimeHours = totalTimeMinutes / 60;
-  const laborCostPerUnit = totalTimeHours * globalHourlyRate;
+  
+  // Calculate labor time WITHOUT machine time
+  const laborTimeMinutes = (timeBreakdown.design || 0) + 
+                           (timeBreakdown.setup || 0) + 
+                           (timeBreakdown.finishing || 0) + 
+                           (timeBreakdown.packaging || 0);
+  const laborTimeHours = laborTimeMinutes / 60;
+  const laborCostPerUnit = laborTimeHours * globalHourlyRate;
+  
+  // Calculate machine costs per unit
+  const machineMinutes = timeBreakdown.machine || 0;
+  const machineCostPerUnit = product.machineTime?.totalCost || 
+                             ((machineMinutes / 60) * (product.machineTime?.costPerHour || 5));
+  
+  // Calculate material costs
   const materialCostPerUnit = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
   
   // Calculate platform fees per unit
@@ -207,10 +235,12 @@ export function calculateProductRevenue(product: Product, globalHourlyRate: numb
   // Add marketing cost per unit (CAC)
   const marketingCostPerUnit = blendedCAC || 0;
   
-  const totalUnitCosts = materialCostPerUnit + laborCostPerUnit + platformFeesPerUnit + marketingCostPerUnit;
+  const totalUnitCosts = materialCostPerUnit + laborCostPerUnit + machineCostPerUnit + platformFeesPerUnit + marketingCostPerUnit;
   const monthlyCosts = monthlyUnits * totalUnitCosts;
   const monthlyGrossProfit = monthlyRevenue - monthlyCosts;
   
+  // Total time includes all time (for reporting)
+  const totalTimeMinutes = laborTimeMinutes + machineMinutes;
   const monthlyTimeHours = (monthlyUnits * totalTimeMinutes) / 60;
   
   const costBreakdown = {
@@ -220,6 +250,7 @@ export function calculateProductRevenue(product: Product, globalHourlyRate: numb
     shipping: monthlyUnits * (costs.shipping || 0),
     other: monthlyUnits * (costs.other || 0),
     labor: monthlyUnits * laborCostPerUnit,
+    machineCosts: monthlyUnits * machineCostPerUnit,
     platformFees: monthlyUnits * platformFeesPerUnit,
     marketing: monthlyUnits * marketingCostPerUnit,
   };
