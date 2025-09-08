@@ -80,6 +80,15 @@ export function MachineCostCalculator({
         setLifetimeYears(3); // Shorter lifespan for hobby equipment
         setHoursPerYear(500); // Hobby use ~10hrs/week
         break;
+      case 'fiber-laser':
+        // Desktop fiber laser (20-30W for metal engraving)
+        setPurchasePrice(4500);
+        setPowerConsumption(200); // Very efficient, 150-300W typical
+        setMaintenancePerYear(200); // Practically maintenance-free
+        setConsumablesPerHour(0.05); // Minimal - occasional lens cleaning
+        setLifetimeYears(7); // 100,000+ hour lifespan
+        setHoursPerYear(1500); // Professional use
+        break;
       case 'laser':
         // CO2 laser cutter (80-150W hobbyist/small business)
         setPurchasePrice(8000);
@@ -140,6 +149,13 @@ export function MachineCostCalculator({
             onClick={() => loadPreset('diode-laser')}
           >
             Hobby Laser
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadPreset('fiber-laser')}
+          >
+            Fiber Laser
           </Button>
           <Button
             variant="outline"

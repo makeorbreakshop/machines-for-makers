@@ -28,12 +28,21 @@ export interface PlatformFee {
   salesPercentage: number; // Percentage of sales on this platform (e.g., 80)
 }
 
+export interface MachineUsage {
+  machineId?: string;
+  machineName?: string;
+  machineMinutes: number;
+  costPerHour: number;
+  totalCost: number;
+}
+
 export interface Product {
   id: string;
   name: string;
   sellingPrice: number;
   monthlyUnits: number; // Units to produce per month
   materialUsage?: MaterialUsage[];  // New: material usage with batch pricing
+  machineTime?: MachineUsage; // Machine time tracking
   costs: {
     materials: number;    // Raw material costs (calculated from materialUsage)
     finishing: number;    // Post-processing, sanding, etc.
@@ -447,6 +456,11 @@ export const DEFAULT_PRODUCT_TEMPLATES = [
       shipping: 0,       
       other: 0         
     },
+    machineTime: {
+      machineMinutes: 10,
+      costPerHour: 5,  // Default $5/hour for laser engraving
+      totalCost: 0.83  // 10 min at $5/hr
+    },
     timeBreakdown: {
       design: 15,
       setup: 5,
@@ -474,6 +488,11 @@ export const DEFAULT_PRODUCT_TEMPLATES = [
       packaging: 0,      
       shipping: 0,       
       other: 0         
+    },
+    machineTime: {
+      machineMinutes: 120,
+      costPerHour: 1.5,  // Default $1.50/hour for 3D printing
+      totalCost: 3.0  // 120 min at $1.50/hr
     },
     timeBreakdown: {
       design: 30,
@@ -503,6 +522,11 @@ export const DEFAULT_PRODUCT_TEMPLATES = [
       shipping: 0,       
       other: 0           
     },
+    machineTime: {
+      machineMinutes: 60,
+      costPerHour: 8,  // Default $8/hour for CNC
+      totalCost: 8.0  // 60 min at $8/hr
+    },
     timeBreakdown: {
       design: 45,
       setup: 20,
@@ -530,6 +554,11 @@ export const DEFAULT_PRODUCT_TEMPLATES = [
       packaging: 0,    
       shipping: 0,       
       other: 0           
+    },
+    machineTime: {
+      machineMinutes: 15,
+      costPerHour: 5,  // Default $5/hour for laser cutting
+      totalCost: 1.25  // 15 min at $5/hr
     },
     timeBreakdown: {
       design: 20,
