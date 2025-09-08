@@ -62,6 +62,8 @@ export interface Product {
   showTimeBreakdown?: boolean; // For progressive disclosure
   showPlatformFees?: boolean;  // For progressive disclosure
   isEditingName?: boolean;     // For inline name editing
+  pricingMode?: 'price' | 'margin'; // Which field is driving the price (default: 'price')
+  targetMargin?: number; // Target profit margin percentage
 }
 
 export interface MarketingChannel {

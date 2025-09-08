@@ -297,7 +297,7 @@ export function Level1Setup({
               const isExpanded = expandedSections[product.id];
               
               return (
-                <Card key={product.id} className="border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
+                <Card key={product.id} className="!border-0 border-none bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-0">
                     {/* Product Header - Clickable to expand/collapse */}
                     <div className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
@@ -351,9 +351,9 @@ export function Level1Setup({
                         </button>
                         <div className="flex items-center gap-4">
                           <span className={`text-sm font-semibold tabular-nums ${
-                            monthlyProfit > 0 ? 'text-green-600 dark:text-green-400' : monthlyProfit < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
+                            monthlyProfit > 0 ? 'text-green-500' : monthlyProfit < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
                           }`}>
-                            {formatCurrency(monthlyProfit)}/mo profit
+                            ${Math.round(monthlyProfit).toLocaleString()}/mo
                           </span>
                           <Button
                             variant="ghost"
@@ -374,28 +374,35 @@ export function Level1Setup({
                     {/* Main Product Body - Mobile Optimized */}
                     {expandedProducts.has(product.id) && (
                     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-                      {/* Key Metrics Grid - Responsive */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                      {/* Key Metrics - Single Row Layout */}
+                      <div className="grid grid-cols-5 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Selling Price</Label>
+                          <Label className="text-sm font-medium">Selling Price</Label>
                           <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">$</span>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
                             <Input
                               type="number"
                               step="0.01"
                               value={product.sellingPrice || ''}
                               onChange={(e) => onUpdateProduct(product.id, { 
-                                sellingPrice: Math.round((parseFloat(e.target.value) || 0) * 100) / 100 
+                                sellingPrice: Math.round((parseFloat(e.target.value) || 0) * 100) / 100,
+                                pricingMode: 'price',
+                                targetMargin: undefined
                               })}
-                              placeholder="0.00"
+                              onFocus={() => onUpdateProduct(product.id, { pricingMode: 'price' })}
+                              placeholder="25"
                               inputMode="decimal"
-                              className="h-10 sm:h-9 text-base sm:text-sm bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 pl-6"
+                              className={`h-10 text-sm font-semibold tabular-nums pl-8 pr-3 ${
+                                product.pricingMode === 'price' || !product.pricingMode
+                                  ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700' 
+                                  : ''
+                              }`}
                             />
                           </div>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Units/Month</Label>
+                          <Label className="text-sm font-medium">Units/Month</Label>
                           <Input
                             type="number"
                             step="1"
@@ -403,27 +410,63 @@ export function Level1Setup({
                             onChange={(e) => onUpdateProduct(product.id, { 
                               monthlyUnits: parseInt(e.target.value) || 0 
                             })}
-                            placeholder="0"
+                            placeholder="400"
                             inputMode="numeric"
-                            className="h-10 sm:h-9 text-base sm:text-sm bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
+                            className="h-10 text-sm font-semibold tabular-nums"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Cost/Unit</Label>
-                          <div className="h-10 px-3 flex items-center text-base font-semibold tabular-nums rounded-md border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700">
+                          <Label className="text-sm font-medium">Cost/Unit</Label>
+                          <div className="h-10 px-3 flex items-center text-sm font-semibold tabular-nums rounded-md border bg-muted">
                             {formatCurrencyCompact(totalCosts)}
                           </div>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Profit/Unit</Label>
-                          <div className={`h-10 px-3 flex items-center text-base sm:text-sm font-bold tabular-nums rounded-md border ${
-                            unitProfit > 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : 
-                            unitProfit < 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 
-                            'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'
-                          }`}>
-                            {formatCurrencyCompact(unitProfit)}
+                          <Label className="text-sm font-medium">Profit/Unit</Label>
+                          <div className="h-10 px-3 flex items-center text-sm font-semibold tabular-nums rounded-md border bg-muted">
+                            <span className={
+                              unitProfit > 0 ? 'text-green-500' : 
+                              unitProfit < 0 ? 'text-red-600 dark:text-red-400' : 
+                              'text-muted-foreground'
+                            }>
+                              {formatCurrencyCompact(unitProfit)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Margin %</Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={(product.pricingMode === 'margin' && product.targetMargin !== undefined) 
+                                ? product.targetMargin === 0 ? '' : product.targetMargin
+                                : (product.sellingPrice > 0 && totalCosts > 0 
+                                  ? Math.round(((product.sellingPrice - totalCosts) / product.sellingPrice) * 1000) / 10 
+                                  : '')}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const margin = value === '' ? 0 : parseFloat(value) || 0;
+                                const newPrice = totalCosts / (1 - margin / 100);
+                                onUpdateProduct(product.id, { 
+                                  sellingPrice: Math.round(newPrice * 100) / 100,
+                                  pricingMode: 'margin',
+                                  targetMargin: margin
+                                });
+                              }}
+                              onFocus={() => onUpdateProduct(product.id, { pricingMode: 'margin' })}
+                              placeholder="0"
+                              inputMode="decimal"
+                              className={`h-10 text-sm font-semibold tabular-nums pr-8 ${
+                                product.pricingMode === 'margin' 
+                                  ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700' 
+                                  : ''
+                              }`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">%</span>
                           </div>
                         </div>
                       </div>
@@ -711,9 +754,10 @@ export function Level1Setup({
                                       type="number"
                                       min="0"
                                       step="0.01"
-                                      value={product.machineTime?.costPerHour || 5}
+                                      value={product.machineTime?.costPerHour === 0 ? '' : product.machineTime?.costPerHour || ''}
                                       onChange={(e) => {
-                                        const costPerHour = Math.round((parseFloat(e.target.value) || 0) * 100) / 100;
+                                        const value = e.target.value;
+                                        const costPerHour = value === '' ? 0 : Math.round((parseFloat(value) || 0) * 100) / 100;
                                         onUpdateProduct(product.id, {
                                           machineTime: {
                                             machineMinutes: timeBreakdown.machine || 0,
@@ -726,24 +770,6 @@ export function Level1Setup({
                                       placeholder="5.00"
                                     />
                                   </div>
-                                </div>
-                              </div>
-                              
-                              <div className="bg-muted/50 rounded-md p-3 space-y-1">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">Machine Hours:</span>
-                                  <span className="font-medium">{((timeBreakdown.machine || 0) / 60).toFixed(2)} hrs</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">Total Machine Cost:</span>
-                                  <span className="font-medium">
-                                    {formatCurrencyCompact(
-                                      ((timeBreakdown.machine || 0) / 60) * (product.machineTime?.costPerHour || 5)
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-2">
-                                  This covers electricity, maintenance, and machine depreciation
                                 </div>
                               </div>
                             </div>
