@@ -593,10 +593,11 @@ export function Level1Setup({
                                   <Input
                                     type="number"
                                     min="0"
-                                    step="1"
-                                    value={timeBreakdown.machine || 0}
+                                    step="0.1"
+                                    value={timeBreakdown.machine || ''}
                                     onChange={(e) => {
-                                      const minutes = parseInt(e.target.value) || 0;
+                                      const value = e.target.value;
+                                      const minutes = value === '' ? 0 : parseFloat(value) || 0;
                                       onUpdateProduct(product.id, { 
                                         timeBreakdown: { ...timeBreakdown, machine: minutes },
                                         machineTime: {

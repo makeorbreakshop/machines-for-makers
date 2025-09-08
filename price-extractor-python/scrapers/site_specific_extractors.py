@@ -276,6 +276,40 @@ class SiteSpecificExtractor:
                 }
             },
             
+            'xtool.com': {
+                'type': 'anniversary_sale',
+                'anniversary_pricing': True,
+                'price_selectors': [
+                    # Priority 1: Look for Final Price (Anniversary sale specific)
+                    '.price-wrapper span:contains("Final Price") + span',
+                    'span:contains("$1,149")',  # Specific for M1 Ultra final price
+                    'span:contains("$3,599")',  # Specific for P2S final price
+                    
+                    # Priority 2: Sale/anniversary prices
+                    '.price--on-sale .money',
+                    '.product__price--sale',
+                    '.anniversary-price',
+                    '.special-price',
+                    
+                    # Priority 3: Standard Shopify price selectors
+                    '.product__price .price__current',
+                    '.price__current .money',
+                    '.product-price-current',
+                    'meta[property="product:price:amount"]'
+                ],
+                'avoid_selectors': [
+                    '.price--compare',  # Original/compare prices
+                    '.was-price',
+                    '.original-price',
+                    'del .money'  # Struck-through prices
+                ],
+                'price_extraction_strategy': 'anniversary_final',  # Special handling for anniversary sales
+                'validation': {
+                    'prefer_lower_price': True,  # When multiple prices exist, prefer the lower one
+                    'look_for_keywords': ['Final Price', 'Material Discount', 'Anniversary']
+                }
+            },
+            
             'acmerlaser.com': {
                 'type': 'custom',
                 'price_selectors': [
@@ -2622,24 +2656,41 @@ class SiteSpecificExtractor:
                             logger.info(f"Found xTool regular price ${price} with selector: {selector}")
                             found_prices.append((price, selector, 'regular'))
             
-            # Priority 3: Look for "Final Price" pattern in text
-            if not found_prices:
-                import re
-                page_text = str(soup)
+            # Priority 3: Look for "Final Price" pattern in text - ALWAYS check this for anniversary sales
+            import re
+            page_text = str(soup)
+            
+            # Look for "Final Price: $X,XXX" pattern
+            final_price_pattern = r'Final\s+Price[:\s]+\$?([\d,]+(?:\.\d{2})?)'
+            final_matches = re.findall(final_price_pattern, page_text, re.IGNORECASE)
+            
+            if final_matches:
+                for match in final_matches:
+                    price_str = match.replace(',', '')
+                    try:
+                        price = float(price_str)
+                        if price > 100:  # Basic validation
+                            logger.info(f"🎯 Found 'Final Price' pattern: ${price} - Using this for anniversary sale")
+                            # For anniversary sales, Final Price is ALWAYS the correct price
+                            return price, 'anniversary:final_price'
+                    except ValueError:
+                        continue
+            
+            # Also look for specific anniversary sale patterns
+            if 'anniversary' in page_text.lower() or 'carnival' in page_text.lower():
+                logger.info("🎊 Anniversary sale detected, looking for lowest valid price")
                 
-                # Look for "Final Price: $X,XXX" pattern
-                final_price_pattern = r'Final\s+Price[:\s]+\$?([\d,]+(?:\.\d{2})?)'
-                final_matches = re.findall(final_price_pattern, page_text, re.IGNORECASE)
-                
-                if final_matches:
-                    for match in final_matches:
+                # Look for prices near "Material Discount" text
+                material_discount_pattern = r'Material\s+Discount[^$]*\$?([\d,]+(?:\.\d{2})?)'
+                discount_matches = re.findall(material_discount_pattern, page_text, re.IGNORECASE)
+                if discount_matches:
+                    for match in discount_matches:
                         price_str = match.replace(',', '')
                         try:
                             price = float(price_str)
-                            if price > 100:  # Basic validation
-                                logger.info(f"Found 'Final Price' pattern: ${price}")
-                                found_prices.append((price, 'text:final_price', 'sale'))
-                                break
+                            if price > 100:
+                                logger.info(f"Found Material Discount price: ${price}")
+                                found_prices.append((price, 'text:material_discount', 'sale'))
                         except ValueError:
                             continue
                 
