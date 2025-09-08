@@ -174,7 +174,7 @@ export function Level1Setup({
     const product = state.products.find(p => p.id === productId);
     if (!product) return;
     
-    const newTimeKey = `task_${Date.now()}`;
+    const newTimeKey = '';
     onUpdateProduct(productId, { 
       timeBreakdown: { ...product.timeBreakdown, [newTimeKey]: 0 }
     });
@@ -722,12 +722,16 @@ export function Level1Setup({
                                   <div key={timeType} className="grid grid-cols-12 gap-2 items-center">
                                     <div className="col-span-5">
                                       <Input
-                                        defaultValue={timeType.charAt(0).toUpperCase() + timeType.slice(1).replace(/_/g, ' ')}
+                                        defaultValue={timeType ? timeType.charAt(0).toUpperCase() + timeType.slice(1).replace(/_/g, ' ') : ''}
                                         onBlur={(e) => {
                                           const newTimeType = e.target.value.toLowerCase().replace(/ /g, '_');
                                           if (newTimeType && newTimeType !== timeType) {
                                             const newTimeBreakdown = { ...timeBreakdown };
-                                            delete newTimeBreakdown[timeType];
+                                            if (timeType) {
+                                              delete newTimeBreakdown[timeType];
+                                            } else {
+                                              delete newTimeBreakdown[''];
+                                            }
                                             newTimeBreakdown[newTimeType] = value;
                                             onUpdateProduct(product.id, { timeBreakdown: newTimeBreakdown });
                                           }
