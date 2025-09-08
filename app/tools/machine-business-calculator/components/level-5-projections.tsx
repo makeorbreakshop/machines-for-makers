@@ -113,7 +113,7 @@ export function Level5Projections({
             <div className="space-y-1">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-gray-700 dark:text-gray-300">Revenue</span>
-                <span className="font-mono font-bold text-xl tabular-nums text-gray-900 dark:text-gray-100">{formatCurrency(monthlyRevenue)}</span>
+                <span className="font-mono font-bold text-xl tabular-nums text-gray-900 dark:text-gray-100">{formatCurrencyPrecise(monthlyRevenue)}</span>
               </div>
             </div>
 
@@ -158,7 +158,7 @@ export function Level5Projections({
               </div>
               <div className="flex justify-between font-medium border-t pt-2">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Total COGS</span>
-                <span className="font-mono font-semibold tabular-nums text-gray-600 dark:text-gray-400">-{formatCurrency(productCosts)}</span>
+                <span className="font-mono font-semibold tabular-nums text-gray-600 dark:text-gray-400">-{formatCurrencyPrecise(productCosts)}</span>
               </div>
             </div>
             
@@ -167,7 +167,7 @@ export function Level5Projections({
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-gray-700 dark:text-gray-300">Gross Profit</span>
                 <div className="text-right">
-                  <div className="font-mono font-bold text-lg tabular-nums text-gray-900 dark:text-gray-100">{formatCurrency(grossProfit)}</div>
+                  <div className="font-mono font-bold text-lg tabular-nums text-gray-900 dark:text-gray-100">{formatCurrencyPrecise(grossProfit)}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     {monthlyRevenue > 0 ? `${((grossProfit / monthlyRevenue) * 100).toFixed(1)}% margin` : 'N/A'}
                   </div>
@@ -207,7 +207,7 @@ export function Level5Projections({
               <div className="flex justify-between font-medium border-t pt-2">
                 <span className="text-gray-700 dark:text-gray-300">Total Operating</span>
                 <span className="font-mono text-gray-600 dark:text-gray-400">
-                  -{formatCurrency(operatingExpensesBeforeTax)}
+                  -{formatCurrencyPrecise(operatingExpensesBeforeTax)}
                 </span>
               </div>
             </div>
@@ -217,7 +217,7 @@ export function Level5Projections({
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-gray-700 dark:text-gray-300">Pre-Tax Profit (EBIT)</span>
                 <div className="text-right">
-                  <div className="font-mono font-bold text-lg tabular-nums text-gray-900 dark:text-gray-100">{formatCurrency(preTaxProfit)}</div>
+                  <div className="font-mono font-bold text-lg tabular-nums text-gray-900 dark:text-gray-100">{formatCurrencyPrecise(preTaxProfit)}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     {monthlyRevenue > 0 ? `${((preTaxProfit / monthlyRevenue) * 100).toFixed(1)}% margin` : 'N/A'}
                   </div>
@@ -239,7 +239,7 @@ export function Level5Projections({
                 <span className="font-bold text-lg text-gray-900 dark:text-gray-100">Net Profit</span>
                 <div className="text-right">
                   <div className={`font-mono font-black text-2xl tabular-nums ${netProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {formatCurrency(netProfit)}
+                    {formatCurrencyPrecise(netProfit)}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     {monthlyRevenue > 0 ? `${((netProfit / monthlyRevenue) * 100).toFixed(1)}% margin` : 'N/A'}
@@ -262,7 +262,7 @@ export function Level5Projections({
             <div className="space-y-3">
               <div>
                 <div className={`text-2xl font-black tabular-nums ${netProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {formatCurrency(netProfit)}
+                  {formatCurrencyPrecise(netProfit)}
                 </div>
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Net Profit</div>
               </div>
@@ -279,7 +279,7 @@ export function Level5Projections({
             <div className="space-y-3">
               <div>
                 <div className={`text-2xl font-black tabular-nums ${quarterlyProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {formatCurrency(quarterlyProfit)}
+                  {formatCurrencyPrecise(quarterlyProfit)}
                 </div>
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Net Profit</div>
               </div>
@@ -296,7 +296,7 @@ export function Level5Projections({
             <div className="space-y-3">
               <div>
                 <div className={`text-2xl font-black tabular-nums ${annualProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {formatCurrency(annualProfit)}
+                  {formatCurrencyPrecise(annualProfit)}
                 </div>
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Net Profit</div>
               </div>

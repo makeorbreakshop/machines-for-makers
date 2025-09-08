@@ -84,6 +84,16 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
     }).format(amount);
   };
 
+  const formatCurrencyDetailed = (amount: number) => {
+    if (isNaN(amount) || !isFinite(amount)) return '$0.00';
+    return new Intl.NumberFormat('en-US', { 
+      style: 'currency', 
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
+
   const formatHours = (hours: number) => {
     if (isNaN(hours) || !isFinite(hours)) return '0.0';
     return hours.toFixed(1);
@@ -560,7 +570,7 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Revenue</span>
                 <span className="font-mono font-bold text-base tabular-nums text-gray-900 dark:text-gray-100">
-                  {formatCurrency(revenue)}
+                  {formatCurrencyDetailed(revenue)}
                 </span>
               </div>
               
@@ -568,7 +578,7 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
               <div className="flex justify-between items-center pb-2 border-b border-border">
                 <span className="text-sm text-muted-foreground">Cost of Goods Sold</span>
                 <span className="font-mono text-sm text-muted-foreground">
-                  -{formatCurrency(cogs)}
+                  -{formatCurrencyDetailed(cogs)}
                 </span>
               </div>
               
@@ -576,7 +586,7 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Gross Profit</span>
                 <span className="font-mono font-medium text-sm">
-                  {formatCurrency(grossProfit)}
+                  {formatCurrencyDetailed(grossProfit)}
                 </span>
               </div>
               
@@ -584,7 +594,7 @@ export function CalculatorDashboard({ metrics, monthlyGoal, products, activeTab,
               <div className="flex justify-between items-center pb-2 border-b border-border">
                 <span className="text-sm text-muted-foreground">Operating Expenses</span>
                 <span className="font-mono text-sm text-muted-foreground">
-                  -{formatCurrency(totalOperatingExpenses)}
+                  -{formatCurrencyDetailed(totalOperatingExpenses)}
                 </span>
               </div>
               
