@@ -500,7 +500,7 @@ export function Level1Setup({
                                       </div>
                                     </div>
                                     <div className={`col-span-2 text-sm font-medium text-right tabular-nums ${isBatch ? 'text-blue-400' : ''}`}>
-                                      ${usage.cost.toFixed(2)}
+                                      {formatCurrencyCompact(usage.cost)}
                                     </div>
                                     <div className="col-span-1 flex justify-end">
                                       <Button
@@ -779,7 +779,7 @@ export function Level1Setup({
                                       />
                                     </div>
                                     <div className="col-span-2 text-sm font-medium text-right tabular-nums">
-                                      ${(((value || 0) / 60) * workerHourlyRate).toFixed(2)}
+                                      {formatCurrencyCompact(((value || 0) / 60) * workerHourlyRate)}
                                     </div>
                                     <div className="col-span-1 flex justify-end">
                                       <Button
@@ -926,7 +926,7 @@ export function Level1Setup({
                                       {platformUnits}
                                     </div>
                                     <div className="col-span-2 text-sm font-medium text-right tabular-nums">
-                                      ${platformCost.toFixed(2)}
+                                      {formatCurrencyCompact(platformCost)}
                                     </div>
                                     <div className="col-span-1 flex justify-end">
                                       {platformFees.length > 1 && (
