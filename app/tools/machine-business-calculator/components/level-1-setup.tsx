@@ -722,10 +722,10 @@ export function Level1Setup({
                                   <div key={timeType} className="grid grid-cols-12 gap-2 items-center">
                                     <div className="col-span-5">
                                       <Input
-                                        value={timeType.charAt(0).toUpperCase() + timeType.slice(1).replace(/_/g, ' ')}
-                                        onChange={(e) => {
+                                        defaultValue={timeType.charAt(0).toUpperCase() + timeType.slice(1).replace(/_/g, ' ')}
+                                        onBlur={(e) => {
                                           const newTimeType = e.target.value.toLowerCase().replace(/ /g, '_');
-                                          if (newTimeType !== timeType) {
+                                          if (newTimeType && newTimeType !== timeType) {
                                             const newTimeBreakdown = { ...timeBreakdown };
                                             delete newTimeBreakdown[timeType];
                                             newTimeBreakdown[newTimeType] = value;
