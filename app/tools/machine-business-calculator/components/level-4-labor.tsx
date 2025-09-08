@@ -26,6 +26,7 @@ export function Level4Labor({
   const [businessTasksExpanded, setBusinessTasksExpanded] = useState(false);
   const [productionExpanded, setProductionExpanded] = useState(false);
   const [workersExpanded, setWorkersExpanded] = useState(false);
+  const [laborSummaryExpanded, setLaborSummaryExpanded] = useState<{ [workerId: string]: boolean }>({});
   
   // Initialize labor state if it doesn't exist
   const [laborState, setLaborState] = useState<LaborState>(() => {
@@ -668,74 +669,180 @@ export function Level4Labor({
             </div>
           </div>
           
-          <div className="p-4 space-y-3">
-            {/* Worker breakdown */}
-            <div className="space-y-3">
-              {laborState.workers.map((worker) => {
-                // Calculate actual assigned hours for this worker
-                let assignedHours = 0;
-                
-                // Add hours from business tasks
-                laborState.businessTasks.forEach(task => {
-                  const assignedWorkerId = task.assignedWorkerId || 'owner';
-                  if (assignedWorkerId === worker.id) {
-                    assignedHours += task.hoursPerWeek;
-                  }
-                });
-                
-                // Add hours from product assignments
-                const productAssignments = laborState.productAssignments || {};
-                if (state.products) {
-                  state.products.forEach(product => {
-                    const productMetrics = metrics.productMetrics?.[product.id];
-                    if (productMetrics) {
-                      const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
-                      const assignedWorkerId = productAssignments[product.id] || 'owner';
-                      if (assignedWorkerId === worker.id) {
-                        assignedHours += weeklyHours;
-                      }
-                    }
+          <div className="p-4 space-y-4">
+            {/* Worker Details */}
+            {laborState.workers.map((worker) => {
+              // Calculate hours and costs for this worker
+              let businessTaskHours = 0;
+              let productionHours = 0;
+              const businessTasks: { task: BusinessTask; hours: number; cost: number }[] = [];
+              const productionTasks: { product: Product; hours: number; cost: number }[] = [];
+              
+              // Calculate business tasks
+              laborState.businessTasks.forEach(task => {
+                const assignedWorkerId = task.assignedWorkerId || 'owner';
+                if (assignedWorkerId === worker.id) {
+                  businessTaskHours += task.hoursPerWeek;
+                  businessTasks.push({
+                    task,
+                    hours: task.hoursPerWeek,
+                    cost: task.hoursPerWeek * worker.hourlyRate * 4.33
                   });
                 }
-                
-                const weeklyCost = assignedHours * worker.hourlyRate;
-                
-                return (
-                  <div key={worker.id} className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">{worker.name}</span>
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">{assignedHours.toFixed(1)}h/week</span>
-                      <span className="font-mono font-semibold text-sm tabular-nums text-gray-900 dark:text-gray-100">{formatCurrencyCompact(weeklyCost)}</span>
+              });
+              
+              // Calculate production hours
+              const productAssignments = laborState.productAssignments || {};
+              if (state.products) {
+                state.products.forEach(product => {
+                  const productMetrics = metrics.productMetrics?.[product.id];
+                  if (productMetrics) {
+                    const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
+                    const assignedWorkerId = productAssignments[product.id] || 'owner';
+                    if (assignedWorkerId === worker.id) {
+                      productionHours += weeklyHours;
+                      productionTasks.push({
+                        product,
+                        hours: weeklyHours,
+                        cost: weeklyHours * worker.hourlyRate * 4.33
+                      });
+                    }
+                  }
+                });
+              }
+              
+              const totalHours = businessTaskHours + productionHours;
+              const totalMonthlyCost = totalHours * worker.hourlyRate * 4.33;
+              
+              if (totalHours === 0) return null;
+              
+              const isExpanded = laborSummaryExpanded[worker.id] || false;
+              
+              return (
+                <div key={worker.id} className="space-y-2">
+                  {/* Worker Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setLaborSummaryExpanded(prev => ({ ...prev, [worker.id]: !prev[worker.id] }))}
+                        className="h-6 w-6 p-0"
+                      >
+                        <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      </Button>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        {worker.name}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        ${worker.hourlyRate}/hr
+                      </span>
                     </div>
+                    <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">
+                      {formatCurrency(totalMonthlyCost)}/mo
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                  
+                  {/* Compact Summary */}
+                  {!isExpanded && (
+                    <div className="ml-8 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                      {businessTasks.length > 0 && (
+                        <>
+                          <span>Business Tasks ({businessTasks.length})</span>
+                          <span className="text-xs">{businessTaskHours.toFixed(1)}h/wk</span>
+                        </>
+                      )}
+                      {businessTasks.length > 0 && productionTasks.length > 0 && (
+                        <span className="text-xs">•</span>
+                      )}
+                      {productionTasks.length > 0 && (
+                        <>
+                          <span>Production ({productionTasks.length} {productionTasks.length === 1 ? 'product' : 'products'})</span>
+                          <span className="text-xs">{productionHours.toFixed(1)}h/wk</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Expanded Details */}
+                  {isExpanded && (
+                    <div className="ml-8 space-y-3">
+                      {businessTasks.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                            Business Tasks
+                          </div>
+                          {businessTasks.map(({ task, hours, cost }) => (
+                            <div key={task.id} className="flex items-center justify-between text-sm pl-2">
+                              <span className="text-gray-600 dark:text-gray-300">• {task.name}</span>
+                              <div className="flex items-center gap-4">
+                                <span className="text-xs text-gray-400">{hours.toFixed(1)}h/wk</span>
+                                <span className="font-mono text-sm text-gray-600 dark:text-gray-300 w-24 text-right">
+                                  {formatCurrency(cost)}/mo
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {productionTasks.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                            Production
+                          </div>
+                          {productionTasks.map(({ product, hours, cost }) => (
+                            <div key={product.id} className="flex items-center justify-between text-sm pl-2">
+                              <span className="text-gray-600 dark:text-gray-300">• {product.name || 'Unnamed Product'}</span>
+                              <div className="flex items-center gap-4">
+                                <span className="text-xs text-gray-400">{hours.toFixed(1)}h/wk</span>
+                                <span className="font-mono text-sm text-gray-600 dark:text-gray-300 w-24 text-right">
+                                  {formatCurrency(cost)}/mo
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }).filter(Boolean)}
 
             {/* Divider */}
-            <div className="border-t border-gray-200 dark:border-gray-700"></div>
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-3"></div>
 
-            {/* Total Labor Cost */}
-            <div className="space-y-3">
+            {/* Totals */}
+            <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="font-semibold text-base text-gray-900 dark:text-gray-100">Total Labor Cost (Monthly)</span>
-                <span className="font-mono font-black text-xl tabular-nums text-gray-900 dark:text-gray-100">{formatCurrencyCompact(totalLaborCostMonthly)}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Total Hours</span>
+                <span className="font-mono text-sm text-gray-700 dark:text-gray-300">{totalHoursNeeded.toFixed(1)}h/wk</span>
               </div>
               
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Total Labor Cost (Weekly)</span>
-                <span className="font-mono font-semibold text-sm tabular-nums text-gray-700 dark:text-gray-300">{formatCurrencyCompact(totalLaborCostWeekly)}</span>
+                <span className="font-semibold text-base text-gray-900 dark:text-gray-100">Total Monthly Cost</span>
+                <span className="font-mono font-black text-xl tabular-nums text-gray-900 dark:text-gray-100">
+                  {formatCurrency(totalLaborCostMonthly)}/mo
+                </span>
               </div>
-              
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground text-xs">Total Weekly Hours</span>
-                <span className="font-mono text-xs text-muted-foreground">{totalHoursNeeded.toFixed(1)}h</span>
+            </div>
+
+            {/* Category Breakdown */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-2">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                By Category
               </div>
-              
               <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground text-xs">Average Hourly Rate</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  ${(laborState.workers.reduce((sum, w) => sum + w.hourlyRate, 0) / laborState.workers.length).toFixed(2)}/hr
+                <span className="text-gray-600 dark:text-gray-300">Production (COGS)</span>
+                <span className="font-mono text-gray-700 dark:text-gray-300">
+                  {formatCurrency(laborState.productLaborCost || 0)}/mo
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600 dark:text-gray-300">Business Tasks (OpEx)</span>
+                <span className="font-mono text-gray-700 dark:text-gray-300">
+                  {formatCurrency(laborState.businessTasksLaborCost || 0)}/mo
                 </span>
               </div>
             </div>

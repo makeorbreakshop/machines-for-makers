@@ -53,18 +53,18 @@ export function Level4BusinessCosts({
     return {
       physicalCosts: {
         items: {
-          rent: 0,
-          utilities: 0,
-          insurance: 0
+          Rent: 0,
+          Utilities: 0,
+          Insurance: 0
         },
         expanded: false
       },
       softwareCosts: {
         items: {
-          accounting: 0,
-          design_tools: 0,
-          website: 0,
-          marketing_tools: 0
+          Accounting: 0,
+          'Design tools': 0,
+          Website: 0,
+          'Marketing tools': 0
         },
         expanded: false
       },
@@ -156,7 +156,7 @@ export function Level4BusinessCosts({
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-medium text-foreground">
-                      {formatCurrencyPrecise(physicalCostsTotal)}
+                      {formatCurrencyPrecise(physicalCostsTotal)}/mo
                     </span>
                     <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.physicalCosts.expanded ? 'transform rotate-180' : ''}`} />
                   </div>
@@ -169,9 +169,9 @@ export function Level4BusinessCosts({
               {Object.entries(businessExpenses.physicalCosts.items).map(([costType, value]) => (
                 <div key={costType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                   <Input
-                    value={costType.replace('_', ' ').charAt(0).toUpperCase() + costType.slice(1).replace('_', ' ')}
+                    value={costType}
                     onChange={(e) => {
-                      const newCostType = e.target.value.toLowerCase().replace(' ', '_');
+                      const newCostType = e.target.value;
                       setBusinessExpenses(prev => {
                         const newItems = { ...prev.physicalCosts.items };
                         delete newItems[costType];
@@ -183,15 +183,15 @@ export function Level4BusinessCosts({
                       });
                     }}
                     className="h-8 text-sm flex-1 text-foreground"
-                    placeholder="Cost name"
+                    placeholder="Monthly cost name"
                   />
                   <div className="relative w-24">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">$</span>
                     <Input
                       type="number"
                       min="0"
-                      step="25"
-                      value={value || value === 0 ? value : ''}
+                      step="0.01"
+                      value={value === 0 ? '' : value}
                       onChange={(e) => setBusinessExpenses(prev => ({
                         ...prev,
                         physicalCosts: {
@@ -200,7 +200,7 @@ export function Level4BusinessCosts({
                         }
                       }))}
                       className="pl-6 h-8 text-sm w-full text-foreground"
-                      placeholder="0.00"
+                      placeholder="0"
                     />
                   </div>
                   <Button
@@ -263,7 +263,7 @@ export function Level4BusinessCosts({
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-medium text-foreground">
-                      {formatCurrencyPrecise(softwareCostsTotal)} total
+                      {formatCurrencyPrecise(softwareCostsTotal)}/mo
                     </span>
                     <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${businessExpenses.softwareCosts.expanded ? 'transform rotate-180' : ''}`} />
                   </div>
@@ -276,9 +276,9 @@ export function Level4BusinessCosts({
                 {Object.entries(businessExpenses.softwareCosts.items).map(([costType, value]) => (
                   <div key={costType} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                     <Input
-                      value={costType.replace('_', ' ').charAt(0).toUpperCase() + costType.slice(1).replace('_', ' ')}
+                      value={costType}
                       onChange={(e) => {
-                        const newCostType = e.target.value.toLowerCase().replace(' ', '_');
+                        const newCostType = e.target.value;
                         setBusinessExpenses(prev => {
                           const newItems = { ...prev.softwareCosts.items };
                           delete newItems[costType];
@@ -290,15 +290,15 @@ export function Level4BusinessCosts({
                         });
                       }}
                       className="h-8 text-sm flex-1 text-foreground"
-                      placeholder="Tool name"
+                      placeholder="Monthly tool name"
                     />
                     <div className="relative w-24">
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-foreground">$</span>
                       <Input
                         type="number"
                         min="0"
-                        step="5"
-                        value={value || value === 0 ? value : ''}
+                        step="0.01"
+                        value={value === 0 ? '' : value}
                         onChange={(e) => setBusinessExpenses(prev => ({
                           ...prev,
                           softwareCosts: {
@@ -307,7 +307,7 @@ export function Level4BusinessCosts({
                           }
                         }))}
                         className="pl-6 h-8 text-sm w-full text-foreground"
-                        placeholder="0.00"
+                        placeholder="0"
                       />
                     </div>
                     <Button

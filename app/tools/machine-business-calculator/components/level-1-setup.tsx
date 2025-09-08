@@ -279,6 +279,7 @@ export function Level1Setup({
               const productMetrics = calculateProductMetrics({ ...product, platformFees }, workerHourlyRate);
               const totalCosts = productMetrics.totalCosts;
               const unitProfit = (product.sellingPrice || 0) - totalCosts;
+              const monthlyRevenue = (product.monthlyUnits || 0) * (product.sellingPrice || 0);
               const monthlyProfit = (product.monthlyUnits || 0) * unitProfit;
               
               // Calculate material costs from materialUsage or legacy costs
@@ -350,9 +351,9 @@ export function Level1Setup({
                         </button>
                         <div className="flex items-center gap-4">
                           <span className={`text-sm font-semibold tabular-nums ${
-                            unitProfit > 0 ? 'text-green-600 dark:text-green-400' : unitProfit < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
+                            monthlyProfit > 0 ? 'text-green-600 dark:text-green-400' : monthlyProfit < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
                           }`}>
-                            {formatCurrency(unitProfit)} profit/unit
+                            {formatCurrency(monthlyProfit)}/mo profit
                           </span>
                           <Button
                             variant="ghost"
@@ -377,17 +378,20 @@ export function Level1Setup({
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                         <div className="space-y-2">
                           <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Selling Price</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={product.sellingPrice || ''}
-                            onChange={(e) => onUpdateProduct(product.id, { 
-                              sellingPrice: Math.round((parseFloat(e.target.value) || 0) * 100) / 100 
-                            })}
-                            placeholder="0.00"
-                            inputMode="decimal"
-                            className="h-10 sm:h-9 text-base sm:text-sm bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
-                          />
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">$</span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={product.sellingPrice || ''}
+                              onChange={(e) => onUpdateProduct(product.id, { 
+                                sellingPrice: Math.round((parseFloat(e.target.value) || 0) * 100) / 100 
+                              })}
+                              placeholder="0.00"
+                              inputMode="decimal"
+                              className="h-10 sm:h-9 text-base sm:text-sm bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-semibold tabular-nums focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 pl-6"
+                            />
+                          </div>
                         </div>
 
                         <div className="space-y-2">
@@ -406,20 +410,20 @@ export function Level1Setup({
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Total Cost</Label>
+                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Cost/Unit</Label>
                           <div className="h-10 px-3 flex items-center text-base font-semibold tabular-nums rounded-md border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700">
                             {formatCurrencyCompact(totalCosts)}
                           </div>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Monthly Profit</Label>
+                          <Label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Profit/Unit</Label>
                           <div className={`h-10 px-3 flex items-center text-base sm:text-sm font-bold tabular-nums rounded-md border ${
-                            monthlyProfit > 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : 
-                            monthlyProfit < 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 
+                            unitProfit > 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : 
+                            unitProfit < 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 
                             'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'
                           }`}>
-                            {formatCurrency(monthlyProfit)}
+                            {formatCurrencyCompact(unitProfit)}
                           </div>
                         </div>
                       </div>
@@ -501,9 +505,9 @@ export function Level1Setup({
                                     <div className="col-span-2">
                                       <Input
                                         type="number"
-                                        value={usage.quantity || 1}
+                                        value={usage.quantity === 0 ? '' : usage.quantity || 1}
                                         onChange={(e) => {
-                                          const qty = parseFloat(e.target.value) || 1;
+                                          const qty = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                                           const updatedUsage = { 
                                             ...usage, 
                                             quantity: qty,
@@ -514,6 +518,7 @@ export function Level1Setup({
                                         className={`h-9 text-sm text-center bg-background ${isBatch ? 'text-blue-400' : ''}`}
                                         min="0"
                                         step="0.01"
+                                        placeholder="0"
                                       />
                                     </div>
                                     <div className="col-span-2">
@@ -521,12 +526,12 @@ export function Level1Setup({
                                         <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-sm ${isBatch ? 'text-blue-500' : 'text-muted-foreground'}`}>$</span>
                                         <Input
                                           type="number"
-                                          value={usage.unitCost || 0}
+                                          value={usage.unitCost === 0 ? '' : usage.unitCost}
                                           onChange={(e) => {
-                                            const cost = parseFloat(e.target.value) || 0;
+                                            const cost = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                                             const updatedUsage = { 
                                               ...usage, 
-                                              unitCost: Math.round(cost * 100) / 100,
+                                              unitCost: cost,
                                               cost: Math.round(usage.quantity * cost * 100) / 100
                                             };
                                             onUpdateMaterialUsage(product.id, idx, updatedUsage);
@@ -534,6 +539,7 @@ export function Level1Setup({
                                           className={`h-9 text-sm pl-6 bg-background text-center ${isBatch ? 'text-blue-400' : ''}`}
                                           min="0"
                                           step="0.01"
+                                          placeholder="0"
                                         />
                                       </div>
                                     </div>

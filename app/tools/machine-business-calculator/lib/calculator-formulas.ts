@@ -225,8 +225,13 @@ export function calculateProductRevenue(product: Product, globalHourlyRate: numb
   const machineCostPerUnit = product.machineTime?.totalCost || 
                              ((machineMinutes / 60) * (product.machineTime?.costPerHour || 5));
   
-  // Calculate material costs
-  const materialCostPerUnit = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
+  // Calculate material costs from materialUsage if available, otherwise use legacy costs
+  let materialCostPerUnit = 0;
+  if (product.materialUsage && product.materialUsage.length > 0) {
+    materialCostPerUnit = product.materialUsage.reduce((sum, usage) => sum + (usage.cost || 0), 0);
+  } else {
+    materialCostPerUnit = Object.values(costs).reduce((sum, cost) => sum + (cost || 0), 0);
+  }
   
   // Calculate platform fees per unit
   const platformFeeCalc = calculatePlatformFees(product);
@@ -295,8 +300,14 @@ export function calculateComprehensiveMetrics(state: CalculatorState): Calculate
 
   // Calculate metrics for each product based on their monthly units
   state.products.forEach(product => {
-    const productMetric = calculateProductMetrics(product, state.hourlyRate);
-    const revenueMetric = calculateProductRevenue(product, state.hourlyRate, blendedCAC);
+    // Get the assigned worker's rate for this product
+    const productAssignments = state.labor?.productAssignments || {};
+    const assignedWorkerId = productAssignments[product.id] || 'owner';
+    const assignedWorker = state.labor?.workers?.find(w => w.id === assignedWorkerId);
+    const workerHourlyRate = assignedWorker?.hourlyRate ?? state.hourlyRate ?? 25;
+    
+    const productMetric = calculateProductMetrics(product, workerHourlyRate);
+    const revenueMetric = calculateProductRevenue(product, workerHourlyRate, blendedCAC);
     
     productMetrics[product.id] = {
       ...productMetric,
