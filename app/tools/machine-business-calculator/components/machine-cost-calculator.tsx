@@ -367,8 +367,15 @@ export function MachineCostCalculator({
                       <TooltipTrigger>
                         <Info className="h-3 w-3 text-muted-foreground" />
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Router bits, laser lenses, nozzles (not material)</p>
+                      <TooltipContent className="max-w-xs">
+                        <p className="font-semibold mb-2">Non-material supplies that wear out:</p>
+                        <div className="space-y-1 text-xs">
+                          <p><strong>Laser:</strong> Lenses ($20-50 every 200-500 hrs), nozzles ($5-15 every 100 hrs)</p>
+                          <p><strong>CNC:</strong> Router bits ($8-50 each, last 5-20 hrs), collets</p>
+                          <p><strong>3D Resin:</strong> FEP film ($15 every 50-100 hrs), IPA, gloves</p>
+                          <p><strong>3D FDM:</strong> Nozzles ($5 every 200 hrs), PTFE tube</p>
+                        </div>
+                        <p className="mt-2 text-xs italic">Calculate: (Item cost ÷ Hours it lasts)</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -387,6 +394,24 @@ export function MachineCostCalculator({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Consumables Helper */}
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+            <h5 className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-2">Quick Consumables Calculator</h5>
+            <div className="grid grid-cols-2 gap-2 text-xs text-blue-800 dark:text-blue-200">
+              <div>
+                <strong>Example: Laser lens</strong>
+                <div className="text-blue-600 dark:text-blue-400">$30 lens ÷ 300 hours = $0.10/hr</div>
+              </div>
+              <div>
+                <strong>Example: Router bit</strong>
+                <div className="text-blue-600 dark:text-blue-400">$20 bit ÷ 10 hours = $2.00/hr</div>
+              </div>
+            </div>
+            <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+              💡 Tip: Track your actual consumable costs for 1 month, then divide by hours used
+            </p>
           </div>
 
           {/* Cost Breakdown */}
