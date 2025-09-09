@@ -347,7 +347,7 @@ export function Level3Marketing({
                       const percentage = totalUnitsNeeded > 0 ? Math.round((units / totalUnitsNeeded) * 100) : 0;
                       handleSliderChange('organic', percentage);
                     }}
-                    className="w-16 h-8 text-right font-bold"
+                    className="w-24 h-8 text-right font-bold"
                   />
                   <span className="text-sm text-muted-foreground w-12 text-right">({salesDistribution.organic}%)</span>
                 </div>
@@ -395,7 +395,7 @@ export function Level3Marketing({
                       const percentage = totalUnitsNeeded > 0 ? Math.round((units / totalUnitsNeeded) * 100) : 0;
                       handleSliderChange('digital', percentage);
                     }}
-                    className="w-16 h-8 text-right font-bold"
+                    className="w-24 h-8 text-right font-bold"
                   />
                   <span className="text-sm text-muted-foreground w-12 text-right">({salesDistribution.digital}%)</span>
                 </div>
@@ -443,7 +443,7 @@ export function Level3Marketing({
                       const percentage = totalUnitsNeeded > 0 ? Math.round((units / totalUnitsNeeded) * 100) : 0;
                       handleSliderChange('events', percentage);
                     }}
-                    className="w-16 h-8 text-right font-bold"
+                    className="w-24 h-8 text-right font-bold"
                   />
                   <span className="text-sm text-muted-foreground w-12 text-right">({salesDistribution.events}%)</span>
                 </div>
