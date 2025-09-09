@@ -9,6 +9,7 @@ import {
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const pathname = usePathname()
+  // Check for calculator page - handle both /tools/machine-business-calculator and any sub-paths
   const isCalculatorPage = pathname?.includes('/machine-business-calculator')
   
   // For calculator pages, force dark theme
