@@ -296,9 +296,9 @@ export function Level1Setup({
               const isExpanded = expandedSections[product.id];
               
               return (
-                <div key={product.id} className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow rounded-lg overflow-hidden">
+                <div key={product.id} className="mb-4">
                     {/* Product Header - Clickable to expand/collapse */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                    <div className={`bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 ${expandedProducts.has(product.id) ? 'rounded-t-lg border-b-0' : 'rounded-lg'}`}>
                       <div className="flex items-center justify-between px-6 py-4">
                         <button
                           onClick={() => {
@@ -371,7 +371,7 @@ export function Level1Setup({
                     
                     {/* Main Product Body - Mobile Optimized */}
                     {expandedProducts.has(product.id) && (
-                    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                    <div className="border border-t-0 border-gray-200 dark:border-gray-700 rounded-b-lg p-4 sm:p-6 space-y-4 sm:space-y-6 bg-background">
                       {/* Key Metrics - Single Row Layout */}
                       <div className="grid grid-cols-5 gap-4">
                         <div className="space-y-2">
