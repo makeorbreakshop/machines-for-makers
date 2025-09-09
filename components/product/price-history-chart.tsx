@@ -50,7 +50,7 @@ export function PriceHistoryChart({
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [timeRange, setTimeRange] = useState('6m') // Default to 6 months
+  const [timeRange, setTimeRange] = useState('1m') // Default to 1 month for compact view
   const [statsData, setStatsData] = useState({
     avgPrice: 0,
     minPrice: 0,
@@ -67,24 +67,28 @@ export function PriceHistoryChart({
         
         // Calculate date range based on selected time range
         let fromDate
+        const now = new Date()
         switch (timeRange) {
+          case '14d':
+            fromDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+            break
           case '1m':
-            fromDate = subMonths(new Date(), 1)
+            fromDate = subMonths(now, 1)
             break
           case '3m':
-            fromDate = subMonths(new Date(), 3)
+            fromDate = subMonths(now, 3)
             break
           case '6m':
-            fromDate = subMonths(new Date(), 6)
+            fromDate = subMonths(now, 6)
             break
           case '1y':
-            fromDate = subMonths(new Date(), 12)
+            fromDate = subMonths(now, 12)
             break
           case 'all':
             fromDate = null
             break
           default:
-            fromDate = subMonths(new Date(), 6)
+            fromDate = subMonths(now, 1)
         }
         
         // Fetch price history from Supabase - include manual corrections
@@ -121,23 +125,13 @@ export function PriceHistoryChart({
           })
           setHasLimitedData(true)
         } else {
-          // Keep all price records to show real price movement
-          // Group by date but preserve important price changes
-          const groupedByDate = data.reduce((acc, item) => {
-            const dateStr = new Date(item.date).toISOString().split('T')[0] // Use YYYY-MM-DD format
-            if (!acc[dateStr] || Math.abs(parseFloat(item.price) - parseFloat(acc[dateStr].price)) > 0.01) {
-              // Keep the latest entry OR if price changed significantly
-              acc[dateStr] = item
-            }
-            return acc
-          }, {} as Record<string, any>)
-          
-          // Format the data
-          const formattedData: PricePoint[] = Object.values(groupedByDate).map((item: any) => ({
+          // Show ALL data points from the database
+          // Format the data directly without filtering
+          const formattedData: PricePoint[] = data.map((item: any) => ({
             date: item.date,
             price: typeof item.price === 'string' ? parseFloat(item.price) : Number(item.price),
-            isAllTimeLow: item.is_all_time_low,
-            isAllTimeHigh: item.is_all_time_high,
+            isAllTimeLow: false, // Will be calculated below
+            isAllTimeHigh: false, // Will be calculated below
           })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
           
           // Calculate stats
@@ -145,6 +139,18 @@ export function PriceHistoryChart({
           const minPrice = prices.length > 0 ? Math.min(...prices) : currentPrice
           const maxPrice = prices.length > 0 ? Math.max(...prices) : currentPrice  
           const avgPrice = prices.length > 0 ? prices.reduce((sum, price) => sum + price, 0) / prices.length : currentPrice
+          
+          // Mark all-time lows and highs dynamically
+          formattedData.forEach(point => {
+            // Mark as all-time low if price equals the minimum (with small tolerance for floating point)
+            if (Math.abs(point.price - minPrice) < 0.01) {
+              point.isAllTimeLow = true
+            }
+            // Mark as all-time high if price equals the maximum
+            if (Math.abs(point.price - maxPrice) < 0.01) {
+              point.isAllTimeHigh = true
+            }
+          })
           const currentDiscount = avgPrice > 0 ? ((avgPrice - Number(currentPrice)) / avgPrice) * 100 : 0
           
           setStatsData({
@@ -215,7 +221,7 @@ export function PriceHistoryChart({
   }
   
   // Custom tooltip content
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
       return (
@@ -235,22 +241,34 @@ export function PriceHistoryChart({
       <div className="flex items-center justify-between mb-2">
         <div className="flex gap-1">
           <button
+            onClick={() => setTimeRange('14d')}
+            className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${timeRange === '14d' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          >
+            14D
+          </button>
+          <button
             onClick={() => setTimeRange('1m')}
-            className={`px-1.5 py-0.5 text-xs rounded ${timeRange === '1m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+            className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${timeRange === '1m' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             1M
           </button>
           <button
             onClick={() => setTimeRange('3m')}
-            className={`px-1.5 py-0.5 text-xs rounded ${timeRange === '3m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+            className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${timeRange === '3m' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             3M
           </button>
           <button
             onClick={() => setTimeRange('6m')}
-            className={`px-1.5 py-0.5 text-xs rounded ${timeRange === '6m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+            className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${timeRange === '6m' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             6M
+          </button>
+          <button
+            onClick={() => setTimeRange('all')}
+            className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${timeRange === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          >
+            ALL
           </button>
         </div>
         
@@ -297,10 +315,20 @@ export function PriceHistoryChart({
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
             <XAxis 
               dataKey="date" 
-              tickFormatter={(date) => format(new Date(date), 'MMM d')}
+              tickFormatter={(date) => {
+                const d = new Date(date)
+                if (timeRange === '14d' || timeRange === '1m') {
+                  return format(d, 'MMM d')
+                } else if (timeRange === '3m' || timeRange === '6m') {
+                  return format(d, 'MMM')
+                } else {
+                  return format(d, 'MMM yy')
+                }
+              }}
               tick={{ fontSize: 9, fill: '#6b7280' }}
               axisLine={{ stroke: '#d1d5db' }}
               tickLine={{ stroke: '#d1d5db' }}
+              interval="preserveStartEnd"
             />
             <YAxis 
               domain={['dataMin - 50', 'dataMax + 50']}
@@ -315,7 +343,17 @@ export function PriceHistoryChart({
               dataKey="price"
               stroke="#2563eb"
               strokeWidth={2}
-              dot={{ r: 3, fill: '#2563eb', strokeWidth: 2, stroke: '#ffffff' }}
+              dot={(props: any) => {
+                const { cx, cy, payload } = props
+                if (payload.isAllTimeLow) {
+                  return (
+                    <circle cx={cx} cy={cy} r={4} fill="#10b981" stroke="#ffffff" strokeWidth={2} />
+                  )
+                }
+                return (
+                  <circle cx={cx} cy={cy} r={3} fill="#2563eb" stroke="#ffffff" strokeWidth={2} />
+                )
+              }}
               activeDot={{ r: 5, fill: '#2563eb', strokeWidth: 2, stroke: '#ffffff' }}
               connectNulls={false}
             />
@@ -326,7 +364,7 @@ export function PriceHistoryChart({
                 strokeDasharray="3 3" 
                 label={{ 
                   value: `Avg $${Math.round(statsData.avgPrice)}`, 
-                  position: 'topRight',
+                  position: 'right',
                   style: { fill: '#6b7280', fontSize: 9 }
                 }} 
               />
@@ -343,34 +381,40 @@ export function PriceHistoryChart({
           <CardTitle>Price History</CardTitle>
           <div className="flex gap-1">
             <button
+              onClick={() => setTimeRange('14d')}
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${timeRange === '14d' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              14D
+            </button>
+            <button
               onClick={() => setTimeRange('1m')}
-              className={`px-2 py-1 text-xs rounded ${timeRange === '1m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${timeRange === '1m' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               1M
             </button>
             <button
               onClick={() => setTimeRange('3m')}
-              className={`px-2 py-1 text-xs rounded ${timeRange === '3m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${timeRange === '3m' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               3M
             </button>
             <button
               onClick={() => setTimeRange('6m')}
-              className={`px-2 py-1 text-xs rounded ${timeRange === '6m' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${timeRange === '6m' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               6M
             </button>
             <button
               onClick={() => setTimeRange('1y')}
-              className={`px-2 py-1 text-xs rounded ${timeRange === '1y' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${timeRange === '1y' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               1Y
             </button>
             <button
               onClick={() => setTimeRange('all')}
-              className={`px-2 py-1 text-xs rounded ${timeRange === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${timeRange === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
-              All
+              ALL
             </button>
           </div>
         </div>
@@ -422,10 +466,20 @@ export function PriceHistoryChart({
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
               <XAxis 
                 dataKey="date" 
-                tickFormatter={(date) => format(new Date(date), 'MMM d')}
+                tickFormatter={(date) => {
+                  const d = new Date(date)
+                  if (timeRange === '14d' || timeRange === '1m') {
+                    return format(d, 'MMM d')
+                  } else if (timeRange === '3m' || timeRange === '6m') {
+                    return format(d, 'MMM')
+                  } else {
+                    return format(d, 'MMM yy')
+                  }
+                }}
                 tick={{ fontSize: 10, fill: '#6b7280' }}
                 axisLine={{ stroke: '#d1d5db' }}
                 tickLine={{ stroke: '#d1d5db' }}
+                interval="preserveStartEnd"
               />
               <YAxis 
                 domain={['dataMin - 100', 'dataMax + 100']}
@@ -440,7 +494,22 @@ export function PriceHistoryChart({
                 dataKey="price"
                 stroke="#2563eb"
                 strokeWidth={3}
-                dot={{ r: 4, fill: '#2563eb', strokeWidth: 2, stroke: '#ffffff' }}
+                dot={(props: any) => {
+                  const { cx, cy, payload } = props
+                  if (payload.isAllTimeLow) {
+                    return (
+                      <circle cx={cx} cy={cy} r={5} fill="#10b981" stroke="#ffffff" strokeWidth={2} />
+                    )
+                  }
+                  if (payload.isAllTimeHigh) {
+                    return (
+                      <circle cx={cx} cy={cy} r={5} fill="#ef4444" stroke="#ffffff" strokeWidth={2} />
+                    )
+                  }
+                  return (
+                    <circle cx={cx} cy={cy} r={4} fill="#2563eb" stroke="#ffffff" strokeWidth={2} />
+                  )
+                }}
                 activeDot={{ r: 6, fill: '#2563eb', strokeWidth: 3, stroke: '#ffffff' }}
                 connectNulls={false}
               />
@@ -451,7 +520,7 @@ export function PriceHistoryChart({
                   strokeDasharray="3 3" 
                   label={{ 
                     value: `Average ${formatPrice(statsData.avgPrice)}`, 
-                    position: 'topRight',
+                    position: 'right',
                     style: { fill: '#6b7280', fontSize: 10 }
                   }} 
                 />

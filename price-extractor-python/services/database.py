@@ -214,6 +214,76 @@ class DatabaseService:
             if percentage_change is not None:
                 entry_data["percentage_change"] = percentage_change
             
+            # Calculate all-time low/high flags if we have a valid new price
+            if new_price is not None and success:
+                try:
+                    # Get all historical prices for this machine
+                    history_response = self.supabase.table(PRICE_HISTORY_TABLE) \
+                        .select("price") \
+                        .eq("machine_id", machine_id) \
+                        .in("status", ["AUTO_APPLIED", "APPROVED", "SUCCESS", "MANUAL_CORRECTION"]) \
+                        .execute()
+                    
+                    if history_response.data:
+                        # Extract valid prices
+                        historical_prices = [
+                            float(h["price"]) 
+                            for h in history_response.data 
+                            if h["price"] is not None
+                        ]
+                        
+                        if historical_prices:
+                            min_price = min(historical_prices)
+                            max_price = max(historical_prices)
+                            new_price_float = float(new_price)
+                            
+                            # Check if this is a new all-time low or high
+                            # Use small tolerance for floating point comparison
+                            if new_price_float <= min_price + 0.01:
+                                entry_data["is_all_time_low"] = True
+                                logger.info(f"🎯 New all-time LOW for machine {machine_id}: ${new_price_float:.2f}")
+                                
+                                # Reset previous all-time low flags for this machine
+                                if new_price_float < min_price - 0.01:  # Only if it's actually lower, not equal
+                                    try:
+                                        self.supabase.table(PRICE_HISTORY_TABLE) \
+                                            .update({"is_all_time_low": False}) \
+                                            .eq("machine_id", machine_id) \
+                                            .eq("is_all_time_low", True) \
+                                            .execute()
+                                        logger.debug(f"Reset previous all-time low flags for machine {machine_id}")
+                                    except Exception as e:
+                                        logger.warning(f"Could not reset previous all-time low flags: {str(e)}")
+                            
+                            if new_price_float >= max_price - 0.01:
+                                entry_data["is_all_time_high"] = True
+                                logger.info(f"📈 New all-time HIGH for machine {machine_id}: ${new_price_float:.2f}")
+                                
+                                # Reset previous all-time high flags for this machine
+                                if new_price_float > max_price + 0.01:  # Only if it's actually higher, not equal
+                                    try:
+                                        self.supabase.table(PRICE_HISTORY_TABLE) \
+                                            .update({"is_all_time_high": False}) \
+                                            .eq("machine_id", machine_id) \
+                                            .eq("is_all_time_high", True) \
+                                            .execute()
+                                        logger.debug(f"Reset previous all-time high flags for machine {machine_id}")
+                                    except Exception as e:
+                                        logger.warning(f"Could not reset previous all-time high flags: {str(e)}")
+                        else:
+                            # First price entry - mark as both low and high
+                            entry_data["is_all_time_low"] = True
+                            entry_data["is_all_time_high"] = True
+                            logger.info(f"First price entry for machine {machine_id}: ${new_price}")
+                    else:
+                        # No history - this is the first entry
+                        entry_data["is_all_time_low"] = True
+                        entry_data["is_all_time_high"] = True
+                        logger.info(f"First price entry for machine {machine_id}: ${new_price}")
+                        
+                except Exception as e:
+                    logger.warning(f"Could not calculate all-time low/high for machine {machine_id}: {str(e)}")
+            
             # Add to price history table
             response = self.supabase.table(PRICE_HISTORY_TABLE) \
                 .insert(entry_data) \
