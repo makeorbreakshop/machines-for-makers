@@ -299,7 +299,7 @@ export function Level1Setup({
                 <div key={product.id} className="mb-4">
                     {/* Product Header - Clickable to expand/collapse */}
                     <div className={`border border-border ${expandedProducts.has(product.id) ? 'rounded-t-lg border-b-0' : 'rounded-lg'}`}>
-                      <div className="flex items-center justify-between px-6 py-4">
+                      <div className="flex items-center justify-between px-6 py-4 bg-gray-50 dark:bg-gray-800/50">
                         <button
                           onClick={() => {
                             setExpandedProducts(prev => {
