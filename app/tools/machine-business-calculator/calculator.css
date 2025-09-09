@@ -1,0 +1,53 @@
+/* Force dark mode for calculator app */
+.calculator-app {
+  /* Override theme provider and force dark mode variables */
+  --background: 224 71.4% 4.1% !important;
+  --foreground: 210 20% 98% !important;
+  --card: 224 71.4% 4.1% !important;
+  --card-foreground: 210 20% 98% !important;
+  --popover: 224 71.4% 4.1% !important;
+  --popover-foreground: 210 20% 98% !important;
+  --primary: 198 83% 49% !important;
+  --primary-foreground: 210 20% 98% !important;
+  --secondary: 215 27.9% 16.9% !important;
+  --secondary-foreground: 210 20% 98% !important;
+  --muted: 215 27.9% 16.9% !important;
+  --muted-foreground: 217.9 10.6% 64.9% !important;
+  --accent: 215 27.9% 16.9% !important;
+  --accent-foreground: 210 20% 98% !important;
+  --destructive: 0 62.8% 30.6% !important;
+  --destructive-foreground: 210 20% 98% !important;
+  --border: 215 27.9% 16.9% !important;
+  --input: 215 27.9% 16.9% !important;
+  --ring: 198 83% 49% !important;
+  
+  /* Ensure dark background */
+  background-color: hsl(224 71.4% 4.1%) !important;
+  color: hsl(210 20% 98%) !important;
+}
+
+/* Ensure all children inherit dark mode */
+.calculator-app * {
+  color-scheme: dark !important;
+}
+
+/* Override any light mode styles that might leak through */
+.calculator-app .bg-white {
+  background-color: hsl(224 71.4% 4.1%) !important;
+}
+
+.calculator-app .bg-gray-50 {
+  background-color: hsl(224 71.4% 4.1%) !important;
+}
+
+.calculator-app .text-gray-900 {
+  color: hsl(210 20% 98%) !important;
+}
+
+.calculator-app .text-gray-800 {
+  color: hsl(210 20% 98%) !important;
+}
+
+.calculator-app .border-gray-200 {
+  border-color: hsl(215 27.9% 16.9%) !important;
+}
