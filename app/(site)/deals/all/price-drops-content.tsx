@@ -118,7 +118,7 @@ export function PriceDropsContent() {
           break;
         case 'allTimeLow':
           sorted.sort((a, b) => {
-            // Define sort priority for descending: New Low = 0, Previous Low = 1, No Badge = 2
+            // Define sort priority for descending: All-Time Low = 0, Previous Low = 1, No Badge = 2
             const getPriority = (drop: PriceDrop) => {
               if (!drop.isAllTimeLow) return 2;
               return drop.isNewAllTimeLow ? 0 : 1;
