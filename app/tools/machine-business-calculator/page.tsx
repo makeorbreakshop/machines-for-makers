@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { ArrowRight, Calculator, TrendingUp, DollarSign, Clock, Target } from 'lucide-react';
 import Link from 'next/link';
 
-export const runtime = 'nodejs';
+// Removed runtime config to prevent conflicts with child routes
 
 export default function MachineBusinessCalculatorPage() {
   return (
