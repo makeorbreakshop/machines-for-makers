@@ -213,7 +213,7 @@ export function Level1Setup({
               variant="outline"
               size="sm"
               onClick={() => setShowTemplates(!showTemplates)}
-              className="text-foreground border-border bg-background hover:bg-muted"
+              className="text-foreground border-border hover:"
             >
               Use Template
             </Button>
@@ -221,7 +221,7 @@ export function Level1Setup({
               variant="outline"
               size="sm"
               onClick={addBlankProduct}
-              className="text-foreground border-border bg-background hover:bg-muted"
+              className="text-foreground border-border hover:"
             >
               <Plus className="h-4 w-4 mr-1" />
               Add Product
@@ -230,7 +230,7 @@ export function Level1Setup({
         </div>
 
         {showTemplates && (
-          <div className="bg-muted rounded-lg p-4 space-y-3">
+          <div className="rounded-lg p-4 space-y-3">
             <div className="text-sm font-medium text-foreground mb-3">
               Choose a starting template:
             </div>
@@ -239,7 +239,7 @@ export function Level1Setup({
                 <Button
                   key={index}
                   variant="outline"
-                  className="justify-start h-auto p-3 text-foreground border-border bg-background hover:bg-muted"
+                  className="justify-start h-auto p-3 text-foreground border-border  hover:"
                   onClick={() => addProductFromTemplate(template)}
                 >
                   <div className="text-left">
@@ -296,9 +296,9 @@ export function Level1Setup({
               const isExpanded = expandedSections[product.id];
               
               return (
-                <div key={product.id} className="border border-border rounded-lg overflow-hidden">
+                <div key={product.id} className="">
                     {/* Product Header - Clickable to expand/collapse */}
-                    <div className="bg-muted/30 border-b border-border">
+                    <div className="border-b border-border">
                       <div className="flex items-center justify-between px-6 py-4">
                         <button
                           onClick={() => {
@@ -416,14 +416,14 @@ export function Level1Setup({
 
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">Cost/Unit</Label>
-                          <div className="h-10 px-3 flex items-center text-sm font-semibold tabular-nums rounded-md border bg-muted">
+                          <div className="h-10 px-3 flex items-center text-sm font-semibold tabular-nums rounded-md border ">
                             {formatCurrencyCompact(totalCosts)}
                           </div>
                         </div>
 
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">Profit/Unit</Label>
-                          <div className="h-10 px-3 flex items-center text-sm font-semibold tabular-nums rounded-md border bg-muted">
+                          <div className="h-10 px-3 flex items-center text-sm font-semibold tabular-nums rounded-md border ">
                             <span className={
                               unitProfit > 0 ? 'text-green-500' : 
                               unitProfit < 0 ? 'text-red-600 dark:text-red-400' : 
@@ -538,7 +538,7 @@ export function Level1Setup({
                                             const updatedUsage = { ...usage, name: e.target.value };
                                             onUpdateMaterialUsage(product.id, idx, updatedUsage);
                                           }}
-                                          className="h-9 text-sm bg-background"
+                                          className="h-9 text-sm "
                                           placeholder="Material name"
                                         />
                                       )}
@@ -556,7 +556,7 @@ export function Level1Setup({
                                           };
                                           onUpdateMaterialUsage(product.id, idx, updatedUsage);
                                         }}
-                                        className={`h-9 text-sm text-center bg-background ${isBatch ? 'text-blue-400' : ''}`}
+                                        className={`h-9 text-sm text-center  ${isBatch ? 'text-blue-400' : ''}`}
                                         min="0"
                                         step="0.01"
                                         placeholder="0"
@@ -577,7 +577,7 @@ export function Level1Setup({
                                             };
                                             onUpdateMaterialUsage(product.id, idx, updatedUsage);
                                           }}
-                                          className={`h-9 text-sm pl-6 bg-background text-center ${isBatch ? 'text-blue-400' : ''}`}
+                                          className={`h-9 text-sm pl-6  text-center ${isBatch ? 'text-blue-400' : ''}`}
                                           min="0"
                                           step="0.01"
                                           placeholder="0"
@@ -643,10 +643,10 @@ export function Level1Setup({
                         </div>
 
                         {/* Machine Time Section */}
-                        <div className="bg-muted/30 rounded-lg border border-border">
+                        <div className=" rounded-lg border border-border">
                           <button
                             onClick={() => toggleSection(product.id, 'machine')}
-                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
+                            className="w-full px-4 py-3 flex items-center justify-between  transition-colors rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <Cpu className="h-4 w-4 text-muted-foreground" />
@@ -722,7 +722,7 @@ export function Level1Setup({
                                         }
                                       });
                                     }}
-                                    className={`h-9 text-sm bg-background ${batchModeState[product.id]?.appliedBatches?.['machine'] ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}`}
+                                    className={`h-9 text-sm  ${batchModeState[product.id]?.appliedBatches?.['machine'] ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}`}
                                     placeholder="0"
                                   />
                                 </div>
@@ -764,7 +764,7 @@ export function Level1Setup({
                                           }
                                         });
                                       }}
-                                      className="h-9 text-sm pl-6 bg-background"
+                                      className="h-9 text-sm pl-6 "
                                       placeholder="5.00"
                                     />
                                   </div>
@@ -775,10 +775,10 @@ export function Level1Setup({
                         </div>
 
                         {/* Labor Costs Section */}
-                        <div className="bg-muted/30 rounded-lg border border-border">
+                        <div className=" rounded-lg border border-border">
                           <button
                             onClick={() => toggleSection(product.id, 'labor')}
-                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
+                            className="w-full px-4 py-3 flex items-center justify-between  transition-colors rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -989,7 +989,7 @@ export function Level1Setup({
                                             onUpdateProduct(product.id, { timeBreakdown: newTimeBreakdown });
                                           }
                                         }}
-                                        className="h-9 text-sm bg-background"
+                                        className="h-9 text-sm "
                                         placeholder="Task name"
                                       />
                                     </div>
@@ -1005,7 +1005,7 @@ export function Level1Setup({
                                           });
                                         }}
                                       >
-                                        <SelectPrimitive.Trigger className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-left ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1">
+                                        <SelectPrimitive.Trigger className="flex h-9 w-full items-center justify-between rounded-md border border-input  px-3 py-2 text-sm text-left ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1">
                                           <SelectValue placeholder="Select worker">
                                             {assignedWorker?.name || 'Select worker'}
                                           </SelectValue>
@@ -1032,7 +1032,7 @@ export function Level1Setup({
                                             timeBreakdown: { ...timeBreakdown, [timeType]: numericValue }
                                           });
                                         }}
-                                        className={`h-9 text-sm text-center tabular-nums bg-background ${batchSize ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}`}
+                                        className={`h-9 text-sm text-center tabular-nums  ${batchSize ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}`}
                                         placeholder="0"
                                         inputMode="decimal"
                                       />
@@ -1134,10 +1134,10 @@ export function Level1Setup({
                         </div>
 
                         {/* Platform Fees Section */}
-                        <div className="bg-muted/30 rounded-lg border border-border">
+                        <div className=" rounded-lg border border-border">
                           <button
                             onClick={() => toggleSection(product.id, 'platforms')}
-                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
+                            className="w-full px-4 py-3 flex items-center justify-between  transition-colors rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <Store className="h-4 w-4 text-muted-foreground" />
@@ -1185,7 +1185,7 @@ export function Level1Setup({
                                           );
                                           onUpdateProduct(product.id, { platformFees: updated });
                                         }}
-                                        className="h-9 text-sm bg-background"
+                                        className="h-9 text-sm "
                                         placeholder="Platform name"
                                       />
                                     </div>
@@ -1204,7 +1204,7 @@ export function Level1Setup({
                                           );
                                           onUpdateProduct(product.id, { platformFees: updated });
                                         }}
-                                        className="h-9 text-sm text-center tabular-nums bg-background"
+                                        className="h-9 text-sm text-center tabular-nums "
                                         placeholder="0"
                                       />
                                     </div>
@@ -1244,7 +1244,7 @@ export function Level1Setup({
                                             onUpdateProduct(product.id, { platformFees: updated });
                                           }
                                         }}
-                                        className="h-9 text-sm text-center tabular-nums bg-background"
+                                        className="h-9 text-sm text-center tabular-nums "
                                         placeholder="0"
                                       />
                                     </div>
