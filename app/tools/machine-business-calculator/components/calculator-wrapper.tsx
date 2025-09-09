@@ -361,7 +361,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
           {/* Main Grid Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Main Content Area */}
-            <div className="lg:col-span-2 rounded-lg transition-all duration-300 bg-slate-900/50 ring-1 ring-slate-700/50 p-4">
+            <div className="lg:col-span-2">
               <TabsContent value="products" className="mt-0">
                 {renderTabContent('products')}
               </TabsContent>

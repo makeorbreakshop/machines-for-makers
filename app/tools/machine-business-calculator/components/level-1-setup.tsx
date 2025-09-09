@@ -298,8 +298,8 @@ export function Level1Setup({
               return (
                 <div key={product.id} className="mb-4">
                     {/* Product Header - Clickable to expand/collapse */}
-                    <div className={expandedProducts.has(product.id) ? 'border-b border-border' : ''}>
-                      <div className="flex items-center justify-between py-4">
+                    <div className={`bg-muted/30 border border-border ${expandedProducts.has(product.id) ? 'rounded-t-lg border-b-0' : 'rounded-lg'}`}>
+                      <div className="flex items-center justify-between px-6 py-4">
                         <button
                           onClick={() => {
                             setExpandedProducts(prev => {
@@ -371,7 +371,7 @@ export function Level1Setup({
                     
                     {/* Main Product Body - Mobile Optimized */}
                     {expandedProducts.has(product.id) && (
-                    <div className="pt-4 pb-6 space-y-4 sm:space-y-6">
+                    <div className="border border-t-0 border-border rounded-b-lg p-4 sm:p-6 space-y-4 sm:space-y-6 bg-background">
                       {/* Key Metrics - Single Row Layout */}
                       <div className="grid grid-cols-5 gap-4">
                         <div className="space-y-2">
