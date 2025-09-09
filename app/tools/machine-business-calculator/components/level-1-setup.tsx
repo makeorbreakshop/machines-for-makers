@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -297,10 +296,9 @@ export function Level1Setup({
               const isExpanded = expandedSections[product.id];
               
               return (
-                <Card key={product.id} className="!border-0 border-none bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
-                  <CardContent className="p-0">
+                <div key={product.id} className="border border-border rounded-lg overflow-hidden">
                     {/* Product Header - Clickable to expand/collapse */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                    <div className="bg-muted/30 border-b border-border">
                       <div className="flex items-center justify-between px-6 py-4">
                         <button
                           onClick={() => {
@@ -317,11 +315,11 @@ export function Level1Setup({
                           className="flex items-center gap-2 flex-1 text-left"
                         >
                           {expandedProducts.has(product.id) ? (
-                            <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            <ChevronUp className="h-5 w-5 text-muted-foreground" />
                           ) : (
-                            <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            <ChevronDown className="h-5 w-5 text-muted-foreground" />
                           )}
-                          <Package className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                          <Package className="h-5 w-5 text-muted-foreground" />
                           {product.isEditingName ? (
                             <Input
                               value={product.name}
@@ -1322,8 +1320,7 @@ export function Level1Setup({
                       </div>
                     </div>
                     )}
-                  </CardContent>
-                </Card>
+                </div>
               );
             })}
           </div>
