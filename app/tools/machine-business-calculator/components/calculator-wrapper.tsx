@@ -170,7 +170,7 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
   };
 
   return (
-    <div className="min-h-screen bg-background dark">
+    <div className="min-h-screen bg-background">
       {/* Goal Progress Bar - Desktop Only */}
       <div className="hidden sm:block bg-muted/30 border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
