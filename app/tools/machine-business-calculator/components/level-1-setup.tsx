@@ -298,7 +298,7 @@ export function Level1Setup({
               return (
                 <div key={product.id} className="mb-4">
                     {/* Product Header - Clickable to expand/collapse */}
-                    <div className={`bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 ${expandedProducts.has(product.id) ? 'rounded-t-lg border-b-0' : 'rounded-lg'}`}>
+                    <div className={`bg-muted/30 border border-border ${expandedProducts.has(product.id) ? 'rounded-t-lg border-b-0' : 'rounded-lg'}`}>
                       <div className="flex items-center justify-between px-6 py-4">
                         <button
                           onClick={() => {
@@ -341,7 +341,7 @@ export function Level1Setup({
                                 e.stopPropagation();
                                 onUpdateProduct(product.id, { isEditingName: true });
                               }}
-                              className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-text"
+                              className="text-lg font-semibold text-foreground hover:text-primary transition-colors cursor-text"
                             >
                               {product.name || `Product ${index + 1}`}
                             </span>
@@ -349,7 +349,7 @@ export function Level1Setup({
                         </button>
                         <div className="flex items-center gap-4">
                           <span className={`text-sm font-semibold tabular-nums ${
-                            monthlyProfit > 0 ? 'text-green-500' : monthlyProfit < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
+                            monthlyProfit > 0 ? 'text-green-500' : monthlyProfit < 0 ? 'text-destructive' : 'text-muted-foreground'
                           }`}>
                             ${Math.round(monthlyProfit).toLocaleString()}/mo
                           </span>
@@ -361,7 +361,7 @@ export function Level1Setup({
                                 onRemoveProduct(product.id);
                               }
                             }}
-                            className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive transition-colors"
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -371,7 +371,7 @@ export function Level1Setup({
                     
                     {/* Main Product Body - Mobile Optimized */}
                     {expandedProducts.has(product.id) && (
-                    <div className="border border-t-0 border-gray-200 dark:border-gray-700 rounded-b-lg p-4 sm:p-6 space-y-4 sm:space-y-6 bg-background">
+                    <div className="border border-t-0 border-border rounded-b-lg p-4 sm:p-6 space-y-4 sm:space-y-6 bg-background">
                       {/* Key Metrics - Single Row Layout */}
                       <div className="grid grid-cols-5 gap-4">
                         <div className="space-y-2">
@@ -472,13 +472,13 @@ export function Level1Setup({
                       {/* Expandable Cost Sections - Mobile Optimized */}
                       <div className="space-y-3">
                         {/* Material Costs Section */}
-                        <div className="bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="bg-muted/30 rounded-lg border border-border">
                           <button
                             onClick={() => toggleSection(product.id, 'materials')}
-                            className="w-full px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors rounded-lg min-h-[48px]"
+                            className="w-full px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between hover:bg-accent/50 transition-colors rounded-lg min-h-[48px]"
                           >
                             <div className="flex items-center gap-3">
-                              <Package className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                              <Package className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm font-medium">Material Costs</span>
                               <span className="text-sm text-muted-foreground">
                                 {costItemCount} {costItemCount === 1 ? 'item' : 'items'}
@@ -694,7 +694,7 @@ export function Level1Setup({
                                           }
                                         }));
                                       }}
-                                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                                     />
                                     <span className="text-sm text-blue-700 dark:text-blue-400">
                                       Include machine time in batch conversion
@@ -969,7 +969,7 @@ export function Level1Setup({
                                               }
                                             }));
                                           }}
-                                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                                         />
                                       </div>
                                     )}
