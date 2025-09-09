@@ -671,3 +671,15 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Worker Rate Integration**: Products tab now uses actual worker rates from Labor assignments, not generic hourly rate
 - **Impact**: Professional unified interface, improved readability, efficient inline editing workflow, proper dark mode support
 - **Technical**: State management through actions pattern, conditional JSX classes for dark mode, weekly cost unification
+
+### 2025-09-08: Machine Business Calculator - Complete Mobile Optimization & Labor System Refactor
+- **Issue**: Mobile UX poor with dashboard hidden below fold, horizontal tab scrolling, labor costs not flowing to P&L correctly
+- **Mobile Architecture**: Single-column responsive layout, dropdown navigation with numbered steps, bottom sheet summary with professional gradient design
+- **Labor System Fix**: Complete refactor separating business tasks (OpEx) from product labor (COGS), proper worker rate application, TypeScript types added
+- **Material Entry**: Hybrid inline + modal system for quick material additions alongside batch pricing calculator
+- **Machine Time Tracking**: Separated from labor costs with comprehensive calculator, 6 presets based on 2025 market research, IRS depreciation schedules
+- **Batch Mode**: Bidirectional batch↔per-unit time conversion with visual indicators, prevents double-division errors
+- **Collapsible Products**: Click-to-collapse product cards with auto-expand for new products, proper HTML structure without nested buttons
+- **Dashboard Analytics Fix**: Pagination implementation bypassing Supabase 1000-row limit, fixed September 6-8 lead click data (677/188/168 clicks)
+- **Impact**: Mobile-first responsive design, accurate P&L calculations, 24x faster batch processing with ThreadPoolExecutor fix
+- **Technical**: Progressive disclosure patterns, touch target optimization (44px minimum), proper state flow through TypeScript interfaces
