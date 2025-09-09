@@ -1,4 +1,5 @@
 export const runtime = 'nodejs';
+export const revalidate = 60; // Revalidate every 60 seconds
 
 import { Suspense } from 'react';
 import { PriceDropsContent } from './price-drops-content';
@@ -13,7 +14,7 @@ export const metadata = {
 async function getStats() {
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/price-drops?days=14&limit=100`, {
-      cache: 'no-store'
+      next: { revalidate: 60 }
     });
 
     if (!response.ok) {

@@ -1,4 +1,5 @@
 export const runtime = 'nodejs';
+export const revalidate = 60; // Revalidate every 60 seconds
 
 import { Suspense } from 'react';
 import { UltraSimpleContent } from './ultra-simple-content';
@@ -12,7 +13,7 @@ async function getDrops() {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const response = await fetch(`${baseUrl}/api/price-drops?days=30&limit=100`, {
-      cache: 'no-store'
+      next: { revalidate: 60 }
     });
 
     if (!response.ok) {
