@@ -309,49 +309,49 @@ export function CalculatorWrapper({ state, metrics, actions }: CalculatorWrapper
 
           {/* Desktop: Tab Navigation */}
           <div className="hidden lg:block">
-            <TabsList className="flex w-full p-1 rounded-lg bg-slate-900/80 border-slate-700/50 border">
+            <TabsList className="flex w-full p-0 bg-transparent">
               <TabsTrigger 
                 value="products" 
-                className={`flex-1 font-medium transition-all duration-150 rounded-md py-3 px-4 ${
+                className={`flex-1 font-medium transition-all duration-150 py-3 px-4 ${
                   activeTab === 'products' 
-                    ? 'bg-gray-700 text-white shadow-md' 
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
+                    ? 'text-foreground border-b-2 border-primary' 
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}>
                 Products
               </TabsTrigger>
               <TabsTrigger 
                 value="marketing" 
-                className={`flex-1 font-medium transition-all duration-150 rounded-md py-3 px-4 ${
+                className={`flex-1 font-medium transition-all duration-150 py-3 px-4 ${
                   activeTab === 'marketing' 
-                    ? 'bg-gray-700 text-white shadow-md' 
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
+                    ? 'text-foreground border-b-2 border-primary' 
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}>
                 Marketing
               </TabsTrigger>
               <TabsTrigger 
                 value="labor" 
-                className={`flex-1 font-medium transition-all duration-150 rounded-md py-3 px-4 ${
+                className={`flex-1 font-medium transition-all duration-150 py-3 px-4 ${
                   activeTab === 'labor' 
-                    ? 'bg-gray-700 text-white shadow-md' 
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
+                    ? 'text-foreground border-b-2 border-primary' 
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}>
                 Labor
               </TabsTrigger>
               <TabsTrigger 
                 value="business" 
-                className={`flex-1 font-medium transition-all duration-150 rounded-md py-3 px-4 ${
+                className={`flex-1 font-medium transition-all duration-150 py-3 px-4 ${
                   activeTab === 'business' 
-                    ? 'bg-gray-700 text-white shadow-md' 
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
+                    ? 'text-foreground border-b-2 border-primary' 
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}>
                 Business
               </TabsTrigger>
               <TabsTrigger 
                 value="pnl" 
-                className={`flex-1 font-medium transition-all duration-150 rounded-md py-3 px-4 ${
+                className={`flex-1 font-medium transition-all duration-150 py-3 px-4 ${
                   activeTab === 'pnl' 
-                    ? 'bg-gray-700 text-white shadow-md' 
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/60'
+                    ? 'text-foreground border-b-2 border-primary' 
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}>
                 P&L
               </TabsTrigger>
