@@ -213,7 +213,7 @@ export function Level1Setup({
               variant="outline"
               size="sm"
               onClick={() => setShowTemplates(!showTemplates)}
-              className="text-foreground border-border hover:"
+              className="text-foreground border-border hover:bg-muted"
             >
               Use Template
             </Button>
@@ -221,7 +221,7 @@ export function Level1Setup({
               variant="outline"
               size="sm"
               onClick={addBlankProduct}
-              className="text-foreground border-border hover:"
+              className="text-foreground border-border hover:bg-muted"
             >
               <Plus className="h-4 w-4 mr-1" />
               Add Product
@@ -230,7 +230,7 @@ export function Level1Setup({
         </div>
 
         {showTemplates && (
-          <div className="rounded-lg p-4 space-y-3">
+          <div className="bg-muted rounded-lg p-4 space-y-3">
             <div className="text-sm font-medium text-foreground mb-3">
               Choose a starting template:
             </div>
@@ -298,7 +298,7 @@ export function Level1Setup({
               return (
                 <div key={product.id} className="">
                     {/* Product Header - Clickable to expand/collapse */}
-                    <div className="border-b border-border">
+                    <div className="bg-muted/30 border-b border-border">
                       <div className="flex items-center justify-between px-6 py-4">
                         <button
                           onClick={() => {
@@ -643,10 +643,10 @@ export function Level1Setup({
                         </div>
 
                         {/* Machine Time Section */}
-                        <div className=" rounded-lg border border-border">
+                        <div className="bg-muted/30 rounded-lg border border-border">
                           <button
                             onClick={() => toggleSection(product.id, 'machine')}
-                            className="w-full px-4 py-3 flex items-center justify-between  transition-colors rounded-lg"
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <Cpu className="h-4 w-4 text-muted-foreground" />
@@ -775,10 +775,10 @@ export function Level1Setup({
                         </div>
 
                         {/* Labor Costs Section */}
-                        <div className=" rounded-lg border border-border">
+                        <div className="bg-muted/30 rounded-lg border border-border">
                           <button
                             onClick={() => toggleSection(product.id, 'labor')}
-                            className="w-full px-4 py-3 flex items-center justify-between  transition-colors rounded-lg"
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -1134,10 +1134,10 @@ export function Level1Setup({
                         </div>
 
                         {/* Platform Fees Section */}
-                        <div className=" rounded-lg border border-border">
+                        <div className="bg-muted/30 rounded-lg border border-border">
                           <button
                             onClick={() => toggleSection(product.id, 'platforms')}
-                            className="w-full px-4 py-3 flex items-center justify-between  transition-colors rounded-lg"
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <Store className="h-4 w-4 text-muted-foreground" />
