@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { QuickLinkCreator } from '@/components/admin/links/quick-link-creator';
+import { QuickLinkCreatorV2 } from '@/components/admin/links/quick-link-creator-v2';
 import { LinksLibrary } from '@/components/admin/links/links-library';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -69,7 +69,7 @@ export default function LinksPage() {
         {/* Quick Link Creator */}
         <div className="bg-white rounded-lg shadow-sm border">
           <div className="p-6">
-            <QuickLinkCreator onLinkCreated={handleRefresh} />
+            <QuickLinkCreatorV2 onLinkCreated={handleRefresh} />
           </div>
         </div>
 
