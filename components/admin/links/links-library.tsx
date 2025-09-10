@@ -137,6 +137,7 @@ export function LinksLibrary({ links, onRefresh }: LinksLibraryProps) {
     switch (type) {
       case 'lead-magnet': return 'bg-green-100 text-green-800';
       case 'external': return 'bg-blue-100 text-blue-800';
+      case 'resource': return 'bg-amber-100 text-amber-800';
       case 'affiliate': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -287,8 +288,8 @@ export function LinksLibrary({ links, onRefresh }: LinksLibraryProps) {
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="lead-magnet">Lead Magnets</SelectItem>
                 <SelectItem value="external">External Links</SelectItem>
-                <SelectItem value="affiliate">Affiliate</SelectItem>
                 <SelectItem value="resource">Resources</SelectItem>
+                <SelectItem value="affiliate">Affiliate</SelectItem>
               </SelectContent>
             </Select>
 

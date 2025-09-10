@@ -13,97 +13,130 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    }
+
     // Get the Business Calculator lead magnet configuration
     const { data: leadMagnet } = await supabase
       .from('lead_magnets')
       .select('id, convertkit_form_id, convertkit_form_name')
-      .eq('slug', 'business-calculator')
+      .eq('slug', 'calculator')
       .single();
 
-    if (!leadMagnet || !leadMagnet.convertkit_form_id) {
-      console.error('Business Calculator lead magnet not configured or missing ConvertKit form ID');
+    let CONVERTKIT_FORM_ID = leadMagnet?.convertkit_form_id;
+    
+    if (!CONVERTKIT_FORM_ID) {
+      console.error('Calculator lead magnet not configured or missing ConvertKit form ID');
       // Fall back to environment variable if lead magnet not configured
-      const fallbackFormId = process.env.CONVERTKIT_CALCULATOR_FORM_ID || '7708845';
-      leadMagnet.convertkit_form_id = fallbackFormId;
+      CONVERTKIT_FORM_ID = process.env.CONVERTKIT_CALCULATOR_FORM_ID || '8544398';
+    }
+
+    const CONVERTKIT_API_KEY = process.env.CONVERTKIT_API_KEY;
+    
+    if (!CONVERTKIT_API_KEY) {
+      console.error('ConvertKit API key not configured');
+      return NextResponse.json(
+        { error: 'Email service configuration missing' },
+        { status: 500 }
+      );
     }
 
     // Extract UTM parameters from the referrer URL
-    let utmParams = {};
+    let utmParams: any = {};
     if (referrer) {
       try {
-        const parsedUrl = parse(referrer, true);
-        const { utm_source, utm_medium, utm_campaign, utm_content, utm_term } = parsedUrl.query;
-        
+        const url = new URL(referrer);
         utmParams = {
-          utm_source: utm_source || null,
-          utm_medium: utm_medium || null,
-          utm_campaign: utm_campaign || null,
-          utm_content: utm_content || null,
-          utm_term: utm_term || null,
+          utm_source: url.searchParams.get('utm_source'),
+          utm_medium: url.searchParams.get('utm_medium'),
+          utm_campaign: url.searchParams.get('utm_campaign'),
+          utm_content: url.searchParams.get('utm_content'),
+          utm_term: url.searchParams.get('utm_term'),
         };
       } catch (err) {
         console.error('Error parsing referrer URL:', err);
       }
     }
 
-    // Check if email already exists
-    const { data: existingSubscriber } = await supabase
-      .from('email_subscribers')
-      .select('id')
-      .eq('email', email)
-      .single();
+    // Build tags for tracking
+    const tags = ['calculator', `source:${source || 'calculator-landing'}`];
+    if (utmParams.utm_source) tags.push(`utm_source:${utmParams.utm_source}`);
+    if (utmParams.utm_campaign) tags.push(`utm_campaign:${utmParams.utm_campaign}`);
 
-    if (!existingSubscriber) {
-      // Create new subscriber with UTM parameters
-      const { error: insertError } = await supabase
-        .from('email_subscribers')
-        .insert({
+    // Send to ConvertKit FIRST (always, not just for new subscribers)
+    console.log('Sending to ConvertKit with form ID:', CONVERTKIT_FORM_ID);
+    
+    const convertkitResponse = await fetch(
+      `https://api.convertkit.com/v3/forms/${CONVERTKIT_FORM_ID}/subscribe`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          api_key: CONVERTKIT_API_KEY,
           email,
-          source: source || 'business-calculator',
-          referrer: referrer || null,
-          ...utmParams,
-          tags: ['business-calculator'],
-          lead_magnet_id: leadMagnet?.id || null,
-          created_at: new Date().toISOString(),
-        });
-
-      if (insertError) {
-        console.error('Error creating subscriber:', insertError);
-        return NextResponse.json({ error: 'Failed to save email' }, { status: 500 });
+          tags,
+          source: 'calculator',
+          referrer: referrer || 'direct',
+        }),
       }
+    );
 
-      // Send to ConvertKit
-      try {
-        const CONVERTKIT_API_KEY = process.env.CONVERTKIT_API_KEY;
-        const CONVERTKIT_FORM_ID = leadMagnet.convertkit_form_id;
-        
-        if (CONVERTKIT_API_KEY && CONVERTKIT_FORM_ID) {
-          const ckResponse = await fetch(
-            `https://api.convertkit.com/v3/forms/${CONVERTKIT_FORM_ID}/subscribe`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                api_key: CONVERTKIT_API_KEY,
-                email,
-                tags: ['business-calculator'],
-              }),
-            }
-          );
-          
-          if (!ckResponse.ok) {
-            console.error('ConvertKit API error:', await ckResponse.text());
-          }
-        }
-      } catch (ckError) {
-        console.error('ConvertKit submission error:', ckError);
-        // Continue even if ConvertKit fails
-      }
+    const convertkitData = await convertkitResponse.json();
+
+    if (!convertkitResponse.ok) {
+      console.error('ConvertKit API error:', convertkitData);
+      return NextResponse.json(
+        { error: 'Failed to subscribe. Please try again.' },
+        { status: convertkitResponse.status }
+      );
     }
 
-    return NextResponse.json({ success: true });
+    console.log('ConvertKit subscription success:', convertkitData);
+
+    // Now save to our database for tracking
+    try {
+      const { error: dbError } = await supabase
+        .from('email_subscribers')
+        .insert({
+          email: email.toLowerCase(),
+          convertkit_subscriber_id: convertkitData.subscription?.subscriber?.id || null,
+          tags,
+          status: 'active',
+          source: source || 'calculator',
+          referrer: referrer || 'direct',
+          form_id: CONVERTKIT_FORM_ID,
+          form_name: leadMagnet?.convertkit_form_name || 'Laser Budget Calculator',
+          lead_magnet_id: leadMagnet?.id || null,
+          // Add UTM parameters
+          utm_source: utmParams.utm_source || null,
+          utm_medium: utmParams.utm_medium || null,
+          utm_campaign: utmParams.utm_campaign || null,
+          utm_content: utmParams.utm_content || null,
+          utm_term: utmParams.utm_term || null,
+          // Track first touch
+          first_touch_source: utmParams.utm_source || 'direct',
+          first_touch_date: new Date().toISOString(),
+        });
+      
+      if (dbError) {
+        console.error('Failed to save subscriber to database:', dbError);
+        // Don't fail the request if database save fails
+      }
+    } catch (dbError) {
+      console.error('Database save error:', dbError);
+      // Don't fail the request if database save fails
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'Successfully subscribed!',
+      data: convertkitData,
+    });
   } catch (error) {
     console.error('Email capture error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

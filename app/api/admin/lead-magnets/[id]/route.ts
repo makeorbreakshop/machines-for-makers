@@ -6,8 +6,10 @@ import { getAdminCookie, validateAdminCookie } from '@/lib/auth-utils';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  // Await params (Next.js 15 requirement)
+  const { id } = await params;
   try {
     // Check authentication
     const adminCookie = await getAdminCookie();
@@ -22,7 +24,7 @@ export async function GET(
     const { data: leadMagnet, error } = await supabase
       .from('lead_magnets')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error || !leadMagnet) {
@@ -38,9 +40,12 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params (Next.js 15 requirement)
+    const { id } = await params;
+    
     // Check authentication
     const adminCookie = await getAdminCookie();
     const isAuthenticated = validateAdminCookie(adminCookie);
@@ -82,7 +87,7 @@ export async function PUT(
         active,
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -130,7 +135,7 @@ export async function PATCH(
         ...body,
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -152,8 +157,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  // Await params (Next.js 15 requirement)
+  const { id } = await params;
   try {
     // Check authentication
     const adminCookie = await getAdminCookie();
@@ -168,7 +175,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('lead_magnets')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (error) {
       console.error('Error deleting lead magnet:', error);

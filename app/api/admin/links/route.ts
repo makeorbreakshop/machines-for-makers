@@ -110,14 +110,18 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      console.error('Supabase insert error:', error);
       throw error;
     }
 
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating link:', error);
     return NextResponse.json(
-      { error: 'Failed to create link' },
+      { 
+        error: error.message || 'Failed to create link',
+        details: error.details || error.hint || error.code || 'Unknown error'
+      },
       { status: 500 }
     );
   }

@@ -12,10 +12,12 @@ interface CalculatorLandingProps {
 export default function CalculatorLanding({ logoUrl, subscriberCount }: CalculatorLandingProps) {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
     
     try {
       // Include the current URL with UTM parameters
@@ -26,16 +28,21 @@ export default function CalculatorLanding({ logoUrl, subscriberCount }: Calculat
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           email, 
-          source: 'business-calculator',
+          source: 'calculator',
           referrer: currentUrl,
         }),
       });
 
       if (response.ok) {
-        window.location.href = '/tools/business-calculator?welcome=true';
+        window.location.href = '/calculator/confirm';
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Something went wrong. Please try again.');
+        setIsLoading(false);
       }
     } catch (err) {
       console.error('Form submission error:', err);
+      setError('Connection error. Please check your internet and try again.');
       setIsLoading(false);
     }
   };
@@ -111,6 +118,11 @@ export default function CalculatorLanding({ logoUrl, subscriberCount }: Calculat
                   {isLoading ? 'Processing...' : 'Start Calculator'}
                 </button>
               </div>
+              {error && (
+                <div className="mt-3 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
               <p className="text-xs text-white/80 mt-4">
                 Join {subscriberCount.toLocaleString()} makers • Takes 10-15 minutes
               </p>

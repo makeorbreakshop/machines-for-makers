@@ -155,6 +155,8 @@ export function QuickLinkCreatorV2({ onLinkCreated }: QuickLinkCreatorProps) {
     const now = new Date();
     const timestamp = now.toISOString().slice(2, 10).replace(/-/g, '');
     const timeCode = now.toISOString().slice(11, 19).replace(/:/g, '').slice(0, 4); // HHMM
+    // Add random suffix to prevent collisions
+    const randomSuffix = Math.random().toString(36).substring(2, 5);
     
     if (mode === 'lead-magnet') {
       const magnet = leadMagnets.find(m => m.slug === lmDestination);
@@ -170,7 +172,7 @@ export function QuickLinkCreatorV2({ onLinkCreated }: QuickLinkCreatorProps) {
               'video-card': 'card',
             };
             const placement = placementMap[lmLinkPlacement] || 'link';
-            return `yt-${lmSelectedVideoData.id}-${placement}-${destinationSlug}`;
+            return `yt-${lmSelectedVideoData.id}-${placement}-${destinationSlug}-${randomSuffix}`;
           }
           return `yt-${timestamp}-${destinationSlug}`;
           
@@ -218,7 +220,7 @@ export function QuickLinkCreatorV2({ onLinkCreated }: QuickLinkCreatorProps) {
               'video-card': 'card',
             };
             const placement = placementMap[cuLinkPlacement] || 'link';
-            return `yt-${cuSelectedVideoData.id}-${placement}-${destinationSlug}`;
+            return `yt-${cuSelectedVideoData.id}-${placement}-${destinationSlug}-${randomSuffix}`;
           }
           return `yt-${timestamp}-${destinationSlug}`;
           
@@ -440,7 +442,7 @@ export function QuickLinkCreatorV2({ onLinkCreated }: QuickLinkCreatorProps) {
       linkType = 'lead-magnet';
     } else {
       destinationUrl = cuDestinationUrl;
-      linkType = 'external';
+      linkType = 'external'; // Now properly supported in database
     }
 
     const requestBody = {
@@ -465,7 +467,10 @@ export function QuickLinkCreatorV2({ onLinkCreated }: QuickLinkCreatorProps) {
     if (!response.ok) {
       const error = await response.json();
       console.error('API Error:', error);
-      throw new Error(error.error || 'Failed to create link');
+      const errorMessage = error.details ? 
+        `${error.error}: ${error.details}` : 
+        error.error || 'Failed to create link';
+      throw new Error(errorMessage);
     }
 
     return await response.json();
