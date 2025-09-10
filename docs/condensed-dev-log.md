@@ -683,3 +683,13 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Dashboard Analytics Fix**: Pagination implementation bypassing Supabase 1000-row limit, fixed September 6-8 lead click data (677/188/168 clicks)
 - **Impact**: Mobile-first responsive design, accurate P&L calculations, 24x faster batch processing with ThreadPoolExecutor fix
 - **Technical**: Progressive disclosure patterns, touch target optimization (44px minimum), proper state flow through TypeScript interfaces
+
+### 2025-09-09: Repository Sync, Calculator Routing Fix & UI Consistency Improvements
+- **Issue**: Local/remote divergence, calculator showing landing page in production, deals badges showing "New Low" instead of "All-Time Low"
+- **Repository Sync**: Merged graph updates from main, consolidated September 8 dev log, resolved divergent branches with proper git workflow
+- **Calculator Routing**: Fixed runtime conflicts between parent/child routes, removed conflicting `export const runtime='nodejs'` causing production issues
+- **Deals Page**: Updated badge text across components for accuracy ("All-Time Low"), fixed sorting terminology in comments
+- **Vercel Deployment**: Fixed ISR configuration errors, changed from `cache: 'no-store'` to `next: { revalidate: 60 }` for proper builds
+- **Calculator UI**: Removed unwanted Card components, fixed dark mode with proper ThemeProvider configuration, unified semantic color variables
+- **Impact**: Production calculator working correctly, consistent dark mode across all environments, professional UI matching local development
+- **Technical**: Route group architecture for admin protection, ThemeProvider attribute="class" configuration, semantic theme variables throughout
