@@ -92,15 +92,28 @@ export function Level3Marketing({
     const savedChannel = state.marketing?.digitalAdvertising?.channels?.[0];
     if (savedChannel?.costPerClick) {
       return {
-        conversionRate: savedChannel.conversionRate || 2.5,
-        costPerClick: savedChannel.costPerClick || 1.50
+        conversionRate: savedChannel.conversionRate || 5,
+        costPerClick: savedChannel.costPerClick || 0.50
       };
     }
     return {
-      conversionRate: 2.5,  // 2.5% conversion rate
-      costPerClick: 1.50    // $1.50 per click
+      conversionRate: 5,  // 5% conversion rate
+      costPerClick: 0.50    // $0.50 per click
     };
   });
+
+  // Input display states (what user sees while typing)
+  const [conversionRateInput, setConversionRateInput] = useState(digitalParams.conversionRate.toString());
+  const [costPerClickInput, setCostPerClickInput] = useState(digitalParams.costPerClick.toString());
+
+  // Sync input states when params change externally
+  useEffect(() => {
+    setConversionRateInput(digitalParams.conversionRate.toString());
+  }, [digitalParams.conversionRate]);
+
+  useEffect(() => {
+    setCostPerClickInput(digitalParams.costPerClick.toString());
+  }, [digitalParams.costPerClick]);
 
   // Events parameters - restore from state if available
   const [eventParams, setEventParams] = useState(() => {
@@ -572,17 +585,36 @@ export function Level3Marketing({
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Conversion Rate</Label>
                   <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min="0.1"
-                      max="10"
-                      step="0.1"
-                      value={digitalParams.conversionRate}
-                      onChange={(e) => setDigitalParams({
-                        ...digitalParams,
-                        conversionRate: parseFloat(e.target.value) || 0
-                      })}
-                      className="h-8 w-20"
+                    <input
+                      type="text"
+                      value={conversionRateInput}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Allow any input while typing
+                        setConversionRateInput(value);
+                        
+                        // Try to parse and update actual value
+                        const parsed = parseFloat(value);
+                        if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+                          setDigitalParams({
+                            ...digitalParams,
+                            conversionRate: parsed
+                          });
+                        }
+                      }}
+                      onBlur={() => {
+                        // Clean up on blur
+                        const parsed = parseFloat(conversionRateInput);
+                        if (isNaN(parsed) || parsed <= 0) {
+                          setDigitalParams({ ...digitalParams, conversionRate: 5 });
+                          setConversionRateInput('5');
+                        } else {
+                          const rounded = Math.round(parsed * 100) / 100;
+                          setDigitalParams({ ...digitalParams, conversionRate: rounded });
+                          setConversionRateInput(rounded.toString());
+                        }
+                      }}
+                      className="h-8 w-20 px-2 rounded-md border border-input bg-background text-sm"
                     />
                     <span className="text-xs text-muted-foreground">%</span>
                   </div>
@@ -592,17 +624,36 @@ export function Level3Marketing({
                   <Label className="text-xs text-muted-foreground">Cost Per Click</Label>
                   <div className="relative">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
-                    <Input
-                      type="number"
-                      min="0.10"
-                      max="10"
-                      step="0.10"
-                      value={digitalParams.costPerClick}
-                      onChange={(e) => setDigitalParams({
-                        ...digitalParams,
-                        costPerClick: parseFloat(e.target.value) || 0
-                      })}
-                      className="h-8 pl-5"
+                    <input
+                      type="text"
+                      value={costPerClickInput}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Allow any input while typing
+                        setCostPerClickInput(value);
+                        
+                        // Try to parse and update actual value
+                        const parsed = parseFloat(value);
+                        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1000) {
+                          setDigitalParams({
+                            ...digitalParams,
+                            costPerClick: parsed
+                          });
+                        }
+                      }}
+                      onBlur={() => {
+                        // Clean up on blur
+                        const parsed = parseFloat(costPerClickInput);
+                        if (isNaN(parsed) || parsed <= 0) {
+                          setDigitalParams({ ...digitalParams, costPerClick: 0.50 });
+                          setCostPerClickInput('0.5');
+                        } else {
+                          const rounded = Math.round(parsed * 100) / 100;
+                          setDigitalParams({ ...digitalParams, costPerClick: rounded });
+                          setCostPerClickInput(rounded.toString());
+                        }
+                      }}
+                      className="h-8 pl-5 pr-2 rounded-md border border-input bg-background text-sm"
                     />
                   </div>
                 </div>
