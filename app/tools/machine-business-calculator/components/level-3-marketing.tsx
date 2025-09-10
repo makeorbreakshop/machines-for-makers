@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { AlertTriangle, Users, Monitor, Calendar, TrendingUp, HelpCircle, ArrowLeft, ArrowRight } from 'lucide-react';
+import { AlertTriangle, Users, Monitor, Calendar, TrendingUp, HelpCircle, ArrowLeft, ArrowRight, Lock, Unlock } from 'lucide-react';
 import { CalculatorState, CalculatedMetrics, MarketingState } from '../lib/calculator-types';
 import {
   Tooltip,
@@ -40,6 +40,17 @@ export function Level3Marketing({
   const avgProfitPerUnit = metrics.totalGrossProfit && totalUnitsNeeded > 0 
     ? metrics.totalGrossProfit / totalUnitsNeeded 
     : 0;
+
+  // Lock state for each channel
+  const [lockedChannels, setLockedChannels] = useState<{
+    organic: boolean;
+    digital: boolean;
+    events: boolean;
+  }>({
+    organic: false,
+    digital: false,
+    events: false
+  });
 
   // Initialize marketing state from parent state or use defaults
   const [salesDistribution, setSalesDistribution] = useState(() => {
@@ -216,53 +227,62 @@ export function Level3Marketing({
     
     newDistribution[channel] = value;
     
-    // Distribute the difference proportionally to the other two channels
-    if (channel === 'organic') {
-      const totalOther = salesDistribution.digital + salesDistribution.events;
-      if (totalOther > 0) {
-        const digitalRatio = salesDistribution.digital / totalOther;
-        newDistribution.digital = Math.round(Math.max(0, Math.min(100, salesDistribution.digital - (diff * digitalRatio))));
-        newDistribution.events = Math.round(Math.max(0, Math.min(100, 100 - newDistribution.organic - newDistribution.digital)));
-      } else {
-        newDistribution.digital = Math.round((100 - value) / 2);
-        newDistribution.events = 100 - newDistribution.organic - newDistribution.digital;
-      }
-    } else if (channel === 'digital') {
-      const totalOther = salesDistribution.organic + salesDistribution.events;
-      if (totalOther > 0) {
-        const organicRatio = salesDistribution.organic / totalOther;
-        newDistribution.organic = Math.round(Math.max(0, Math.min(100, salesDistribution.organic - (diff * organicRatio))));
-        newDistribution.events = Math.round(Math.max(0, Math.min(100, 100 - newDistribution.organic - newDistribution.digital)));
-      } else {
-        newDistribution.organic = Math.round((100 - value) / 2);
-        newDistribution.events = 100 - newDistribution.organic - newDistribution.digital;
-      }
+    // Get unlocked channels (excluding the current one)
+    const unlockedChannels = [];
+    if (channel !== 'organic' && !lockedChannels.organic) unlockedChannels.push('organic');
+    if (channel !== 'digital' && !lockedChannels.digital) unlockedChannels.push('digital');
+    if (channel !== 'events' && !lockedChannels.events) unlockedChannels.push('events');
+    
+    if (unlockedChannels.length === 0) {
+      // All other channels are locked, can't change this one
+      return;
+    }
+    
+    // Calculate the total percentage of unlocked channels
+    const unlockedTotal = unlockedChannels.reduce((sum, ch) => sum + salesDistribution[ch as keyof typeof salesDistribution], 0);
+    
+    // Distribute the difference among unlocked channels
+    if (unlockedTotal > 0) {
+      // Distribute proportionally
+      unlockedChannels.forEach(ch => {
+        const ratio = salesDistribution[ch as keyof typeof salesDistribution] / unlockedTotal;
+        newDistribution[ch as keyof typeof salesDistribution] = Math.round(Math.max(0, Math.min(100, salesDistribution[ch as keyof typeof salesDistribution] - (diff * ratio))));
+      });
     } else {
-      const totalOther = salesDistribution.organic + salesDistribution.digital;
-      if (totalOther > 0) {
-        const organicRatio = salesDistribution.organic / totalOther;
-        newDistribution.organic = Math.round(Math.max(0, Math.min(100, salesDistribution.organic - (diff * organicRatio))));
-        newDistribution.digital = Math.round(Math.max(0, Math.min(100, 100 - newDistribution.organic - newDistribution.events)));
-      } else {
-        newDistribution.organic = Math.round((100 - value) / 2);
-        newDistribution.digital = 100 - newDistribution.organic - newDistribution.events;
-      }
+      // All unlocked channels are at 0, distribute evenly
+      const perChannel = Math.round((100 - value - Object.keys(lockedChannels).filter(k => lockedChannels[k as keyof typeof lockedChannels] && k !== channel).reduce((sum, k) => sum + salesDistribution[k as keyof typeof salesDistribution], 0)) / unlockedChannels.length);
+      unlockedChannels.forEach(ch => {
+        newDistribution[ch as keyof typeof salesDistribution] = perChannel;
+      });
     }
     
     // Final adjustment to ensure they sum to exactly 100
     const sum = newDistribution.organic + newDistribution.digital + newDistribution.events;
     if (sum !== 100) {
-      // Adjust the smallest value to make it sum to 100
-      if (channel !== 'organic' && newDistribution.organic <= newDistribution.digital && newDistribution.organic <= newDistribution.events) {
-        newDistribution.organic = 100 - newDistribution.digital - newDistribution.events;
-      } else if (channel !== 'digital' && newDistribution.digital <= newDistribution.organic && newDistribution.digital <= newDistribution.events) {
-        newDistribution.digital = 100 - newDistribution.organic - newDistribution.events;
-      } else if (channel !== 'events') {
-        newDistribution.events = 100 - newDistribution.organic - newDistribution.digital;
+      // Find the first unlocked channel that's not the current one to adjust
+      const adjustChannel = unlockedChannels[0];
+      if (adjustChannel) {
+        newDistribution[adjustChannel as keyof typeof salesDistribution] += 100 - sum;
       }
     }
     
     setSalesDistribution(newDistribution);
+  };
+
+  // Toggle lock state for a channel
+  const toggleLock = (channel: 'organic' | 'digital' | 'events') => {
+    // Count unlocked channels
+    const unlockedCount = Object.values(lockedChannels).filter(locked => !locked).length;
+    
+    // Don't allow locking if it's the only unlocked channel
+    if (!lockedChannels[channel] && unlockedCount <= 1) {
+      return;
+    }
+    
+    setLockedChannels(prev => ({
+      ...prev,
+      [channel]: !prev[channel]
+    }));
   };
 
   // Channel mix optimizer
@@ -332,12 +352,26 @@ export function Level3Marketing({
                   </TooltipProvider>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleLock('organic')}
+                    className="h-8 w-8 p-0"
+                    disabled={!lockedChannels.organic && Object.values(lockedChannels).filter(v => !v).length <= 1}
+                  >
+                    {lockedChannels.organic ? (
+                      <Lock className="h-3.5 w-3.5 text-amber-600" />
+                    ) : (
+                      <Unlock className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                  </Button>
                   <Input
                     type="number"
                     min="0"
                     max={totalUnitsNeeded}
                     value={adjustedUnitsFromOrganic || ''}
                     onChange={(e) => {
+                      if (lockedChannels.organic) return;
                       const value = e.target.value;
                       if (value === '') {
                         handleSliderChange('organic', 0);
@@ -348,17 +382,19 @@ export function Level3Marketing({
                       handleSliderChange('organic', percentage);
                     }}
                     className="w-24 h-8 text-right font-bold"
+                    disabled={lockedChannels.organic}
                   />
                   <span className="text-sm text-muted-foreground w-12 text-right">({salesDistribution.organic}%)</span>
                 </div>
               </div>
               <Slider
                 value={[salesDistribution.organic]}
-                onValueChange={([value]) => handleSliderChange('organic', value)}
+                onValueChange={([value]) => !lockedChannels.organic && handleSliderChange('organic', value)}
                 min={0}
                 max={100}
                 step={5}
                 className="w-full"
+                disabled={lockedChannels.organic}
               />
             </div>
 
@@ -380,12 +416,26 @@ export function Level3Marketing({
                   </TooltipProvider>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleLock('digital')}
+                    className="h-8 w-8 p-0"
+                    disabled={!lockedChannels.digital && Object.values(lockedChannels).filter(v => !v).length <= 1}
+                  >
+                    {lockedChannels.digital ? (
+                      <Lock className="h-3.5 w-3.5 text-amber-600" />
+                    ) : (
+                      <Unlock className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                  </Button>
                   <Input
                     type="number"
                     min="0"
                     max={totalUnitsNeeded}
                     value={unitsFromDigital || ''}
                     onChange={(e) => {
+                      if (lockedChannels.digital) return;
                       const value = e.target.value;
                       if (value === '') {
                         handleSliderChange('digital', 0);
@@ -396,17 +446,19 @@ export function Level3Marketing({
                       handleSliderChange('digital', percentage);
                     }}
                     className="w-24 h-8 text-right font-bold"
+                    disabled={lockedChannels.digital}
                   />
                   <span className="text-sm text-muted-foreground w-12 text-right">({salesDistribution.digital}%)</span>
                 </div>
               </div>
               <Slider
                 value={[salesDistribution.digital]}
-                onValueChange={([value]) => handleSliderChange('digital', value)}
+                onValueChange={([value]) => !lockedChannels.digital && handleSliderChange('digital', value)}
                 min={0}
                 max={100}
                 step={5}
                 className="w-full"
+                disabled={lockedChannels.digital}
               />
             </div>
 
@@ -428,12 +480,26 @@ export function Level3Marketing({
                   </TooltipProvider>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleLock('events')}
+                    className="h-8 w-8 p-0"
+                    disabled={!lockedChannels.events && Object.values(lockedChannels).filter(v => !v).length <= 1}
+                  >
+                    {lockedChannels.events ? (
+                      <Lock className="h-3.5 w-3.5 text-amber-600" />
+                    ) : (
+                      <Unlock className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                  </Button>
                   <Input
                     type="number"
                     min="0"
                     max={totalUnitsNeeded}
                     value={unitsFromEvents || ''}
                     onChange={(e) => {
+                      if (lockedChannels.events) return;
                       const value = e.target.value;
                       if (value === '') {
                         handleSliderChange('events', 0);
@@ -444,17 +510,19 @@ export function Level3Marketing({
                       handleSliderChange('events', percentage);
                     }}
                     className="w-24 h-8 text-right font-bold"
+                    disabled={lockedChannels.events}
                   />
                   <span className="text-sm text-muted-foreground w-12 text-right">({salesDistribution.events}%)</span>
                 </div>
               </div>
               <Slider
                 value={[salesDistribution.events]}
-                onValueChange={([value]) => handleSliderChange('events', value)}
+                onValueChange={([value]) => !lockedChannels.events && handleSliderChange('events', value)}
                 min={0}
                 max={100}
                 step={5}
                 className="w-full"
+                disabled={lockedChannels.events}
               />
             </div>
           </div>
