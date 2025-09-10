@@ -1162,12 +1162,11 @@ export function Level1Setup({
                           {isExpanded?.platforms && (
                             <div className="px-4 pb-4 pt-2 space-y-2">
                               {/* Column headers */}
-                              <div className="grid grid-cols-14 gap-2 px-1 text-xs font-medium text-muted-foreground">
+                              <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
                                 <span className="col-span-4">Platform</span>
                                 <span className="col-span-2 text-center">Fee %</span>
                                 <span className="col-span-2 text-center">Sales %</span>
                                 <span className="col-span-2 text-center">Units</span>
-                                <span className="col-span-2 text-right">Fee/Unit</span>
                                 <span className="col-span-1 text-right">Total</span>
                                 <span className="col-span-1"></span>
                               </div>
@@ -1175,13 +1174,12 @@ export function Level1Setup({
                               {platformFees.map(platformFee => {
                                 const platformUnits = Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100));
                                 const platformCostPerUnit = (product.sellingPrice || 0) * (platformFee.feePercentage / 100);
-                                const platformTotalFees = platformUnits * platformCostPerUnit;
                                 const unlockedCount = platformFees.filter(pf => !pf.locked).length;
                                 const lockedTotal = platformFees.filter(pf => pf.locked).reduce((sum, pf) => sum + pf.salesPercentage, 0);
                                 const isEffectivelyLocked = !platformFee.locked && unlockedCount === 1 && lockedTotal > 0;
                                 
                                 return (
-                                  <div key={platformFee.id} className="grid grid-cols-14 gap-2 items-center">
+                                  <div key={platformFee.id} className="grid grid-cols-12 gap-2 items-center">
                                     <div className="col-span-4 flex items-center gap-1">
                                       <Input
                                         value={platformFee.name}
@@ -1327,11 +1325,8 @@ export function Level1Setup({
                                     <div className="col-span-2 text-sm text-muted-foreground text-center tabular-nums">
                                       {platformUnits}
                                     </div>
-                                    <div className="col-span-2 text-sm text-muted-foreground text-right tabular-nums">
-                                      {formatCurrencyCompact(platformCostPerUnit)}
-                                    </div>
                                     <div className="col-span-1 text-sm font-medium text-right tabular-nums">
-                                      {formatCurrencyCompact(platformTotalFees)}
+                                      {formatCurrencyCompact(platformCostPerUnit)}
                                     </div>
                                     <div className="col-span-1 flex justify-end">
                                       {platformFees.length > 1 && (
