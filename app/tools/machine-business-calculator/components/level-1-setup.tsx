@@ -71,6 +71,7 @@ export function Level1Setup({
   }>({ open: false, productId: null, currentCostPerHour: 5 });
   
   // Batch mode state for labor
+  const [shakeError, setShakeError] = useState<{ [key: string]: boolean }>({});
   const [batchModeState, setBatchModeState] = useState<{
     [productId: string]: {
       active: boolean;
@@ -1242,6 +1243,16 @@ export function Level1Setup({
                                           max="100"
                                           step="0.01"
                                           value={Math.round(platformFee.salesPercentage * 100) / 100 || ''}
+                                          className={`h-9 text-sm text-center tabular-nums ${
+                                            shakeError[`${product.id}-${platformFee.id}-sales`] 
+                                              ? 'animate-shake border-red-500' 
+                                              : ''
+                                          }`}
+                                          style={{
+                                            animation: shakeError[`${product.id}-${platformFee.id}-sales`] 
+                                              ? 'shake 0.5s' 
+                                              : 'none'
+                                          }}
                                           onChange={(e) => {
                                             const newPercentage = Math.round(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) * 100) / 100;
                                             
@@ -1263,6 +1274,12 @@ export function Level1Setup({
                                               
                                               // If available is negative, don't allow the change
                                               if (availablePercentage < 0) {
+                                                // Trigger shake animation
+                                                const errorKey = `${product.id}-${platformFee.id}-sales`;
+                                                setShakeError({ ...shakeError, [errorKey]: true });
+                                                setTimeout(() => {
+                                                  setShakeError(prev => ({ ...prev, [errorKey]: false }));
+                                                }, 500);
                                                 return; // Don't allow this change
                                               }
                                               
@@ -1302,7 +1319,6 @@ export function Level1Setup({
                                           }}
                                           disabled={platformFee.locked || isEffectivelyLocked}
                                           title={isEffectivelyLocked ? "Can't adjust - other platforms are locked" : ""}
-                                          className="h-9 text-sm text-center tabular-nums"
                                           placeholder="0"
                                         />
                                     </div>
