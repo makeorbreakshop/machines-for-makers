@@ -1174,6 +1174,8 @@ export function Level1Setup({
                                 const platformUnits = Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100));
                                 const platformCostPerUnit = (product.sellingPrice || 0) * (platformFee.feePercentage / 100);
                                 const unlockedCount = platformFees.filter(pf => !pf.locked).length;
+                                const lockedTotal = platformFees.filter(pf => pf.locked).reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                const isEffectivelyLocked = !platformFee.locked && unlockedCount === 1 && lockedTotal > 0;
                                 
                                 return (
                                   <div key={platformFee.id} className="grid grid-cols-12 gap-2 items-center">
@@ -1250,7 +1252,20 @@ export function Level1Setup({
                                             // Get unlocked platforms (excluding current)
                                             const unlockedOthers = platformFees.filter(pf => !pf.locked && pf.id !== platformFee.id);
                                             
+                                            // Calculate locked total
+                                            const lockedTotal = platformFees
+                                              .filter(pf => pf.locked && pf.id !== platformFee.id)
+                                              .reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                            
                                             if (unlockedOthers.length > 0) {
+                                              // Calculate available percentage (100 - locked - current new value)
+                                              const availablePercentage = 100 - lockedTotal - newPercentage;
+                                              
+                                              // If available is negative, don't allow the change
+                                              if (availablePercentage < 0) {
+                                                return; // Don't allow this change
+                                              }
+                                              
                                               // Calculate current total of unlocked others
                                               const unlockedTotal = unlockedOthers.reduce((sum, pf) => sum + pf.salesPercentage, 0);
                                               
@@ -1263,13 +1278,13 @@ export function Level1Setup({
                                                     const proportion = pf.salesPercentage / unlockedTotal;
                                                     return { 
                                                       ...pf, 
-                                                      salesPercentage: Math.round((pf.salesPercentage + (difference * proportion)) * 100) / 100 
+                                                      salesPercentage: Math.round(availablePercentage * proportion * 100) / 100 
                                                     };
                                                   } else {
                                                     // If all unlocked are at 0, distribute evenly
                                                     return { 
                                                       ...pf, 
-                                                      salesPercentage: Math.round((difference / unlockedOthers.length) * 100) / 100 
+                                                      salesPercentage: Math.round(availablePercentage / unlockedOthers.length * 100) / 100 
                                                     };
                                                   }
                                                 }
@@ -1277,14 +1292,16 @@ export function Level1Setup({
                                               });
                                               onUpdateProduct(product.id, { platformFees: updated });
                                             } else {
-                                              // If no other unlocked platforms, force to 100%
+                                              // If no other unlocked platforms, this must equal (100 - locked total)
+                                              const requiredPercentage = 100 - lockedTotal;
                                               const updated = platformFees.map(pf =>
-                                                pf.id === platformFee.id ? { ...pf, salesPercentage: 100 } : pf
+                                                pf.id === platformFee.id ? { ...pf, salesPercentage: requiredPercentage } : pf
                                               );
                                               onUpdateProduct(product.id, { platformFees: updated });
                                             }
                                           }}
-                                          disabled={platformFee.locked}
+                                          disabled={platformFee.locked || isEffectivelyLocked}
+                                          title={isEffectivelyLocked ? "Can't adjust - other platforms are locked" : ""}
                                           className="h-9 text-sm text-center tabular-nums"
                                           placeholder="0"
                                         />
@@ -1307,16 +1324,35 @@ export function Level1Setup({
                                             const unlockedRemaining = remainingFees.filter(pf => !pf.locked);
                                             
                                             if (removedPercentage > 0 && unlockedRemaining.length > 0) {
-                                              // Redistribute the removed percentage evenly among unlocked platforms
-                                              const redistributionAmount = removedPercentage / unlockedRemaining.length;
+                                              // Calculate current total of unlocked remaining
+                                              const unlockedTotal = unlockedRemaining.reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                              
                                               const updated = remainingFees.map(pf => {
                                                 if (!pf.locked) {
-                                                  return { ...pf, salesPercentage: Math.round((pf.salesPercentage + redistributionAmount) * 100) / 100 };
+                                                  if (unlockedTotal > 0) {
+                                                    // Redistribute proportionally
+                                                    const proportion = pf.salesPercentage / unlockedTotal;
+                                                    return { 
+                                                      ...pf, 
+                                                      salesPercentage: Math.round((pf.salesPercentage + (removedPercentage * proportion)) * 100) / 100 
+                                                    };
+                                                  } else {
+                                                    // Distribute evenly if all were at 0
+                                                    return { 
+                                                      ...pf, 
+                                                      salesPercentage: Math.round((removedPercentage / unlockedRemaining.length) * 100) / 100 
+                                                    };
+                                                  }
                                                 }
                                                 return pf;
                                               });
                                               onUpdateProduct(product.id, { platformFees: updated });
+                                            } else if (remainingFees.length === 0) {
+                                              // Removing the last platform, allow it
+                                              onUpdateProduct(product.id, { platformFees: [] });
                                             } else {
+                                              // All remaining are locked, don't allow removal
+                                              // Could show a warning here
                                               onUpdateProduct(product.id, { platformFees: remainingFees });
                                             }
                                           }}
@@ -1330,58 +1366,51 @@ export function Level1Setup({
                                 );
                               })}
                               
-                              <Select 
-                                value=""
-                                onValueChange={(value) => {
-                                const preset = DEFAULT_PLATFORM_PRESETS.find(p => p.name === value);
-                                if (preset) {
-                                  // If this is the first platform, set it to 100%
-                                  // Otherwise, redistribute percentages among unlocked platforms
-                                  const isFirstPlatform = platformFees.length === 0;
-                                  let newPercentage = 0;
-                                  let updatedExisting = platformFees;
-                                  
-                                  if (isFirstPlatform) {
-                                    newPercentage = 100;
-                                  } else {
-                                    // Find unlocked platforms
-                                    const unlockedPlatforms = platformFees.filter(pf => !pf.locked);
-                                    if (unlockedPlatforms.length > 0) {
-                                      // Take equal percentage from each unlocked platform
-                                      const redistributionAmount = 100 / (unlockedPlatforms.length + 1);
-                                      newPercentage = redistributionAmount;
+                              {(() => {
+                                const lockedTotal = platformFees.filter(pf => pf.locked).reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                const canAddPlatform = lockedTotal < 100;
+                                
+                                return (
+                                  <Select 
+                                    value=""
+                                    onValueChange={(value) => {
+                                      if (!canAddPlatform) return;
                                       
-                                      updatedExisting = platformFees.map(pf => {
-                                        if (!pf.locked) {
-                                          // Scale down existing percentages
-                                          const scaleFactor = (100 - redistributionAmount) / 100;
-                                          return { ...pf, salesPercentage: Math.round(pf.salesPercentage * scaleFactor * 100) / 100 };
-                                        }
-                                        return pf;
-                                      });
-                                    }
-                                  }
-                                  
-                                  const newPlatform: PlatformFee = {
-                                    id: `platform_${Date.now()}`,
-                                    name: preset.name,
-                                    feePercentage: preset.feePercentage,
-                                    salesPercentage: newPercentage
-                                  };
-                                  onUpdateProduct(product.id, { platformFees: [...updatedExisting, newPlatform] });
-                                }
-                              }}>
-                                <SelectTrigger className="w-full h-9 text-sm text-muted-foreground hover:text-foreground">
-                                  <SelectValue placeholder="+ Add Platform" />
-                                </SelectTrigger>
+                                      const preset = DEFAULT_PLATFORM_PRESETS.find(p => p.name === value);
+                                      if (preset) {
+                                        // If this is the first platform, set it to 100%
+                                        // Otherwise, new platforms always start at 0%
+                                        const isFirstPlatform = platformFees.length === 0;
+                                        const newPercentage = isFirstPlatform ? 100 : 0;
+                                        
+                                        const newPlatform: PlatformFee = {
+                                          id: `platform_${Date.now()}`,
+                                          name: preset.name,
+                                          feePercentage: preset.feePercentage,
+                                          salesPercentage: newPercentage
+                                        };
+                                        onUpdateProduct(product.id, { platformFees: [...platformFees, newPlatform] });
+                                      }
+                                    }}
+                                    disabled={!canAddPlatform}
+                                  >
+                                    <SelectTrigger 
+                                      className="w-full h-9 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                                      disabled={!canAddPlatform}
+                                      title={!canAddPlatform ? "Can't add platforms - locked platforms total 100%" : ""}
+                                    >
+                                      <SelectValue placeholder="+ Add Platform" />
+                                    </SelectTrigger>
                                 <SelectContent className="min-w-[220px]">
                                   {DEFAULT_PLATFORM_PRESETS.map((preset) => (
                                     <SelectItem key={preset.name} value={preset.name}>
                                       {preset.name} ({preset.feePercentage}% fee)
                                     </SelectItem>
                                   ))}
-                                </SelectContent>
-                              </Select>
+                                  </SelectContent>
+                                  </Select>
+                                );
+                              })()}
                               
                             </div>
                           )}
