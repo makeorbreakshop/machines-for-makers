@@ -221,7 +221,7 @@ class DatabaseService:
                     history_response = self.supabase.table(PRICE_HISTORY_TABLE) \
                         .select("price") \
                         .eq("machine_id", machine_id) \
-                        .in("status", ["AUTO_APPLIED", "APPROVED", "SUCCESS", "MANUAL_CORRECTION"]) \
+                        .in_("status", ["AUTO_APPLIED", "APPROVED", "SUCCESS", "MANUAL_CORRECTION"]) \
                         .execute()
                     
                     if history_response.data:
