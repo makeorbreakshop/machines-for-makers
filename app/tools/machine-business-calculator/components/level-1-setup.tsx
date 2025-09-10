@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2, Layers, Cpu, Calculator, RotateCw, Check, Lock, Unlock } from 'lucide-react';
+import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2, Layers, Cpu, Calculator, RotateCw, Check, Lock, Unlock, TrendingUp } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { 
@@ -41,6 +41,7 @@ interface ExpandedSections {
     materials: boolean;
     labor: boolean;
     platforms: boolean;
+    marketing: boolean;
   };
 }
 
@@ -99,7 +100,7 @@ export function Level1Setup({
     }).format(amount);
   };
 
-  const toggleSection = (productId: string, section: 'materials' | 'machine' | 'labor' | 'platforms') => {
+  const toggleSection = (productId: string, section: 'materials' | 'machine' | 'labor' | 'platforms' | 'marketing') => {
     setExpandedSections(prev => ({
       ...prev,
       [productId]: {
@@ -135,7 +136,7 @@ export function Level1Setup({
     // Initialize expanded state for this product
     setExpandedSections(prev => ({
       ...prev,
-      [id]: { materials: false, labor: false, platforms: false, machine: false }
+      [id]: { materials: false, labor: false, platforms: false, machine: false, marketing: false }
     }));
     // Auto-expand the newly added product
     setExpandedProducts(prev => new Set([...prev, id]));
@@ -178,7 +179,7 @@ export function Level1Setup({
     // Initialize expanded state for this product
     setExpandedSections(prev => ({
       ...prev,
-      [id]: { materials: false, labor: false, platforms: false, machine: false }
+      [id]: { materials: false, labor: false, platforms: false, machine: false, marketing: false }
     }));
     // Auto-expand the newly added product
     setExpandedProducts(prev => new Set([...prev, id]));
@@ -276,7 +277,33 @@ export function Level1Setup({
               const assignedWorker = state.labor?.workers?.find(w => w.id === assignedWorkerId);
               const workerHourlyRate = assignedWorker?.hourlyRate ?? state.hourlyRate ?? 0;
               
-              const productMetrics = calculateProductMetrics({ ...product, platformFees }, workerHourlyRate);
+              // Calculate blended CAC for this product
+              let blendedCAC = 0;
+              if (state.marketing && product.monthlyUnits > 0) {
+                const marketing = state.marketing;
+                const totalUnitsNeeded = product.monthlyUnits;
+                const digitalPercentage = (marketing as any).digitalPercentage || 0;
+                const eventsPercentage = (marketing as any).eventsPercentage || 0;
+                const digitalUnits = Math.round(totalUnitsNeeded * (digitalPercentage / 100));
+                const eventUnits = Math.round(totalUnitsNeeded * (eventsPercentage / 100));
+                
+                // Digital CAC
+                const digitalChannel = marketing.digitalAdvertising?.channels?.[0];
+                const digitalCAC = digitalChannel?.costPerClick && digitalChannel?.conversionRate 
+                  ? (digitalChannel.costPerClick * 100) / digitalChannel.conversionRate
+                  : 0;
+                const digitalSpend = digitalUnits * digitalCAC;
+                
+                // Event CAC
+                const eventCAC = marketing.eventsStrategy?.costPerAcquisition || 0;
+                const eventSpend = eventUnits * eventCAC;
+                
+                // Blended CAC across all units (including organic)
+                const totalSpend = digitalSpend + eventSpend;
+                blendedCAC = totalUnitsNeeded > 0 ? totalSpend / totalUnitsNeeded : 0;
+              }
+              
+              const productMetrics = calculateProductMetrics({ ...product, platformFees }, workerHourlyRate, blendedCAC);
               const totalCosts = productMetrics.totalCosts;
               const unitProfit = (product.sellingPrice || 0) - totalCosts;
               const monthlyRevenue = (product.monthlyUnits || 0) * (product.sellingPrice || 0);
@@ -1428,6 +1455,248 @@ export function Level1Setup({
                                 );
                               })()}
                               
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Marketing Section */}
+                        <div className="bg-muted/30 rounded-lg border border-border">
+                          <button
+                            onClick={() => toggleSection(product.id, 'marketing')}
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">Marketing</span>
+                              {state.marketing && (
+                                <span className="text-sm text-muted-foreground">
+                                  {(() => {
+                                    const marketing = state.marketing;
+                                    const hasOrganic = marketing.organicPercentage > 0;
+                                    const hasDigital = marketing.digitalAdvertising?.channels?.[0]?.costPerClick > 0;
+                                    const hasEvents = marketing.eventsStrategy?.eventCount > 0;
+                                    
+                                    if (hasDigital || hasEvents) {
+                                      // Calculate blended CAC
+                                      const totalUnitsNeeded = product.monthlyUnits || 0;
+                                      const organicUnits = Math.round(totalUnitsNeeded * (marketing.organicPercentage / 100));
+                                      const digitalPercentage = (marketing as any).digitalPercentage || 0;
+                                      const eventsPercentage = (marketing as any).eventsPercentage || 0;
+                                      const digitalUnits = Math.round(totalUnitsNeeded * (digitalPercentage / 100));
+                                      const eventUnits = Math.round(totalUnitsNeeded * (eventsPercentage / 100));
+                                      
+                                      // Digital CAC
+                                      const digitalChannel = marketing.digitalAdvertising?.channels?.[0];
+                                      const digitalCAC = digitalChannel?.costPerClick && digitalChannel?.conversionRate 
+                                        ? (digitalChannel.costPerClick * 100) / digitalChannel.conversionRate
+                                        : 0;
+                                      const digitalSpend = digitalUnits * digitalCAC;
+                                      
+                                      // Event CAC
+                                      const eventCAC = marketing.eventsStrategy?.costPerAcquisition || 0;
+                                      const eventSpend = eventUnits * eventCAC;
+                                      
+                                      // Blended CAC
+                                      const totalSpend = digitalSpend + eventSpend;
+                                      const blendedCAC = totalUnitsNeeded > 0 ? totalSpend / totalUnitsNeeded : 0;
+                                      
+                                      if (blendedCAC > 0) {
+                                        return `${formatCurrencyCompact(blendedCAC)} CAC`;
+                                      }
+                                    }
+                                    
+                                    if (hasOrganic && marketing.organicPercentage === 100) {
+                                      return '100% Organic';
+                                    } else if (hasOrganic) {
+                                      return `${Math.round(marketing.organicPercentage)}% Organic`;
+                                    }
+                                    
+                                    return 'Not configured';
+                                  })()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-medium">
+                                {(() => {
+                                  if (!state.marketing) return formatCurrencyCompact(0);
+                                  
+                                  const marketing = state.marketing;
+                                  const totalUnitsNeeded = product.monthlyUnits || 0;
+                                  const digitalPercentage = (marketing as any).digitalPercentage || 0;
+                                  const eventsPercentage = (marketing as any).eventsPercentage || 0;
+                                  const digitalUnits = Math.round(totalUnitsNeeded * (digitalPercentage / 100));
+                                  const eventUnits = Math.round(totalUnitsNeeded * (eventsPercentage / 100));
+                                  
+                                  // Digital costs
+                                  const digitalChannel = marketing.digitalAdvertising?.channels?.[0];
+                                  const digitalCAC = digitalChannel?.costPerClick && digitalChannel?.conversionRate 
+                                    ? (digitalChannel.costPerClick * 100) / digitalChannel.conversionRate
+                                    : 0;
+                                  const digitalCost = digitalUnits * digitalCAC;
+                                  
+                                  // Event costs
+                                  const eventCAC = marketing.eventsStrategy?.costPerAcquisition || 0;
+                                  const eventCost = eventUnits * eventCAC;
+                                  
+                                  // Calculate blended CAC (per unit) instead of total monthly cost
+                                  const totalSpend = digitalCost + eventCost;
+                                  const blendedCAC = totalUnitsNeeded > 0 ? totalSpend / totalUnitsNeeded : 0;
+                                  
+                                  return formatCurrencyCompact(blendedCAC);
+                                })()}
+                              </span>
+                              {isExpanded?.marketing ? (
+                                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </div>
+                          </button>
+                          
+                          {isExpanded?.marketing && (
+                            <div className="px-4 pb-4 pt-2 space-y-3">
+                              {state.marketing ? (
+                                <>
+                                  {/* Sales Distribution Summary */}
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
+                                      <span className="col-span-5">Channel</span>
+                                      <span className="col-span-2 text-center">Share</span>
+                                      <span className="col-span-2 text-center">Units</span>
+                                      <span className="col-span-2 text-right">Total</span>
+                                      <span className="col-span-1"></span>
+                                    </div>
+                                    
+                                    {/* Organic Channel */}
+                                    {state.marketing.organicPercentage > 0 && (
+                                      <div className="grid grid-cols-12 gap-2 items-center">
+                                        <span className="col-span-5 text-sm">Organic/Direct - Free</span>
+                                        <span className="col-span-2 text-sm text-center">{Math.round(state.marketing.organicPercentage)}%</span>
+                                        <span className="col-span-2 text-sm text-center tabular-nums">
+                                          {Math.round((product.monthlyUnits || 0) * (state.marketing.organicPercentage / 100))}
+                                        </span>
+                                        <span className="col-span-2 text-sm text-right font-medium">$0.00</span>
+                                        <span className="col-span-1"></span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Digital Ads Channel */}
+                                    {(() => {
+                                      const digitalPercentage = (state.marketing as any).digitalPercentage || 0;
+                                      const digitalChannel = state.marketing.digitalAdvertising?.channels?.[0];
+                                      const digitalCAC = digitalChannel?.costPerClick && digitalChannel?.conversionRate 
+                                        ? (digitalChannel.costPerClick * 100) / digitalChannel.conversionRate
+                                        : 0;
+                                      
+                                      if (digitalPercentage > 0) {
+                                        const digitalUnits = Math.round((product.monthlyUnits || 0) * (digitalPercentage / 100));
+                                        const digitalTotal = digitalUnits * digitalCAC;
+                                        return (
+                                          <div className="grid grid-cols-12 gap-2 items-center">
+                                            <span className="col-span-5 text-sm">Digital Ads - {digitalCAC > 0 ? formatCurrencyCompact(digitalCAC) : '$0'}/unit</span>
+                                            <span className="col-span-2 text-sm text-center">{Math.round(digitalPercentage)}%</span>
+                                            <span className="col-span-2 text-sm text-center tabular-nums">
+                                              {digitalUnits}
+                                            </span>
+                                            <span className="col-span-2 text-sm text-right font-medium">
+                                              {digitalTotal > 0 ? formatCurrencyCompact(digitalTotal) : '$0.00'}
+                                            </span>
+                                            <span className="col-span-1"></span>
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
+                                    
+                                    {/* Events Channel */}
+                                    {(() => {
+                                      const eventsPercentage = (state.marketing as any).eventsPercentage || 0;
+                                      const eventCAC = state.marketing.eventsStrategy?.costPerAcquisition || 0;
+                                      
+                                      if (eventsPercentage > 0) {
+                                        const eventUnits = Math.round((product.monthlyUnits || 0) * (eventsPercentage / 100));
+                                        const eventTotal = eventUnits * eventCAC;
+                                        return (
+                                          <div className="grid grid-cols-12 gap-2 items-center">
+                                            <span className="col-span-5 text-sm">Events/Shows - {eventCAC > 0 ? formatCurrencyCompact(eventCAC) : '$0'}/unit</span>
+                                            <span className="col-span-2 text-sm text-center">{Math.round(eventsPercentage)}%</span>
+                                            <span className="col-span-2 text-sm text-center tabular-nums">
+                                              {eventUnits}
+                                            </span>
+                                            <span className="col-span-2 text-sm text-right font-medium">
+                                              {eventTotal > 0 ? formatCurrencyCompact(eventTotal) : '$0.00'}
+                                            </span>
+                                            <span className="col-span-1"></span>
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
+                                  </div>
+                                  
+                                  {/* Summary Metrics */}
+                                  <div className="pt-2 border-t border-border/50">
+                                    <div className="flex items-center justify-between text-sm">
+                                      <span className="text-muted-foreground">Total Marketing Cost:</span>
+                                      <span className="font-medium">
+                                        {(() => {
+                                          const totalUnitsNeeded = product.monthlyUnits || 0;
+                                          const digitalPercentage = (state.marketing as any).digitalPercentage || 0;
+                                          const eventsPercentage = (state.marketing as any).eventsPercentage || 0;
+                                          const digitalUnits = Math.round(totalUnitsNeeded * (digitalPercentage / 100));
+                                          const eventUnits = Math.round(totalUnitsNeeded * (eventsPercentage / 100));
+                                          
+                                          const digitalChannel = state.marketing.digitalAdvertising?.channels?.[0];
+                                          const digitalCAC = digitalChannel?.costPerClick && digitalChannel?.conversionRate 
+                                            ? (digitalChannel.costPerClick * 100) / digitalChannel.conversionRate
+                                            : 0;
+                                          const digitalCost = digitalUnits * digitalCAC;
+                                          
+                                          const eventCAC = state.marketing.eventsStrategy?.costPerAcquisition || 0;
+                                          const eventCost = eventUnits * eventCAC;
+                                          
+                                          return formatCurrencyCompact(digitalCost + eventCost);
+                                        })()}/mo
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-sm mt-1">
+                                      <span className="text-muted-foreground">Blended CAC:</span>
+                                      <span className="font-medium">
+                                        {(() => {
+                                          const totalUnitsNeeded = product.monthlyUnits || 0;
+                                          const digitalPercentage = (state.marketing as any).digitalPercentage || 0;
+                                          const eventsPercentage = (state.marketing as any).eventsPercentage || 0;
+                                          const digitalUnits = Math.round(totalUnitsNeeded * (digitalPercentage / 100));
+                                          const eventUnits = Math.round(totalUnitsNeeded * (eventsPercentage / 100));
+                                          
+                                          const digitalChannel = state.marketing.digitalAdvertising?.channels?.[0];
+                                          const digitalCAC = digitalChannel?.costPerClick && digitalChannel?.conversionRate 
+                                            ? (digitalChannel.costPerClick * 100) / digitalChannel.conversionRate
+                                            : 0;
+                                          const digitalSpend = digitalUnits * digitalCAC;
+                                          
+                                          const eventCAC = state.marketing.eventsStrategy?.costPerAcquisition || 0;
+                                          const eventSpend = eventUnits * eventCAC;
+                                          
+                                          const totalSpend = digitalSpend + eventSpend;
+                                          const blendedCAC = totalUnitsNeeded > 0 ? totalSpend / totalUnitsNeeded : 0;
+                                          
+                                          return formatCurrencyCompact(blendedCAC);
+                                        })()}/unit
+                                      </span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="text-xs text-muted-foreground text-center pt-2">
+                                    Configure in the Marketing tab for detailed settings
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-sm text-muted-foreground text-center py-4">
+                                  Marketing not configured yet. Complete the Marketing tab to see details.
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

@@ -52,13 +52,14 @@ export function calculatePlatformFees(product: Product): {
   };
 }
 
-export function calculateProductMetrics(product: Product, globalHourlyRate: number = 0): {
+export function calculateProductMetrics(product: Product, globalHourlyRate: number = 0, blendedCAC: number = 0): {
   totalTimeMinutes: number;
   totalTimeHours: number;
   totalCosts: number;
   laborCosts: number;
   machineCosts: number;
   platformFees: number;
+  marketingCosts: number;
   grossProfit: number;
   profitMargin: number;
   hourlyRate: number;
@@ -100,7 +101,10 @@ export function calculateProductMetrics(product: Product, globalHourlyRate: numb
   const platformFeeCalc = calculatePlatformFees(product);
   const platformFees = platformFeeCalc.totalFeesPerUnit;
   
-  const totalCosts = materialCosts + laborCosts + machineCosts + platformFees;
+  // Add marketing costs (CAC)
+  const marketingCosts = blendedCAC;
+  
+  const totalCosts = materialCosts + laborCosts + machineCosts + platformFees + marketingCosts;
   const grossProfit = (product.sellingPrice || 0) - totalCosts;
   const profitMargin = product.sellingPrice > 0 ? grossProfit / product.sellingPrice : 0;
   const hourlyRate = laborTimeHours > 0 ? grossProfit / laborTimeHours : 0; // Based on human labor hours only
@@ -112,6 +116,7 @@ export function calculateProductMetrics(product: Product, globalHourlyRate: numb
     laborCosts,
     machineCosts,
     platformFees,
+    marketingCosts,
     grossProfit,
     profitMargin,
     hourlyRate

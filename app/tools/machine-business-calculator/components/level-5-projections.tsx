@@ -155,6 +155,16 @@ export function Level5Projections({
                     )}
                   </span>
                 </div>
+                <div className="flex justify-between text-base">
+                  <span className="text-gray-700 dark:text-gray-300">Marketing (CAC)</span>
+                  <span className="font-mono text-gray-600 dark:text-gray-400">
+                    {formatCurrencyPrecise(
+                      Object.values(metrics.productMetrics || {}).reduce(
+                        (sum, p: any) => sum + (p.costBreakdown?.marketing || 0), 0
+                      )
+                    )}
+                  </span>
+                </div>
               </div>
               <div className="flex justify-between font-medium border-t pt-2">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Total COGS</span>
@@ -179,12 +189,13 @@ export function Level5Projections({
             <div className="space-y-1">
               <div className="text-base font-semibold text-gray-700 dark:text-gray-300">Operating Expenses</div>
               <div className="pl-3 space-y-0.5">
+                {/* Marketing is now included in COGS as Customer Acquisition Cost per unit
                 {marketingCosts > 0 && (
                   <div className="flex justify-between text-base">
                     <span className="text-gray-700 dark:text-gray-300">Marketing & Advertising</span>
                     <span className="font-mono text-gray-600 dark:text-gray-400">{formatCurrencyPrecise(marketingCosts)}</span>
                   </div>
-                )}
+                )} */}
                 {indirectLaborCost > 0 && (
                   <div className="flex justify-between text-base">
                     <span className="text-gray-700 dark:text-gray-300">Business Labor (Admin, etc.)</span>

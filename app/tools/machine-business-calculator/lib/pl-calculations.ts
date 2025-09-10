@@ -84,7 +84,12 @@ export function calculatePL(
     (sum, p: any) => sum + (p.costBreakdown?.platformFees || 0), 0
   );
   
-  const cogs = materialsCost + directLaborCost + platformFeesCost;
+  // Marketing costs are now part of COGS (via CAC in product costs)
+  const marketingCostsInCOGS = Object.values(metrics.productMetrics || {}).reduce(
+    (sum, p: any) => sum + (p.costBreakdown?.marketing || 0), 0
+  );
+  
+  const cogs = materialsCost + directLaborCost + platformFeesCost + marketingCostsInCOGS;
   
   // Operating Expenses
   const actualBusinessExpenses = businessExpenses || {
@@ -137,11 +142,12 @@ export function calculatePL(
     productAssignments: state.labor?.productAssignments
   });
   
-  // Marketing costs
-  const marketingCosts = metrics.totalMarketingCosts || 0;
+  // Marketing costs are now included in COGS, not Operating Expenses
+  // (They're part of Customer Acquisition Cost per unit)
+  const marketingCosts = 0; // Keep for interface compatibility, but set to 0
   
-  // Operating expenses before tax
-  const operatingExpensesBeforeTax = physicalCostsTotal + softwareCostsTotal + savingsCost + marketingCosts + indirectLaborCost;
+  // Operating expenses before tax (no marketing costs here anymore)
+  const operatingExpensesBeforeTax = physicalCostsTotal + softwareCostsTotal + savingsCost + indirectLaborCost;
   
   // Tax calculation
   const preTaxProfit = grossProfit - operatingExpensesBeforeTax;
