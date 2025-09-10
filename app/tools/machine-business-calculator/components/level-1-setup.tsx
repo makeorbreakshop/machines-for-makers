@@ -1163,16 +1163,16 @@ export function Level1Setup({
                               {/* Column headers */}
                               <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
                                 <span className="col-span-4">Platform</span>
-                                <span className="col-span-1 text-center">Fee %</span>
+                                <span className="col-span-2 text-center">Fee %</span>
                                 <span className="col-span-2 text-center">Sales %</span>
                                 <span className="col-span-2 text-center">Units</span>
-                                <span className="col-span-2 text-right">Cost</span>
+                                <span className="col-span-1 text-right">Total</span>
                                 <span className="col-span-1"></span>
                               </div>
                               
                               {platformFees.map(platformFee => {
                                 const platformUnits = Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100));
-                                const platformCost = (product.sellingPrice || 0) * platformUnits * (platformFee.feePercentage / 100);
+                                const platformCostPerUnit = (product.sellingPrice || 0) * (platformFee.feePercentage / 100);
                                 
                                 return (
                                   <div key={platformFee.id} className="grid grid-cols-12 gap-2 items-center">
@@ -1189,7 +1189,7 @@ export function Level1Setup({
                                         placeholder="Platform name"
                                       />
                                     </div>
-                                    <div className="col-span-1">
+                                    <div className="col-span-2">
                                       <Input
                                         type="number"
                                         min="0"
@@ -1251,8 +1251,8 @@ export function Level1Setup({
                                     <div className="col-span-2 text-sm text-muted-foreground text-center tabular-nums">
                                       {platformUnits}
                                     </div>
-                                    <div className="col-span-2 text-sm font-medium text-right tabular-nums">
-                                      {formatCurrencyCompact(platformCost)}
+                                    <div className="col-span-1 text-sm font-medium text-right tabular-nums">
+                                      {formatCurrencyCompact(platformCostPerUnit)}
                                     </div>
                                     <div className="col-span-1 flex justify-end">
                                       {platformFees.length > 1 && (
@@ -1281,7 +1281,9 @@ export function Level1Setup({
                                 );
                               })}
                               
-                              <Select onValueChange={(value) => {
+                              <Select 
+                                value=""
+                                onValueChange={(value) => {
                                 const preset = DEFAULT_PLATFORM_PRESETS.find(p => p.name === value);
                                 if (preset) {
                                   const newPlatform: PlatformFee = {
@@ -1296,7 +1298,7 @@ export function Level1Setup({
                                 <SelectTrigger className="w-full h-9 text-sm text-muted-foreground hover:text-foreground">
                                   <SelectValue placeholder="+ Add Platform" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="min-w-[220px]">
                                   {DEFAULT_PLATFORM_PRESETS.map((preset) => (
                                     <SelectItem key={preset.name} value={preset.name}>
                                       {preset.name} ({preset.feePercentage}% fee)
