@@ -26,6 +26,7 @@ export interface PlatformFee {
   name: string;          // Platform name (Etsy, Amazon, Direct, etc.)
   feePercentage: number; // Fee percentage (e.g., 6.5 for Etsy)
   salesPercentage: number; // Percentage of sales on this platform (e.g., 80)
+  locked?: boolean;      // Whether this platform's percentage is locked from redistribution
 }
 
 export interface MachineUsage {

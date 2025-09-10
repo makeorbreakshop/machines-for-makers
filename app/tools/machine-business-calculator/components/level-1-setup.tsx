@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2, Layers, Cpu, Calculator, RotateCw, Check } from 'lucide-react';
+import { Plus, X, Package, Clock, Store, ChevronDown, ChevronUp, Edit2, Layers, Cpu, Calculator, RotateCw, Check, Lock, Unlock } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { 
@@ -1173,10 +1173,11 @@ export function Level1Setup({
                               {platformFees.map(platformFee => {
                                 const platformUnits = Math.round((product.monthlyUnits || 0) * (platformFee.salesPercentage / 100));
                                 const platformCostPerUnit = (product.sellingPrice || 0) * (platformFee.feePercentage / 100);
+                                const unlockedCount = platformFees.filter(pf => !pf.locked).length;
                                 
                                 return (
                                   <div key={platformFee.id} className="grid grid-cols-12 gap-2 items-center">
-                                    <div className="col-span-4">
+                                    <div className="col-span-4 flex items-center gap-1">
                                       <Input
                                         value={platformFee.name}
                                         onChange={(e) => {
@@ -1185,9 +1186,33 @@ export function Level1Setup({
                                           );
                                           onUpdateProduct(product.id, { platformFees: updated });
                                         }}
-                                        className="h-9 text-sm "
+                                        className="h-9 text-sm flex-1"
                                         placeholder="Platform name"
                                       />
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          // Don't allow locking if it's the only unlocked platform
+                                          if (!platformFee.locked && unlockedCount <= 1) {
+                                            return;
+                                          }
+                                          
+                                          const updated = platformFees.map(pf =>
+                                            pf.id === platformFee.id ? { ...pf, locked: !pf.locked } : pf
+                                          );
+                                          onUpdateProduct(product.id, { platformFees: updated });
+                                        }}
+                                        className="h-8 w-8 p-0 flex-shrink-0"
+                                        disabled={!platformFee.locked && unlockedCount <= 1}
+                                        title={platformFee.locked ? "Unlock percentage" : "Lock percentage"}
+                                      >
+                                        {platformFee.locked ? (
+                                          <Lock className="h-3.5 w-3.5 text-amber-600" />
+                                        ) : (
+                                          <Unlock className="h-3.5 w-3.5 text-muted-foreground" />
+                                        )}
+                                      </Button>
                                     </div>
                                     <div className="col-span-2">
                                       <Input
@@ -1204,49 +1229,65 @@ export function Level1Setup({
                                           );
                                           onUpdateProduct(product.id, { platformFees: updated });
                                         }}
-                                        className="h-9 text-sm text-center tabular-nums "
+                                        className="h-9 text-sm text-center tabular-nums"
                                         placeholder="0"
                                       />
                                     </div>
                                     <div className="col-span-2">
                                       <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        step="0.01"
-                                        value={platformFee.salesPercentage || ''}
-                                        onChange={(e) => {
-                                          const newPercentage = Math.round(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) * 100) / 100;
-                                          
-                                          if (platformFees.length === 1) {
-                                            const updated = platformFees.map(pf =>
-                                              pf.id === platformFee.id 
-                                                ? { ...pf, salesPercentage: newPercentage }
-                                                : pf
-                                            );
-                                            onUpdateProduct(product.id, { platformFees: updated });
-                                          } else {
-                                            // Adjust others proportionally
-                                            const otherFees = platformFees.filter(pf => pf.id !== platformFee.id);
-                                            const currentOtherTotal = otherFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
-                                            const remainingPercentage = 100 - newPercentage;
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          step="0.01"
+                                          value={Math.round(platformFee.salesPercentage * 100) / 100 || ''}
+                                          onChange={(e) => {
+                                            const newPercentage = Math.round(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) * 100) / 100;
                                             
-                                            const updated = platformFees.map(pf => {
-                                              if (pf.id === platformFee.id) {
-                                                return { ...pf, salesPercentage: newPercentage };
-                                              } else if (currentOtherTotal > 0) {
-                                                const proportion = pf.salesPercentage / currentOtherTotal;
-                                                return { ...pf, salesPercentage: remainingPercentage * proportion };
-                                              } else {
+                                            // Calculate the difference to redistribute
+                                            const oldPercentage = platformFee.salesPercentage;
+                                            const difference = oldPercentage - newPercentage;
+                                            
+                                            // Get unlocked platforms (excluding current)
+                                            const unlockedOthers = platformFees.filter(pf => !pf.locked && pf.id !== platformFee.id);
+                                            
+                                            if (unlockedOthers.length > 0) {
+                                              // Calculate current total of unlocked others
+                                              const unlockedTotal = unlockedOthers.reduce((sum, pf) => sum + pf.salesPercentage, 0);
+                                              
+                                              const updated = platformFees.map(pf => {
+                                                if (pf.id === platformFee.id) {
+                                                  return { ...pf, salesPercentage: newPercentage };
+                                                } else if (!pf.locked) {
+                                                  // Redistribute proportionally among unlocked platforms
+                                                  if (unlockedTotal > 0) {
+                                                    const proportion = pf.salesPercentage / unlockedTotal;
+                                                    return { 
+                                                      ...pf, 
+                                                      salesPercentage: Math.round((pf.salesPercentage + (difference * proportion)) * 100) / 100 
+                                                    };
+                                                  } else {
+                                                    // If all unlocked are at 0, distribute evenly
+                                                    return { 
+                                                      ...pf, 
+                                                      salesPercentage: Math.round((difference / unlockedOthers.length) * 100) / 100 
+                                                    };
+                                                  }
+                                                }
                                                 return pf;
-                                              }
-                                            });
-                                            onUpdateProduct(product.id, { platformFees: updated });
-                                          }
-                                        }}
-                                        className="h-9 text-sm text-center tabular-nums "
-                                        placeholder="0"
-                                      />
+                                              });
+                                              onUpdateProduct(product.id, { platformFees: updated });
+                                            } else {
+                                              // If no other unlocked platforms, force to 100%
+                                              const updated = platformFees.map(pf =>
+                                                pf.id === platformFee.id ? { ...pf, salesPercentage: 100 } : pf
+                                              );
+                                              onUpdateProduct(product.id, { platformFees: updated });
+                                            }
+                                          }}
+                                          disabled={platformFee.locked}
+                                          className="h-9 text-sm text-center tabular-nums"
+                                          placeholder="0"
+                                        />
                                     </div>
                                     <div className="col-span-2 text-sm text-muted-foreground text-center tabular-nums">
                                       {platformUnits}
@@ -1260,16 +1301,24 @@ export function Level1Setup({
                                           variant="ghost"
                                           size="sm"
                                           onClick={() => {
-                                            const updated = platformFees.filter(pf => pf.id !== platformFee.id);
-                                            // Redistribute percentages
-                                            const totalPercentage = 100;
-                                            if (updated.length > 0) {
-                                              const equalShare = totalPercentage / updated.length;
-                                              updated.forEach(pf => {
-                                                pf.salesPercentage = equalShare;
+                                            // Remove and redistribute percentage among unlocked platforms
+                                            const remainingFees = platformFees.filter(pf => pf.id !== platformFee.id);
+                                            const removedPercentage = platformFee.salesPercentage;
+                                            const unlockedRemaining = remainingFees.filter(pf => !pf.locked);
+                                            
+                                            if (removedPercentage > 0 && unlockedRemaining.length > 0) {
+                                              // Redistribute the removed percentage evenly among unlocked platforms
+                                              const redistributionAmount = removedPercentage / unlockedRemaining.length;
+                                              const updated = remainingFees.map(pf => {
+                                                if (!pf.locked) {
+                                                  return { ...pf, salesPercentage: Math.round((pf.salesPercentage + redistributionAmount) * 100) / 100 };
+                                                }
+                                                return pf;
                                               });
+                                              onUpdateProduct(product.id, { platformFees: updated });
+                                            } else {
+                                              onUpdateProduct(product.id, { platformFees: remainingFees });
                                             }
-                                            onUpdateProduct(product.id, { platformFees: updated });
                                           }}
                                           className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                         >
@@ -1286,13 +1335,40 @@ export function Level1Setup({
                                 onValueChange={(value) => {
                                 const preset = DEFAULT_PLATFORM_PRESETS.find(p => p.name === value);
                                 if (preset) {
+                                  // If this is the first platform, set it to 100%
+                                  // Otherwise, redistribute percentages among unlocked platforms
+                                  const isFirstPlatform = platformFees.length === 0;
+                                  let newPercentage = 0;
+                                  let updatedExisting = platformFees;
+                                  
+                                  if (isFirstPlatform) {
+                                    newPercentage = 100;
+                                  } else {
+                                    // Find unlocked platforms
+                                    const unlockedPlatforms = platformFees.filter(pf => !pf.locked);
+                                    if (unlockedPlatforms.length > 0) {
+                                      // Take equal percentage from each unlocked platform
+                                      const redistributionAmount = 100 / (unlockedPlatforms.length + 1);
+                                      newPercentage = redistributionAmount;
+                                      
+                                      updatedExisting = platformFees.map(pf => {
+                                        if (!pf.locked) {
+                                          // Scale down existing percentages
+                                          const scaleFactor = (100 - redistributionAmount) / 100;
+                                          return { ...pf, salesPercentage: Math.round(pf.salesPercentage * scaleFactor * 100) / 100 };
+                                        }
+                                        return pf;
+                                      });
+                                    }
+                                  }
+                                  
                                   const newPlatform: PlatformFee = {
                                     id: `platform_${Date.now()}`,
                                     name: preset.name,
                                     feePercentage: preset.feePercentage,
-                                    salesPercentage: 0
+                                    salesPercentage: newPercentage
                                   };
-                                  onUpdateProduct(product.id, { platformFees: [...platformFees, newPlatform] });
+                                  onUpdateProduct(product.id, { platformFees: [...updatedExisting, newPlatform] });
                                 }
                               }}>
                                 <SelectTrigger className="w-full h-9 text-sm text-muted-foreground hover:text-foreground">
@@ -1307,15 +1383,6 @@ export function Level1Setup({
                                 </SelectContent>
                               </Select>
                               
-                              {(() => {
-                                const total = platformFees.reduce((sum, pf) => sum + pf.salesPercentage, 0);
-                                return total !== 100 && total > 0 ? (
-                                  <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-500 bg-amber-50/50 dark:bg-amber-950/20 px-3 py-2 rounded-md border border-amber-200/50 dark:border-amber-800/50">
-                                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full"></div>
-                                    <span>Distribution totals {Math.round(total)}% (should be 100%)</span>
-                                  </div>
-                                ) : null;
-                              })()}
                             </div>
                           )}
                         </div>
