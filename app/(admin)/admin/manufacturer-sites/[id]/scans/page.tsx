@@ -13,7 +13,7 @@ interface PageProps {
   params: Promise<{ id: string }>
 }
 
-export default function SiteScansPage({ params }: PageProps) {
+export default async function SiteScansPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createServerClient()
 

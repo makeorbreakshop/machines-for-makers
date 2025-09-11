@@ -5,6 +5,9 @@ import { CalculatorWrapper } from '../components/calculator-wrapper';
 import { calculateComprehensiveMetrics } from '../lib/calculator-formulas';
 import { Card, CardContent } from '@/components/ui/card';
 
+// Force dynamic rendering for this page since it uses client-side state
+export const dynamic = 'force-dynamic';
+
 export default function CalculatorPage() {
   const calculatorState = useCalculatorState();
 

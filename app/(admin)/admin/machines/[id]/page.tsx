@@ -13,7 +13,7 @@ interface MachinePageProps {
   params: Promise<{ id: string }>
 }
 
-export default function EditMachinePage({
+export default async function EditMachinePage({
   params,
 }: MachinePageProps) {
   // Check authentication - will redirect if not authenticated

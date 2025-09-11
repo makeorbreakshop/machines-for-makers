@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
 
-export default function InkCalculatorAdminPage() {
+export default async function InkCalculatorAdminPage() {
   // Check authentication - will redirect if not authenticated
   
   const supabase = await createServerClient();

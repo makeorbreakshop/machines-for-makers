@@ -309,7 +309,7 @@ export function calculateComprehensiveMetrics(state: CalculatorState): Calculate
     const productAssignments = state.labor?.productAssignments || {};
     const assignedWorkerId = productAssignments[product.id] || 'owner';
     const assignedWorker = state.labor?.workers?.find(w => w.id === assignedWorkerId);
-    const workerHourlyRate = assignedWorker?.hourlyRate ?? state.hourlyRate ?? 25;
+    const workerHourlyRate = assignedWorker?.hourlyRate ?? (state.hourlyRate !== undefined ? state.hourlyRate : 25);
     
     const productMetric = calculateProductMetrics(product, workerHourlyRate);
     const revenueMetric = calculateProductRevenue(product, workerHourlyRate, blendedCAC);
@@ -342,7 +342,7 @@ export function calculateComprehensiveMetrics(state: CalculatorState): Calculate
       } else {
         // Default to owner's rate if no worker assigned
         const owner = workers.find(w => w.id === 'owner');
-        weeklyBusinessTasksCost += task.hoursPerWeek * (owner?.hourlyRate || state.hourlyRate || 25);
+        weeklyBusinessTasksCost += task.hoursPerWeek * (owner?.hourlyRate ?? (state.hourlyRate !== undefined ? state.hourlyRate : 25));
       }
     });
     

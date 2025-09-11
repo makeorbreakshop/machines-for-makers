@@ -31,7 +31,7 @@ export interface DiscoveredProduct {
   }
 }
 
-export default function DiscoveryPage() {
+export default async function DiscoveryPage() {
   
   const supabase = await createServerClient()
 

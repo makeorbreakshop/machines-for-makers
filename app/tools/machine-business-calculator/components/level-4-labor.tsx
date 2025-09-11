@@ -38,7 +38,7 @@ export function Level4Labor({
           {
             id: 'owner',
             name: 'You',
-            hourlyRate: state.hourlyRate ?? 25,
+            hourlyRate: state.hourlyRate !== undefined ? state.hourlyRate : 25,
             maxHoursPerWeek: 40,
             skills: ['admin', 'marketing', 'maintenance', 'inventory', 'shipping', 'development', 'production'],
             assignedHours: 0,
@@ -473,7 +473,7 @@ export function Level4Labor({
                             const weeklyHours = (productMetric.monthlyTimeHours || 0) / 4.33;
                             const assignedWorkerId = productAssignments[product.id] || 'owner';
                             const worker = laborState.workers.find(w => w.id === assignedWorkerId);
-                            totalProductionCost += weeklyHours * (worker?.hourlyRate ?? 25);
+                            totalProductionCost += weeklyHours * (worker?.hourlyRate !== undefined ? worker.hourlyRate : 25);
                           }
                         });
                       }
@@ -496,7 +496,7 @@ export function Level4Labor({
                   const weeklyHours = (productMetrics.monthlyTimeHours || 0) / 4.33;
                   const productName = product.name || `Product ${index + 1}`;
                   const assignedWorker = laborState.workers.find(w => w.id === laborState.productAssignments?.[product.id]) || laborState.workers.find(w => w.id === 'owner');
-                  const weeklyAmount = weeklyHours * (assignedWorker?.hourlyRate ?? 25);
+                  const weeklyAmount = weeklyHours * (assignedWorker?.hourlyRate !== undefined ? assignedWorker.hourlyRate : 25);
                   
                   return (
                     <div key={product.id} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
@@ -581,7 +581,7 @@ export function Level4Labor({
                     {formatCurrency(laborState.businessTasks.reduce((sum, task) => {
                       const assignedWorkerId = task.assignedWorkerId || 'owner';
                       const worker = laborState.workers.find(w => w.id === assignedWorkerId);
-                      return sum + (task.hoursPerWeek * (worker?.hourlyRate ?? 25));
+                      return sum + (task.hoursPerWeek * (worker?.hourlyRate !== undefined ? worker.hourlyRate : 25));
                     }, 0))}/wk
                   </span>
                   <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${businessTasksExpanded ? 'transform rotate-180' : ''}`} />
@@ -594,7 +594,7 @@ export function Level4Labor({
           <div className="p-4 space-y-1">
               {laborState.businessTasks.map((task) => {
                 const assignedWorker = laborState.workers.find(w => w.id === task.assignedWorkerId) || laborState.workers[0];
-                const weeklyAmount = task.hoursPerWeek * (assignedWorker?.hourlyRate ?? 25);
+                const weeklyAmount = task.hoursPerWeek * (assignedWorker?.hourlyRate !== undefined ? assignedWorker.hourlyRate : 25);
                 return (
                   <div key={task.id} className="group flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md">
                     <Input

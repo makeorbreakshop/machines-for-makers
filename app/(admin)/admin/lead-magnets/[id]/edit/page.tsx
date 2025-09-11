@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: 'Edit lead magnet settings',
 };
 
-export default function EditLeadMagnetPage({
+export default async function EditLeadMagnetPage({
   params,
 }: {
   params: Promise<{ id: string }>;

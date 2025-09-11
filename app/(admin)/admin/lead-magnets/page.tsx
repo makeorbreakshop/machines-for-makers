@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: 'Manage lead magnets and conversion funnels',
 };
 
-export default function LeadMagnetsPage() {
+export default async function LeadMagnetsPage() {
 
   const supabase = createServiceClient();
 

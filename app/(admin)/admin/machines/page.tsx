@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 // Add nodejs runtime as per DEVELOPMENT_GUIDELINES for server components using Supabase
 export const runtime = 'nodejs'
 
-export default function MachinesPage() {
+export default async function MachinesPage() {
   // Check auth first - will redirect if not authenticated
   
   const supabase = await createServerClient()
