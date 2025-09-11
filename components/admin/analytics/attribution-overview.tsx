@@ -97,6 +97,12 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
 
   const formatPercentage = (rate: number) => `${(rate * 100).toFixed(1)}%`;
 
+  const decodeHtmlEntities = (text: string) => {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  };
+
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
       // Toggle direction: desc -> asc -> desc
@@ -254,7 +260,7 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
               <tbody>
                 {sortedSources.map((source, index) => {
                   // Clean up the title by removing YouTube IDs and long email IDs
-                  let cleanTitle = source.displayTitle || source.source;
+                  let cleanTitle = decodeHtmlEntities(source.displayTitle || source.source);
                   
                   // Remove YouTube video IDs (yt-XXXXXXXX pattern)
                   if (cleanTitle.startsWith('yt-')) {
