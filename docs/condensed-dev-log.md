@@ -693,3 +693,13 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Calculator UI**: Removed unwanted Card components, fixed dark mode with proper ThemeProvider configuration, unified semantic color variables
 - **Impact**: Production calculator working correctly, consistent dark mode across all environments, professional UI matching local development
 - **Technical**: Route group architecture for admin protection, ThemeProvider attribute="class" configuration, semantic theme variables throughout
+
+### 2025-09-10: Calculator Landing Page, Platform Fees Enhancement & ConvertKit Integration
+- **Issue**: Price extractor Python syntax error, platform fees UI cut off, needed calculator landing page with email capture
+- **Platform Fees**: Fixed Supabase `.in()` to `.in_()` syntax, refactored to 12-column grid, added lock/unlock with auto-redistribution maintaining 100%
+- **Calculator Landing**: Created `/calculator` route matching laser-comparison design, cyan hero, preview table showing $50→$3.47/hr reality progression
+- **ConvertKit Integration**: Dynamic form ID from lead_magnets table, fixed multiple critical bugs (missing await, slug mismatch, wrong form ID)
+- **Confirmation Flow**: Added `/calculator/confirm` page for email verification, matches laser-comparison workflow with clear next steps
+- **Critical Fixes**: `logo-service.ts` missing await causing webpack errors, database slug `calculator` not `business-calculator`, form ID pulls from DB not hardcoded
+- **Impact**: Complete email capture system operational, 100% ConvertKit integration working, professional landing page matching successful patterns
+- **Technical**: Server-side rendering with proper async/await, dynamic configuration from database, UTM tracking throughout, proper API flow (ConvertKit→Database)

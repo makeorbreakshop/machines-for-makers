@@ -462,7 +462,7 @@ export async function GET(request: NextRequest) {
       });
 
       // Add signup data ONLY for signups that actually came through this specific lead magnet
-      const funnelCampaignSubmissions = allSubmissions?.filter(sub => {
+      const funnelCampaignSubmissions = allSubscribers?.filter(sub => {
         // Only count signups that have UTM campaign data
         if (!sub.utm_campaign) return false;
         
