@@ -20,7 +20,8 @@ import {
   Menu,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  TrendingUp
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -113,6 +114,17 @@ const navigation: NavSection[] = [
         title: "Email Signups",
         href: "/admin/email-signups",
         icon: Mail,
+      },
+      {
+        title: "Affiliate Tracking",
+        href: "/admin/affiliate",
+        icon: TrendingUp,
+        children: [
+          { title: "Dashboard", href: "/admin/affiliate/dashboard" },
+          { title: "Programs", href: "/admin/affiliate/programs" },
+          { title: "Sales Import", href: "/admin/affiliate/import" },
+          { title: "Reports", href: "/admin/affiliate/reports" },
+        ],
       },
     ],
   },
@@ -252,9 +264,11 @@ function SidebarContent() {
       {/* Logo/Brand */}
       <div className="flex h-14 items-center border-b px-6">
         <Link href="/admin" className="flex items-center gap-2 font-semibold">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 text-white dark:bg-gray-50 dark:text-gray-900">
-            <Package className="h-4 w-4" />
-          </div>
+          <img 
+            src="/logo-new.png" 
+            alt="Machines for Makers" 
+            className="h-8 w-8 rounded-lg object-contain" 
+          />
           <span className="text-lg">Admin</span>
         </Link>
       </div>
