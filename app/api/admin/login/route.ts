@@ -97,12 +97,8 @@ export async function POST(request: Request) {
   try {
     console.log("==== Login API route called ====")
     
-    // Override for production testing - use the exact password value without any processing
-    if (process.env.VERCEL === '1' && process.env.NODE_ENV === 'production') {
-      // This will override any cleanEnvPassword processing done earlier
-      cleanEnvPassword = "V7w7powAVKChZzru9JERqPKr39CJqKXfDHMDgsXz";
-      console.log("PRODUCTION OVERRIDE: Using hardcoded admin password for testing");
-    }
+    // No hardcoded passwords - always use environment variables
+    // Password should be set in Vercel environment variables for production
     
     // Clone the request to avoid "body stream already read" errors
     const clonedRequest = request.clone();
@@ -279,15 +275,13 @@ export async function POST(request: Request) {
       }
     );
 
-    // Set authentication cookie with precise options
-    // Note: Use a shorter path to ensure the cookie is available
-    // on all paths, and is properly accessible by client-side JavaScript
+    // Set authentication cookie with secure options
     response.cookies.set({
       name: ADMIN_COOKIE_NAME,
       value: cookieValue,
       expires: expiryDate,
       path: "/",
-      httpOnly: false, // Set to false so we can read it from JavaScript
+      httpOnly: true, // Protect against XSS attacks
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
     });

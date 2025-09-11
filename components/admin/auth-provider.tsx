@@ -35,19 +35,32 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   }, [pathname]);
   
   // Function to check if user is authenticated
-  const checkAuthentication = () => {
-    const cookies = document.cookie.split(';');
-    const adminCookie = cookies.find(cookie => cookie.trim().startsWith("admin_auth="));
-    const adminCookieExists = !!adminCookie && adminCookie.trim() !== "admin_auth=";
-    
-    console.log("Checking authentication, cookie exists:", adminCookieExists);
-    
-    setIsAuthenticated(adminCookieExists);
-    
-    if (!adminCookieExists && pathname !== "/admin/login") {
-      console.log("Not authenticated, redirecting to login");
-      router.push("/admin/login");
-    } else {
+  const checkAuthentication = async () => {
+    try {
+      const response = await fetch('/api/admin/auth/check', {
+        method: 'GET',
+        credentials: 'include', // Include cookies
+      });
+      
+      const data = await response.json();
+      const isAuth = data.authenticated === true;
+      
+      console.log("Checking authentication, authenticated:", isAuth);
+      
+      setIsAuthenticated(isAuth);
+      
+      if (!isAuth && pathname !== "/admin/login") {
+        console.log("Not authenticated, redirecting to login");
+        router.push("/admin/login");
+      } else {
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error("Auth check failed:", error);
+      setIsAuthenticated(false);
+      if (pathname !== "/admin/login") {
+        router.push("/admin/login");
+      }
       setIsLoading(false);
     }
   };
