@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, Loader2, AlertCircle, Mail, Users, MousePointer } from 'lucide-react';
+import { TrendingUp, Loader2, AlertCircle, Mail, Users, MousePointer, ChevronUp, ChevronDown } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatDistanceToNow } from 'date-fns';
 import { TimeSeriesChart } from './time-series-chart';
@@ -53,16 +53,17 @@ interface AttributionOverviewProps {
   dateRange: string;
 }
 
+type SortColumn = 'source' | 'clicks' | 'leads' | 'conversionRate' | 'lastSeen';
+type SortDirection = 'desc' | 'asc';
+
 export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<AttributionData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>('lastSeen');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  useEffect(() => {
-    fetchAttributionData();
-  }, [dateRange]);
-
-  const fetchAttributionData = async () => {
+  const fetchAttributionData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -82,7 +83,11 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange]);
+
+  useEffect(() => {
+    fetchAttributionData();
+  }, [fetchAttributionData]);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -91,6 +96,59 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
   };
 
   const formatPercentage = (rate: number) => `${(rate * 100).toFixed(1)}%`;
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      // Toggle direction: desc -> asc -> desc
+      setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+    } else {
+      // New column, start with descending
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const sortedSources = data?.sources ? [...data.sources].sort((a, b) => {
+    let aValue: any, bValue: any;
+    
+    switch (sortColumn) {
+      case 'source':
+        aValue = (a.displayTitle || a.source).toLowerCase();
+        bValue = (b.displayTitle || b.source).toLowerCase();
+        break;
+      case 'clicks':
+        aValue = a.clicks;
+        bValue = b.clicks;
+        break;
+      case 'leads':
+        aValue = a.leads;
+        bValue = b.leads;
+        break;
+      case 'conversionRate':
+        aValue = a.conversionRate;
+        bValue = b.conversionRate;
+        break;
+      case 'lastSeen':
+        aValue = new Date(a.lastSeen).getTime();
+        bValue = new Date(b.lastSeen).getTime();
+        break;
+      default:
+        return 0;
+    }
+
+    if (sortDirection === 'desc') {
+      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+    } else {
+      return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+    }
+  }) : [];
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) return null;
+    return sortDirection === 'desc' ? 
+      <ChevronDown className="h-4 w-4 inline ml-1" /> : 
+      <ChevronUp className="h-4 w-4 inline ml-1" />;
+  };
 
   if (loading) {
     return (
@@ -139,15 +197,50 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
             <table className="w-full">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-3 px-4">Source</th>
-                  <th className="text-right py-3 px-4">Clicks</th>
-                  <th className="text-right py-3 px-4">Leads</th>
-                  <th className="text-right py-3 px-4">Conversion Rate</th>
-                  <th className="text-right py-3 px-4">Last Seen</th>
+                  <th className="text-left py-3 px-4">
+                    <button 
+                      onClick={() => handleSort('source')}
+                      className="hover:text-primary transition-colors cursor-pointer flex items-center"
+                    >
+                      Source{getSortIcon('source')}
+                    </button>
+                  </th>
+                  <th className="text-right py-3 px-4">
+                    <button 
+                      onClick={() => handleSort('clicks')}
+                      className="hover:text-primary transition-colors cursor-pointer flex items-center justify-end w-full"
+                    >
+                      Clicks{getSortIcon('clicks')}
+                    </button>
+                  </th>
+                  <th className="text-right py-3 px-4">
+                    <button 
+                      onClick={() => handleSort('leads')}
+                      className="hover:text-primary transition-colors cursor-pointer flex items-center justify-end w-full"
+                    >
+                      Leads{getSortIcon('leads')}
+                    </button>
+                  </th>
+                  <th className="text-right py-3 px-4">
+                    <button 
+                      onClick={() => handleSort('conversionRate')}
+                      className="hover:text-primary transition-colors cursor-pointer flex items-center justify-end w-full"
+                    >
+                      Conversion Rate{getSortIcon('conversionRate')}
+                    </button>
+                  </th>
+                  <th className="text-right py-3 px-4">
+                    <button 
+                      onClick={() => handleSort('lastSeen')}
+                      className="hover:text-primary transition-colors cursor-pointer flex items-center justify-end w-full"
+                    >
+                      Last Seen{getSortIcon('lastSeen')}
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {data.sources.map((source, index) => (
+                {sortedSources.map((source, index) => (
                   <tr key={index} className="border-b hover:bg-muted/50">
                     <td className="py-3 px-4">
                       <div>

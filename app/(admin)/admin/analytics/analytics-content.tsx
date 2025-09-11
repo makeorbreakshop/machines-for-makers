@@ -437,6 +437,10 @@ export default function AnalyticsContent() {
         const response = await fetch(`/api/admin/analytics/campaigns?days=${days}`);
         const result = await response.json();
         setData(prevData => ({ ...prevData, campaigns: result }));
+      } else if (metric === 'attribution') {
+        // Attribution data is handled by the AttributionOverview component itself
+        // We don't need to fetch it here, but this ensures the loading state is managed
+        return;
       } else {
         const response = await fetch(`/api/admin/analytics?metric=${metric}&startDate=${startDate}&endDate=${endDate}`);
         const result = await response.json();
