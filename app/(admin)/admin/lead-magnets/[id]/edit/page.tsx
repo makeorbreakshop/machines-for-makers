@@ -2,7 +2,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { Metadata } from 'next';
-import { requireAdminAuth } from '@/lib/auth-utils';
 import { createServiceClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { LeadMagnetForm } from '../../lead-magnet-form';
@@ -12,12 +11,11 @@ export const metadata: Metadata = {
   description: 'Edit lead magnet settings',
 };
 
-export default async function EditLeadMagnetPage({
+export default function EditLeadMagnetPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdminAuth();
 
   const { id } = await params;
   const supabase = createServiceClient();

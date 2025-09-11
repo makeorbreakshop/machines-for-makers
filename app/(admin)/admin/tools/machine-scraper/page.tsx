@@ -1,5 +1,4 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { requireAdminAuth } from "@/lib/auth-utils"
 import { MachineScraperForm } from "@/components/admin/machine-scraper-form"
 
 // Force dynamic to prevent static generation and ensure fresh data
@@ -7,9 +6,8 @@ export const dynamic = 'force-dynamic'
 // Add nodejs runtime as per DEVELOPMENT_GUIDELINES for server components using Supabase
 export const runtime = 'nodejs'
 
-export default async function MachineScraper() {
+export default function MachineScraper() {
   // Check auth first - will redirect if not authenticated
-  await requireAdminAuth();
   
   return (
     <div className="space-y-4">

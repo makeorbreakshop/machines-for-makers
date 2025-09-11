@@ -2,7 +2,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { Metadata } from 'next';
-import { requireAdminAuth } from '@/lib/auth-utils';
 import { createServiceClient } from '@/lib/supabase/server';
 import { LeadMagnetsContent } from './lead-magnets-content';
 
@@ -11,8 +10,7 @@ export const metadata: Metadata = {
   description: 'Manage lead magnets and conversion funnels',
 };
 
-export default async function LeadMagnetsPage() {
-  await requireAdminAuth();
+export default function LeadMagnetsPage() {
 
   const supabase = createServiceClient();
 

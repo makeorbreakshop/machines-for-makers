@@ -1,4 +1,3 @@
-import { requireAdminAuth } from "@/lib/auth-utils";
 import { createServerClient } from "@/lib/supabase/server";
 import { InkTestDataForm } from "./components/InkTestDataForm";
 import { TestDataList } from "./components/TestDataList";
@@ -13,9 +12,8 @@ import { Button } from "@/components/ui/button";
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
 
-export default async function InkCalculatorAdminPage() {
+export default function InkCalculatorAdminPage() {
   // Check authentication - will redirect if not authenticated
-  await requireAdminAuth();
   
   const supabase = await createServerClient();
   

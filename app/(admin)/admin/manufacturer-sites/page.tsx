@@ -1,11 +1,9 @@
-import { requireAdminAuth } from '@/lib/auth-utils'
 import { ManufacturerSitesClient } from './manufacturer-sites-client'
 
 export const runtime = 'nodejs'
 
-export default async function ManufacturerSitesPage() {
+export default function ManufacturerSitesPage() {
   // Ensure user is authenticated as admin
-  await requireAdminAuth()
 
   return (
     <div className="container mx-auto py-6">

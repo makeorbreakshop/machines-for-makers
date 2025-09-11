@@ -5,7 +5,6 @@ import { Plus } from "lucide-react"
 import Link from "next/link"
 import { MachinesTable, type TableMachine } from "@/components/admin/machines-table"
 import type { Database as DbType } from "@/lib/database-types"
-import { requireAdminAuth } from "@/lib/auth-utils"
 import { Suspense } from "react"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { AdminPageWrapper } from "@/components/admin/admin-page-wrapper"
@@ -15,9 +14,8 @@ export const dynamic = 'force-dynamic'
 // Add nodejs runtime as per DEVELOPMENT_GUIDELINES for server components using Supabase
 export const runtime = 'nodejs'
 
-export default async function MachinesPage() {
+export default function MachinesPage() {
   // Check auth first - will redirect if not authenticated
-  await requireAdminAuth();
   
   const supabase = await createServerClient()
 

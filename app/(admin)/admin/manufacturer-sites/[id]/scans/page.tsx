@@ -1,5 +1,4 @@
 import { createServerClient } from "@/lib/supabase/server"
-import { requireAdminAuth } from "@/lib/auth-utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,8 +13,7 @@ interface PageProps {
   params: Promise<{ id: string }>
 }
 
-export default async function SiteScansPage({ params }: PageProps) {
-  await requireAdminAuth()
+export default function SiteScansPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createServerClient()
 

@@ -2,7 +2,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { Metadata } from 'next';
-import { requireAdminAuth } from '@/lib/auth-utils';
 import { LeadMagnetForm } from '../lead-magnet-form';
 
 export const metadata: Metadata = {
@@ -10,8 +9,7 @@ export const metadata: Metadata = {
   description: 'Create a new lead magnet',
 };
 
-export default async function NewLeadMagnetPage() {
-  await requireAdminAuth();
+export default function NewLeadMagnetPage() {
 
   return (
     <div className="container mx-auto py-6 max-w-3xl">

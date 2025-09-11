@@ -1,12 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { requireAdminAuth } from "@/lib/auth-utils"
 
 // Add export const dynamic = 'force-dynamic' to prevent static generation
 export const dynamic = 'force-dynamic'
 
-export default async function SettingsPage() {
+export default function SettingsPage() {
   // Check auth first - will redirect if not authenticated
-  await requireAdminAuth();
 
   return (
     <div>

@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/com
 import { createServerClient } from "@/lib/supabase/server"
 import { Search, Filter, Eye, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 import { DiscoveryGrid } from "@/components/admin/discovery-grid"
-import { requireAdminAuth } from "@/lib/auth-utils"
 import { Suspense } from "react"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { DiscoveryClientWrapper } from "./discovery-client-wrapper"
@@ -32,8 +31,7 @@ export interface DiscoveredProduct {
   }
 }
 
-export default async function DiscoveryPage() {
-  await requireAdminAuth()
+export default function DiscoveryPage() {
   
   const supabase = await createServerClient()
 

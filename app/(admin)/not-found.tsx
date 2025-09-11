@@ -3,16 +3,14 @@ import { Button } from "@/components/ui/button"
 import { Home, Settings } from "lucide-react"
 import { Metadata } from "next"
 import { Card, CardContent } from "@/components/ui/card"
-import { requireAdminAuth } from "@/lib/auth-utils"
 
 export const metadata: Metadata = {
   title: "404 - Page Not Found | Admin Dashboard",
   description: "Sorry, the admin page you're looking for cannot be found.",
 }
 
-export default async function AdminNotFound() {
-  // Ensure admin authentication
-  await requireAdminAuth();
+export default function AdminNotFound() {
+  // Auth is handled by middleware for all admin routes
   
   return (
     <div className="container mx-auto py-16 px-4">

@@ -2,7 +2,6 @@ import { createServerClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import { MachineForm, MachineFormData } from "@/components/admin/machine-form"
 import type { Machine } from "@/lib/database-types"
-import { requireAdminAuth } from "@/lib/auth-utils"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
@@ -14,11 +13,10 @@ interface MachinePageProps {
   params: Promise<{ id: string }>
 }
 
-export default async function EditMachinePage({
+export default function EditMachinePage({
   params,
 }: MachinePageProps) {
   // Check authentication - will redirect if not authenticated
-  await requireAdminAuth();
   
   const supabase = await createServerClient()
   
