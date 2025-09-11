@@ -489,7 +489,7 @@ export default function AnalyticsContent() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className={activeTab === 'attribution' ? "w-full px-6 py-6 space-y-6" : "container mx-auto py-6 space-y-6"}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Analytics Dashboard</h1>

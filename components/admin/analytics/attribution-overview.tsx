@@ -294,7 +294,7 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
                   return (
                     <tr key={index} className="border-b hover:bg-muted/50">
                       <td className="py-3 px-4">
-                        <div className="font-medium truncate max-w-xs" title={cleanTitle}>
+                        <div className="font-medium" title={cleanTitle}>
                           {cleanTitle}
                         </div>
                       </td>
