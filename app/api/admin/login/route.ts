@@ -1,5 +1,8 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import { loginRateLimiter } from "@/lib/rate-limiter"
+import { loginSchema } from "@/lib/validation/schemas"
+import crypto from "crypto"
 
 // Cookie settings
 const ADMIN_COOKIE_NAME = "admin_auth"
@@ -97,32 +100,66 @@ export async function POST(request: Request) {
   try {
     console.log("==== Login API route called ====")
     
+    // Get client IP for rate limiting
+    const forwarded = request.headers.get("x-forwarded-for");
+    const ip = forwarded ? forwarded.split(',')[0] : 'unknown';
+    
+    // Check rate limit
+    if (loginRateLimiter.isRateLimited(ip)) {
+      const resetTime = loginRateLimiter.getResetTime(ip);
+      console.log(`Rate limited: ${ip}, reset in ${resetTime} seconds`);
+      
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: "Too many login attempts. Please try again later.",
+          retryAfter: resetTime
+        },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': resetTime.toString(),
+            'X-RateLimit-Limit': '5',
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': new Date(Date.now() + resetTime * 1000).toISOString()
+          }
+        }
+      );
+    }
+    
     // No hardcoded passwords - always use environment variables
     // Password should be set in Vercel environment variables for production
     
     // Clone the request to avoid "body stream already read" errors
     const clonedRequest = request.clone();
     
-    // Read body in a try-catch to handle potential errors
-    let password;
+    // Parse and validate request body with Zod
+    let validatedData;
     try {
       const body = await clonedRequest.json();
-      password = body.password;
+      validatedData = loginSchema.parse(body);
     } catch (error) {
-      console.error("Error parsing request body:", error);
+      console.error("Validation error:", error);
+      
+      // Return validation errors
+      if (error instanceof Error && 'errors' in error) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            message: "Validation failed",
+            errors: (error as any).errors 
+          },
+          { status: 400 }
+        );
+      }
+      
       return NextResponse.json(
         { success: false, message: "Invalid request format" },
         { status: 400 }
       );
     }
 
-    if (!password) {
-      console.log("Missing password in request")
-      return NextResponse.json(
-        { success: false, message: "Password is required" },
-        { status: 400 }
-      )
-    }
+    const { password } = validatedData;
 
     // Clean the input password the same way we cleaned the environment variable
     const cleanInputPassword = password.trim()
@@ -211,49 +248,46 @@ export async function POST(request: Request) {
     console.log("Case insensitive match:", caseInsensitiveMatch)
 
     if (!passwordMatches && !tempPasswordMatches && !caseInsensitiveMatch) {
-      // Prepare detailed debugging information
-      const debugInfo = {
+      // Don't leak debug information in production
+      const debugInfo = process.env.NODE_ENV === 'development' ? {
         envPasswordInfo: {
           length: cleanEnvPassword.length,
           first3Chars: cleanEnvPassword.substring(0, 3),
-          charCodes: [...cleanEnvPassword].map(c => c.charCodeAt(0))
         },
         inputPasswordInfo: {
           length: cleanInputPassword.length,
           first3Chars: cleanInputPassword.substring(0, 3),
-          charCodes: [...cleanInputPassword].map(c => c.charCodeAt(0))
         }
-      };
+      } : undefined;
       
       return NextResponse.json(
         { 
           success: false, 
-          message: "Invalid password", 
-          debug: debugInfo 
+          message: "Invalid password",
+          ...(debugInfo && { debug: debugInfo })
         },
         { status: 401 }
       )
     }
 
-    // Generate a secure random token using Web Crypto API
-    const tokenBytes = await generateRandomBytes(32);
-    const timestamp = Date.now().toString();
+    // Generate a cryptographically secure session token
+    const sessionToken = crypto.randomUUID();
+    const tokenSecret = crypto.randomBytes(32).toString('hex');
     
-    // Create a combined buffer for hashing
-    const combinedBuffer = new Uint8Array(tokenBytes.length + timestamp.length);
-    combinedBuffer.set(tokenBytes, 0);
-    combinedBuffer.set(new TextEncoder().encode(timestamp), tokenBytes.length);
-    
-    // Create a hash using Web Crypto API
-    const hashBuffer = await createSHA256Hash(combinedBuffer);
-    const sessionToken = arrayBufferToBase64(hashBuffer);
+    // Create a signature for the token
+    const hmac = crypto.createHmac('sha256', cleanEnvPassword);
+    hmac.update(sessionToken + tokenSecret);
+    const signature = hmac.digest('hex');
     
     // Set expiry date
     const now = new Date();
     const expiryDate = new Date(now.getTime() + EXPIRY_TIME * 1000);
     
-    // Create the cookie value
-    const cookieValue = `${sessionToken}.${timestamp}`;
+    // Create the cookie value with token, secret, and signature
+    const cookieValue = `${sessionToken}.${tokenSecret}.${signature}`;
+    
+    // Reset rate limit on successful login
+    loginRateLimiter.reset(ip);
     console.log("Setting cookie:", ADMIN_COOKIE_NAME);
     console.log("Cookie expires:", expiryDate.toISOString());
 
