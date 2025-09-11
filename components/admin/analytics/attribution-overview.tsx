@@ -53,7 +53,7 @@ interface AttributionOverviewProps {
   dateRange: string;
 }
 
-type SortColumn = 'source' | 'clicks' | 'leads' | 'conversionRate' | 'lastSeen';
+type SortColumn = 'source' | 'campaignSource' | 'clicks' | 'leads' | 'conversionRate' | 'lastSeen';
 type SortDirection = 'desc' | 'asc';
 
 export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
@@ -115,6 +115,10 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
       case 'source':
         aValue = (a.displayTitle || a.source).toLowerCase();
         bValue = (b.displayTitle || b.source).toLowerCase();
+        break;
+      case 'campaignSource':
+        aValue = (a.source || '').toLowerCase();
+        bValue = (b.source || '').toLowerCase();
         break;
       case 'clicks':
         aValue = a.clicks;
@@ -205,6 +209,14 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
                       Source{getSortIcon('source')}
                     </button>
                   </th>
+                  <th className="text-left py-3 px-4">
+                    <button 
+                      onClick={() => handleSort('campaignSource')}
+                      className="hover:text-primary transition-colors cursor-pointer flex items-center"
+                    >
+                      Campaign Source{getSortIcon('campaignSource')}
+                    </button>
+                  </th>
                   <th className="text-right py-3 px-4">
                     <button 
                       onClick={() => handleSort('clicks')}
@@ -240,38 +252,70 @@ export function AttributionOverview({ dateRange }: AttributionOverviewProps) {
                 </tr>
               </thead>
               <tbody>
-                {sortedSources.map((source, index) => (
-                  <tr key={index} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-4">
-                      <div>
-                        <div className="font-medium">
-                          {source.displayTitle || source.source}
+                {sortedSources.map((source, index) => {
+                  // Clean up the title by removing YouTube IDs and long email IDs
+                  let cleanTitle = source.displayTitle || source.source;
+                  
+                  // Remove YouTube video IDs (yt-XXXXXXXX pattern)
+                  if (cleanTitle.startsWith('yt-')) {
+                    cleanTitle = cleanTitle.replace(/^yt-[A-Za-z0-9_-]+\s*/, '');
+                  }
+                  
+                  // Remove long email campaign IDs (numbers at the end)
+                  cleanTitle = cleanTitle.replace(/\s*-\s*\d{8,}$/, '');
+                  
+                  // If title is still empty or just the campaign key, use a fallback
+                  if (!cleanTitle || cleanTitle === source.campaign) {
+                    cleanTitle = source.campaign || source.source;
+                  }
+                  
+                  // Get campaign source with proper capitalization and icons
+                  const getCampaignSourceDisplay = (src: string, campaignType?: string) => {
+                    const sourceMap: Record<string, { label: string; icon: string }> = {
+                      'youtube': { label: 'YouTube', icon: '📹' },
+                      'convertkit': { label: 'Email', icon: '📧' },
+                      'email': { label: 'Email', icon: '📧' },
+                      'social': { label: 'Social', icon: '📱' },
+                      'facebook': { label: 'Facebook', icon: '📘' },
+                      'instagram': { label: 'Instagram', icon: '📸' },
+                      'twitter': { label: 'Twitter', icon: '🐦' },
+                      'linkedin': { label: 'LinkedIn', icon: '💼' },
+                      'tiktok': { label: 'TikTok', icon: '🎵' },
+                    };
+                    
+                    const sourceInfo = sourceMap[src.toLowerCase()] || { 
+                      label: src.charAt(0).toUpperCase() + src.slice(1), 
+                      icon: '🔗' 
+                    };
+                    
+                    return `${sourceInfo.icon} ${sourceInfo.label}`;
+                  };
+                  
+                  return (
+                    <tr key={index} className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-4">
+                        <div className="font-medium truncate max-w-xs" title={cleanTitle}>
+                          {cleanTitle}
                         </div>
-                        {source.campaign && source.displayTitle !== source.campaign && (
-                          <div className="text-xs text-muted-foreground">{source.campaign}</div>
-                        )}
-                        {source.campaignType && (
-                          <div className="text-xs text-blue-600">
-                            {source.campaignType === 'youtube' && '📹 '}
-                            {source.campaignType === 'email' && '📧 '}
-                            {source.campaignType === 'social' && '📱 '}
-                            {source.campaignType}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="text-right py-3 px-4">{formatNumber(source.clicks)}</td>
-                    <td className="text-right py-3 px-4">{formatNumber(source.leads)}</td>
-                    <td className="text-right py-3 px-4">
-                      <Badge variant={source.conversionRate > 0.05 ? "default" : "secondary"}>
-                        {formatPercentage(source.conversionRate)}
-                      </Badge>
-                    </td>
-                    <td className="text-right py-3 px-4 text-sm text-muted-foreground">
-                      {formatDistanceToNow(new Date(source.lastSeen), { addSuffix: true })}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-sm">
+                          {getCampaignSourceDisplay(source.source, source.campaignType)}
+                        </div>
+                      </td>
+                      <td className="text-right py-3 px-4">{formatNumber(source.clicks)}</td>
+                      <td className="text-right py-3 px-4">{formatNumber(source.leads)}</td>
+                      <td className="text-right py-3 px-4">
+                        <Badge variant={source.conversionRate > 0.05 ? "default" : "secondary"}>
+                          {formatPercentage(source.conversionRate)}
+                        </Badge>
+                      </td>
+                      <td className="text-right py-3 px-4 text-sm text-muted-foreground">
+                        {formatDistanceToNow(new Date(source.lastSeen), { addSuffix: true })}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
