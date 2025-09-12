@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AdminPageWrapper } from '@/components/admin/admin-page-wrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,9 +29,19 @@ import {
   Calendar,
   Download,
   RefreshCw,
-  BarChart3
+  BarChart3,
+  Search
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface SalesData {
   sales: any[];
@@ -52,11 +62,17 @@ export default function AffiliateDashboard() {
   const [selectedProgram, setSelectedProgram] = useState<string>('all');
   const [selectedDateRange, setSelectedDateRange] = useState<string>('all');
   const [programs, setPrograms] = useState<any[]>([]);
+  const [machines, setMachines] = useState<any[]>([]);
+  const [machineModalOpen, setMachineModalOpen] = useState(false);
+  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
+  const [machineSearchQuery, setMachineSearchQuery] = useState('');
+  const [updatingMachine, setUpdatingMachine] = useState(false);
   const { toast } = useToast();
 
-  // Load programs
+  // Load programs and machines
   useEffect(() => {
     fetchPrograms();
+    fetchMachines();
   }, []);
 
   // Load sales data
@@ -71,6 +87,16 @@ export default function AffiliateDashboard() {
       setPrograms(data.programs || []);
     } catch (error) {
       console.error('Error fetching programs:', error);
+    }
+  };
+
+  const fetchMachines = async () => {
+    try {
+      const response = await fetch('/api/admin/machines');
+      const data = await response.json();
+      setMachines(data.machines || []);
+    } catch (error) {
+      console.error('Error fetching machines:', error);
     }
   };
 
@@ -130,6 +156,52 @@ export default function AffiliateDashboard() {
   const formatPercent = (value: number) => {
     return `${(value * 100).toFixed(1)}%`;
   };
+
+  const handleMachineSelect = (saleId: string) => {
+    setSelectedSaleId(saleId);
+    setMachineSearchQuery('');
+    setMachineModalOpen(true);
+  };
+
+  const updateSaleMachine = async (machineId: string) => {
+    if (!selectedSaleId) return;
+    
+    setUpdatingMachine(true);
+    try {
+      const response = await fetch('/api/admin/affiliate/sales/update-machine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sale_id: selectedSaleId,
+          machine_id: machineId
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: 'Machine assignment updated',
+        });
+        setMachineModalOpen(false);
+        fetchSalesData(); // Refresh data
+      } else {
+        throw new Error('Failed to update machine');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update machine assignment',
+        variant: 'destructive'
+      });
+    } finally {
+      setUpdatingMachine(false);
+    }
+  };
+
+  const filteredMachines = machines.filter(machine => 
+    machine['Machine Name']?.toLowerCase().includes(machineSearchQuery.toLowerCase()) ||
+    machine.Company?.toLowerCase().includes(machineSearchQuery.toLowerCase())
+  );
 
   return (
     <AdminPageWrapper title="Affiliate Sales Dashboard">
@@ -263,7 +335,6 @@ export default function AffiliateDashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Machine</TableHead>
-                      <TableHead>Retail Price</TableHead>
                       <TableHead className="text-right">Orders</TableHead>
                       <TableHead className="text-right">Total Sales</TableHead>
                       <TableHead className="text-right">Commission</TableHead>
@@ -273,17 +344,16 @@ export default function AffiliateDashboard() {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                        <TableCell colSpan={5} className="text-center">Loading...</TableCell>
                       </TableRow>
                     ) : salesData?.machine_stats.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center">No data available</TableCell>
+                        <TableCell colSpan={5} className="text-center">No data available</TableCell>
                       </TableRow>
                     ) : (
                       salesData?.machine_stats.map((stat) => (
                         <TableRow key={stat.machine_id}>
                           <TableCell className="font-medium">{stat.machine_name}</TableCell>
-                          <TableCell>{formatCurrency(stat.machine_price || 0)}</TableCell>
                           <TableCell className="text-right">{stat.order_count}</TableCell>
                           <TableCell className="text-right">{formatCurrency(stat.total_sales)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(stat.total_commission)}</TableCell>
@@ -443,8 +513,26 @@ export default function AffiliateDashboard() {
                             {sale.raw_product_string}
                           </TableCell>
                           <TableCell>
-                            {sale.machines?.['Machine Name'] || 
-                             <span className="text-muted-foreground">Unmatched</span>}
+                            {sale.machine_name ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-auto p-1 justify-start font-normal"
+                                onClick={() => handleMachineSelect(sale.id)}
+                              >
+                                {sale.machine_name}
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-auto p-1 text-muted-foreground hover:text-foreground"
+                                onClick={() => handleMachineSelect(sale.id)}
+                              >
+                                <Search className="h-3 w-3 mr-1" />
+                                Select Machine
+                              </Button>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             {formatCurrency(sale.total_sales)}
@@ -468,6 +556,54 @@ export default function AffiliateDashboard() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Machine Selection Modal */}
+        <Dialog open={machineModalOpen} onOpenChange={setMachineModalOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Select Machine</DialogTitle>
+              <DialogDescription>
+                Choose the correct machine for this sale
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search machines..."
+                  value={machineSearchQuery}
+                  onChange={(e) => setMachineSearchQuery(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+              <ScrollArea className="h-[400px] pr-4">
+                <div className="space-y-2">
+                  {filteredMachines.slice(0, 50).map((machine) => (
+                    <Button
+                      key={machine.id}
+                      variant="outline"
+                      className="w-full justify-start text-left"
+                      onClick={() => updateSaleMachine(machine.id)}
+                      disabled={updatingMachine}
+                    >
+                      <div>
+                        <div className="font-medium">{machine['Machine Name']}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {machine.Company} - ${machine.Price}
+                        </div>
+                      </div>
+                    </Button>
+                  ))}
+                  {filteredMachines.length === 0 && (
+                    <div className="text-center text-muted-foreground py-8">
+                      No machines found
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminPageWrapper>
   );

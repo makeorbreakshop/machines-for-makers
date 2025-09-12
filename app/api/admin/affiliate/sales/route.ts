@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
+import { getAdminCookie, validateAdminCookie } from '@/lib/auth-utils';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient();
+    // Check authentication
+    const adminCookie = getAdminCookie(request);
+    if (!adminCookie || !validateAdminCookie(adminCookie)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const supabase = createServiceClient();
     const { searchParams } = new URL(request.url);
     
     const programId = searchParams.get('program_id');
@@ -43,6 +50,42 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch sales' }, { status: 500 });
     }
     
+    // Fetch machine names
+    const machineIds = [...new Set(sales?.map(s => s.machine_id).filter(Boolean))];
+    let machineNames: Record<string, string> = {};
+    
+    if (machineIds.length > 0) {
+      const { data: machines } = await supabase
+        .from('machines')
+        .select('id, "Machine Name"')
+        .in('id', machineIds);
+      
+      machineNames = machines?.reduce((acc, m) => {
+        acc[m.id] = m['Machine Name'];
+        return acc;
+      }, {} as Record<string, string>) || {};
+    }
+    
+    // Fetch program names
+    const programIds = [...new Set(sales?.map(s => s.program_id).filter(Boolean))];
+    let programInfo: Record<string, any> = {};
+    
+    if (programIds.length > 0) {
+      const { data: programs } = await supabase
+        .from('affiliate_programs')
+        .select('id, name, commission_rate, brands(name)')
+        .in('id', programIds);
+      
+      programInfo = programs?.reduce((acc, p) => {
+        acc[p.id] = {
+          name: p.name,
+          commission_rate: p.commission_rate,
+          brand_name: p.brands?.name || 'Unknown'
+        };
+        return acc;
+      }, {} as Record<string, any>) || {};
+    }
+    
     // Calculate aggregates
     const totalSales = sales?.reduce((sum, sale) => sum + (sale.total_sales || 0), 0) || 0;
     const totalCommission = sales?.reduce((sum, sale) => sum + (sale.commission_amount || 0), 0) || 0;
@@ -54,8 +97,8 @@ export async function GET(request: NextRequest) {
       if (sale.machine_id) {
         const stats = machineStats.get(sale.machine_id) || {
           machine_id: sale.machine_id,
-          machine_name: 'Machine ' + sale.machine_id.substring(0, 8), // Temporary until we add joins back
-          machine_price: 0,
+          machine_name: machineNames[sale.machine_id] || `Machine ${sale.machine_id.substring(0, 8)}`,
+          machine_price: sale.unit_price || 0,
           total_sales: 0,
           total_commission: 0,
           order_count: 0
@@ -73,11 +116,12 @@ export async function GET(request: NextRequest) {
     const programStats = new Map();
     sales?.forEach(sale => {
       if (sale.program_id) {
+        const pInfo = programInfo[sale.program_id];
         const stats = programStats.get(sale.program_id) || {
           program_id: sale.program_id,
-          program_name: 'xTool Affiliate Program', // Temporary until we add joins back
-          brand_name: 'xTool',
-          commission_rate: 0.06,
+          program_name: pInfo?.name || 'Unknown Program',
+          brand_name: pInfo?.brand_name || 'Unknown',
+          commission_rate: pInfo?.commission_rate || 0,
           total_sales: 0,
           total_commission: 0,
           order_count: 0
@@ -113,8 +157,14 @@ export async function GET(request: NextRequest) {
       }
     });
     
+    // Add machine names to individual sales
+    const salesWithMachineNames = sales?.map(sale => ({
+      ...sale,
+      machine_name: sale.machine_id ? machineNames[sale.machine_id] || null : null
+    })) || [];
+    
     return NextResponse.json({
-      sales: sales || [],
+      sales: salesWithMachineNames,
       aggregates: {
         total_sales: totalSales,
         total_commission: totalCommission,

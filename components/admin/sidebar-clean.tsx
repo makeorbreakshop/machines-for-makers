@@ -265,9 +265,9 @@ function SidebarContent() {
       <div className="flex h-14 items-center border-b px-6">
         <Link href="/admin" className="flex items-center gap-2 font-semibold">
           <img 
-            src="/logo-new.png" 
+            src="https://xspderyoeancoqhdcloo.supabase.co/storage/v1/object/public/images/logo/1742992189151_Machines-for-Makers.png" 
             alt="Machines for Makers" 
-            className="h-8 w-8 rounded-lg object-contain" 
+            className="h-8 w-auto object-contain" 
           />
           <span className="text-lg">Admin</span>
         </Link>

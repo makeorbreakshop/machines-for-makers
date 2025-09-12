@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
                 metrics: [
                   { name: 'screenPageViews' },
                   { name: 'sessions' },
-                  { name: 'activeUsers' }
+                  { name: 'totalUsers' }  // Changed from activeUsers to totalUsers
                 ],
                 orderBys: [{ dimension: { dimensionName: 'date' } }],
               }
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
             date: row.dimensionValues?.[0]?.value || '',
             pageViews: parseInt(row.metricValues?.[0]?.value || '0'),
             sessions: parseInt(row.metricValues?.[1]?.value || '0'),
-            activeUsers: parseInt(row.metricValues?.[2]?.value || '0')
+            totalUsers: parseInt(row.metricValues?.[2]?.value || '0')  // Changed from activeUsers to totalUsers
           }));
 
           return NextResponse.json({

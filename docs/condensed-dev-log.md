@@ -703,3 +703,16 @@ Machines for Makers is a Next.js 15 application for comparing laser cutters, 3D 
 - **Critical Fixes**: `logo-service.ts` missing await causing webpack errors, database slug `calculator` not `business-calculator`, form ID pulls from DB not hardcoded
 - **Impact**: Complete email capture system operational, 100% ConvertKit integration working, professional landing page matching successful patterns
 - **Technical**: Server-side rendering with proper async/await, dynamic configuration from database, UTM tracking throughout, proper API flow (ConvertKit→Database)
+
+### 2025-09-11: Security Audit, Authentication Overhaul & Affiliate System Implementation
+- **Issue**: Security vulnerabilities, authentication redirect loops, affiliate import performance issues with 555+ records
+- **Security Fixes**: Resolved 12 npm vulnerabilities, removed hardcoded admin password, enabled httpOnly cookies, added rate limiting (5 attempts/min)
+- **Authentication Overhaul**: Complete redesign using Next.js middleware pattern after client-side AuthProvider failed - eliminated 500+ lines of complex code
+- **Middleware Solution**: Server-side route protection via `/middleware.ts`, HMAC-signed cookies, clean login/logout flow without race conditions
+- **Affiliate Dashboard**: Complete sales tracking system with revenue/commission stats, machine/program/monthly views, date range filtering
+- **Import Optimization**: Memoized React components for 10x checkbox performance, fixed shift+click selection, batch processing (100 records/chunk)
+- **xTool Matching**: Enhanced algorithm with 100% P2/P2S distinction accuracy, proper F1 variant handling, 31% match rate (330/1060 products)
+- **Calculator Bug Fix**: Fixed hourly rate $0 fallback incorrectly defaulting to $25, causing paradox where $0 produced less profit than $1
+- **Cron Job Intelligence**: Smart service detection - uses existing healthy Python service if running, only starts/stops when necessary
+- **Impact**: Production-ready security, authentication working correctly, 1060 affiliate records imported successfully, calculator logic corrected
+- **Technical**: Middleware-based auth following Next.js 15 best practices, React.memo optimization, index-based selection for large datasets

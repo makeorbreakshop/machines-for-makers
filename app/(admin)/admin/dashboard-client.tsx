@@ -280,12 +280,12 @@ export default function DashboardClient() {
         // Process traffic chart data from GA
         const trafficByDate: Record<string, number> = {};
         if (trafficData?.chartData) {
-          trafficData.chartData.forEach((item: { date: string; pageViews: number; sessions: number }) => {
+          trafficData.chartData.forEach((item: { date: string; pageViews: number; sessions: number; totalUsers?: number }) => {
             // Convert GA date format (YYYYMMDD) to standard format (YYYY-MM-DD)
             const gaDate = item.date;
             const formattedDate = `${gaDate.slice(0,4)}-${gaDate.slice(4,6)}-${gaDate.slice(6,8)}`;
-            // Use sessions as it's more representative of actual web traffic
-            trafficByDate[formattedDate] = item.sessions || item.pageViews;
+            // Use totalUsers to match what GA dashboard shows as "Active users"
+            trafficByDate[formattedDate] = item.totalUsers || item.sessions || item.pageViews;
           });
           setHasTrafficData(Object.keys(trafficByDate).length > 0);
         }
@@ -407,7 +407,7 @@ export default function DashboardClient() {
     },
     {
       label: "Lead Clicks Today", 
-      value: last7Days.length > 0 ? last7Days[last7Days.length - 1]?.clicks || 0 : 0, // Today's clicks
+      value: todayData?.clicks || 0, // Use actual today's data
       change: clicksChange,
       changeLabel: `${clicks7DayTotal} total last 7 days`,
       icon: MousePointerClick
@@ -421,7 +421,7 @@ export default function DashboardClient() {
     },
     {
       label: "Traffic Today",
-      value: hasTrafficData && last7Days.length > 0 ? last7Days[last7Days.length - 1]?.traffic || 0 : "—",
+      value: hasTrafficData ? (todayData?.traffic || 0) : "—",
       change: hasTrafficData ? trafficChange : 0,
       changeLabel: hasTrafficData ? `${traffic7DayTotal} total last 7 days` : "Not connected",
       icon: Globe
