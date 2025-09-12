@@ -73,14 +73,14 @@ export async function GET(request: NextRequest) {
     if (programIds.length > 0) {
       const { data: programs } = await supabase
         .from('affiliate_programs')
-        .select('id, name, commission_rate, brands(name)')
+        .select('id, name, commission_rate, brands("Name")')
         .in('id', programIds);
       
       programInfo = programs?.reduce((acc, p) => {
         acc[p.id] = {
           name: p.name,
           commission_rate: p.commission_rate,
-          brand_name: p.brands?.name || 'Unknown'
+          brand_name: p.brands?.Name || 'Unknown'
         };
         return acc;
       }, {} as Record<string, any>) || {};

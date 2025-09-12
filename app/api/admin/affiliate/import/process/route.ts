@@ -3,9 +3,15 @@ export const maxDuration = 60; // Allow up to 60 seconds for large imports
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { getAdminCookie, validateAdminCookie } from '@/lib/auth-utils';
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const adminCookie = getAdminCookie(request);
+    if (!adminCookie || !validateAdminCookie(adminCookie)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const programId = formData.get('program_id') as string;
