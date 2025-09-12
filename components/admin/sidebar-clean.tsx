@@ -21,7 +21,11 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  TrendingUp
+  TrendingUp,
+  Video,
+  Download,
+  DollarSign,
+  Droplet
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -82,18 +86,32 @@ const navigation: NavSection[] = [
         title: "Machines",
         href: "/admin/machines",
         icon: Package,
-        children: [
-          { title: "All Machines", href: "/admin/machines" },
-          { title: "Brands", href: "/admin/machines?tab=brands" },
-          { title: "Categories", href: "/admin/machines?tab=categories" },
-          { title: "Reviews", href: "/admin/machines?tab=reviews" },
-        ],
       },
       {
         title: "Discovery",
         href: "/admin/discovery-unified",
         icon: Search,
         badge: "3",
+      },
+    ],
+  },
+  {
+    title: "Affiliate Tracking",
+    items: [
+      {
+        title: "Dashboard",
+        href: "/admin/affiliate/dashboard",
+        icon: LayoutDashboard,
+      },
+      {
+        title: "Programs",
+        href: "/admin/affiliate/programs",
+        icon: Package,
+      },
+      {
+        title: "Sales Import",
+        href: "/admin/affiliate/import",
+        icon: TrendingUp,
       },
     ],
   },
@@ -115,17 +133,6 @@ const navigation: NavSection[] = [
         href: "/admin/email-signups",
         icon: Mail,
       },
-      {
-        title: "Affiliate Tracking",
-        href: "/admin/affiliate",
-        icon: TrendingUp,
-        children: [
-          { title: "Dashboard", href: "/admin/affiliate/dashboard" },
-          { title: "Programs", href: "/admin/affiliate/programs" },
-          { title: "Sales Import", href: "/admin/affiliate/import" },
-          { title: "Reports", href: "/admin/affiliate/reports" },
-        ],
-      },
     ],
   },
   {
@@ -140,6 +147,16 @@ const navigation: NavSection[] = [
         title: "Price Tracker",
         href: "/admin/tools/price-tracker",
         icon: LineChart,
+      },
+    ],
+  },
+  {
+    title: "YouTube",
+    items: [
+      {
+        title: "Videos",
+        href: "/admin/youtube",
+        icon: Video,
       },
     ],
   },
@@ -258,6 +275,19 @@ function NavItemComponent({
 
 function SidebarContent() {
   const pathname = usePathname() || ""
+  const [collapsedSections, setCollapsedSections] = React.useState<Set<string>>(new Set())
+
+  const toggleSection = (sectionTitle: string) => {
+    setCollapsedSections(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(sectionTitle)) {
+        newSet.delete(sectionTitle)
+      } else {
+        newSet.add(sectionTitle)
+      }
+      return newSet
+    })
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -276,26 +306,40 @@ function SidebarContent() {
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto px-3 py-4">
         <nav className="space-y-6">
-          {navigation.map((section) => (
-            <div key={section.title}>
-              <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                {section.title}
-              </h3>
-              <div className="space-y-1">
-                {section.items.map((item) => {
-                  const isActive = pathname === item.href || 
-                    (pathname.startsWith(`${item.href}/`) && item.href !== "/admin")
-                  return (
-                    <NavItemComponent 
-                      key={item.href} 
-                      item={item} 
-                      isActive={isActive}
-                    />
-                  )
-                })}
+          {navigation.map((section) => {
+            const isCollapsed = collapsedSections.has(section.title)
+            return (
+              <div key={section.title}>
+                <button
+                  onClick={() => toggleSection(section.title)}
+                  className="w-full flex items-center justify-between mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                >
+                  <span>{section.title}</span>
+                  <ChevronDown 
+                    className={cn(
+                      "h-3 w-3 transition-transform",
+                      isCollapsed && "rotate-180"
+                    )}
+                  />
+                </button>
+                {!isCollapsed && (
+                  <div className="space-y-1">
+                    {section.items.map((item) => {
+                      const isActive = pathname === item.href || 
+                        (pathname.startsWith(`${item.href}/`) && item.href !== "/admin")
+                      return (
+                        <NavItemComponent 
+                          key={item.href} 
+                          item={item} 
+                          isActive={isActive}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </nav>
       </div>
 

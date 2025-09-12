@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 import { createServerClient } from '@/lib/supabase/server';
 import { AdminPageWrapper } from '@/components/admin/admin-page-wrapper';
 import { Button } from '@/components/ui/button';
-import { Plus, FileText, Share, Download } from 'lucide-react';
+import { Plus, FileText } from 'lucide-react';
 import Link from 'next/link';
 import {
   Table,
@@ -16,6 +16,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ReportGenerator } from './report-generator';
+import { ReportActions } from './report-actions';
+import { APITestRunner } from './test-api';
+import { getAffiliateReports } from '@/lib/services/affiliate-reports';
 
 export default async function AffiliateReportsPage() {
   const supabase = createServerClient();
@@ -30,32 +33,13 @@ export default async function AffiliateReportsPage() {
     .eq('is_active', true)
     .order('name');
 
-  // Fetch existing reports (we'll create this table later)
-  // For now, let's show some sample data
-  const sampleReports = [
-    {
-      id: '1',
-      title: 'Q4 2024 xTool Performance',
-      program_name: 'xTool Affiliate Program',
-      period: 'Q4 2024',
-      total_revenue: 45230.50,
-      total_orders: 127,
-      share_url: '/partners/xtool/q4-2024-performance',
-      created_at: '2024-12-15',
-      status: 'published'
-    },
-    {
-      id: '2', 
-      title: 'Q3 2024 OneLaser Summary',
-      program_name: 'OneLaser Partnership',
-      period: 'Q3 2024',
-      total_revenue: 12850.00,
-      total_orders: 34,
-      share_url: '/partners/onelaser/q3-2024-summary',
-      created_at: '2024-10-01',
-      status: 'draft'
-    }
-  ];
+  // Fetch existing reports from database
+  let reports: any[] = [];
+  try {
+    reports = await getAffiliateReports() || [];
+  } catch (error) {
+    console.error('Error fetching reports:', error);
+  }
 
   // Get basic stats from affiliate_sales
   const { data: salesStats } = await supabase
@@ -117,19 +101,22 @@ export default async function AffiliateReportsPage() {
         {/* Report Generator */}
         <ReportGenerator programs={programs || []} />
 
+        {/* API Test Suite */}
+        <APITestRunner />
+
         {/* Existing Reports */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Generated Reports
-              <Badge variant="outline">{sampleReports.length}</Badge>
+              <Badge variant="outline">{reports.length}</Badge>
             </CardTitle>
             <CardDescription>
               Previously generated partner performance reports
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {sampleReports.length > 0 ? (
+            {reports.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -144,19 +131,19 @@ export default async function AffiliateReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sampleReports.map((report) => (
+                  {reports.map((report) => (
                     <TableRow key={report.id}>
                       <TableCell className="font-medium">
                         {report.title}
                       </TableCell>
                       <TableCell>
-                        {report.program_name}
+                        {report.affiliate_programs?.name || 'Unknown'}
                       </TableCell>
                       <TableCell>
                         {report.period}
                       </TableCell>
                       <TableCell>
-                        ${report.total_revenue.toLocaleString()}
+                        ${(report.total_revenue || 0).toLocaleString()}
                       </TableCell>
                       <TableCell>
                         {report.total_orders}
@@ -167,22 +154,13 @@ export default async function AffiliateReportsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(report.created_at).toLocaleDateString()}
+                        {report.created_at ? new Date(report.created_at).toLocaleDateString() : 'N/A'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Link href={report.share_url} target="_blank">
-                            <Button variant="ghost" size="sm">
-                              <Share className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          <Button variant="ghost" size="sm">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <FileText className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <ReportActions 
+                          shareUrl={report.share_url} 
+                          reportId={report.id}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 import { createServerClient } from '@/lib/supabase/server';
 import { AdminPageWrapper } from '@/components/admin/admin-page-wrapper';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit, Trash2, TrendingUp } from 'lucide-react';
+import { Plus, Edit, Trash2, TrendingUp, BarChart3, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import {
   Table,
@@ -104,6 +104,12 @@ export default async function AffiliateProgramsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Link href={`/admin/affiliate/programs/${program.id}/dashboard`}>
+                            <Button variant="outline" size="sm">
+                              <BarChart3 className="h-4 w-4 mr-2" />
+                              View Dashboard
+                            </Button>
+                          </Link>
                           <Button variant="ghost" size="sm" disabled>
                             <Edit className="h-4 w-4" />
                           </Button>

@@ -105,17 +105,37 @@ export function ReportGenerator({ programs }: ReportGeneratorProps) {
     setIsGenerating(true);
     
     try {
+      // Parse period value (Q1-2024 or 2024-01)
+      let quarter: string | undefined;
+      let year: number;
+      
+      if (data.period_type === 'quarter') {
+        const [q, y] = data.period_value.split('-');
+        quarter = q;
+        year = parseInt(y);
+      } else {
+        const [y, m] = data.period_value.split('-');
+        year = parseInt(y);
+        // Convert month to quarter
+        const month = parseInt(m);
+        quarter = `Q${Math.ceil(month / 3)}`;
+      }
+
       const response = await fetch('/api/admin/affiliate/reports/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          programId: data.program_id,
+          quarter,
+          year,
+        }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to generate report');
+        throw new Error(error.error || 'Failed to generate report');
       }
 
       const result = await response.json();
@@ -125,9 +145,9 @@ export function ReportGenerator({ programs }: ReportGeneratorProps) {
         description: 'Your affiliate report has been generated successfully.',
       });
 
-      // Redirect to the generated report
-      if (result.report_url) {
-        window.open(result.report_url, '_blank');
+      // Open the generated report in a new tab if share_url exists
+      if (result.report?.share_url) {
+        window.open(result.report.share_url, '_blank');
       }
 
       // Refresh the page to show the new report in the list
