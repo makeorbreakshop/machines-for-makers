@@ -10,7 +10,8 @@ import {
   ArrowDown,
   Activity,
   Minus,
-  Loader2
+  Loader2,
+  DollarSign
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -184,12 +185,16 @@ export default function DashboardClient() {
   const [emailStats, setEmailStats] = useState<EmailStats | null>(null);
   const [funnelData, setFunnelData] = useState<FunnelData | null>(null);
   const [dashboardTotals, setDashboardTotals] = useState<any>(null);
+  const [youtubeStats, setYoutubeStats] = useState<any>(null);
+  const [affiliateStats, setAffiliateStats] = useState<any>(null);
   const [combinedChartData, setCombinedChartData] = useState<Array<{
     date: string;
     dateKey?: string;
     emails: number;
     clicks: number;
     traffic: number;
+    youtube?: number;
+    revenue?: number;
   }>>([]);
   const [loading, setLoading] = useState(true);
   const [activeChartTab, setActiveChartTab] = useState('emails');
@@ -250,6 +255,22 @@ export default function DashboardClient() {
           setDashboardTotals(dashboardTotalsData);
         }
 
+        // Fetch YouTube stats
+        const youtubeResponse = await fetch('/api/admin/analytics/youtube-stats');
+        const youtubeData = youtubeResponse.ok ? await youtubeResponse.json() : null;
+        
+        if (youtubeData) {
+          setYoutubeStats(youtubeData.stats);
+        }
+
+        // Fetch Affiliate stats
+        const affiliateResponse = await fetch('/api/admin/analytics/affiliate-stats');
+        const affiliateData = affiliateResponse.ok ? await affiliateResponse.json() : null;
+        
+        if (affiliateData) {
+          setAffiliateStats(affiliateData.stats);
+        }
+
         // Fetch clicks chart data
         const clicksResponse = await fetch('/api/admin/analytics/clicks-chart?days=30');
         const clicksData = clicksResponse.ok ? await clicksResponse.json() : null;
@@ -290,6 +311,22 @@ export default function DashboardClient() {
           setHasTrafficData(Object.keys(trafficByDate).length > 0);
         }
 
+        // Process YouTube and Affiliate chart data
+        const youtubeByDate: Record<string, number> = {};
+        const revenueByDate: Record<string, number> = {};
+        
+        if (youtubeData?.chartData) {
+          youtubeData.chartData.forEach((item: { date: string; views: number }) => {
+            youtubeByDate[item.date] = item.views;
+          });
+        }
+        
+        if (affiliateData?.chartData) {
+          affiliateData.chartData.forEach((item: { date: string; revenue: number }) => {
+            revenueByDate[item.date] = item.revenue;
+          });
+        }
+
         // Combine all chart data
         const emailChartCounts = emailData?.chartData ? processEmailChartData(emailData.chartData) : [];
         const clickChartCounts = clicksData?.chartData ? processClicksChartData(clicksData.chartData) : {};
@@ -304,7 +341,7 @@ export default function DashboardClient() {
           today: clickChartCounts[new Date().toISOString().split('T')[0]]
         });
         
-        // Merge email, click, and traffic data
+        // Merge email, click, traffic, youtube, and affiliate data
         const combined = emailChartCounts.map((emailDay) => {
           // Use the preserved dateKey instead of recalculating
           const dateKey = emailDay.dateKey;
@@ -318,7 +355,9 @@ export default function DashboardClient() {
           return {
             ...emailDay,
             clicks: clickChartCounts[dateKey] || 0,
-            traffic: trafficByDate[dateKey] || 0
+            traffic: trafficByDate[dateKey] || 0,
+            youtube: youtubeByDate[dateKey] || 0,
+            revenue: revenueByDate[dateKey] || 0
           };
         });
 
@@ -428,11 +467,17 @@ export default function DashboardClient() {
     },
     {
       label: "YouTube Views",
-      value: "—",
-      change: 0,
-      changeLabel: "Not connected",
-      icon: Youtube,
-      sparklineData: []
+      value: youtubeStats?.todayViews || "—",
+      change: youtubeStats ? Math.round((youtubeStats.last7DaysViews - (youtubeStats.averageDailyViews * 7)) / (youtubeStats.averageDailyViews * 7) * 100) : 0,
+      changeLabel: youtubeStats ? `${youtubeStats.last7DaysViews.toLocaleString()} total last 7 days` : "Loading...",
+      icon: Youtube
+    },
+    {
+      label: "Affiliate Revenue",
+      value: affiliateStats?.todayRevenue ? `$${affiliateStats.todayRevenue.toFixed(2)}` : "—",
+      change: affiliateStats?.revenueChange || 0,
+      changeLabel: affiliateStats ? `$${affiliateStats.last7DaysRevenue.toFixed(2)} last 7 days` : "Loading...",
+      icon: DollarSign
     }
   ];
 
@@ -446,7 +491,7 @@ export default function DashboardClient() {
     >
 
       {/* KPI Grid */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {metrics.map((metric) => (
           <KPICard key={metric.label} metric={metric} />
         ))}
@@ -464,18 +509,31 @@ export default function DashboardClient() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeChartTab} onValueChange={setActiveChartTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="emails" className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
-                Email Signups
+                <span className="hidden sm:inline">Email Signups</span>
+                <span className="sm:hidden">Email</span>
               </TabsTrigger>
               <TabsTrigger value="clicks" className="flex items-center gap-2">
                 <MousePointerClick className="h-4 w-4" />
-                Lead Clicks
+                <span className="hidden sm:inline">Lead Clicks</span>
+                <span className="sm:hidden">Clicks</span>
               </TabsTrigger>
               <TabsTrigger value="traffic" className="flex items-center gap-2">
                 <Globe className="h-4 w-4" />
-                Web Traffic
+                <span className="hidden sm:inline">Web Traffic</span>
+                <span className="sm:hidden">Traffic</span>
+              </TabsTrigger>
+              <TabsTrigger value="youtube" className="flex items-center gap-2">
+                <Youtube className="h-4 w-4" />
+                <span className="hidden sm:inline">YouTube</span>
+                <span className="sm:hidden">YT</span>
+              </TabsTrigger>
+              <TabsTrigger value="affiliate" className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                <span className="hidden sm:inline">Affiliate</span>
+                <span className="sm:hidden">Aff</span>
               </TabsTrigger>
             </TabsList>
 
@@ -544,6 +602,67 @@ export default function DashboardClient() {
                     <Globe className="h-12 w-12 mx-auto mb-4" />
                     <p>Google Analytics not connected</p>
                     <p className="text-sm">Connect GA4 to see daily traffic data</p>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="youtube" className="space-y-4">
+              {youtubeStats ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="date" className="text-xs" />
+                    <YAxis className="text-xs" />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="youtube" 
+                      stroke="#FF0000" 
+                      strokeWidth={3}
+                      name="YouTube Views"
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  <div className="text-center">
+                    <Youtube className="h-12 w-12 mx-auto mb-4" />
+                    <p>Loading YouTube data...</p>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="affiliate" className="space-y-4">
+              {affiliateStats ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="date" className="text-xs" />
+                    <YAxis className="text-xs" tickFormatter={(value) => `$${value}`} />
+                    <Tooltip 
+                      content={<CustomTooltip />} 
+                      formatter={(value: any) => `$${value.toFixed(2)}`}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="revenue" 
+                      stroke="#22c55e" 
+                      strokeWidth={3}
+                      name="Affiliate Revenue"
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  <div className="text-center">
+                    <DollarSign className="h-12 w-12 mx-auto mb-4" />
+                    <p>Loading affiliate data...</p>
                   </div>
                 </div>
               )}
