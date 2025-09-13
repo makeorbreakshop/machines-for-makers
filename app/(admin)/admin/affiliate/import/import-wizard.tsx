@@ -153,14 +153,37 @@ export function ImportWizard({ programs, recentImports }: ImportWizardProps) {
   const parseCSV = async (file: File) => {
     try {
       const text = await file.text();
-      const lines = text.split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const lines = text.split('\n').filter(line => line.trim()); // Filter empty lines first
+      
+      // Parse CSV properly handling quoted fields
+      const parseCSVLine = (line: string): string[] => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        
+        result.push(current.trim());
+        return result;
+      };
+      
+      const headers = parseCSVLine(lines[0]);
       
       // Parse ALL data rows for machine matching
       const allData = lines.slice(1)
-        .filter(line => line.trim())
         .map(line => {
-          const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+          const values = parseCSVLine(line);
           const row: any = {};
           headers.forEach((header, index) => {
             row[header] = values[index] || '';
@@ -168,10 +191,8 @@ export function ImportWizard({ programs, recentImports }: ImportWizardProps) {
           return row;
         });
 
-      // Preview data (first 5 rows only)
-      const previewData = allData.slice(0, 5);
-
-      setCsvData(previewData);
+      // Show all data in preview, not just first 5
+      setCsvData(allData);
       setFullCsvData(allData);
       setCurrentStep('preview');
     } catch (error) {
@@ -185,7 +206,13 @@ export function ImportWizard({ programs, recentImports }: ImportWizardProps) {
   };
 
   const handleImportStart = async () => {
-    if (!selectedProgram || !uploadedFile || !csvData) {
+    console.log('handleImportStart called with:', {
+      selectedProgram,
+      uploadedFile: uploadedFile?.name,
+      fullCsvDataLength: fullCsvData?.length
+    });
+    
+    if (!selectedProgram || !uploadedFile || !fullCsvData) {
       toast({
         title: 'Missing information',
         description: 'Please select a program and upload a CSV file.',
@@ -194,17 +221,122 @@ export function ImportWizard({ programs, recentImports }: ImportWizardProps) {
       return;
     }
 
-    // Fetch available machines first
+    // Use full CSV data for matching, not just preview
+    let dataForMatching = fullCsvData;
+
+    // Check if CSV has product data
+    const hasProductData = dataForMatching.some(row => {
+      const productValue = row.Products || 
+                          row.products || 
+                          row.Product || 
+                          row.product || 
+                          row.Item || 
+                          row.item || 
+                          row.Description || 
+                          row.description || 
+                          '';
+      return productValue && productValue.trim();
+    });
+
+    console.log('Product data check:', { hasProductData });
+
+    // Always check for existing orders to filter out, regardless of product data
     try {
-      const machinesResponse = await fetch(`/api/admin/machines?company=xtool`);
+      // Fetch existing order numbers for this program
+      const existingOrdersResponse = await fetch(`/api/admin/affiliate/sales?program_id=${selectedProgram}`);
+      if (existingOrdersResponse.ok) {
+        const existingData = await existingOrdersResponse.json();
+        const existingOrderNumbers = new Set(
+          existingData.sales?.map((s: any) => s.order_number) || []
+        );
+        
+        console.log('Existing orders check:', {
+          existingCount: existingOrderNumbers.size,
+          existingOrders: Array.from(existingOrderNumbers)
+        });
+        
+        // Filter out already imported orders
+        const beforeCount = dataForMatching.length;
+        dataForMatching = dataForMatching.filter(row => {
+          const orderNum = row['Order number'] || row['Order Number'] || '';
+          return !existingOrderNumbers.has(orderNum);
+        });
+        
+        const filteredCount = beforeCount - dataForMatching.length;
+        console.log('Filtering results:', {
+          beforeCount,
+          afterCount: dataForMatching.length,
+          filteredCount
+        });
+        
+        if (filteredCount > 0) {
+          toast({
+            title: 'Filtered existing orders',
+            description: `Removed ${filteredCount} previously imported orders from the list.`,
+          });
+        }
+        
+        // If all orders are already imported
+        if (dataForMatching.length === 0) {
+          toast({
+            title: 'All orders already imported',
+            description: 'All orders in this CSV have been previously imported.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check existing orders:', error);
+    }
+
+    // If no product data, create synthetic product identifiers from order data
+    if (!hasProductData) {
+      // Add synthetic product identifiers based on order number and amount
+      const modifiedCsvData = dataForMatching.map(row => {
+        const orderNum = row['Order number'] || row['Order Number'] || row['order_number'] || '';
+        const amount = row['Total sales'] || row['Total'] || row['Sub-total'] || '0';
+        const customer = row['Customer'] || row['customer'] || '';
+        
+        // Create a synthetic product identifier for matching
+        const syntheticProduct = orderNum ? 
+          `Order ${orderNum} - ${customer} - ${amount}` : 
+          `Unknown Order - ${amount}`;
+        
+        return {
+          ...row,
+          Products: syntheticProduct  // Add synthetic product for matching interface
+        };
+      });
+      
+      // Update the state with modified CSV data - show all rows
+      setCsvData(modifiedCsvData);
+      setFullCsvData(modifiedCsvData);
+    } else {
+      // If has product data, just update with filtered data
+      setCsvData(dataForMatching);
+      setFullCsvData(dataForMatching);
+    }
+
+    // Fetch available machines for matching
+    try {
+      const program = programs.find(p => p.id === selectedProgram);
+      const brandSlug = program?.brands?.Slug || 'xtool';
+      
+      console.log('Fetching machines for brand:', brandSlug);
+      const machinesResponse = await fetch(`/api/admin/machines?company=${brandSlug}`);
       if (machinesResponse.ok) {
         const machinesData = await machinesResponse.json();
+        console.log('Machines fetched:', machinesData.machines?.length || 0);
         setAvailableMachines(machinesData.machines || []);
+      } else {
+        console.error('Failed to fetch machines - response not ok');
       }
     } catch (error) {
       console.error('Failed to fetch machines:', error);
     }
 
+    console.log('Setting currentStep to matching');
     setCurrentStep('matching');
   };
 
@@ -263,14 +395,40 @@ export function ImportWizard({ programs, recentImports }: ImportWizardProps) {
 
       const result = await response.json();
       setImportResult(result);
-      setCurrentStep('complete');
-
-      toast({
-        title: result.test_mode ? 'Test import completed' : 'Import completed',
-        description: result.test_mode 
-          ? `Test run: Processed ${result.total_rows} rows with ${matches.size} machine matches.`
-          : `Processed ${result.total_rows} rows with ${matches.size} machine matches.`,
-      });
+      
+      // If we have selected rows (batch import), stay on matching page
+      // Otherwise go to complete page
+      if (selectedCsvRows && selectedCsvRows.length > 0) {
+        // Stay on matching page for batch imports
+        // Remove imported rows from fullCsvData to update the matching interface
+        const importedOrderNumbers = new Set(
+          selectedCsvRows.map(row => row['Order number'] || row['Order Number'] || '')
+        );
+        
+        const remainingData = fullCsvData?.filter(row => {
+          const orderNum = row['Order number'] || row['Order Number'] || '';
+          return !importedOrderNumbers.has(orderNum);
+        }) || [];
+        
+        // Update state with remaining data
+        setFullCsvData(remainingData);
+        setCsvData(remainingData);
+        
+        toast({
+          title: 'Batch imported successfully',
+          description: `Imported ${selectedCsvRows.length} orders. ${remainingData.length} orders remaining.`,
+        });
+        // Don't change step, stay on matching
+      } else {
+        // Full import - go to complete page
+        setCurrentStep('complete');
+        toast({
+          title: result.test_mode ? 'Test import completed' : 'Import completed',
+          description: result.test_mode 
+            ? `Test run: Processed ${result.total_rows} rows with ${matches.size} machine matches.`
+            : `Processed ${result.total_rows} rows with ${matches.size} machine matches.`,
+        });
+      }
     } catch (error) {
       console.error('Import error:', error);
       toast({
@@ -438,6 +596,7 @@ export function ImportWizard({ programs, recentImports }: ImportWizardProps) {
       {/* Machine Matching Step */}
       {currentStep === 'matching' && fullCsvData && (
         <MachineMatchingInterface
+          key="machine-matcher" // Add key to prevent remounting
           csvData={fullCsvData}
           availableMachines={availableMachines}
           onMatchingComplete={handleMatchingComplete}

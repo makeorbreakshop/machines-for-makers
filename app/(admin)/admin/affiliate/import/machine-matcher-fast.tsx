@@ -38,8 +38,14 @@ interface MachineMatcherProps {
   selectedProgram?: string;
 }
 
+interface MachineAssignment {
+  machine_id: string;
+  quantity: number;
+  unit_price?: number;
+}
+
 interface MatchState {
-  [productString: string]: string | null; // product -> machine_id or null
+  [productString: string]: MachineAssignment[]; // product -> array of machine assignments
 }
 
 // Fast row component with minimal re-renders
@@ -59,13 +65,13 @@ const FastTableRow = memo(function FastTableRow({
   product: string;
   productIndex: number;
   result: ProductMatchResult | undefined;
-  currentMatch: string | null;
+  currentMatch: MachineAssignment[] | null;
   isMatched: boolean;
   topSuggestion: any;
   isSelected: boolean;
   availableMachines: any[];
   onCheckboxClick: (index: number, isShift: boolean) => void;
-  handleManualMatch: (product: string, machineId: string | null) => void;
+  handleManualMatch: (product: string, assignments: MachineAssignment[]) => void;
   handleAcceptSuggestion: (product: string, machineId: string) => void;
 }) {
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -105,8 +111,19 @@ const FastTableRow = memo(function FastTableRow({
         />
       </TableCell>
       <TableCell className="min-w-[300px]">
-        <div className="break-words" title={product}>
-          {product}
+        <div className="space-y-1">
+          <div className="break-words font-medium" title={product}>
+            {product.startsWith('Order #') ? (
+              <>
+                <div className="text-sm">{product.split(' - ')[0]}</div>
+                <div className="text-xs text-muted-foreground">
+                  {product.split(' - ').slice(1).join(' - ')}
+                </div>
+              </>
+            ) : (
+              product
+            )}
+          </div>
         </div>
       </TableCell>
       <TableCell>
@@ -134,22 +151,57 @@ const FastTableRow = memo(function FastTableRow({
         )}
       </TableCell>
       <TableCell>
-        <Select
-          value={currentMatch || '__none__'}
-          onValueChange={(value) => handleManualMatch(product, value === '__none__' ? null : value)}
-        >
-          <SelectTrigger className="w-full min-w-[180px]">
-            <SelectValue placeholder="Select machine" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">None</SelectItem>
-            {availableMachines.map((machine) => (
-              <SelectItem key={machine.id} value={machine.id}>
-                {machine['Machine Name']}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="space-y-2">
+          {/* Display current assignments */}
+          {currentMatch && currentMatch.length > 0 ? (
+            currentMatch.map((assignment, idx) => {
+              const machine = availableMachines.find(m => m.id === assignment.machine_id);
+              return (
+                <div key={idx} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1">{machine?.['Machine Name'] || 'Unknown'}</span>
+                  <span className="text-muted-foreground">x{assignment.quantity}</span>
+                  <button
+                    onClick={() => {
+                      const newAssignments = currentMatch.filter((_, i) => i !== idx);
+                      handleManualMatch(product, newAssignments);
+                    }}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            <span className="text-muted-foreground text-sm">No machines assigned</span>
+          )}
+          
+          {/* Add new machine button */}
+          <Select
+            value=""
+            onValueChange={(machineId) => {
+              if (machineId) {
+                const newAssignment: MachineAssignment = {
+                  machine_id: machineId,
+                  quantity: 1
+                };
+                const currentAssignments = currentMatch || [];
+                handleManualMatch(product, [...currentAssignments, newAssignment]);
+              }
+            }}
+          >
+            <SelectTrigger className="w-full h-8 text-sm">
+              <SelectValue placeholder="+ Add machine" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableMachines.map((machine) => (
+                <SelectItem key={machine.id} value={machine.id}>
+                  {machine['Machine Name']}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </TableCell>
       <TableCell>
         {isMatched ? (
@@ -227,10 +279,13 @@ export function MachineMatchingInterface({
 
     results.forEach((result, product) => {
       if (result.exact_match) {
-        initialState[product] = result.exact_match.machine_id;
+        initialState[product] = [{
+          machine_id: result.exact_match.machine_id,
+          quantity: 1
+        }];
         autoMatched++;
       } else {
-        initialState[product] = null;
+        initialState[product] = [];
       }
 
       if (result.suggested_matches.length > 0 && result.suggested_matches[0].confidence_score > 0.7) {
@@ -249,10 +304,10 @@ export function MachineMatchingInterface({
     setIsProcessing(false);
   };
 
-  const handleManualMatch = useCallback((product: string, machineId: string | null) => {
+  const handleManualMatch = useCallback((product: string, assignments: MachineAssignment[]) => {
     setMatchState(prev => {
-      const wasMatched = prev[product] !== null;
-      const isMatched = machineId !== null;
+      const wasMatched = prev[product] && prev[product].length > 0;
+      const isMatched = assignments && assignments.length > 0;
       
       // Update stats
       if (!wasMatched && isMatched) {
@@ -271,13 +326,17 @@ export function MachineMatchingInterface({
       
       return {
         ...prev,
-        [product]: machineId
+        [product]: assignments
       };
     });
   }, []);
 
   const handleAcceptSuggestion = useCallback((product: string, machineId: string) => {
-    handleManualMatch(product, machineId);
+    const newAssignment: MachineAssignment = {
+      machine_id: machineId,
+      quantity: 1
+    };
+    handleManualMatch(product, [newAssignment]);
   }, [handleManualMatch]);
 
   const handleConfirmAll = () => {
@@ -286,10 +345,13 @@ export function MachineMatchingInterface({
     let newMatches = 0;
 
     matchResults.forEach((result, product) => {
-      if (!newState[product] && result.suggested_matches.length > 0) {
+      if ((!newState[product] || newState[product].length === 0) && result.suggested_matches.length > 0) {
         const topMatch = result.suggested_matches[0];
         if (topMatch.confidence_score > 0.7) {
-          newState[product] = topMatch.machine_id;
+          newState[product] = [{
+            machine_id: topMatch.machine_id,
+            quantity: 1
+          }];
           newMatches++;
         }
       }
@@ -304,13 +366,18 @@ export function MachineMatchingInterface({
   };
 
   // Get all products in their original order
-  const allProducts = useMemo(() => Array.from(matchResults.keys()), [matchResults]);
+  const allProducts = useMemo(() => {
+    const products = Array.from(matchResults.keys());
+    console.log('All products from matchResults:', products.length);
+    return products;
+  }, [matchResults]);
   
   // Filter out imported products
-  const visibleProducts = useMemo(() => 
-    allProducts.filter(p => !importedProducts.has(p)), 
-    [allProducts, importedProducts]
-  );
+  const visibleProducts = useMemo(() => {
+    const visible = allProducts.filter(p => !importedProducts.has(p));
+    console.log('Visible products after filtering:', visible.length, 'Imported:', importedProducts.size);
+    return visible;
+  }, [allProducts, importedProducts]);
 
   // Fast checkbox click handler
   const handleCheckboxClick = useCallback((index: number, isShift: boolean) => {
@@ -363,13 +430,18 @@ export function MachineMatchingInterface({
     // Build matches for selected rows
     const selectedMatches = new Map<string, string>();
     selectedRows.forEach(product => {
-      const machineId = matchState[product];
-      if (machineId) {
-        selectedMatches.set(product, machineId);
+      const assignments = matchState[product];
+      if (assignments && assignments.length > 0) {
+        // For now, just use the first machine assignment
+        // TODO: Update the import process to handle multiple machines
+        selectedMatches.set(product, assignments[0].machine_id);
       }
     });
 
-    // Mark products as imported and remove from view
+    // Pass the selected CSV rows along with matches - this will do the import
+    await onMatchingComplete(selectedMatches, selectedCsvRows);
+    
+    // After successful import, mark products as imported locally
     const newImported = new Set(importedProducts);
     selectedRows.forEach(product => newImported.add(product));
     setImportedProducts(newImported);
@@ -378,14 +450,12 @@ export function MachineMatchingInterface({
     setSelectedRows(new Set());
     setLastSelectedIndex(-1);
     
-    // Update stats
+    // Update stats to reflect removed items
     setStats(prev => ({
       ...prev,
-      total: prev.total - selectedRows.size
+      total: prev.total - selectedRows.size,
+      matched: Math.max(0, prev.matched - selectedRows.size)
     }));
-
-    // Pass the selected CSV rows along with matches
-    onMatchingComplete(selectedMatches, selectedCsvRows);
   };
 
   // Test import functionality removed - all imports now process full dataset
@@ -495,9 +565,11 @@ export function MachineMatchingInterface({
             </Button>
             <Button onClick={() => {
               const finalMatches = new Map<string, string>();
-              Object.entries(matchState).forEach(([product, machineId]) => {
-                if (machineId) {
-                  finalMatches.set(product, machineId);
+              Object.entries(matchState).forEach(([product, assignments]) => {
+                if (assignments && assignments.length > 0) {
+                  // For now, just use the first machine assignment
+                  // TODO: Update the import process to handle multiple machines
+                  finalMatches.set(product, assignments[0].machine_id);
                 }
               });
               // Pass all remaining visible CSV rows
@@ -531,7 +603,7 @@ export function MachineMatchingInterface({
                       checked={selectedRows.size > 0 && selectedRows.size === visibleProducts.length}
                     />
                   </TableHead>
-                  <TableHead className="w-1/3 min-w-[300px]">Product from CSV</TableHead>
+                  <TableHead className="w-1/3 min-w-[300px]">Order / Product Info</TableHead>
                   <TableHead className="w-1/4 min-w-[200px]">Suggested Match</TableHead>
                   <TableHead className="w-[100px]">Confidence</TableHead>
                   <TableHead className="w-[80px]">Price</TableHead>
@@ -543,7 +615,7 @@ export function MachineMatchingInterface({
                 {visibleProducts.map((product, index) => {
                   const result = matchResults.get(product);
                   const currentMatch = matchState[product];
-                  const isMatched = currentMatch !== null;
+                  const isMatched = currentMatch && currentMatch.length > 0;
                   const topSuggestion = result?.suggested_matches[0];
                   const isSelected = selectedRows.has(product);
 

@@ -66,6 +66,7 @@ export function VideoLibrary({ videos, stats }: VideoLibraryProps) {
   const [selectedMachines, setSelectedMachines] = useState<{ [key: string]: string[] }>({});
   const [savingVideo, setSavingVideo] = useState<string | null>(null);
   const [searchTerms, setSearchTerms] = useState<{ [key: string]: string }>({});
+  const [localVideos, setLocalVideos] = useState(videos);
 
   // Fetch all machines on component mount
   useEffect(() => {
@@ -86,13 +87,13 @@ export function VideoLibrary({ videos, stats }: VideoLibraryProps) {
   // Initialize selected machines from existing data
   useEffect(() => {
     const initialSelections: { [key: string]: string[] } = {};
-    videos.forEach(video => {
+    localVideos.forEach(video => {
       if (video.machine_videos && video.machine_videos.length > 0) {
         initialSelections[video.id] = video.machine_videos.map((mv: any) => mv.machine_id || mv.machines?.id);
       }
     });
     setSelectedMachines(initialSelections);
-  }, [videos]);
+  }, [localVideos]);
 
   const handleSaveMachines = async (videoId: string) => {
     setSavingVideo(videoId);
@@ -111,13 +112,37 @@ export function VideoLibrary({ videos, stats }: VideoLibraryProps) {
       const data = await response.json();
       
       if (response.ok) {
+        // Update local state with the new machine associations
+        const updatedVideos = localVideos.map(video => {
+          if (video.id === videoId) {
+            // Create machine_videos array with the selected machines
+            const updatedMachineVideos = machineIds.map(machineId => {
+              const machine = allMachines.find(m => m.id === machineId);
+              return {
+                machine_id: machineId,
+                machines: {
+                  id: machineId,
+                  "Machine Name": machine?.["Machine Name"] || 'Unknown',
+                  Company: machine?.Company || 'Unknown'
+                }
+              };
+            });
+            
+            return {
+              ...video,
+              machine_videos: updatedMachineVideos
+            };
+          }
+          return video;
+        });
+        
+        setLocalVideos(updatedVideos);
+        
         toast({
           title: 'Machines Updated',
           description: `Successfully updated machine associations`,
         });
         setOpenPopoverId(null);
-        // Refresh the page to show updated data
-        window.location.reload();
       } else {
         throw new Error(data.error || 'Failed to update machines');
       }
@@ -218,7 +243,7 @@ export function VideoLibrary({ videos, stats }: VideoLibraryProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          {videos.length > 0 ? (
+          {localVideos.length > 0 ? (
             <div className="overflow-x-auto">
               <Table className="w-full max-w-[1600px] mx-auto">
                 <TableHeader>
@@ -235,7 +260,7 @@ export function VideoLibrary({ videos, stats }: VideoLibraryProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {videos.map((video) => (
+                {localVideos.map((video) => (
                   <TableRow key={video.id} className="hover:bg-muted/50 transition-colors">
                     <TableCell className="py-2 px-3">
                       {video.thumbnail_url && (

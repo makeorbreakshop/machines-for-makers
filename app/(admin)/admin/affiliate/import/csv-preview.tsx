@@ -81,7 +81,7 @@ export function CSVPreview({ data, filename, onNext, onBack }: CSVPreviewProps) 
             <span>{filename}</span>
           </CardTitle>
           <CardDescription>
-            Preview of the first 5 rows from your CSV file
+            Preview of your CSV file data
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -183,9 +183,9 @@ export function CSVPreview({ data, filename, onNext, onBack }: CSVPreviewProps) 
             </Table>
           </div>
 
-          {data.length >= 5 && (
+          {data.length > 0 && (
             <div className="text-sm text-gray-500 text-center">
-              Showing first 5 rows. Full import will process all rows in the file.
+              Showing all {data.length} rows from the CSV file.
             </div>
           )}
         </CardContent>
